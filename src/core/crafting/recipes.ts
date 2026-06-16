@@ -19,11 +19,36 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 
 export const RECIPES: Recipe[] = [
   { type: 'shapeless', ingredients: ['oak_log'], result: { item: 'oak_planks', count: 4 } },
-  { type: 'shaped', pattern: ['#', '#'], key: { '#': 'oak_planks' }, result: { item: 'stick', count: 4 } },
-  { type: 'shaped', pattern: ['##', '##'], key: { '#': 'oak_planks' }, result: { item: 'crafting_table', count: 1 } },
-  { type: 'shaped', pattern: ['###', '# #', '###'], key: { '#': 'oak_planks' }, result: { item: 'chest', count: 1 } },
-  { type: 'shaped', pattern: ['###', '# #', '###'], key: { '#': 'cobblestone' }, result: { item: 'furnace', count: 1 } },
-  { type: 'shaped', pattern: ['C', 'S'], key: { C: 'coal', S: 'stick' }, result: { item: 'torch', count: 4 } },
+  {
+    type: 'shaped',
+    pattern: ['#', '#'],
+    key: { '#': 'oak_planks' },
+    result: { item: 'stick', count: 4 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['##', '##'],
+    key: { '#': 'oak_planks' },
+    result: { item: 'crafting_table', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['###', '# #', '###'],
+    key: { '#': 'oak_planks' },
+    result: { item: 'chest', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['###', '# #', '###'],
+    key: { '#': 'cobblestone' },
+    result: { item: 'furnace', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['C', 'S'],
+    key: { C: 'coal', S: 'stick' },
+    result: { item: 'torch', count: 4 },
+  },
   toolRecipe(PICKAXE, 'oak_planks', 'wooden_pickaxe'),
   toolRecipe(AXE, 'oak_planks', 'wooden_axe'),
   toolRecipe(SHOVEL, 'oak_planks', 'wooden_shovel'),

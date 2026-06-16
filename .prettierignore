@@ -1,0 +1,6 @@
+node_modules
+dist
+package-lock.json
+public/textures
+# Markdown 由人手写（含中文+嵌套代码/粗体），Prettier 会破坏排版，故不格式化
+*.md

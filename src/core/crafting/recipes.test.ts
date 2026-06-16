@@ -19,9 +19,7 @@ describe('recipe data', () => {
   });
 
   it('produces 4 planks from one log (shapeless)', () => {
-    const planks = RECIPES.find(
-      (r) => r.type === 'shapeless' && r.result.item === 'oak_planks',
-    );
+    const planks = RECIPES.find((r) => r.type === 'shapeless' && r.result.item === 'oak_planks');
     expect(planks?.result.count).toBe(4);
   });
 });
