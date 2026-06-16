@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CraftGrid } from './types';
-import { findRecipe, getCraftingResult } from './match';
+import { findRecipe, getCraftingResult, consume } from './match';
 
 function stack(item: string, count = 1) {
   return { item, count };
@@ -62,5 +62,43 @@ describe('shaped matching', () => {
       [S(), null],
     ];
     expect(getCraftingResult(grid)).toEqual({ item: 'wooden_axe', count: 1 });
+  });
+});
+
+describe('consume', () => {
+  it('decrements every non-empty cell by 1; cells reaching 0 become null', () => {
+    const grid: CraftGrid = [
+      [stack('oak_planks', 1), stack('oak_planks', 3)],
+      [null, null],
+    ];
+    expect(consume(grid)).toEqual([
+      [null, { item: 'oak_planks', count: 2 }],
+      [null, null],
+    ]);
+  });
+
+  it('does not mutate the input grid', () => {
+    const grid: CraftGrid = [[stack('oak_planks', 2)]];
+    consume(grid);
+    expect(grid[0][0]).toEqual({ item: 'oak_planks', count: 2 });
+  });
+});
+
+describe('negative & material cases', () => {
+  it('unknown combination -> null', () => {
+    const grid: CraftGrid = [
+      [stack('oak_planks'), stack('coal')],
+      [null, null],
+    ];
+    expect(findRecipe(grid)).toBeNull();
+  });
+
+  it('same shape, different material -> stone variant', () => {
+    const grid: CraftGrid = [
+      [stack('cobblestone'), stack('cobblestone'), stack('cobblestone')],
+      [null, stack('stick'), null],
+      [null, stack('stick'), null],
+    ];
+    expect(getCraftingResult(grid)).toEqual({ item: 'stone_pickaxe', count: 1 });
   });
 });

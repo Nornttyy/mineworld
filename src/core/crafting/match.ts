@@ -107,3 +107,13 @@ export function getCraftingResult(grid: CraftGrid): ItemStack | null {
   const recipe = findRecipe(grid);
   return recipe ? { item: recipe.result.item, count: recipe.result.count } : null;
 }
+
+export function consume(grid: CraftGrid): CraftGrid {
+  return grid.map((row) =>
+    row.map((stack) => {
+      if (!stack || stack.count < 1) return null;
+      const count = stack.count - 1;
+      return count >= 1 ? { item: stack.item, count } : null;
+    }),
+  );
+}
