@@ -1,21 +1,21 @@
-import * as THREE from 'three';
 import { Renderer } from './render/Renderer';
+import { demoChunk } from './core/world/demoChunk';
+import { meshSection } from './core/mesh/mesher';
+import { loadAtlas } from './render/atlas';
+import { buildChunkMesh } from './render/ChunkRenderer';
 
-// Task 1：先渲染一个测试立方体，验证 Vite + Three 管线能跑通。
+// Task 6：渲染写死地形（demoChunk → 网格化 → BufferGeometry）。
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshBasicMaterial({ color: 0x88aa55 }),
-);
-renderer.scene.add(cube);
-renderer.camera.position.set(2, 2, 3);
-renderer.camera.lookAt(0, 0, 0);
+renderer.scene.add(buildChunkMesh(meshSection(demoChunk()), loadAtlas()));
+
+// 相机放到地形一角俯视，先静态看效果（移动在 Task 8 接入）。
+renderer.camera.position.set(26, 20, 26);
+renderer.camera.lookAt(8, 8, 8);
 
 function loop(): void {
   requestAnimationFrame(loop);
-  cube.rotation.y += 0.01;
   renderer.render();
 }
 loop();
