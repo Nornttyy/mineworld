@@ -6,11 +6,8 @@ export class PointerLookControls {
   yaw = 0;
   pitch = 0;
 
-  constructor(canvas: HTMLCanvasElement, overlay: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement) {
     canvas.addEventListener('click', () => void canvas.requestPointerLock());
-    document.addEventListener('pointerlockchange', () => {
-      overlay.classList.toggle('hidden', document.pointerLockElement === canvas);
-    });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
       this.yaw += e.movementX * SENSITIVITY;

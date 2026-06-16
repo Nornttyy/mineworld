@@ -25,7 +25,7 @@ export class Game {
   private last = 0;
   private acc = 0;
 
-  constructor(canvas: HTMLCanvasElement, overlay: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
     const sec = demoChunk();
     this.renderer.scene.add(buildChunkMesh(meshSection(sec), loadAtlas()));
@@ -34,7 +34,7 @@ export class Game {
       isSolid: (x, y, z) =>
         x >= 0 && x < 16 && y >= 0 && y < 16 && z >= 0 && z < 16 && isSolidId(sec.get(x, y, z)),
     };
-    this.look = new PointerLookControls(canvas, overlay);
+    this.look = new PointerLookControls(canvas);
     this.look.yaw = 0.8; // 初始朝地形中心
     this.look.pitch = -0.3;
   }

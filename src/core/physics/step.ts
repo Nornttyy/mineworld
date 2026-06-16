@@ -57,8 +57,8 @@ function resolveAxis(p: Vec3, axis: Axis, delta: number, world: VoxelWorld): boo
 function wishDir(intent: MoveIntent): { x: number; z: number } {
   const c = Math.cos(intent.yaw);
   const s = Math.sin(intent.yaw);
-  let x = intent.forward * c + intent.right * s;
-  let z = intent.forward * s - intent.right * c;
+  let x = intent.forward * c - intent.right * s;
+  let z = intent.forward * s + intent.right * c;
   const len = Math.hypot(x, z);
   if (len > 1e-9) {
     x /= len;
