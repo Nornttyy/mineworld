@@ -14,7 +14,10 @@ export class PointerLookControls {
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
       this.yaw += e.movementX * SENSITIVITY;
-      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - e.movementY * SENSITIVITY));
+      this.pitch = Math.max(
+        -PITCH_LIMIT,
+        Math.min(PITCH_LIMIT, this.pitch - e.movementY * SENSITIVITY),
+      );
     });
   }
 }
