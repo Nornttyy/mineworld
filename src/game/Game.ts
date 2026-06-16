@@ -1,6 +1,6 @@
 import { Renderer } from '../render/Renderer';
-import { demoChunk } from '../core/world/demoChunk';
-import { meshSection } from '../core/mesh/mesher';
+import { generateTerrain, surfaceHeight } from '../core/worldgen/terrain';
+import { meshWorld } from '../core/mesh/mesher';
 import { isSolidId } from '../core/blocks/registry';
 import { loadAtlas } from '../render/atlas';
 import { buildChunkMesh } from '../render/ChunkRenderer';
@@ -10,33 +10,39 @@ import { readMove } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 
 const TICK_MS = 50; // 20 TPS 固定步长
+const SIZE = 64; // 地形边长
 
 /** 装配各层 + 固定步长模拟 + 可变帧率渲染（插值平滑相机）。 */
 export class Game {
   private readonly renderer: Renderer;
   private readonly look: PointerLookControls;
   private readonly world: VoxelWorld;
-  private player: Player = {
-    pos: { x: 2.5, y: 9, z: 2.5 },
-    vel: { x: 0, y: 0, z: 0 },
-    onGround: false,
-  };
-  private prev: Player = this.player;
+  private player: Player;
+  private prev: Player;
   private last = 0;
   private acc = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
-    const sec = demoChunk();
-    this.renderer.scene.add(buildChunkMesh(meshSection(sec), loadAtlas()));
-    // 单区块世界：区块外视为空气（可走到边缘掉下去）。
-    this.world = {
-      isSolid: (x, y, z) =>
-        x >= 0 && x < 16 && y >= 0 && y < 16 && z >= 0 && z < 16 && isSolidId(sec.get(x, y, z)),
+
+    const terrain = generateTerrain({ sizeX: SIZE, sizeZ: SIZE, seed: 1337 });
+    this.renderer.scene.add(buildChunkMesh(meshWorld(terrain), loadAtlas()));
+    this.world = { isSolid: (x, y, z) => isSolidId(terrain.get(x, y, z)) };
+
+    // 在地形中心的地表出生
+    const cx = SIZE >> 1;
+    const cz = SIZE >> 1;
+    const groundY = surfaceHeight(terrain, cx, cz) + 1;
+    this.player = {
+      pos: { x: cx + 0.5, y: groundY, z: cz + 0.5 },
+      vel: { x: 0, y: 0, z: 0 },
+      onGround: false,
     };
+    this.prev = this.player;
+
     this.look = new PointerLookControls(canvas);
-    this.look.yaw = 0.8; // 初始朝地形中心
-    this.look.pitch = -0.3;
+    this.look.yaw = 0.6;
+    this.look.pitch = -0.15;
   }
 
   start(): void {

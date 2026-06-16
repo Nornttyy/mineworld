@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makeSkyTexture, HORIZON_COLOR } from './sky';
 
 /** 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。 */
 export class Renderer {
@@ -9,7 +10,8 @@ export class Renderer {
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.scene.background = new THREE.Color(0x87ceeb); // 天蓝
+    this.scene.background = makeSkyTexture(); // 渐变天空
+    this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.resize();
     window.addEventListener('resize', () => this.resize());
