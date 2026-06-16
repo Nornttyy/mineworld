@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MINEWORLD</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #87ceeb;
+      }
+      #app {
+        display: block;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font: 600 24px sans-serif;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+        user-select: none;
+      }
+      #overlay.hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="app"></canvas>
+    <div id="overlay">点击开始 · WASD 移动 · 鼠标看 · 空格跳</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
