@@ -249,6 +249,16 @@ def main():
         tex[name] = im
         print(f"wrote {name}.png")
 
+    # Pack block tiles into one atlas (4x4 grid, 16px each) for single-material rendering.
+    # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
+    ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
+                   'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore']
+    atlas = Image.new('RGB', (S * 4, S * 4))
+    for i, nm in enumerate(ATLAS_ORDER):
+        atlas.paste(tex[nm], ((i % 4) * S, (i // 4) * S))
+    atlas.save(os.path.join(OUT, '..', 'atlas.png'))
+    print(f'wrote atlas.png ({S * 4}x{S * 4}, {len(ATLAS_ORDER)} tiles)')
+
     # Build a labelled 3x3-tiled preview so seams/quality are easy to judge.
     cols, scale, tilepx, lbl = 5, 8, None, 16
     cell = S * 3 * scale  # 384px per cell? too big -> use smaller scale below
