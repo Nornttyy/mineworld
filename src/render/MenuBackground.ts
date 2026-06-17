@@ -69,9 +69,9 @@ export class MenuBackground {
     const loop = (): void => {
       if (!this.running) return;
       requestAnimationFrame(loop);
-      this.heading += 0.0006; // 缓慢转向
-      this.x += Math.cos(this.heading) * 0.07; // 缓慢前飞
-      this.z += Math.sin(this.heading) * 0.07;
+      this.heading += 0.00022; // 缓慢转向
+      this.x += Math.cos(this.heading) * 0.022; // 缓缓前飞
+      this.z += Math.sin(this.heading) * 0.022;
       this.camera.position.set(this.x, this.y, this.z);
       this.camera.lookAt(
         this.x + Math.cos(this.heading) * 26,
