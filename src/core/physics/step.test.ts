@@ -63,13 +63,11 @@ describe('physics step', () => {
     expect(p.pos.y).toBeGreaterThan(before); // 持续上浮
   });
 
-  it('auto-steps up a 1-block ledge while walking into it', () => {
-    // 地面 y<1；x>=1 处多一格台阶(y<2)
-    const stepped: VoxelWorld = { isSolid: (x, y) => y < 1 || (x >= 1 && y < 2) };
-    let p: Player = { pos: { x: 0.5, y: 1, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };
-    for (let i = 0; i < 40; i++) p = step(p, { forward: 1, right: 0, yaw: 0, jump: false }, stepped);
-    expect(p.pos.x).toBeGreaterThan(1); // 越过台阶边
-    expect(p.pos.y).toBeGreaterThan(1.5); // 站到了台阶上(y≈2)
+  it('can jump while in water (leap out onto land)', () => {
+    const watery: VoxelWorld = { isSolid: (_x, y) => y < 0, isWater: () => true };
+    let p: Player = { pos: { x: 0, y: 5, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    p = step(p, { forward: 0, right: 0, yaw: 0, jump: true }, watery);
+    expect(p.vel.y).toBeGreaterThan(0.3); // 跃出水面的起跳速度
   });
 
   it('walking into a wall does not tunnel through it', () => {

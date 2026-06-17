@@ -13,7 +13,6 @@ import {
 } from './player';
 
 const HW = WIDTH / 2;
-const STEP_HEIGHT = 1.05; // 自动迈上 ≤1 格高的坎
 type Axis = 'x' | 'y' | 'z';
 
 // 玩家 AABB 是否与任一实心体素重叠
@@ -55,43 +54,6 @@ function resolveAxis(p: Vec3, axis: Axis, delta: number, world: VoxelWorld): boo
   return false;
 }
 
-// 水平移动；若被挡且允许，尝试自动迈上一格台阶（贴 ≤1 格坎自动上去）。
-function moveHorizontal(
-  pos: Vec3,
-  vx: number,
-  vz: number,
-  world: VoxelWorld,
-  allowStep: boolean,
-): void {
-  const sx = pos.x;
-  const sy = pos.y;
-  const sz = pos.z;
-  const hitX = resolveAxis(pos, 'x', vx, world);
-  const hitZ = resolveAxis(pos, 'z', vz, world);
-  if (!allowStep || (!hitX && !hitZ)) return;
-
-  const slidX = pos.x;
-  const slidZ = pos.z;
-  const slideDist = (slidX - sx) ** 2 + (slidZ - sz) ** 2;
-
-  // 抬高一格 → 重新水平 → 落回台阶面
-  pos.x = sx;
-  pos.y = sy;
-  pos.z = sz;
-  resolveAxis(pos, 'y', STEP_HEIGHT, world);
-  resolveAxis(pos, 'x', vx, world);
-  resolveAxis(pos, 'z', vz, world);
-  resolveAxis(pos, 'y', -STEP_HEIGHT, world);
-
-  const stepDist = (pos.x - sx) ** 2 + (pos.z - sz) ** 2;
-  if (stepDist <= slideDist + 1e-6) {
-    // 没比普通滑动走得更远 → 放弃台阶，回到普通结果
-    pos.x = slidX;
-    pos.y = sy;
-    pos.z = slidZ;
-  }
-}
-
 // 由意图与朝向求水平单位方向（yaw=0 时 forward=+X）
 function wishDir(intent: MoveIntent): { x: number; z: number } {
   const c = Math.cos(intent.yaw);
@@ -125,7 +87,11 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const inWater =
     world.isWater?.(Math.floor(pos.x), Math.floor(pos.y + 0.9), Math.floor(pos.z)) ?? false;
 
-  if (!inWater && grounded && intent.jump) vel.y = JUMP; // 陆上起跳
+  let jumped = false;
+  if (intent.jump && (grounded || inWater)) {
+    vel.y = JUMP; // 陆上起跳 / 跃出水面（按空格跳上岸）
+    jumped = true;
+  }
 
   const wish = wishDir(intent);
   const groundSpeed = intent.sprint ? SPRINT_PER_TICK : WALK_PER_TICK; // 疾跑更快
@@ -133,13 +99,17 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   vel.x = wish.x * speed;
   vel.z = wish.z * speed;
 
-  // 先 Y 扫掠（撞到则归零），再水平移动（带自动上台阶）
+  // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
   if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
-  moveHorizontal(pos, vel.x, vel.z, world, grounded || inWater);
+  if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
+  if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
 
   const onGround = isOnGround(pos, world);
-  if (inWater) {
-    // 水中：缓沉 + 阻尼，按住空格有力上浮（足以游出水面、爬上岸）
+  if (jumped) {
+    // 起跳/跃出水面：当作起跳处理，重力照常（不被水阻尼），跳够高上岸
+    vel.y = (vel.y - GRAVITY) * VDRAG;
+  } else if (inWater) {
+    // 水中：缓沉 + 阻尼，按住空格上浮（游泳）
     vel.y = vel.y * 0.5 - 0.02;
     if (intent.swimUp) vel.y = 0.16;
     if (vel.y < -0.15) vel.y = -0.15; // 限制下沉速度
