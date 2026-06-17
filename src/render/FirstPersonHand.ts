@@ -90,7 +90,8 @@ export class FirstPersonHand {
       this.item.geometry.dispose();
       this.item = null;
     }
-    if (id !== null && id > 0) {
+    // 只对方块显示手持立方体；物品/工具(id>=256)暂只露手臂
+    if (id !== null && id > 0 && BLOCKS[id]) {
       this.item = new THREE.Mesh(
         blockCube(id, 0.32),
         new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true }),

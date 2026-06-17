@@ -31,8 +31,16 @@ export interface BlockDef {
   transparent: boolean;
   faces: [number, number, number, number, number, number]; // +X,-X,+Y,-Y,+Z,-Z 的 tile 索引
   hardness: number; // MC Java 硬度（秒基准）；0=瞬破，越大越慢
-  drop: number | null; // 用对工具挖掉后掉落的方块 id；null=不掉落
+  drop: number | null; // 用对工具挖掉后掉落的方块/物品 id；null=不掉落
   needsTool: boolean; // 是否需要工具(镐)才能采集：手挖会 ×5 耗时且不掉落（石/圆石/矿）
+  tool: 'pickaxe' | 'axe' | 'shovel' | null; // 对口工具：用它挖更快(且 needsTool 时才掉落)
+}
+
+// 工具描述（由 items.ts 提供，这里只读其结构，避免反向依赖）
+export interface HeldTool {
+  kind: 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
+  tier: number;
+  speed: number;
 }
 
 const all = (t: number): BlockDef['faces'] => [t, t, t, t, t, t];
@@ -48,10 +56,11 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
 
 // 硬度/掉落取自 MC Java 真实值。手挖耗时 = 硬度 ×(needsTool?5:1.5) 秒（见 breakTimeMs）。
 // needsTool(石/圆石/矿)：手挖 ×5 且不掉落（要镐）。草→土、草方块/树叶手挖不掉(需精准采集/剪刀)。
+const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
 export const BLOCKS: BlockDef[] = [
-  { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false },
-  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true },
-  { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false },
+  { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
+  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true, tool: 'pickaxe' },
+  { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
   {
     id: 3,
     name: 'grass',
@@ -61,6 +70,7 @@ export const BLOCKS: BlockDef[] = [
     hardness: 0.6,
     drop: 2, // 草方块掉土
     needsTool: false,
+    tool: 'shovel',
   },
   {
     id: 4,
@@ -71,8 +81,9 @@ export const BLOCKS: BlockDef[] = [
     hardness: 2.0,
     drop: 4,
     needsTool: true,
+    tool: 'pickaxe',
   },
-  { id: 5, name: 'sand', solid: true, transparent: false, faces: all(T.sand), hardness: 0.5, drop: 5, needsTool: false },
+  { id: 5, name: 'sand', solid: true, transparent: false, faces: all(T.sand), hardness: 0.5, drop: 5, needsTool: false, tool: 'shovel' },
   {
     id: 6,
     name: 'oak_log',
@@ -82,6 +93,7 @@ export const BLOCKS: BlockDef[] = [
     hardness: 2.0,
     drop: 6,
     needsTool: false, // 木头手挖即可采集(斧只是更快)
+    tool: 'axe',
   },
   {
     id: 7,
@@ -92,6 +104,7 @@ export const BLOCKS: BlockDef[] = [
     hardness: 2.0,
     drop: 7,
     needsTool: false,
+    tool: 'axe',
   },
   {
     id: 8,
@@ -100,11 +113,12 @@ export const BLOCKS: BlockDef[] = [
     transparent: false,
     faces: all(T.coal_ore),
     hardness: 3.0,
-    drop: 8,
+    drop: COAL_ITEM, // 用镐挖 → 掉煤(物品)
     needsTool: true,
+    tool: 'pickaxe',
   },
   // 水：非实心（可进入）、半透明（渲染单独成批）；不可破坏
-  { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water), hardness: 0, drop: null, needsTool: false },
+  { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water), hardness: 0, drop: null, needsTool: false, tool: null },
   // 树叶：实心(可站)但非不透明(能透看)，渲染走镂空；手挖很快但不掉落
   {
     id: 10,
@@ -115,12 +129,28 @@ export const BLOCKS: BlockDef[] = [
     hardness: 0.2,
     drop: null,
     needsTool: false,
+    tool: null,
+  },
+  // 工作台：木质，斧更快；右键打开 3×3 合成（游戏层处理）。复用木板/原木顶贴图。
+  {
+    id: 11,
+    name: 'crafting_table',
+    solid: true,
+    transparent: false,
+    faces: column(T.oak_planks, T.oak_log_top, T.oak_planks),
+    hardness: 2.5,
+    drop: 11,
+    needsTool: false,
+    tool: 'axe',
   },
 ];
 
 export const WATER = 9;
 export const OAK_LEAVES = 10;
 export const OAK_LOG = 6;
+export const OAK_PLANKS = 7;
+export const COBBLESTONE = 4;
+export const CRAFTING_TABLE = 11;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
@@ -134,14 +164,29 @@ export const blockFaceTile = (id: number, face: Face): number => BLOCKS[id].face
 
 export const blockHardness = (id: number): number => BLOCKS[id]?.hardness ?? 0;
 export const blockNeedsTool = (id: number): boolean => BLOCKS[id]?.needsTool ?? false;
-// 徒手破坏耗时(ms)，1:1 MC Java。按整 tick 计（1 tick=50ms，避免浮点误差）：
-// 每点硬度 = 30 tick(能手采) 或 100 tick(需工具)，向上取整。等价于 硬度×1.5s 或 硬度×5s。
-// 例：土 0.75s、草 0.9s、原木/木板 3s、树叶 0.3s、石 7.5s、圆石 10s、煤矿 15s。
-export const breakTimeMs = (id: number): number => {
+
+// 工具是否与某方块"对口"（用它挖更快；needsTool 时也靠它才能采集）
+function toolMatches(id: number, tool: HeldTool | null): tool is HeldTool {
+  const bt = BLOCKS[id]?.tool ?? null;
+  return tool !== null && bt !== null && tool.kind === bt;
+}
+// 能否采集(挖掉有掉落)：不需工具的随便挖；需工具的必须用对口工具。
+export const canHarvest = (id: number, tool: HeldTool | null = null): boolean =>
+  !blockNeedsTool(id) || toolMatches(id, tool);
+
+// 破坏耗时(ms)，1:1 MC Java：ceil(硬度 ×(能采?30:100) / 工具速度) ×50（1 tick=50ms）。
+// tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镐挖石 ≈1.15s。
+export const breakTimeMs = (id: number, tool: HeldTool | null = null): number => {
   const h = Math.max(0, blockHardness(id));
   if (h === 0) return 0;
-  return Math.ceil((blockNeedsTool(id) ? 100 : 30) * h) * 50;
+  const speed = toolMatches(id, tool) ? tool.speed : 1;
+  const per = canHarvest(id, tool) ? 30 : 100;
+  return Math.ceil((per * h) / speed) * 50;
 };
-// 徒手掉落：需工具的方块(石/矿)徒手挖不掉东西；其余按掉落表。
-export const handDrop = (id: number): number | null => (blockNeedsTool(id) ? null : BLOCKS[id]?.drop ?? null);
+// 实际掉落：能采集 → 掉落表，否则不掉。
+export const dropFor = (id: number, tool: HeldTool | null = null): number | null =>
+  canHarvest(id, tool) ? BLOCKS[id]?.drop ?? null : null;
+// 徒手掉落（兼容旧调用）
+export const handDrop = (id: number): number | null => dropFor(id, null);
 export const blockDrop = (id: number): number | null => BLOCKS[id]?.drop ?? null;
+export const blockTool = (id: number): 'pickaxe' | 'axe' | 'shovel' | null => BLOCKS[id]?.tool ?? null;

@@ -125,6 +125,7 @@ document.addEventListener('pointerlockchange', () => {
     setHud(true);
   } else if (game) {
     saveWorld(game.snapshot());
+    if (game.isCraftingOpen()) return; // 合成界面：保持 HUD、不弹暂停
     setHud(false);
     if (game.isDead()) death.style.display = 'flex';
     else pause.classList.remove('hidden');

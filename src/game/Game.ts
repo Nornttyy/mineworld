@@ -4,7 +4,15 @@ import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_H } from '../core/world/chunk';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
-import { isSolidId, isWaterId, breakTimeMs, handDrop, OAK_LEAVES } from '../core/blocks/registry';
+import {
+  isSolidId,
+  isWaterId,
+  breakTimeMs,
+  dropFor,
+  OAK_LEAVES,
+  CRAFTING_TABLE,
+  type HeldTool,
+} from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
@@ -27,6 +35,8 @@ import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
 import { StatusBar } from '../ui/statusBar';
+import { CraftingMenu } from '../ui/craftingMenu';
+import { availableRecipes, craftRecipe } from '../core/crafting/craft';
 import {
   newSurvival,
   tickSurvival,
@@ -38,7 +48,7 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, isFood, foodValue } from '../core/items/items';
+import { APPLE, isFood, foodValue, toolOf } from '../core/items/items';
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -75,6 +85,8 @@ export class Game {
   private readonly crack: CrackOverlay;
   private readonly dropRenderer: DropRenderer;
   private readonly hand: FirstPersonHand;
+  private readonly craftMenu: CraftingMenu;
+  private craftingGrid = 0; // 合成界面：0=关闭 2=个人(2×2) 3=工作台(3×3)
   private readonly drops: ItemDrop[] = [];
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
@@ -131,6 +143,12 @@ export class Game {
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.hand = new FirstPersonHand(atlas);
+    this.craftMenu = new CraftingMenu(document.getElementById('crafting') as HTMLElement);
+    this.craftMenu.onCraft = (opt): void => {
+      craftRecipe(this.inv, opt.recipe);
+      this.hotbar.render(this.inv);
+      this.refreshCrafting();
+    };
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -181,6 +199,15 @@ export class Game {
       }
     });
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyE') {
+        if (this.craftingGrid > 0) this.closeCrafting();
+        else if (document.pointerLockElement === canvas) this.openCrafting(2);
+        return;
+      }
+      if (e.code === 'Escape' && this.craftingGrid > 0) {
+        this.closeCrafting();
+        return;
+      }
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= HOTBAR_SLOTS) this.hotbar.setSelected(n - 1);
     });
@@ -354,6 +381,12 @@ export class Game {
 
   // 右键按下：手持食物则开吃，否则放方块。
   private onUseDown(): void {
+    // 右键工作台 → 打开 3×3 合成
+    const hit = this.rayHit();
+    if (hit && this.world.getBlock(hit.x, hit.y, hit.z) === CRAFTING_TABLE) {
+      this.openCrafting(3);
+      return;
+    }
     const stack = this.inv[this.hotbar.index];
     if (stack && stack.count > 0 && isFood(stack.id)) {
       this.eating = true;
@@ -361,6 +394,25 @@ export class Game {
     } else {
       this.placeBlock();
     }
+  }
+
+  // —— 合成界面 ——
+  isCraftingOpen(): boolean {
+    return this.craftingGrid > 0;
+  }
+  private openCrafting(gridSize: number): void {
+    this.craftingGrid = gridSize;
+    this.refreshCrafting();
+    this.craftMenu.show();
+    document.exitPointerLock(); // 解锁鼠标操作界面（暂停在 pointerlockchange 里被抑制）
+  }
+  private closeCrafting(): void {
+    this.craftingGrid = 0;
+    this.craftMenu.hide();
+    void this.canvas.requestPointerLock(); // 回到游戏
+  }
+  private refreshCrafting(): void {
+    this.craftMenu.render(availableRecipes(this.inv, this.craftingGrid), this.craftingGrid >= 3 ? '工作台' : '合成');
   }
 
   private stopEating(): void {
@@ -430,7 +482,7 @@ export class Game {
       this.digProgress = 0;
     }
     const id = this.world.getBlock(hit.x, hit.y, hit.z);
-    const need = breakTimeMs(id) / 1000;
+    const need = breakTimeMs(id, this.heldTool()) / 1000;
     if (need <= 0) {
       this.mineBlock(hit.x, hit.y, hit.z, id); // 瞬破方块
       return;
@@ -443,9 +495,15 @@ export class Game {
     }
   }
 
+  // 当前选中槽里的工具（非工具/空手返回 null），影响挖掘速度与掉落。
+  private heldTool(): HeldTool | null {
+    const sel = this.inv[this.hotbar.index];
+    return sel ? toolOf(sel.id) : null;
+  }
+
   // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
-    const drop = handDrop(id); // 徒手：需镐的方块(石/矿)不掉落
+    const drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
     this.edit(x, y, z, AIR);
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
@@ -484,7 +542,7 @@ export class Game {
   private placeBlock(): void {
     const sel = this.hotbar.index;
     const stack = this.inv[sel];
-    if (!stack || stack.count <= 0 || isFood(stack.id)) return; // 空手或手持食物
+    if (!stack || stack.count <= 0 || stack.id >= 256) return; // 空手或手持物品(食物/工具/棍等不可放置)
     const hit = this.rayHit();
     if (!hit) return;
     const px = hit.x + hit.nx;

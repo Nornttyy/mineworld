@@ -362,6 +362,100 @@
         text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
         margin: 0;
       }
+      /* 合成界面 */
+      #crafting {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+      }
+      .craft-panel {
+        width: 460px;
+        max-height: 76vh;
+        background: rgba(28, 28, 34, 0.97);
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.12),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+        padding: 16px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .craft-title {
+        color: #fff;
+        font-size: 22px;
+        text-align: center;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+      }
+      .craft-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow-y: auto;
+      }
+      .craft-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 2px solid #000;
+        opacity: 0.4;
+      }
+      .craft-row.craftable {
+        opacity: 1;
+        cursor: pointer;
+      }
+      .craft-row.craftable:hover {
+        background: rgba(118, 150, 92, 0.45);
+        border-color: #fff;
+      }
+      .craft-arrow {
+        color: #9fd17a;
+        font-size: 16px;
+      }
+      .craft-ings {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .craft-chip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        height: 36px;
+      }
+      .craft-icon {
+        width: 34px;
+        height: 34px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+      }
+      .craft-txt {
+        color: #e6e6e6;
+        font-size: 14px;
+        padding: 0 4px;
+      }
+      .craft-n {
+        color: #fff;
+        font-size: 13px;
+        margin-left: 2px;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .craft-hint,
+      .craft-empty {
+        color: #aaa;
+        font-size: 12px;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -416,6 +510,7 @@
       <h2>你死了！</h2>
       <button id="respawn" class="btn btn-wide">重生</button>
     </div>
+    <div id="crafting" class="hidden"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

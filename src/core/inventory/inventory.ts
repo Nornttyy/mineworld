@@ -16,23 +16,46 @@ export function emptyInventory(): Inventory {
 }
 
 // 加入 count 个 id：先叠到已有同类未满栈，再填空槽。返回放不下的剩余数量。
-export function addItem(inv: Inventory, id: number, count: number): number {
+// maxStack 为该物品的堆叠上限（工具=1，方块=64）。
+export function addItem(inv: Inventory, id: number, count: number, maxStack = STACK_MAX): number {
   for (let i = 0; i < inv.length && count > 0; i++) {
     const s = inv[i];
-    if (s && s.id === id && s.count < STACK_MAX) {
-      const add = Math.min(STACK_MAX - s.count, count);
+    if (s && s.id === id && s.count < maxStack) {
+      const add = Math.min(maxStack - s.count, count);
       s.count += add;
       count -= add;
     }
   }
   for (let i = 0; i < inv.length && count > 0; i++) {
     if (!inv[i]) {
-      const add = Math.min(STACK_MAX, count);
+      const add = Math.min(maxStack, count);
       inv[i] = { id, count: add };
       count -= add;
     }
   }
   return count;
+}
+
+// 背包里某物品总数
+export function countItem(inv: Inventory, id: number): number {
+  let n = 0;
+  for (const s of inv) if (s && s.id === id) n += s.count;
+  return n;
+}
+
+// 移除 count 个 id（从前往后扣）；返回实际移除数量。
+export function removeItems(inv: Inventory, id: number, count: number): number {
+  let need = count;
+  for (let i = 0; i < inv.length && need > 0; i++) {
+    const s = inv[i];
+    if (s && s.id === id) {
+      const take = Math.min(s.count, need);
+      s.count -= take;
+      need -= take;
+      if (s.count <= 0) inv[i] = null;
+    }
+  }
+  return count - need;
 }
 
 // 从某格取出 1 个；取空则置 null。返回取出的方块 id，空格返回 null。
