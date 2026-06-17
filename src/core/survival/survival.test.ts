@@ -7,6 +7,7 @@ import {
   isDead,
   eat,
   fallDamage,
+  trackFall,
   MAX_HEALTH,
   MAX_FOOD,
 } from './survival';
@@ -154,5 +155,24 @@ describe('survival: fall damage (MC 1:1)', () => {
     expect(fallDamage(4)).toBe(1);
     expect(fallDamage(5.5)).toBe(2); // floor(5.5 - 3)
     expect(fallDamage(13)).toBe(10);
+  });
+});
+
+describe('survival: fall-distance tracking (MC 1:1)', () => {
+  it('accumulates downward distance while airborne', () => {
+    expect(trackFall(0, -1, false, false).fallDistance).toBe(1);
+    expect(trackFall(1, -2, false, false).fallDistance).toBe(3);
+  });
+  it('moving up does not change fall distance', () => {
+    expect(trackFall(2, 0.5, false, false).fallDistance).toBe(2);
+  });
+  it('landing on ground applies fall damage then resets', () => {
+    const r = trackFall(5, 0, true, false);
+    expect(r.damage).toBe(2); // floor(5 - 3)
+    expect(r.fallDistance).toBe(0);
+  });
+  it('water cancels fall (no damage, reset)', () => {
+    expect(trackFall(10, 0, false, true)).toEqual({ fallDistance: 0, damage: 0 });
+    expect(trackFall(10, 0, true, true).damage).toBe(0);
   });
 });

@@ -43,9 +43,22 @@ export function eat(s: Survival, food: FoodValue): void {
   s.saturation = Math.min(s.saturation + food.nutrition * food.saturationModifier * 2, s.food);
 }
 
-// 摔落伤害：落地超过 3 格，每多 1 格 1 点（在水里时由调用方负责不计算）。
+// 摔落伤害：落地超过 3 格，每多 1 格 1 点。
 export function fallDamage(distance: number): number {
   return Math.max(0, Math.floor(distance - 3));
+}
+
+// 每刻推进摔落距离并在落地时结算伤害。dy = 本刻竖直位移（下落为负）。
+// 水里取消摔落（无伤害、清零）；落地结算并清零；空中只累计下落量（上升不减）。
+export function trackFall(
+  fallDistance: number,
+  dy: number,
+  onGround: boolean,
+  inWater: boolean,
+): { fallDistance: number; damage: number } {
+  if (inWater) return { fallDistance: 0, damage: 0 };
+  if (onGround) return { fallDistance: 0, damage: fallDamage(fallDistance) };
+  return { fallDistance: dy < 0 ? fallDistance - dy : fallDistance, damage: 0 };
 }
 
 // 推进一个模拟刻（20 TPS）。
