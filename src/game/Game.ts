@@ -10,6 +10,7 @@ import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
 import { CrackOverlay } from '../render/CrackOverlay';
 import { DropRenderer } from '../render/DropRenderer';
+import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
@@ -73,6 +74,7 @@ export class Game {
   private readonly inv: Inventory;
   private readonly crack: CrackOverlay;
   private readonly dropRenderer: DropRenderer;
+  private readonly hand: FirstPersonHand;
   private readonly drops: ItemDrop[] = [];
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
@@ -128,6 +130,7 @@ export class Game {
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
+    this.hand = new FirstPersonHand(atlas);
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -280,6 +283,7 @@ export class Game {
         this.updateDrops(dt);
         this.updateEating(dt);
         this.statusBar.render(this.survival);
+        if (this.digging) this.hand.swing(); // 按住挖时连续摆臂
       } else {
         this.crack.hide();
       }
@@ -287,7 +291,16 @@ export class Game {
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
+      // 第一人称手臂：手持当前选中方块、按移动速度晃动
+      const held = this.inv[this.hotbar.index];
+      this.hand.setHeld(held ? held.id : null);
+      const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
+      this.hand.update(dt, playing ? walk : 0);
+      if (this.hand.camera.aspect !== this.renderer.camera.aspect) {
+        this.hand.resize(this.renderer.camera.aspect);
+      }
       this.renderer.render();
+      this.renderer.renderOverlay(this.hand.scene, this.hand.camera);
     };
     requestAnimationFrame(frame);
   }
@@ -484,6 +497,7 @@ export class Game {
     if (id === null) return;
     this.edit(px, py, pz, id);
     this.hotbar.render(this.inv);
+    this.hand.swing(); // 放方块摆一下臂
   }
 
   private overlapsPlayer(bx: number, by: number, bz: number): boolean {

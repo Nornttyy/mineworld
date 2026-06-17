@@ -28,4 +28,12 @@ export class Renderer {
   render(): void {
     this.gl.render(this.scene, this.camera);
   }
+
+  // 覆盖层（第一人称手臂等）：清掉深度后画在世界之上，永不被遮挡。
+  renderOverlay(scene: THREE.Scene, camera: THREE.Camera): void {
+    this.gl.autoClear = false;
+    this.gl.clearDepth();
+    this.gl.render(scene, camera);
+    this.gl.autoClear = true;
+  }
 }
