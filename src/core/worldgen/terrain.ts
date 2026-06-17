@@ -1,7 +1,8 @@
 import { World } from '../world/world';
-import { Chunk, CHUNK_W } from '../world/chunk';
-import { fbm2 } from '../math/noise';
-import { WATER } from '../blocks/registry';
+import { Chunk, CHUNK_W, CHUNK_H } from '../world/chunk';
+import { worldToChunk, localCoord } from '../world/coords';
+import { fbm2, hash2 } from '../math/noise';
+import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
 
 // 方块 id（见 core/blocks/registry）
 const STONE = 1;
@@ -34,7 +35,73 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
   return Math.floor(h);
 }
 
-// 生成单个区块列 (cx,cz)：石基→土→草顶；海平面以下注水、岸边铺沙。确定性、跨区块无缝。
+// ── 树木（橡树）─────────────────────────────────────────────────────────────
+// 树冠最大水平半径：邻近区块里这么近的树会把枝叶探进本区块，生成时须一并考虑。
+const TREE_MARGIN = 2;
+const TREE_MAX_DENSITY = 0.07; // 便宜的快速剔除上限（须 ≥ treeDensity 的最大可能值）
+
+// 某列长树的概率：低频噪声造出"森林斑块"——平原稀疏、林区茂密。
+function treeDensity(wx: number, wz: number, seed: number): number {
+  const forest = fbm2(wx / 70, wz / 70, seed + 4321, 2); // 0..1 森林场
+  return 0.01 + Math.max(0, forest - 0.5) * 0.22; // 平原~1%，林区~6.5%
+}
+
+// 树干高 4~6（确定性 → 接缝处同一棵树形状一致）
+function treeHeight(wx: number, wz: number, seed: number): number {
+  return 4 + Math.floor(hash2(wx, wz, seed * 31 + 5) * 3);
+}
+
+// 在本区块放一棵根在世界列 (rootWx,rootWz) 的橡树；只写落在本区块内的方块。
+// ground = 该列草块 y。先放叶后放干，保证树干中心不被叶子盖住。
+function placeTree(
+  c: Chunk,
+  cx: number,
+  cz: number,
+  rootWx: number,
+  rootWz: number,
+  ground: number,
+  seed: number,
+): void {
+  const topY = ground + treeHeight(rootWx, rootWz, seed); // 最高那块原木
+
+  const put = (wx: number, wy: number, wz: number, id: number, onlyIfAir: boolean): void => {
+    if (wy < 0 || wy >= CHUNK_H) return;
+    if (worldToChunk(wx) !== cx || worldToChunk(wz) !== cz) return; // 只写本区块（跨界部分留给邻块自己生成）
+    const lx = localCoord(wx);
+    const lz = localCoord(wz);
+    if (onlyIfAir && c.get(lx, wy, lz) !== 0) return; // 叶子不覆盖地形/原木
+    c.set(lx, wy, lz, id);
+  };
+
+  // 下两层 5×5（去四角→八边形），围住上部树干
+  for (const dy of [-2, -1]) {
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue; // 去角
+        put(rootWx + dx, topY + dy, rootWz + dz, OAK_LEAVES, true);
+      }
+    }
+  }
+  // 顶层 3×3
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      put(rootWx + dx, topY, rootWz + dz, OAK_LEAVES, true);
+    }
+  }
+  // 树冠顶：十字小帽
+  const cap: ReadonlyArray<readonly [number, number]> = [
+    [0, 0],
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ];
+  for (const [dx, dz] of cap) put(rootWx + dx, topY + 1, rootWz + dz, OAK_LEAVES, true);
+  // 树干（覆盖中心叶子/空气）
+  for (let y = ground + 1; y <= topY; y++) put(rootWx, y, rootWz, OAK_LOG, false);
+}
+
+// 生成单个区块列 (cx,cz)：石基→土→草顶；海平面以下注水、岸边铺沙；最后种树。确定性、跨区块无缝。
 export function generateChunk(cx: number, cz: number, seed: number): Chunk {
   const c = new Chunk();
   for (let lz = 0; lz < CHUNK_W; lz++) {
@@ -50,6 +117,20 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       for (let y = height + 1; y <= SEA_LEVEL; y++) c.set(lx, y, lz, WATER); // 注水到海平面
     }
   }
+
+  // 装饰：种树。外扩 TREE_MARGIN 遍历，让邻列的树把枝叶探进本区块（接缝处不断树）。
+  const x0 = cx * CHUNK_W;
+  const z0 = cz * CHUNK_W;
+  for (let wx = x0 - TREE_MARGIN; wx < x0 + CHUNK_W + TREE_MARGIN; wx++) {
+    for (let wz = z0 - TREE_MARGIN; wz < z0 + CHUNK_W + TREE_MARGIN; wz++) {
+      const r = hash2(wx, wz, seed * 13 + 7);
+      if (r >= TREE_MAX_DENSITY) continue; // 便宜地剔除绝大多数列
+      const g = columnHeight(wx, wz, seed);
+      if (g <= SEA_LEVEL + 1) continue; // 只在草地（避开沙滩/水）
+      if (r < treeDensity(wx, wz, seed)) placeTree(c, cx, cz, wx, wz, g, seed);
+    }
+  }
+
   c.dirty = true;
   return c;
 }

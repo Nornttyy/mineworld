@@ -73,6 +73,7 @@ export const BLOCKS: BlockDef[] = [
 
 export const WATER = 9;
 export const OAK_LEAVES = 10;
+export const OAK_LOG = 6;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
