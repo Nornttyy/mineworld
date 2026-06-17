@@ -15,8 +15,10 @@ def hx(s):
 
 
 # 形状用字符网格；fills=字符→底色；hilo=指定格→高光/暗部色（覆盖底色）。
-# variant: full=正常着色；half=右半空；empty=整体暗灰容器。三者轮廓一致以对齐。
-def icon(shape, fills, hilo, variant, outline="#20120c", empty="#3a3a3a"):
+# variant: full=正常着色；half=空一半；empty=整体暗灰容器。三者轮廓一致以对齐。
+# half_empty_side: 半图标哪半画空。红心在左侧条(右半空=左半留)；鸡腿在右侧 row-reverse
+#   镜像条，需左半空=右半留，否则半鸡腿的肉朝向与 MC 相反（看着"左右反了"）。
+def icon(shape, fills, hilo, variant, outline="#20120c", empty="#3a3a3a", half_empty_side="right"):
     w = len(shape[0])
     h = len(shape)
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -27,7 +29,11 @@ def icon(shape, fills, hilo, variant, outline="#20120c", empty="#3a3a3a"):
             if ch == ".":
                 continue
             sh.add((x, y))
-            if variant == "empty" or (variant == "half" and x > w // 2):
+            half_empty = variant == "half" and (
+                (half_empty_side == "right" and x > w // 2)
+                or (half_empty_side == "left" and x < w // 2)
+            )
+            if variant == "empty" or half_empty:
                 px[x, y] = hx(empty)
             elif (x, y) in hilo:
                 px[x, y] = hx(hilo[(x, y)])
@@ -108,6 +114,6 @@ os.makedirs(UI, exist_ok=True)
 os.makedirs(ICON, exist_ok=True)
 for v in ("full", "half", "empty"):
     icon(HEART, HEART_FILL, HEART_HILO, v).save(os.path.join(UI, f"heart_{v}.png"))
-    icon(DRUM, DRUM_FILL, DRUM_HILO, v).save(os.path.join(UI, f"food_{v}.png"))
+    icon(DRUM, DRUM_FILL, DRUM_HILO, v, half_empty_side="left").save(os.path.join(UI, f"food_{v}.png"))
 apple().save(os.path.join(ICON, "apple.png"))
 print("wrote 6 hud sprites + apple.png")
