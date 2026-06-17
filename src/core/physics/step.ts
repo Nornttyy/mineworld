@@ -83,13 +83,13 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const vel: Vec3 = { ...player.vel };
 
   const grounded = isOnGround(pos, world);
-  // 身体中部是否在水里 → 浮力/游泳
+  // 脚部是否在水里（到水面即算出水，可正常起跳跃上岸）
   const inWater =
-    world.isWater?.(Math.floor(pos.x), Math.floor(pos.y + 0.9), Math.floor(pos.z)) ?? false;
+    world.isWater?.(Math.floor(pos.x), Math.floor(pos.y + 0.1), Math.floor(pos.z)) ?? false;
 
   let jumped = false;
   if (intent.jump && (grounded || inWater)) {
-    vel.y = JUMP; // 陆上起跳 / 跃出水面（按空格跳上岸）
+    vel.y = inWater ? 0.5 : JUMP; // 水里跳得更猛，克服水阻力跃出水面上岸
     jumped = true;
   }
 
@@ -109,10 +109,9 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
     // 起跳/跃出水面：当作起跳处理，重力照常（不被水阻尼），跳够高上岸
     vel.y = (vel.y - GRAVITY) * VDRAG;
   } else if (inWater) {
-    // 水中：缓沉 + 阻尼，按住空格上浮（游泳）
-    vel.y = vel.y * 0.5 - 0.02;
+    // 水中：按住空格上浮；否则轻阻尼(保留上冲余速→能带出水面)+缓沉
     if (intent.swimUp) vel.y = 0.16;
-    if (vel.y < -0.15) vel.y = -0.15; // 限制下沉速度
+    else vel.y = Math.max(vel.y * 0.8 - 0.02, -0.15);
   } else if (onGround) {
     vel.y = 0;
   } else {

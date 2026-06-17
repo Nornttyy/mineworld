@@ -70,6 +70,20 @@ describe('physics step', () => {
     expect(p.vel.y).toBeGreaterThan(0.3); // 跃出水面的起跳速度
   });
 
+  it('a water jump carries the player up over 1 block (climb out)', () => {
+    // 水位 y<5；玩家在水里起跳，上冲余速应带其升过 1 格(够上岸)
+    const watery: VoxelWorld = { isSolid: (_x, y) => y < 0, isWater: (_x, y) => y < 5 };
+    let p: Player = { pos: { x: 0, y: 4, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    const start = p.pos.y;
+    let maxY = start;
+    p = step(p, { forward: 0, right: 0, yaw: 0, jump: true }, watery);
+    for (let i = 0; i < 25; i++) {
+      p = step(p, { forward: 0, right: 0, yaw: 0, jump: false }, watery);
+      maxY = Math.max(maxY, p.pos.y);
+    }
+    expect(maxY - start).toBeGreaterThan(1.0);
+  });
+
   it('walking into a wall does not tunnel through it', () => {
     const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 2 };
     let p: Player = { pos: { x: 0.5, y: 0, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };
