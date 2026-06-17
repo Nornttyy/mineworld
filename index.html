@@ -317,6 +317,51 @@
         height: 2px;
         width: 18px;
       }
+      /* 生命/饥饿条：快捷栏正上方，红心居左、饥饿居右（同 MC 布局） */
+      #status {
+        position: fixed;
+        left: 50%;
+        bottom: 64px;
+        transform: translateX(-50%);
+        width: 462px;
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        user-select: none;
+      }
+      #health,
+      #hunger {
+        display: flex;
+      }
+      #hunger {
+        flex-direction: row-reverse; /* 饥饿条靠右排布 */
+      }
+      .hud-icon {
+        width: 18px;
+        height: 18px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+      }
+      /* 死亡界面 */
+      #death {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: rgba(90, 0, 0, 0.5);
+        z-index: 20;
+      }
+      #death h2 {
+        color: #ffffff;
+        font-size: 40px;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+        margin: 0;
+      }
     </style>
   </head>
   <body>
@@ -362,7 +407,15 @@
     </div>
     <div id="underwater"></div>
     <div id="crosshair"></div>
+    <div id="status">
+      <div id="health"></div>
+      <div id="hunger"></div>
+    </div>
     <div id="hotbar"></div>
+    <div id="death">
+      <h2>你死了！</h2>
+      <button id="respawn" class="btn btn-wide">重生</button>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
