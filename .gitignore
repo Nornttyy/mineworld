@@ -12,3 +12,6 @@ tools/textures/_*.png
 # editor/os
 .DS_Store
 *.log
+
+# also ignore a node_modules symlink (worktree dev)
+node_modules

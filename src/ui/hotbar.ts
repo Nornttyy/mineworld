@@ -1,7 +1,8 @@
 import type { Inventory } from '../core/inventory/inventory';
+import { APPLE } from '../core/items/items';
 
-// 底部快捷栏（MC 同款，生存式）：9 格，显示背包前 9 格的方块图标 + 数量，当前选中高亮。
-// 方块 id → 等距图标名（public/textures/icons/<name>.png）
+// 底部快捷栏（MC 同款，生存式）：9 格，显示背包前 9 格的方块/物品图标 + 数量，当前选中高亮。
+// id → 等距图标名（public/textures/icons/<name>.png）
 const ICON: Record<number, string> = {
   1: 'stone',
   2: 'dirt',
@@ -12,6 +13,7 @@ const ICON: Record<number, string> = {
   7: 'oak_planks',
   8: 'coal_ore',
   10: 'oak_leaves',
+  [APPLE]: 'apple',
 };
 
 export class Hotbar {

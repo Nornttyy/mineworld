@@ -4,7 +4,7 @@ import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_H } from '../core/world/chunk';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
-import { isSolidId, isWaterId, breakTimeMs, handDrop } from '../core/blocks/registry';
+import { isSolidId, isWaterId, breakTimeMs, handDrop, OAK_LEAVES } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
@@ -25,6 +25,19 @@ import {
 import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
+import { StatusBar } from '../ui/statusBar';
+import {
+  newSurvival,
+  tickSurvival,
+  addExhaustion,
+  applyDamage,
+  isDead as survivalIsDead,
+  eat,
+  trackFall,
+  MAX_FOOD,
+  type Survival,
+} from '../core/survival/survival';
+import { APPLE, isFood, foodValue } from '../core/items/items';
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -33,8 +46,15 @@ const REACH = 5; // 交互距离（方块）
 const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const AIR = 0;
+const EAT_TIME = 1.6; // 吃东西耗时（秒，同 MC）
+const LEAF_APPLE_CHANCE = 0.05; // 树叶掉苹果概率（1:1 是 0.5%，调高更可玩）
+const SPRINT_EXHAUSTION = 0.1; // 每格疾跑消耗（MC）
+const JUMP_EXHAUSTION = 0.05;
+const SPRINT_JUMP_EXHAUSTION = 0.2;
+const BREAK_EXHAUSTION = 0.005;
+const DAMAGE_EXHAUSTION = 0.1;
 
-/** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置。从存档启动。 */
+/** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置 + 生命/饥饿。从存档启动。 */
 export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly save: WorldSave;
@@ -63,6 +83,13 @@ export class Game {
   private fov = 70;
   private last = 0;
   private acc = 0;
+  private survival: Survival;
+  private readonly statusBar: StatusBar;
+  private readonly worldSpawn: { x: number; y: number; z: number };
+  private dead = false;
+  private fallDistance = 0; // 当前连续下落格数
+  private eating = false; // 是否按住右键吃东西
+  private eatProgress = 0;
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -73,6 +100,14 @@ export class Game {
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
     this.inv = save.inv ? deserializeInventory(save.inv) : emptyInventory();
     this.hotbar.render(this.inv);
+    // 生命/饥饿：有存档用存档（已死状态则重置为满），否则全满
+    const sv = save.survival;
+    this.survival = sv && sv.health > 0 ? { ...sv, foodTimer: 0 } : newSurvival();
+    this.statusBar = new StatusBar(
+      document.getElementById('health') as HTMLElement,
+      document.getElementById('hunger') as HTMLElement,
+    );
+    this.statusBar.render(this.survival);
 
     this.world = new ChunkWorld(save.seed);
     this.fluidGrid = {
@@ -98,9 +133,10 @@ export class Game {
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
     };
 
-    // 出生：有存档位置就用，否则找海岸陆地
+    // 出生：worldSpawn 始终为世界出生点（死亡重生用）；有存档位置则从那里继续
     const p = save.player;
-    const spawn = p ? { x: p.x, y: p.y, z: p.z } : this.findSpawn(save.seed);
+    this.worldSpawn = this.findSpawn(save.seed);
+    const spawn = p ? { x: p.x, y: p.y, z: p.z } : this.worldSpawn;
     this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
     this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
@@ -123,7 +159,7 @@ export class Game {
       if (e.button === 0) {
         this.digging = true; // 按住左键持续挖掘（按硬度耗时）
         this.digTarget = null; // 重新评估目标
-      } else if (e.button === 2) this.placeBlock();
+      } else if (e.button === 2) this.onUseDown(); // 右键：吃 / 放方块
     });
     const stopDig = (): void => {
       this.digging = false;
@@ -133,9 +169,13 @@ export class Game {
     };
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) stopDig();
+      else if (e.button === 2) this.stopEating();
     });
     document.addEventListener('pointerlockchange', () => {
-      if (document.pointerLockElement !== canvas) stopDig(); // 松开锁定即停挖
+      if (document.pointerLockElement !== canvas) {
+        stopDig(); // 松开锁定即停挖
+        this.stopEating();
+      }
     });
     window.addEventListener('keydown', (e) => {
       const n = Number(e.key);
@@ -161,6 +201,13 @@ export class Game {
       pitch: this.look.pitch,
     };
     this.save.inv = serializeInventory(this.inv);
+    const sv = this.survival;
+    this.save.survival = {
+      health: sv.health,
+      food: sv.food,
+      saturation: sv.saturation,
+      exhaustion: sv.exhaustion,
+    };
     this.save.lastPlayed = Date.now();
     return this.save;
   }
@@ -194,18 +241,20 @@ export class Game {
       while (playing && this.acc >= TICK_MS) {
         this.prev = this.player;
         const m = readMove();
+        const jumped = consumeJump();
         this.player = step(
           this.player,
           {
             forward: m.forward,
             right: m.right,
             yaw: this.look.yaw,
-            jump: consumeJump(),
+            jump: jumped,
             swimUp: m.jumpHeld,
             sprint: m.sprint,
           },
           this.physWorld,
         );
+        this.stepSurvival(m.sprint, jumped);
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
         if (++this.fluidTick >= 5) {
           this.fluidTick = 0;
@@ -229,6 +278,8 @@ export class Game {
       if (playing) {
         this.updateMining(dt);
         this.updateDrops(dt);
+        this.updateEating(dt);
+        this.statusBar.render(this.survival);
       } else {
         this.crack.hide();
       }
@@ -239,6 +290,90 @@ export class Game {
       this.renderer.render();
     };
     requestAnimationFrame(frame);
+  }
+
+  // 每模拟刻推进生命/饥饿：累积疲劳(疾跑/跳)、结算摔落、回血/掉血、判定死亡。
+  private stepSurvival(sprint: boolean, jumped: boolean): void {
+    const dx = this.player.pos.x - this.prev.pos.x;
+    const dz = this.player.pos.z - this.prev.pos.z;
+    const dy = this.player.pos.y - this.prev.pos.y;
+    if (sprint) addExhaustion(this.survival, SPRINT_EXHAUSTION * Math.hypot(dx, dz));
+    if (jumped) addExhaustion(this.survival, sprint ? SPRINT_JUMP_EXHAUSTION : JUMP_EXHAUSTION);
+    const inWater = isWaterId(
+      this.world.getBlock(
+        Math.floor(this.player.pos.x),
+        Math.floor(this.player.pos.y),
+        Math.floor(this.player.pos.z),
+      ),
+    );
+    const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
+    this.fallDistance = fall.fallDistance;
+    if (fall.damage > 0) {
+      applyDamage(this.survival, fall.damage);
+      addExhaustion(this.survival, DAMAGE_EXHAUSTION);
+    }
+    tickSurvival(this.survival);
+    if (survivalIsDead(this.survival) && !this.dead) this.die();
+  }
+
+  private die(): void {
+    this.dead = true;
+    this.digging = false;
+    this.stopEating();
+    void document.exitPointerLock(); // 解锁 → main 切到死亡界面
+  }
+
+  isDead(): boolean {
+    return this.dead;
+  }
+
+  // 重生：满状态 + 回到世界出生点。
+  respawn(): void {
+    this.survival = newSurvival();
+    this.dead = false;
+    this.fallDistance = 0;
+    const s = this.worldSpawn;
+    this.player = { pos: { ...s }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    this.prev = this.player;
+    this.chunks.update(worldToChunk(Math.floor(s.x)), worldToChunk(Math.floor(s.z)), 2, 999);
+    this.statusBar.render(this.survival);
+  }
+
+  // 右键按下：手持食物则开吃，否则放方块。
+  private onUseDown(): void {
+    const stack = this.inv[this.hotbar.index];
+    if (stack && stack.count > 0 && isFood(stack.id)) {
+      this.eating = true;
+      this.eatProgress = 0;
+    } else {
+      this.placeBlock();
+    }
+  }
+
+  private stopEating(): void {
+    this.eating = false;
+    this.eatProgress = 0;
+  }
+
+  // 按住右键吃：满 1.6s 消耗 1 个并回饥饿；饥饿已满则不吃。
+  private updateEating(dt: number): void {
+    if (!this.eating) return;
+    const sel = this.hotbar.index;
+    const stack = this.inv[sel];
+    if (!stack || stack.count <= 0 || !isFood(stack.id) || this.survival.food >= MAX_FOOD) {
+      this.eatProgress = 0;
+      return;
+    }
+    this.eatProgress += dt;
+    if (this.eatProgress >= EAT_TIME) {
+      const food = foodValue(stack.id);
+      const id = takeOne(this.inv, sel);
+      if (food && id !== null) {
+        eat(this.survival, food);
+        this.hotbar.render(this.inv);
+      }
+      this.eatProgress = 0;
+    }
   }
 
   private rayHit(): RayHit | null {
@@ -295,11 +430,15 @@ export class Game {
     }
   }
 
-  // 破坏一个方块：清空 + 按掉落表生成掉落物。
+  // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
     const drop = handDrop(id); // 徒手：需镐的方块(石/矿)不掉落
     this.edit(x, y, z, AIR);
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
+    if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
+      this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
+    }
+    addExhaustion(this.survival, BREAK_EXHAUSTION);
     this.digProgress = 0;
     this.digTarget = null;
     this.crack.hide();
@@ -328,11 +467,11 @@ export class Game {
     this.dropRenderer.sync(this.drops);
   }
 
-  // 放置：消耗当前快捷栏格里的方块（空手则不放）。
+  // 放置：消耗当前快捷栏格里的方块（空手/手持食物则不放）。
   private placeBlock(): void {
     const sel = this.hotbar.index;
     const stack = this.inv[sel];
-    if (!stack || stack.count <= 0) return; // 空手
+    if (!stack || stack.count <= 0 || isFood(stack.id)) return; // 空手或手持食物
     const hit = this.rayHit();
     if (!hit) return;
     const px = hit.x + hit.nx;

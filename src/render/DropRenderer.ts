@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS } from '../core/blocks/registry';
+import { isItem } from '../core/items/items';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 
 const ATLAS_COLS = 4;
@@ -30,23 +31,36 @@ function dropGeometry(id: number): THREE.BufferGeometry {
   return g;
 }
 
-/** 把核心层的掉落物列表渲染成会自转、上下浮动的小方块。按物体身份增删 mesh。 */
+/** 把核心层的掉落物列表渲染成会自转、上下浮动的小物体。方块用图集小立方体，
+ *  非方块物品(如苹果)用带贴图的扁平方片。按物体身份增删 mesh。 */
 export class DropRenderer {
   private readonly meshes = new Map<ItemDrop, THREE.Mesh>();
   private readonly geoCache = new Map<number, THREE.BufferGeometry>();
   private readonly mat: THREE.MeshBasicMaterial;
+  private readonly itemMat: THREE.MeshBasicMaterial;
 
   constructor(
     private readonly scene: THREE.Scene,
     atlas: THREE.Texture,
   ) {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
+    // 物品图标贴图（目前只有苹果）：扁平方片、镂空裁切、双面
+    const tex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/icons/apple.png');
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.itemMat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
   }
 
   private geo(id: number): THREE.BufferGeometry {
     let g = this.geoCache.get(id);
     if (!g) {
-      g = dropGeometry(id);
+      g = isItem(id) ? new THREE.PlaneGeometry(DROP_SIZE, DROP_SIZE) : dropGeometry(id);
       this.geoCache.set(id, g);
     }
     return g;
@@ -63,7 +77,7 @@ export class DropRenderer {
     for (const d of drops) {
       let mesh = this.meshes.get(d);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.geo(d.id), this.mat);
+        mesh = new THREE.Mesh(this.geo(d.id), isItem(d.id) ? this.itemMat : this.mat);
         this.scene.add(mesh);
         this.meshes.set(d, mesh);
       }

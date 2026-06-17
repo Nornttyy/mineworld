@@ -33,6 +33,7 @@ $('splash').textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 function setHud(show: boolean): void {
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
+  $('status').style.display = show ? 'flex' : 'none';
 }
 
 function showOnly(el: HTMLElement | null): void {
@@ -114,17 +115,28 @@ $('save-quit').addEventListener('click', () => {
   location.reload(); // 回到主菜单（干净重置）
 });
 
-// 指针锁定 = 游戏中；解锁(ESC) = 暂停并存盘
+// 指针锁定 = 游戏中；解锁(ESC) = 暂停；死亡时改显示死亡界面
+const death = $('death');
 document.addEventListener('pointerlockchange', () => {
   const playing = document.pointerLockElement === canvas;
   if (playing) {
     pause.classList.add('hidden');
+    death.style.display = 'none';
     setHud(true);
   } else if (game) {
     saveWorld(game.snapshot());
-    pause.classList.remove('hidden');
     setHud(false);
+    if (game.isDead()) death.style.display = 'flex';
+    else pause.classList.remove('hidden');
   }
+});
+
+// 重生：满状态回到出生点并重新锁定
+$('respawn').addEventListener('click', () => {
+  if (!game) return;
+  game.respawn();
+  death.style.display = 'none';
+  void canvas.requestPointerLock();
 });
 
 // 定时自动存盘 + 关页面前存盘
