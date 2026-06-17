@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
+import { CHUNK_H } from '../core/world/chunk';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
 import { isSolidId, isWaterId, breakTimeMs, handDrop } from '../core/blocks/registry';
@@ -75,7 +76,8 @@ export class Game {
 
     this.world = new ChunkWorld(save.seed);
     this.fluidGrid = {
-      isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
+      // 世界顶/底之外视作固体：水不会灌进虚空(否则到 y=0 会无限提议下落、永不收敛)
+      isSolid: (x, y, z) => y < 0 || y >= CHUNK_H || isSolidId(this.world.getBlock(x, y, z)),
       amount: (x, y, z) => this.world.waterAmount(x, y, z),
       isSource: (x, y, z) => this.world.isWaterSource(x, y, z),
       isFalling: (x, y, z) => this.world.isWaterFalling(x, y, z),

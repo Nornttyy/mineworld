@@ -100,6 +100,17 @@ describe('fluidSim（对照 MC）', () => {
     expect(g.amount(1, 0, 0)).toBe(0);
   });
 
+  it('水落到世界底部停住并收敛（不灌虚空）', () => {
+    const g = new Grid(0); // y<0 视作固体（= 游戏里"世界底=固体"的约定）
+    g.src(0, 5, 0);
+    const sim = new FluidSim();
+    sim.activate(0, 5, 0);
+    run(sim, g, 80);
+    expect(g.amount(0, 0, 0)).toBeGreaterThan(0); // 停在 y=0
+    expect(g.amount(0, -1, 0)).toBe(0); // 没灌进 y<0
+    expect(sim.activeCount).toBe(0); // 收敛，不再 churn
+  });
+
   it('空闲时收敛（无活跃格）', () => {
     const g = new Grid(0);
     g.src(0, 0, 0);
