@@ -28,6 +28,20 @@ describe('physics step', () => {
     expect(p.onGround).toBe(false);
   });
 
+  it('a jump clears a full block (peak height > 1.0, ~1.25 like MC)', () => {
+    let p = fresh();
+    for (let i = 0; i < 120; i++) p = step(p, idle, floor); // 先落地
+    const startY = p.pos.y;
+    let maxY = startY;
+    p = step(p, { ...idle, jump: true }, floor); // 起跳
+    for (let i = 0; i < 30; i++) {
+      p = step(p, idle, floor);
+      maxY = Math.max(maxY, p.pos.y);
+    }
+    expect(maxY - startY).toBeGreaterThan(1.0); // 能跳上一格方块
+    expect(maxY - startY).toBeLessThan(1.6); // 但不会高得离谱
+  });
+
   it('walking into a wall does not tunnel through it', () => {
     const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 2 };
     let p: Player = { pos: { x: 0.5, y: 0, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };

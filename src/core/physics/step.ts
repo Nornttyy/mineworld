@@ -70,34 +70,36 @@ function wishDir(intent: MoveIntent): { x: number; z: number } {
   return { x, z };
 }
 
-/** 一个 tick 的玩家模拟（纯函数）：跳跃 → 重力 → 水平意图 → 逐轴扫掠碰撞。 */
-export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Player {
-  const vel: Vec3 = { ...player.vel };
-  let onGround = player.onGround;
+// 脚下极薄一层是否实心（独立于速度的贴地检测，避免 vy≈0 时误判）
+function isOnGround(pos: Vec3, world: VoxelWorld): boolean {
+  if (overlaps(pos, world)) return false;
+  return overlaps({ x: pos.x, y: pos.y - 0.06, z: pos.z }, world);
+}
 
-  if (onGround && intent.jump) {
-    vel.y = JUMP;
-    onGround = false;
-  }
-  vel.y -= GRAVITY;
+/** 一个 tick 的玩家模拟（纯函数）：跳跃 → 水平意图 → 逐轴扫掠碰撞 → 末尾施加重力。 */
+export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Player {
+  const pos: Vec3 = { ...player.pos };
+  const vel: Vec3 = { ...player.vel };
+
+  // 起跳判定用"移动前"的贴地状态
+  if (isOnGround(pos, world) && intent.jump) vel.y = JUMP;
 
   const wish = wishDir(intent);
   vel.x = wish.x * WALK_PER_TICK;
   vel.z = wish.z * WALK_PER_TICK;
 
-  const pos: Vec3 = { ...player.pos };
-
-  // 逐轴解算：先 Y（决定 onGround），再 X、Z
-  if (resolveAxis(pos, 'y', vel.y, world)) {
-    if (vel.y < 0) onGround = true;
-    vel.y = 0;
-  } else {
-    onGround = false;
-  }
+  // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
+  if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
   if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
   if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
 
-  vel.y *= VDRAG; // 垂直阻力
+  // ⚠️ 重力放在移动之后：起跳第一帧能升满 0.42 → 跳高 ≈1.25 格（同 MC），跳得上一格方块
+  const onGround = isOnGround(pos, world);
+  if (onGround) {
+    vel.y = 0;
+  } else {
+    vel.y = (vel.y - GRAVITY) * VDRAG;
+  }
 
   return { pos, vel, onGround };
 }
