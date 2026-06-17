@@ -14,8 +14,9 @@ export interface MoveIntent {
   forward: number; // -1..1
   right: number; // -1..1
   yaw: number; // 朝向（弧度）
-  jump: boolean;
+  jump: boolean; // 起跳（边沿，一次按键一次）
   sprint?: boolean; // 疾跑（双击 W）
+  swimUp?: boolean; // 水中上浮（空格按住）
 }
 
 export interface VoxelWorld {

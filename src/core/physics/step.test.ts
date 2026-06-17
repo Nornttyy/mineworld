@@ -53,6 +53,16 @@ describe('physics step', () => {
     expect(sprint.pos.x).toBeGreaterThan(walk.pos.x);
   });
 
+  it('swims up in water while holding swimUp', () => {
+    const watery: VoxelWorld = { isSolid: (_x, y) => y < 0, isWater: () => true };
+    let p: Player = { pos: { x: 0, y: 5, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    const before = p.pos.y;
+    for (let i = 0; i < 5; i++) {
+      p = step(p, { forward: 0, right: 0, yaw: 0, jump: false, swimUp: true }, watery);
+    }
+    expect(p.pos.y).toBeGreaterThan(before); // 持续上浮
+  });
+
   it('walking into a wall does not tunnel through it', () => {
     const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 2 };
     let p: Player = { pos: { x: 0.5, y: 0, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };

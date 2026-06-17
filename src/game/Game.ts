@@ -9,7 +9,7 @@ import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
-import { readMove } from '../input/keyboard';
+import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -28,6 +28,9 @@ export class Game {
   private readonly physWorld: VoxelWorld;
   private readonly chunks: ChunkMeshManager;
   private readonly highlight: THREE.LineSegments;
+  private readonly underwaterEl: HTMLElement | null;
+  private readonly normalFog: THREE.FogBase | null;
+  private readonly underFog = new THREE.Fog(0x245f8a, 0.1, 16); // 水下：浓蓝雾
   private player: Player;
   private prev: Player;
   private selected = PALETTE[3]; // 默认圆石
@@ -37,6 +40,8 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
+    this.normalFog = this.renderer.scene.fog;
+    this.underwaterEl = document.getElementById('underwater');
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas());
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
@@ -112,7 +117,19 @@ export class Game {
       if (this.acc > 250) this.acc = 250;
       while (this.acc >= TICK_MS) {
         this.prev = this.player;
-        this.player = step(this.player, { ...readMove(), yaw: this.look.yaw }, this.physWorld);
+        const m = readMove();
+        this.player = step(
+          this.player,
+          {
+            forward: m.forward,
+            right: m.right,
+            yaw: this.look.yaw,
+            jump: consumeJump(), // 边沿：一次按键一次跳
+            swimUp: m.jumpHeld, // 水中持续上浮
+            sprint: m.sprint,
+          },
+          this.physWorld,
+        );
         this.acc -= TICK_MS;
       }
       this.chunks.update(
@@ -126,6 +143,7 @@ export class Game {
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
       this.renderer.camera.updateProjectionMatrix();
+      this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
       this.renderer.render();
@@ -176,6 +194,16 @@ export class Game {
       bz < p.z + hw &&
       bz + 1 > p.z - hw
     );
+  }
+
+  // 眼睛在水里 → 切到浓蓝雾 + 蓝色屏幕叠层（同 MC 水下观感）
+  private updateWater(): void {
+    const ex = Math.floor(this.player.pos.x);
+    const ey = Math.floor(this.player.pos.y + EYE);
+    const ez = Math.floor(this.player.pos.z);
+    const under = isWaterId(this.world.getBlock(ex, ey, ez));
+    this.renderer.scene.fog = under ? this.underFog : this.normalFog;
+    if (this.underwaterEl) this.underwaterEl.style.display = under ? 'block' : 'none';
   }
 
   private updateHighlight(): void {

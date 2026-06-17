@@ -16,6 +16,13 @@
         display: block;
         cursor: pointer;
       }
+      #underwater {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        background: rgba(28, 95, 150, 0.45);
+      }
       #crosshair {
         position: fixed;
         left: 50%;
@@ -49,6 +56,7 @@
   </head>
   <body>
     <canvas id="app"></canvas>
+    <div id="underwater"></div>
     <div id="crosshair"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

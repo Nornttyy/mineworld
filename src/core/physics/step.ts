@@ -91,7 +91,7 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
 
   const wish = wishDir(intent);
   const groundSpeed = intent.sprint ? SPRINT_PER_TICK : WALK_PER_TICK; // 疾跑更快
-  const speed = inWater ? WALK_PER_TICK * 0.5 : groundSpeed; // 水中变慢
+  const speed = inWater ? WALK_PER_TICK * 0.7 : groundSpeed; // 水中略慢
   vel.x = wish.x * speed;
   vel.z = wish.z * speed;
 
@@ -102,9 +102,9 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
 
   const onGround = isOnGround(pos, world);
   if (inWater) {
-    // 水中：缓沉 + 阻尼，按住跳上浮（游泳）
+    // 水中：缓沉 + 阻尼，按住空格有力上浮（足以游出水面、爬上岸）
     vel.y = vel.y * 0.5 - 0.02;
-    if (intent.jump) vel.y = 0.09;
+    if (intent.swimUp) vel.y = 0.16;
     if (vel.y < -0.15) vel.y = -0.15; // 限制下沉速度
   } else if (onGround) {
     vel.y = 0;
