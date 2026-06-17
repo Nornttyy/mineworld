@@ -162,16 +162,22 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   };
 
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
-  // 水用独立纹理(非图集) → UV 直接取 0..1，便于材质滚动做流动动画。
+  // UV 用世界坐标平铺（顶/底用 x,z；侧面用 水平,y）：整片水面连续平铺、斜水面不会扭曲，
+  // 配合独立可滚动水纹理做流动动画。
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
     const base = wa.P.length / 3;
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
-      wa.P.push(lx + corner[0], ly + yArr[k], lz + corner[2]);
+      const py = ly + yArr[k];
+      wa.P.push(lx + corner[0], py, lz + corner[2]);
       wa.N.push(d.n[0], d.n[1], d.n[2]);
-      wa.U.push(d.uv[k][0], d.uv[k][1]);
+      const wx = ox + lx + corner[0];
+      const wz = oz + lz + corner[2];
+      if (f === 2 || f === 3) wa.U.push(wx, wz); // 顶/底面
+      else if (f === 0 || f === 1) wa.U.push(wz, py); // ±X 侧
+      else wa.U.push(wx, py); // ±Z 侧
       wa.C.push(shade, shade, shade);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
