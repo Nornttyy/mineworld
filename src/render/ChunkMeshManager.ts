@@ -22,8 +22,13 @@ export class ChunkMeshManager {
     atlas: THREE.Texture,
   ) {
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
-    // 镂空(树叶)：alpha-test 裁掉透明像素，照常写深度
-    this.cutoutMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, alphaTest: 0.5 });
+    // 镂空(树叶)：alpha-test 裁切 + 双面渲染（透过近处孔能看到远端叶面，茂密感）
+    this.cutoutMat = new THREE.MeshBasicMaterial({
+      map: atlas,
+      vertexColors: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
     // 水：半透明、不写深度（避免遮挡排序问题），单独成批
     this.waterMat = new THREE.MeshBasicMaterial({
       map: atlas,
