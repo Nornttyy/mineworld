@@ -31,7 +31,8 @@ export interface BlockDef {
   transparent: boolean;
   faces: [number, number, number, number, number, number]; // +X,-X,+Y,-Y,+Z,-Z 的 tile 索引
   hardness: number; // MC Java 硬度（秒基准）；0=瞬破，越大越慢
-  drop: number | null; // 挖掉后掉落的方块 id；null=不掉落
+  drop: number | null; // 用对工具挖掉后掉落的方块 id；null=不掉落
+  needsTool: boolean; // 是否需要工具(镐)才能采集：手挖会 ×5 耗时且不掉落（石/圆石/矿）
 }
 
 const all = (t: number): BlockDef['faces'] => [t, t, t, t, t, t];
@@ -45,12 +46,12 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
   side,
 ];
 
-// 硬度/掉落取自 MC Java（无工具按手挖近似）：草→土、石→圆石、矿→自身(暂无独立掉落物)、
-// 草方块/树叶手挖不掉(需精准采集/剪刀)。drop=null 表示挖掉后什么都不掉。
+// 硬度/掉落取自 MC Java 真实值。手挖耗时 = 硬度 ×(needsTool?5:1.5) 秒（见 breakTimeMs）。
+// needsTool(石/圆石/矿)：手挖 ×5 且不掉落（要镐）。草→土、草方块/树叶手挖不掉(需精准采集/剪刀)。
 export const BLOCKS: BlockDef[] = [
-  { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null },
-  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4 },
-  { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2 },
+  { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false },
+  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true },
+  { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false },
   {
     id: 3,
     name: 'grass',
@@ -59,6 +60,7 @@ export const BLOCKS: BlockDef[] = [
     faces: column(T.grass_side, T.grass_top, T.dirt),
     hardness: 0.6,
     drop: 2, // 草方块掉土
+    needsTool: false,
   },
   {
     id: 4,
@@ -68,8 +70,9 @@ export const BLOCKS: BlockDef[] = [
     faces: all(T.cobblestone),
     hardness: 2.0,
     drop: 4,
+    needsTool: true,
   },
-  { id: 5, name: 'sand', solid: true, transparent: false, faces: all(T.sand), hardness: 0.5, drop: 5 },
+  { id: 5, name: 'sand', solid: true, transparent: false, faces: all(T.sand), hardness: 0.5, drop: 5, needsTool: false },
   {
     id: 6,
     name: 'oak_log',
@@ -78,6 +81,7 @@ export const BLOCKS: BlockDef[] = [
     faces: column(T.oak_log_side, T.oak_log_top, T.oak_log_top),
     hardness: 2.0,
     drop: 6,
+    needsTool: false, // 木头手挖即可采集(斧只是更快)
   },
   {
     id: 7,
@@ -87,10 +91,20 @@ export const BLOCKS: BlockDef[] = [
     faces: all(T.oak_planks),
     hardness: 2.0,
     drop: 7,
+    needsTool: false,
   },
-  { id: 8, name: 'coal_ore', solid: true, transparent: false, faces: all(T.coal_ore), hardness: 3.0, drop: 8 },
+  {
+    id: 8,
+    name: 'coal_ore',
+    solid: true,
+    transparent: false,
+    faces: all(T.coal_ore),
+    hardness: 3.0,
+    drop: 8,
+    needsTool: true,
+  },
   // 水：非实心（可进入）、半透明（渲染单独成批）；不可破坏
-  { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water), hardness: 0, drop: null },
+  { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water), hardness: 0, drop: null, needsTool: false },
   // 树叶：实心(可站)但非不透明(能透看)，渲染走镂空；手挖很快但不掉落
   {
     id: 10,
@@ -100,6 +114,7 @@ export const BLOCKS: BlockDef[] = [
     faces: all(T.oak_leaves),
     hardness: 0.2,
     drop: null,
+    needsTool: false,
   },
 ];
 
@@ -118,6 +133,15 @@ export const isOpaque = (id: number): boolean => {
 export const blockFaceTile = (id: number, face: Face): number => BLOCKS[id].faces[face];
 
 export const blockHardness = (id: number): number => BLOCKS[id]?.hardness ?? 0;
+export const blockNeedsTool = (id: number): boolean => BLOCKS[id]?.needsTool ?? false;
+// 徒手破坏耗时(ms)，1:1 MC Java。按整 tick 计（1 tick=50ms，避免浮点误差）：
+// 每点硬度 = 30 tick(能手采) 或 100 tick(需工具)，向上取整。等价于 硬度×1.5s 或 硬度×5s。
+// 例：土 0.75s、草 0.9s、原木/木板 3s、树叶 0.3s、石 7.5s、圆石 10s、煤矿 15s。
+export const breakTimeMs = (id: number): number => {
+  const h = Math.max(0, blockHardness(id));
+  if (h === 0) return 0;
+  return Math.ceil((blockNeedsTool(id) ? 100 : 30) * h) * 50;
+};
+// 徒手掉落：需工具的方块(石/矿)徒手挖不掉东西；其余按掉落表。
+export const handDrop = (id: number): number | null => (blockNeedsTool(id) ? null : BLOCKS[id]?.drop ?? null);
 export const blockDrop = (id: number): number | null => BLOCKS[id]?.drop ?? null;
-// 破坏耗时(ms)：按 MC 手挖近似 = 硬度 × 1.5 秒（硬度 0 → 瞬破）。工具系统到位后再细化。
-export const breakTimeMs = (id: number): number => Math.max(0, blockHardness(id)) * 1500;

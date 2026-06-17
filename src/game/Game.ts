@@ -3,7 +3,7 @@ import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
-import { isSolidId, isWaterId, breakTimeMs, blockDrop } from '../core/blocks/registry';
+import { isSolidId, isWaterId, breakTimeMs, handDrop } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
@@ -275,7 +275,7 @@ export class Game {
 
   // 破坏一个方块：清空 + 按掉落表生成掉落物。
   private mineBlock(x: number, y: number, z: number, id: number): void {
-    const drop = blockDrop(id);
+    const drop = handDrop(id); // 徒手：需镐的方块(石/矿)不掉落
     this.edit(x, y, z, AIR);
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     this.digProgress = 0;
