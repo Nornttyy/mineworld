@@ -17,8 +17,8 @@ const TICK_MS = 50; // 20 TPS 固定步长
 const SEED = 1337;
 const RENDER_RADIUS = 6; // 渲染半径（区块）
 const REACH = 5; // 交互距离（方块）
-// 数字键 1..n 可选的放置方块（id 见 registry）
-const PALETTE = [1, 2, 3, 4, 5, 6, 7, 8]; // stone,dirt,grass,cobblestone,sand,oak_log,oak_planks,coal_ore
+// 快捷栏 1..9 的放置方块（id 见 registry）
+const PALETTE = [1, 2, 3, 4, 5, 6, 7, 8, 9]; // 石/土/草/圆石/沙/原木/木板/煤矿/水
 const AIR = 0;
 
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置。 */

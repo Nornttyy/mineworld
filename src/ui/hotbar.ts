@@ -9,6 +9,7 @@ const ICON: Record<number, string> = {
   6: 'oak_log_side',
   7: 'oak_planks',
   8: 'coal_ore',
+  9: 'water',
 };
 
 export class Hotbar {
