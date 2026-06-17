@@ -22,19 +22,77 @@
         display: block;
         cursor: pointer;
       }
-      #menu {
+      /* 菜单/存档/暂停三屏：MC 经典泥土平铺底，与游戏无关 */
+      #menu,
+      #worldlist,
+      #pause {
         position: fixed;
         inset: 0;
         z-index: 10;
         font-family: 'Zpix', monospace;
         -webkit-font-smoothing: none;
-        /* 顶/底暗角，中间露出旋转的世界全景 */
-        background: linear-gradient(
-          rgba(0, 0, 0, 0.4),
-          rgba(0, 0, 0, 0.05) 28%,
-          rgba(0, 0, 0, 0.05) 70%,
-          rgba(0, 0, 0, 0.5)
-        );
+        background:
+          linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+          url('./textures/blocks/dirt.png');
+        background-size:
+          cover,
+          46px 46px;
+        image-rendering: pixelated;
+      }
+      #worldlist,
+      #pause {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+      .screen-title {
+        margin: 0 0 8px;
+        font-size: 34px;
+        color: #fff;
+        text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+      }
+      .world-rows {
+        width: 460px;
+        max-height: 320px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .world-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 2px solid #000;
+        cursor: pointer;
+      }
+      .world-row:hover {
+        background: rgba(118, 150, 92, 0.4);
+        border-color: #fff;
+      }
+      .world-row .wname {
+        flex: 1;
+        color: #fff;
+        font-size: 16px;
+      }
+      .world-row .wmeta {
+        color: #aaa;
+        font-size: 12px;
+      }
+      .world-row .wdel {
+        color: #e57373;
+        font-size: 13px;
+        padding: 3px 8px;
+        border: 1px solid #000;
+        background: rgba(0, 0, 0, 0.4);
+      }
+      .world-empty {
+        color: #bbb;
+        font-size: 14px;
       }
       .hidden {
         display: none !important;
@@ -252,6 +310,19 @@
         </p>
         <button id="about-close" class="btn">关闭</button>
       </div>
+    </div>
+    <div id="worldlist" class="hidden">
+      <h2 class="screen-title">选择世界</h2>
+      <div class="world-rows" id="world-rows"></div>
+      <div class="btn-row">
+        <button id="create-world" class="btn">创建新世界</button>
+        <button id="worldlist-back" class="btn">返回</button>
+      </div>
+    </div>
+    <div id="pause" class="hidden">
+      <h2 class="screen-title">已暂停</h2>
+      <button id="resume" class="btn btn-wide">继续游戏</button>
+      <button id="save-quit" class="btn btn-wide">保存并退出</button>
     </div>
     <div id="underwater"></div>
     <div id="crosshair"></div>

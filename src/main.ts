@@ -1,46 +1,126 @@
 import { Game } from './game/Game';
+import { listWorlds, createWorld, saveWorld, deleteWorld, type WorldSave } from './save/worldStore';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
-new Game(canvas).start();
-
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
-const menu = $('menu');
 
-// 随机 splash 文字（黄色抖动那条）
+const menu = $('menu');
+const worldlist = $('worldlist');
+const pause = $('pause');
+const worldRows = $('world-rows');
+
+let game: Game | null = null;
+
+// 随机 splash 文字
 const SPLASHES = [
   '100% 纯方块!',
   '无限的世界!',
   '由 Three.js 驱动!',
-  '会挖、会放、会跳!',
+  '会挖会放会跳!',
   '试试双击 W 疾跑~',
   '支持 WebGL2!',
   '像素手工打造!',
-  '水快会流动了…',
+  '水快会流动了!',
   '也试试我的世界!',
 ];
 $('splash').textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 
-// 开始游戏 → 锁定指针进游戏
-$('play').addEventListener('click', () => void canvas.requestPointerLock());
-// 全屏
+function setHud(show: boolean): void {
+  $('crosshair').style.display = show ? 'block' : 'none';
+  $('hotbar').style.display = show ? 'flex' : 'none';
+}
+
+function showOnly(el: HTMLElement | null): void {
+  for (const s of [menu, worldlist, pause]) s.classList.add('hidden');
+  if (el) el.classList.remove('hidden');
+  setHud(false);
+}
+
+// --- 主菜单 ---
+showOnly(menu);
+$('play').addEventListener('click', () => openWorldList());
 $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen();
 });
-// 关于面板
 $('about').addEventListener('click', () => $('about-panel').classList.remove('hidden'));
 $('about-close').addEventListener('click', () => $('about-panel').classList.add('hidden'));
 
-// 菜单时隐藏游戏 HUD（准星 / 快捷栏）
-const setHud = (show: boolean): void => {
-  $('crosshair').style.display = show ? 'block' : 'none';
-  $('hotbar').style.display = show ? 'flex' : 'none';
-};
-setHud(false); // 开局停在菜单
+// --- 存档（世界选择）---
+function openWorldList(): void {
+  renderWorldList();
+  showOnly(worldlist);
+}
 
-// 指针锁定 = 游戏中；解锁(ESC) = 菜单重现（暂停）
+function renderWorldList(): void {
+  worldRows.innerHTML = '';
+  const worlds = listWorlds();
+  if (worlds.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'world-empty';
+    empty.textContent = '还没有世界, 点 创建新世界 开始吧';
+    worldRows.appendChild(empty);
+    return;
+  }
+  for (const w of worlds) {
+    const row = document.createElement('div');
+    row.className = 'world-row';
+    const name = document.createElement('span');
+    name.className = 'wname';
+    name.textContent = w.name;
+    const meta = document.createElement('span');
+    meta.className = 'wmeta';
+    meta.textContent = `种子 ${w.seed}`;
+    const del = document.createElement('span');
+    del.className = 'wdel';
+    del.textContent = '删除';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteWorld(w.id);
+      renderWorldList();
+    });
+    row.append(name, meta, del);
+    row.addEventListener('click', () => startGame(w));
+    worldRows.appendChild(row);
+  }
+}
+
+$('create-world').addEventListener('click', () => startGame(createWorld('新的世界')));
+$('worldlist-back').addEventListener('click', () => showOnly(menu));
+
+// --- 进入游戏 ---
+function startGame(world: WorldSave): void {
+  if (game) return;
+  game = new Game(canvas, world);
+  game.start();
+  showOnly(null);
+  void canvas.requestPointerLock();
+}
+
+// --- 暂停 / 存盘 ---
+$('resume').addEventListener('click', () => void canvas.requestPointerLock());
+$('save-quit').addEventListener('click', () => {
+  if (game) saveWorld(game.snapshot());
+  location.reload(); // 回到主菜单（干净重置）
+});
+
+// 指针锁定 = 游戏中；解锁(ESC) = 暂停并存盘
 document.addEventListener('pointerlockchange', () => {
   const playing = document.pointerLockElement === canvas;
-  menu.style.display = playing ? 'none' : 'flex';
-  setHud(playing);
+  if (playing) {
+    pause.classList.add('hidden');
+    setHud(true);
+  } else if (game) {
+    saveWorld(game.snapshot());
+    pause.classList.remove('hidden');
+    setHud(false);
+  }
+});
+
+// 定时自动存盘 + 关页面前存盘
+setInterval(() => {
+  if (game && document.pointerLockElement === canvas) saveWorld(game.snapshot());
+}, 15000);
+window.addEventListener('beforeunload', () => {
+  if (game) saveWorld(game.snapshot());
 });

@@ -12,20 +12,22 @@ import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physic
 import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
+import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
-const SEED = 1337;
 const RENDER_RADIUS = 6; // 渲染半径（区块）
 const REACH = 5; // 交互距离（方块）
 // 快捷栏 1..9 的放置方块（id 见 registry；水不可放置，故第9格用树叶）
 const PALETTE = [1, 2, 3, 4, 5, 6, 7, 8, 10]; // 石/土/草/圆石/沙/原木/木板/煤矿/树叶
 const AIR = 0;
 
-/** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置。 */
+/** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置。从存档启动。 */
 export class Game {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly save: WorldSave;
   private readonly renderer: Renderer;
   private readonly look: PointerLookControls;
-  private readonly world = new ChunkWorld(SEED);
+  private readonly world: ChunkWorld;
   private readonly physWorld: VoxelWorld;
   private readonly chunks: ChunkMeshManager;
   private readonly highlight: THREE.LineSegments;
@@ -35,36 +37,37 @@ export class Game {
   private player: Player;
   private prev: Player;
   private readonly hotbar: Hotbar;
-  private fov = 70; // 当前相机 FOV（疾跑时平滑拉宽）
+  private fov = 70;
   private last = 0;
   private acc = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, save: WorldSave) {
+    this.canvas = canvas;
+    this.save = save;
     this.renderer = new Renderer(canvas);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, PALETTE);
+
+    this.world = new ChunkWorld(save.seed);
+    // 应用存档里玩家改过的方块（delta）
+    for (const key of Object.keys(save.edits)) {
+      const [x, y, z] = key.split(',').map(Number);
+      this.world.setBlock(x, y, z, save.edits[key]);
+    }
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas());
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
     };
 
-    const spawn = this.findSpawn();
-    this.player = {
-      pos: { x: spawn.x, y: spawn.y, z: spawn.z },
-      vel: { x: 0, y: 0, z: 0 },
-      onGround: false,
-    };
+    // 出生：有存档位置就用，否则找海岸陆地
+    const p = save.player;
+    const spawn = p ? { x: p.x, y: p.y, z: p.z } : this.findSpawn(save.seed);
+    this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
-    this.chunks.update(
-      worldToChunk(Math.floor(spawn.x)),
-      worldToChunk(Math.floor(spawn.z)),
-      2,
-      999,
-    ); // 预建出生点附近
+    this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
 
-    // 选中方块的线框高亮
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
     this.highlight = new THREE.LineSegments(
       new THREE.EdgesGeometry(box),
@@ -74,22 +77,19 @@ export class Game {
     this.renderer.scene.add(this.highlight);
 
     this.look = new PointerLookControls(canvas);
-    this.look.yaw = Math.atan2(-spawn.z, -spawn.x); // 朝原点（多半有水）看
-    this.look.pitch = -0.18;
+    this.look.yaw = p ? p.yaw : Math.atan2(-spawn.z, -spawn.x);
+    this.look.pitch = p ? p.pitch : -0.18;
 
-    // 左键挖、右键放（仅在指针锁定时）
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
       if (document.pointerLockElement !== canvas) return;
       if (e.button === 0) this.breakBlock();
       else if (e.button === 2) this.placeBlock();
     });
-    // 数字键选快捷栏方块
     window.addEventListener('keydown', (e) => {
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= PALETTE.length) this.hotbar.setSelected(n - 1);
     });
-    // 滚轮切换快捷栏（同 MC）
     canvas.addEventListener(
       'wheel',
       (e) => {
@@ -100,18 +100,29 @@ export class Game {
     );
   }
 
-  // 从原点向外找一处略高于海平面的海岸陆地作为出生点
-  private findSpawn(): { x: number; y: number; z: number } {
+  // 当前世界状态快照（写回存档对象，供持久化）
+  snapshot(): WorldSave {
+    this.save.player = {
+      x: this.player.pos.x,
+      y: this.player.pos.y,
+      z: this.player.pos.z,
+      yaw: this.look.yaw,
+      pitch: this.look.pitch,
+    };
+    this.save.lastPlayed = Date.now();
+    return this.save;
+  }
+
+  private findSpawn(seed: number): { x: number; y: number; z: number } {
     for (let r = 1; r < 160; r++) {
       for (let i = -r; i <= r; i++) {
-        const ring: [number, number][] = [
+        for (const [x, z] of [
           [i, -r],
           [i, r],
           [-r, i],
           [r, i],
-        ];
-        for (const [x, z] of ring) {
-          const h = columnHeight(x, z, SEED);
+        ] as [number, number][]) {
+          const h = columnHeight(x, z, seed);
           if (h > SEA_LEVEL && h <= SEA_LEVEL + 4) return { x: x + 0.5, y: h + 2, z: z + 0.5 };
         }
       }
@@ -123,11 +134,11 @@ export class Game {
     this.last = performance.now();
     const frame = (now: number): void => {
       requestAnimationFrame(frame);
-      if (!document.pointerLockElement) this.look.yaw += 0.0009; // 菜单时世界全景缓转
       this.acc += now - this.last;
       this.last = now;
       if (this.acc > 250) this.acc = 250;
-      while (this.acc >= TICK_MS) {
+      const playing = document.pointerLockElement === this.canvas;
+      while (playing && this.acc >= TICK_MS) {
         this.prev = this.player;
         const m = readMove();
         this.player = step(
@@ -136,22 +147,23 @@ export class Game {
             forward: m.forward,
             right: m.right,
             yaw: this.look.yaw,
-            jump: consumeJump(), // 边沿：一次按键一次跳
-            swimUp: m.jumpHeld, // 水中持续上浮
+            jump: consumeJump(),
+            swimUp: m.jumpHeld,
             sprint: m.sprint,
           },
           this.physWorld,
         );
         this.acc -= TICK_MS;
       }
+      if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
+
       this.chunks.update(
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
         RENDER_RADIUS,
         2,
       );
-      // 疾跑时平滑拉宽视野（同 MC 的速度感）
-      const wantFov = readMove().sprint ? 80 : 70;
+      const wantFov = playing && readMove().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
       this.renderer.camera.updateProjectionMatrix();
@@ -163,7 +175,6 @@ export class Game {
     requestAnimationFrame(frame);
   }
 
-  // 从眼睛沿视线投射，返回命中方块
   private rayHit(): RayHit | null {
     const o = { x: this.player.pos.x, y: this.player.pos.y + EYE, z: this.player.pos.z };
     const cy = Math.cos(this.look.yaw);
@@ -174,11 +185,16 @@ export class Game {
     return raycastVoxel(o, dir, REACH, (x, y, z) => isSolidId(this.world.getBlock(x, y, z)));
   }
 
+  // 记录方块改动到存档 delta
+  private edit(x: number, y: number, z: number, id: number): void {
+    this.world.setBlock(x, y, z, id);
+    this.save.edits[`${x},${y},${z}`] = id;
+    this.chunks.remeshDirty();
+  }
+
   private breakBlock(): void {
     const hit = this.rayHit();
-    if (!hit) return;
-    this.world.setBlock(hit.x, hit.y, hit.z, AIR);
-    this.chunks.remeshDirty();
+    if (hit) this.edit(hit.x, hit.y, hit.z, AIR);
   }
 
   private placeBlock(): void {
@@ -190,11 +206,9 @@ export class Game {
     const target = this.world.getBlock(px, py, pz);
     if (target !== AIR && !isWaterId(target)) return; // 仅可放进空气或水
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
-    this.world.setBlock(px, py, pz, PALETTE[this.hotbar.index]);
-    this.chunks.remeshDirty();
+    this.edit(px, py, pz, PALETTE[this.hotbar.index]);
   }
 
-  // 方块 [b,b+1]³ 是否与玩家 AABB 相交
   private overlapsPlayer(bx: number, by: number, bz: number): boolean {
     const p = this.player.pos;
     const hw = WIDTH / 2;
@@ -208,7 +222,6 @@ export class Game {
     );
   }
 
-  // 眼睛在水里 → 切到浓蓝雾 + 蓝色屏幕叠层（同 MC 水下观感）
   private updateWater(): void {
     const ex = Math.floor(this.player.pos.x);
     const ey = Math.floor(this.player.pos.y + EYE);
