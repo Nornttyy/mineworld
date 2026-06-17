@@ -19,6 +19,7 @@ export interface MoveIntent {
 
 export interface VoxelWorld {
   isSolid(x: number, y: number, z: number): boolean;
+  isWater?(x: number, y: number, z: number): boolean; // 可选：用于浮力/游泳
 }
 
 // 1:1 数值（每 tick），见 docs/minecraft-values.md

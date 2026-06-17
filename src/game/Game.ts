@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
-import { columnHeight } from '../core/worldgen/terrain';
+import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
-import { isSolidId } from '../core/blocks/registry';
+import { isSolidId, isWaterId } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
@@ -37,16 +37,24 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas());
-    this.physWorld = { isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)) };
+    this.physWorld = {
+      isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
+      isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
+    };
 
-    const groundY = columnHeight(0, 0, SEED) + 2;
+    const spawn = this.findSpawn();
     this.player = {
-      pos: { x: 0.5, y: groundY, z: 0.5 },
+      pos: { x: spawn.x, y: spawn.y, z: spawn.z },
       vel: { x: 0, y: 0, z: 0 },
       onGround: false,
     };
     this.prev = this.player;
-    this.chunks.update(0, 0, 2, 999); // 预建出生点附近
+    this.chunks.update(
+      worldToChunk(Math.floor(spawn.x)),
+      worldToChunk(Math.floor(spawn.z)),
+      2,
+      999,
+    ); // 预建出生点附近
 
     // 选中方块的线框高亮
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
@@ -58,8 +66,8 @@ export class Game {
     this.renderer.scene.add(this.highlight);
 
     this.look = new PointerLookControls(canvas);
-    this.look.yaw = 0.6;
-    this.look.pitch = -0.12;
+    this.look.yaw = Math.atan2(-spawn.z, -spawn.x); // 朝原点（多半有水）看
+    this.look.pitch = -0.18;
 
     // 左键挖、右键放（仅在指针锁定时）
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -73,6 +81,25 @@ export class Game {
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= PALETTE.length) this.selected = PALETTE[n - 1];
     });
+  }
+
+  // 从原点向外找一处略高于海平面的海岸陆地作为出生点
+  private findSpawn(): { x: number; y: number; z: number } {
+    for (let r = 1; r < 160; r++) {
+      for (let i = -r; i <= r; i++) {
+        const ring: [number, number][] = [
+          [i, -r],
+          [i, r],
+          [-r, i],
+          [r, i],
+        ];
+        for (const [x, z] of ring) {
+          const h = columnHeight(x, z, SEED);
+          if (h > SEA_LEVEL && h <= SEA_LEVEL + 4) return { x: x + 0.5, y: h + 2, z: z + 0.5 };
+        }
+      }
+    }
+    return { x: 0.5, y: SEA_LEVEL + 3, z: 0.5 };
   }
 
   start(): void {
@@ -124,7 +151,8 @@ export class Game {
     const px = hit.x + hit.nx;
     const py = hit.y + hit.ny;
     const pz = hit.z + hit.nz;
-    if (this.world.getBlock(px, py, pz) !== AIR) return; // 目标格非空
+    const target = this.world.getBlock(px, py, pz);
+    if (target !== AIR && !isWaterId(target)) return; // 仅可放进空气或水
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
     this.world.setBlock(px, py, pz, this.selected);
     this.chunks.remeshDirty();

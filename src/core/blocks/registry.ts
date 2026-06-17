@@ -20,6 +20,7 @@ const T = {
   oak_log_side: 7,
   oak_planks: 8,
   coal_ore: 9,
+  water: 10,
 } as const;
 
 export interface BlockDef {
@@ -63,7 +64,17 @@ export const BLOCKS: BlockDef[] = [
   },
   { id: 7, name: 'oak_planks', solid: true, transparent: false, faces: all(T.oak_planks) },
   { id: 8, name: 'coal_ore', solid: true, transparent: false, faces: all(T.coal_ore) },
+  // 水：非实心（可进入）、半透明（渲染单独成批）
+  { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water) },
 ];
 
+export const WATER = 9;
+
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
+export const isWaterId = (id: number): boolean => id === WATER;
+// 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
+export const isOpaque = (id: number): boolean => {
+  const b = BLOCKS[id];
+  return b ? b.solid && !b.transparent : false;
+};
 export const blockFaceTile = (id: number, face: Face): number => BLOCKS[id].faces[face];

@@ -81,23 +81,33 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const pos: Vec3 = { ...player.pos };
   const vel: Vec3 = { ...player.vel };
 
-  // 起跳判定用"移动前"的贴地状态
-  if (isOnGround(pos, world) && intent.jump) vel.y = JUMP;
+  const grounded = isOnGround(pos, world);
+  // 身体中部是否在水里 → 浮力/游泳
+  const inWater =
+    world.isWater?.(Math.floor(pos.x), Math.floor(pos.y + 0.9), Math.floor(pos.z)) ?? false;
+
+  if (!inWater && grounded && intent.jump) vel.y = JUMP; // 陆上起跳
 
   const wish = wishDir(intent);
-  vel.x = wish.x * WALK_PER_TICK;
-  vel.z = wish.z * WALK_PER_TICK;
+  const speed = inWater ? WALK_PER_TICK * 0.5 : WALK_PER_TICK; // 水中变慢
+  vel.x = wish.x * speed;
+  vel.z = wish.z * speed;
 
   // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
   if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
   if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
   if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
 
-  // ⚠️ 重力放在移动之后：起跳第一帧能升满 0.42 → 跳高 ≈1.25 格（同 MC），跳得上一格方块
   const onGround = isOnGround(pos, world);
-  if (onGround) {
+  if (inWater) {
+    // 水中：缓沉 + 阻尼，按住跳上浮（游泳）
+    vel.y = vel.y * 0.5 - 0.02;
+    if (intent.jump) vel.y = 0.09;
+    if (vel.y < -0.15) vel.y = -0.15; // 限制下沉速度
+  } else if (onGround) {
     vel.y = 0;
   } else {
+    // ⚠️ 重力放在移动之后：起跳第一帧升满 0.42 → 跳高 ≈1.25 格（同 MC）
     vel.y = (vel.y - GRAVITY) * VDRAG;
   }
 

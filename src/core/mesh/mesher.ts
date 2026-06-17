@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, blockFaceTile, Face } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, blockFaceTile, Face } from '../blocks/registry';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -110,54 +110,77 @@ export function meshWorld(world: World): MeshData {
   return meshGrid(world);
 }
 
-// 网格化无限世界中的一个区块 (cx,cz)。位置用区块局部坐标（0..CHUNK_W / 0..CHUNK_H），
-// 邻居按世界坐标采样（含相邻区块），故区块接缝处正确剔除、无内墙。Mesh 放到 (cx*16,0,cz*16)。
-export function meshChunk(world: ChunkWorld, cx: number, cz: number): MeshData {
+interface FaceArrays {
+  P: number[];
+  N: number[];
+  U: number[];
+  C: number[];
+  I: number[];
+}
+const emptyArrays = (): FaceArrays => ({ P: [], N: [], U: [], C: [], I: [] });
+const toMeshData = (a: FaceArrays): MeshData => ({
+  positions: new Float32Array(a.P),
+  normals: new Float32Array(a.N),
+  uvs: new Float32Array(a.U),
+  colors: new Float32Array(a.C),
+  indices: new Uint32Array(a.I),
+});
+
+export interface ChunkMesh {
+  opaque: MeshData;
+  water: MeshData;
+}
+
+// 网格化无限世界中的一个区块 (cx,cz)，分别产出"不透明"和"水"两套网格。
+// 位置用区块局部坐标；邻居按世界坐标采样（含相邻区块），故接缝正确剔除、无内墙。
+export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh {
   const ox = cx * CHUNK_W;
   const oz = cz * CHUNK_W;
-  const P: number[] = [];
-  const N: number[] = [];
-  const U: number[] = [];
-  const C: number[] = [];
-  const I: number[] = [];
-
+  const op = emptyArrays();
+  const wa = emptyArrays();
   const eps = 0.5 / (TILE_PX * ATLAS_COLS);
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
+
+  const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
+    const d = DIRS[f];
+    const tile = blockFaceTile(id, f as Face);
+    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const shade = FACE_SHADE[f];
+    const base = a.P.length / 3;
+    for (let k = 0; k < 4; k++) {
+      const corner = d.c[k];
+      a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
+      a.N.push(d.n[0], d.n[1], d.n[2]);
+      a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
+      a.C.push(shade, shade, shade);
+    }
+    a.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
 
   for (let ly = 0; ly < CHUNK_H; ly++) {
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const id = world.getBlock(ox + lx, ly, oz + lz);
-        if (!isSolidId(id)) continue;
-        for (let f = 0; f < 6; f++) {
-          const d = DIRS[f];
-          if (isSolidId(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
-          const tile = blockFaceTile(id, f as Face);
-          const col = tile % ATLAS_COLS;
-          const row = Math.floor(tile / ATLAS_COLS);
-          const u0 = col / ATLAS_COLS + eps;
-          const v0 = 1 - (row + 1) / ATLAS_ROWS + eps;
-          const shade = FACE_SHADE[f];
-          const base = P.length / 3;
-          for (let k = 0; k < 4; k++) {
-            const corner = d.c[k];
-            P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
-            N.push(d.n[0], d.n[1], d.n[2]);
-            U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
-            C.push(shade, shade, shade);
+        if (isOpaque(id)) {
+          for (let f = 0; f < 6; f++) {
+            const d = DIRS[f];
+            // 不透明面：邻格也不透明才剔除（露给空气/水都要画）
+            if (isOpaque(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            emit(op, lx, ly, lz, id, f);
           }
-          I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        } else if (isWaterId(id)) {
+          for (let f = 0; f < 6; f++) {
+            const d = DIRS[f];
+            // 水面：只画露给空气的面（水-水、水-实心都剔除）
+            if (world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]) !== 0) continue;
+            emit(wa, lx, ly, lz, id, f);
+          }
         }
       }
     }
   }
 
-  return {
-    positions: new Float32Array(P),
-    normals: new Float32Array(N),
-    uvs: new Float32Array(U),
-    colors: new Float32Array(C),
-    indices: new Uint32Array(I),
-  };
+  return { opaque: toMeshData(op), water: toMeshData(wa) };
 }

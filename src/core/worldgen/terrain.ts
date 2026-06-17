@@ -1,31 +1,35 @@
 import { World } from '../world/world';
 import { Chunk, CHUNK_W } from '../world/chunk';
 import { fbm2 } from '../math/noise';
+import { WATER } from '../blocks/registry';
 
 // 方块 id（见 core/blocks/registry）
 const STONE = 1;
 const DIRT = 2;
 const GRASS = 3;
 const SAND = 5;
+export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
 
 // 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续）
 export function columnHeight(wx: number, wz: number, seed: number): number {
   const n = fbm2(wx / 80, wz / 80, seed, 4);
-  return Math.floor(12 + n * 26); // 12..38
+  return Math.floor(8 + n * 40); // 更大振幅，地形可下探到海平面以下形成湖海
 }
 
-// 生成单个区块列 (cx,cz)：石基→土→草顶。确定性、跨区块无缝。（沙/水等阶段 3 配海平面再加）
+// 生成单个区块列 (cx,cz)：石基→土→草顶；海平面以下注水、岸边铺沙。确定性、跨区块无缝。
 export function generateChunk(cx: number, cz: number, seed: number): Chunk {
   const c = new Chunk();
   for (let lz = 0; lz < CHUNK_W; lz++) {
     for (let lx = 0; lx < CHUNK_W; lx++) {
       const height = columnHeight(cx * CHUNK_W + lx, cz * CHUNK_W + lz, seed);
+      const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         let id = STONE;
-        if (y === height) id = GRASS;
-        else if (y >= height - 3) id = DIRT;
+        if (y === height) id = beach ? SAND : GRASS;
+        else if (y >= height - 3) id = beach ? SAND : DIRT;
         c.set(lx, y, lz, id);
       }
+      for (let y = height + 1; y <= SEA_LEVEL; y++) c.set(lx, y, lz, WATER); // 注水到海平面
     }
   }
   c.dirty = true;

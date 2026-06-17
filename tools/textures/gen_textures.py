@@ -223,6 +223,13 @@ def coal_ore(rng):
     return im
 
 
+def water(rng):
+    # 不透明蓝噪声；半透明由渲染材质的 opacity 统一处理
+    im = new()
+    noise(im, ["#3b6fb0", "#3568a6", "#4279bd", "#3060a0"], [3, 3, 2, 2], rng)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -234,6 +241,7 @@ BLOCKS = [
     ("oak_log_side", oak_log_side),
     ("oak_log_top", oak_log_top),
     ("coal_ore", coal_ore),
+    ("water", water),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -252,7 +260,7 @@ def main():
     # Pack block tiles into one atlas (4x4 grid, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
-                   'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore']
+                   'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water']
     atlas = Image.new('RGB', (S * 4, S * 4))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm], ((i % 4) * S, (i // 4) * S))

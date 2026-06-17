@@ -36,7 +36,7 @@ describe('ChunkWorld', () => {
 describe('meshChunk', () => {
   it('produces geometry; every face is a quad (4 verts / 6 indices)', () => {
     const w = new ChunkWorld(7);
-    const m = meshChunk(w, 0, 0);
+    const m = meshChunk(w, 0, 0).opaque;
     expect(m.indices.length).toBeGreaterThan(0);
     expect(m.positions.length).toBe((m.indices.length / 6) * 12);
   });
@@ -45,9 +45,9 @@ describe('meshChunk', () => {
     const w = new ChunkWorld(123);
     const h = 45; // 高于地形，干净的浮空块便于对比
     w.setBlock(15, h, 0, 1); // 区块(0,0)的 +X 边界
-    const before = meshChunk(w, 0, 0).indices.length;
+    const before = meshChunk(w, 0, 0).opaque.indices.length;
     w.setBlock(16, h, 0, 1); // 区块(1,0)里紧邻其 +X 的方块
-    const after = meshChunk(w, 0, 0).indices.length;
+    const after = meshChunk(w, 0, 0).opaque.indices.length;
     expect(after).toBeLessThan(before); // (15,h,0) 的 +X 面被邻区块剔除
   });
 });
