@@ -38,9 +38,13 @@ const key = (x: number, y: number, z: number): string => `${x},${y},${z}`;
 
 export class FluidSim {
   private active = new Set<string>();
+  private readonly seaLevel: number;
   private readonly maxPerTick: number;
 
-  constructor(maxPerTick = 4000) {
+  // seaLevel：海平面 y。挖到海平面及以下、且连到水源的洼地会被灌满到海平面（复刻 MC
+  //   "在海边往下挖会被淹"）。默认 -Infinity = 关闭该行为（纯流动，供单测）。
+  constructor(seaLevel = -Infinity, maxPerTick = 4000) {
+    this.seaLevel = seaLevel;
     this.maxPerTick = maxPerTick;
   }
 
@@ -119,8 +123,12 @@ export class FluidSim {
         if (g.isSource(x + dx, y, z + dz)) srcCount++;
       }
     }
-    if (srcCount >= 2 && (g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z))) {
-      return { amount: FULL, source: true, falling: false }; // 无限水源
+    // 变源头(灌满)：海平面及以下，连到任一水源就灌成源头(忽略下方) → 洼地被淹到海平面，
+    //   像 MC 海边挖坑会进水填满。海平面之上用 MC 默认(≥2 源头邻居 且 脚下实心/源头)。
+    const seaFill = y <= this.seaLevel;
+    const belowOk = g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z);
+    if (srcCount >= (seaFill ? 1 : 2) && (seaFill || belowOk)) {
+      return { amount: FULL, source: true, falling: false };
     }
     const n = maxN - DROPOFF;
     return n > 0 ? { amount: n, source: false, falling: false } : EMPTY;
@@ -132,7 +140,9 @@ export class FluidSim {
     const belowFull = g.amount(x, by, z) === FULL && !g.isFalling(x, by, z); // 下方已成池满水
     if (!g.isSolid(x, by, z) && !belowFull) {
       propose(x, by, z, { amount: FULL, source: false, falling: true }); // 下落柱
-      return; // 下落时不横向铺
+      // 海平面那一层：即使能下流，也照样横向铺满开口(否则水只顺缺口灌到坑底成薄层)。
+      // 其它层维持"下流优先"，保证瀑布柱单薄。
+      if (y !== this.seaLevel) return;
     }
     const own = cell.source ? FULL : cell.amount;
     const give = own - DROPOFF;

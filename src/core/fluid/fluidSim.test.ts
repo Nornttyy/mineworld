@@ -35,6 +35,9 @@ class Grid implements FluidGrid {
   carveHole(x: number, y: number, z: number): void {
     this.holes.add(this.k(x, y, z));
   }
+  solid(x: number, y: number, z: number): void {
+    this.solids.add(this.k(x, y, z));
+  }
 }
 
 function run(sim: FluidSim, g: FluidGrid, ticks: number): void {
@@ -109,6 +112,28 @@ describe('fluidSim（对照 MC）', () => {
     expect(g.amount(0, 0, 0)).toBeGreaterThan(0); // 停在 y=0
     expect(g.amount(0, -1, 0)).toBe(0); // 没灌进 y<0
     expect(sim.activeCount).toBe(0); // 收敛，不再 churn
+  });
+
+  it('海平面下、连到水源的洼地被灌满（MC 海边挖坑会进水）', () => {
+    const g = new Grid(0); // y<0 固体
+    const SEA = 5;
+    for (let y = 0; y <= SEA; y++) g.src(-1, y, 0); // 一面"深海"源头墙(x=-1)
+    g.solid(2, 0, 0); // 远端挡墙，限制洪泛范围便于断言
+    for (let y = 0; y <= SEA + 1; y++) {
+      g.solid(2, y, 0);
+      g.solid(0, y, 1);
+      g.solid(0, y, -1);
+      g.solid(1, y, 1);
+      g.solid(1, y, -1);
+    }
+    const sim = new FluidSim(SEA); // 传入海平面
+    for (let y = 0; y <= SEA; y++) sim.activate(-1, y, 0);
+    run(sim, g, 40);
+    // 坑(x=0,1 各 y=0..5)应被灌满到海平面，而不是只在底部积一薄层
+    expect(g.amount(0, 0, 0)).toBeGreaterThan(0); // 底
+    expect(g.amount(0, SEA, 0)).toBeGreaterThan(0); // 顶
+    expect(g.amount(1, 0, 0)).toBeGreaterThan(0); // 远一格的底也灌满
+    expect(g.amount(1, SEA, 0)).toBeGreaterThan(0);
   });
 
   it('空闲时收敛（无活跃格）', () => {

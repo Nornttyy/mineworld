@@ -57,7 +57,7 @@ export class Game {
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
-  private readonly fluidSim = new FluidSim();
+  private readonly fluidSim = new FluidSim(SEA_LEVEL);
   private readonly fluidGrid: FluidGrid;
   private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
   private fov = 70;
