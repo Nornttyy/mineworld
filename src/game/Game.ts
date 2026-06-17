@@ -232,6 +232,7 @@ export class Game {
       } else {
         this.crack.hide();
       }
+      this.chunks.animateWater(dt); // 水面流动动画
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);

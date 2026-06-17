@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face, WATER } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face } from '../blocks/registry';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -162,18 +162,16 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   };
 
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
+  // 水用独立纹理(非图集) → UV 直接取 0..1，便于材质滚动做流动动画。
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
-    const tile = blockFaceTile(WATER, f as Face);
-    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
-    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
     const shade = FACE_SHADE[f];
     const base = wa.P.length / 3;
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
       wa.P.push(lx + corner[0], ly + yArr[k], lz + corner[2]);
       wa.N.push(d.n[0], d.n[1], d.n[2]);
-      wa.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
+      wa.U.push(d.uv[k][0], d.uv[k][1]);
       wa.C.push(shade, shade, shade);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type MeshData } from '../core/mesh/mesher';
+import { loadWaterTexture } from './atlas';
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
@@ -15,6 +16,7 @@ export class ChunkMeshManager {
   private readonly opaqueMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
+  private readonly waterTex: THREE.Texture;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -29,14 +31,21 @@ export class ChunkMeshManager {
       alphaTest: 0.5,
       side: THREE.DoubleSide,
     });
-    // 水：半透明、不写深度（避免遮挡排序问题），单独成批
+    // 水：半透明、不写深度（避免遮挡排序问题），单独成批；用独立可滚动纹理做流动动画
+    this.waterTex = loadWaterTexture();
     this.waterMat = new THREE.MeshBasicMaterial({
-      map: atlas,
+      map: this.waterTex,
       vertexColors: true,
       transparent: true,
       opacity: 0.72,
       depthWrite: false,
     });
+  }
+
+  /** 滚动水纹理 UV 做"流动"动画（每帧调用，dt 秒）。NearestFilter 下逐像素跳动，像 MC。 */
+  animateWater(dt: number): void {
+    this.waterTex.offset.x = (this.waterTex.offset.x + dt * 0.08) % 1;
+    this.waterTex.offset.y = (this.waterTex.offset.y - dt * 0.28 + 1) % 1;
   }
 
   private key(cx: number, cz: number): string {
