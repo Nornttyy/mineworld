@@ -42,10 +42,10 @@ export class ChunkMeshManager {
     });
   }
 
-  /** 滚动水纹理 UV 做"流动"动画（每帧调用，dt 秒）。NearestFilter 下逐像素跳动，像 MC。 */
+  /** 水面动画：原先是整张 UV 单向滚动（看着像水在往一个方向流走，不自然），按需求去掉——水面现为静止。
+   *  保留方法与每帧调用钩子，便于以后接 MC 风格的"原地波纹"帧动画（届时按帧跳 offset，而非连续平移）。 */
   animateWater(dt: number): void {
-    this.waterTex.offset.x = (this.waterTex.offset.x + dt * 0.08) % 1;
-    this.waterTex.offset.y = (this.waterTex.offset.y - dt * 0.28 + 1) % 1;
+    void dt; // 暂不滚动 UV；waterTex.offset 保持 (0,0)
   }
 
   private key(cx: number, cz: number): string {
