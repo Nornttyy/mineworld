@@ -1,12 +1,12 @@
-// 底部快捷栏（MC 同款）：一排方块槽，显示图标 + 当前选中高亮。
-// 方块 id → 用作图标的纹理名（public/textures/blocks/<name>.png）
+// 底部快捷栏（MC 同款）：一排方块槽，等距方块图标 + 当前选中高亮框。
+// 方块 id → 等距图标名（public/textures/icons/<name>.png）
 const ICON: Record<number, string> = {
   1: 'stone',
   2: 'dirt',
-  3: 'grass_side',
+  3: 'grass',
   4: 'cobblestone',
   5: 'sand',
-  6: 'oak_log_side',
+  6: 'oak_log',
   7: 'oak_planks',
   8: 'coal_ore',
   9: 'water',
@@ -27,14 +27,9 @@ export class Hotbar {
       icon.className = 'hotbar-icon';
       const name = ICON[blockIds[i]];
       if (name) {
-        icon.style.backgroundImage = `url(${import.meta.env.BASE_URL}textures/blocks/${name}.png)`;
+        icon.style.backgroundImage = `url(${import.meta.env.BASE_URL}textures/icons/${name}.png)`;
       }
       slot.appendChild(icon);
-
-      const num = document.createElement('span');
-      num.className = 'hotbar-num';
-      num.textContent = String(i + 1);
-      slot.appendChild(num);
 
       el.appendChild(slot);
       this.slots.push(slot);

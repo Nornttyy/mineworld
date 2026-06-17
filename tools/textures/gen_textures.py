@@ -247,6 +247,40 @@ BLOCKS = [
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
 
 
+# 把方块渲染成等距(2:1)立方体图标：顶面 + 左右两侧面，按 MC 面亮度着色。
+def iso_icon(top_tex, left_tex, right_tex):
+    A, B, CH = 16, 8, 16  # 顶面半宽、顶面半高、侧面高
+    W, H = 2 * A, 2 * B + CH
+    cx = A
+    canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    cpx = canvas.load()
+    Lp = (cx - A, B)        # 左顶点
+    Tp = (cx, 0)            # 上顶点
+    Rp = (cx + A, B)        # 右顶点
+    Bp = (cx, 2 * B)        # 下顶点
+    faces = [
+        (top_tex, Lp, (Tp[0] - Lp[0], Tp[1] - Lp[1]), (Bp[0] - Lp[0], Bp[1] - Lp[1]), 1.0),   # 顶
+        (left_tex, Lp, (Bp[0] - Lp[0], Bp[1] - Lp[1]), (0, CH), 0.62),                          # 左
+        (right_tex, Bp, (Rp[0] - Bp[0], Rp[1] - Bp[1]), (0, CH), 0.80),                         # 右
+    ]
+    for tex, p0, u, v, shade in faces:
+        det = u[0] * v[1] - u[1] * v[0]
+        if det == 0:
+            continue
+        i0, i1, i2, i3 = v[1] / det, -v[0] / det, -u[1] / det, u[0] / det
+        tpx = tex.convert("RGB").load()
+        for oy in range(H):
+            for ox in range(W):
+                dx = ox - p0[0] + 0.5
+                dy = oy - p0[1] + 0.5
+                s = i0 * dx + i1 * dy
+                t = i2 * dx + i3 * dy
+                if 0 <= s < 1 and 0 <= t < 1:
+                    r, g, b = tpx[min(15, int(s * 16)), min(15, int(t * 16))]
+                    cpx[ox, oy] = (int(r * shade), int(g * shade), int(b * shade), 255)
+    return canvas
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     tex = {}
@@ -266,6 +300,24 @@ def main():
         atlas.paste(tex[nm], ((i % 4) * S, (i // 4) * S))
     atlas.save(os.path.join(OUT, '..', 'atlas.png'))
     print(f'wrote atlas.png ({S * 4}x{S * 4}, {len(ATLAS_ORDER)} tiles)')
+
+    # 快捷栏用的等距方块图标（顶面, 侧面）
+    ICON_FACES = {
+        'stone': ('stone', 'stone'),
+        'dirt': ('dirt', 'dirt'),
+        'grass': ('grass_top', 'grass_side'),
+        'cobblestone': ('cobblestone', 'cobblestone'),
+        'sand': ('sand', 'sand'),
+        'oak_log': ('oak_log_top', 'oak_log_side'),
+        'oak_planks': ('oak_planks', 'oak_planks'),
+        'coal_ore': ('coal_ore', 'coal_ore'),
+        'water': ('water', 'water'),
+    }
+    icons_dir = os.path.join(OUT, '..', 'icons')
+    os.makedirs(icons_dir, exist_ok=True)
+    for nm, (top, side) in ICON_FACES.items():
+        iso_icon(tex[top], tex[side], tex[side]).save(os.path.join(icons_dir, nm + '.png'))
+    print(f'wrote {len(ICON_FACES)} iso icons -> public/textures/icons/')
 
     # Build a labelled 3x3-tiled preview so seams/quality are easy to judge.
     cols, scale, tilepx, lbl = 5, 8, None, 16
