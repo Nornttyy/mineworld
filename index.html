@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MINEWORLD</title>
     <style>
+      /* Zpix 中文像素字体（子集，仅菜单用字）。相对路径同时适配 dev 与 Pages 子路径 */
+      @font-face {
+        font-family: 'Zpix';
+        src: url('./fonts/zpix.woff2') format('woff2');
+        font-display: swap;
+      }
       html,
       body {
         margin: 0;
@@ -26,7 +32,8 @@
         justify-content: center;
         gap: 22px;
         background: rgba(0, 0, 0, 0.55);
-        font-family: 'Trebuchet MS', system-ui, sans-serif;
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
       }
       #menu h1 {
         margin: 0;
