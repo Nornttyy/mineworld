@@ -34,6 +34,52 @@ const DIRS: {
   { n: [0, 0, -1], o: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], uv: [[0, 0], [0, 1], [1, 1], [1, 0]] },
 ];
 
+// ── 环境光遮蔽 (AO)：凹角/贴墙处压暗顶点色，给体素地形立体感（同 MC 平滑光照）──
+const AO_FACTOR = [0.5, 0.7, 0.86, 1.0]; // level 0(最暗)..3(无遮挡)
+
+// 标准体素 AO：两侧 + 对角是否被遮挡 → 0..3；两侧都挡则强制 0（最暗）。
+export function aoLevel(side1: boolean, side2: boolean, corner: boolean): number {
+  if (side1 && side2) return 0;
+  return 3 - (Number(side1) + Number(side2) + Number(corner));
+}
+
+// 每个面的两条面内轴(单位偏移) + 对应角分量索引，用来取该角的 3 个 AO 邻居。
+const AO_AXES: { u: number[]; v: number[]; ui: number; vi: number }[] = [
+  { u: [0, 1, 0], v: [0, 0, 1], ui: 1, vi: 2 }, // +X：面内轴 Y,Z
+  { u: [0, 1, 0], v: [0, 0, 1], ui: 1, vi: 2 }, // -X
+  { u: [1, 0, 0], v: [0, 0, 1], ui: 0, vi: 2 }, // +Y：X,Z
+  { u: [1, 0, 0], v: [0, 0, 1], ui: 0, vi: 2 }, // -Y
+  { u: [1, 0, 0], v: [0, 1, 0], ui: 0, vi: 1 }, // +Z：X,Y
+  { u: [1, 0, 0], v: [0, 1, 0], ui: 0, vi: 1 }, // -Z
+];
+
+// 某面某角的 AO 系数。occ(x,y,z)=该格是否遮挡(不透明)；(wx,wy,wz)=方块坐标。
+function cornerAO(
+  occ: (x: number, y: number, z: number) => boolean,
+  wx: number,
+  wy: number,
+  wz: number,
+  f: number,
+  k: number,
+): number {
+  const d = DIRS[f];
+  const ax = AO_AXES[f];
+  const corner = d.c[k];
+  const su = corner[ax.ui] === 1 ? 1 : -1;
+  const sv = corner[ax.vi] === 1 ? 1 : -1;
+  const bx = wx + d.n[0];
+  const by = wy + d.n[1];
+  const bz = wz + d.n[2]; // 面外那一格
+  const s1 = occ(bx + su * ax.u[0], by + su * ax.u[1], bz + su * ax.u[2]);
+  const s2 = occ(bx + sv * ax.v[0], by + sv * ax.v[1], bz + sv * ax.v[2]);
+  const cc = occ(
+    bx + su * ax.u[0] + sv * ax.v[0],
+    by + su * ax.u[1] + sv * ax.v[1],
+    bz + su * ax.u[2] + sv * ax.v[2],
+  );
+  return AO_FACTOR[aoLevel(s1, s2, cc)];
+}
+
 export interface MeshData {
   positions: Float32Array;
   normals: Float32Array;
@@ -58,6 +104,8 @@ function meshGrid(g: BlockGrid): MeshData {
 
   const solidAt = (x: number, y: number, z: number): boolean =>
     x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz ? false : isSolidId(g.get(x, y, z));
+  const occ = (x: number, y: number, z: number): boolean =>
+    x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz ? false : isOpaque(g.get(x, y, z));
 
   const eps = 0.01 / (TILE_PX * ATLAS_COLS); // 极小内缩防图集邻块渗色；NearestFilter 下别用半像素内缩(否则方块边缘像素只剩半格)
   const du = 1 / ATLAS_COLS - 2 * eps;
@@ -78,14 +126,22 @@ function meshGrid(g: BlockGrid): MeshData {
           const v0 = 1 - (row + 1) / ATLAS_ROWS + eps; // 图集 V 翻转
           const shade = FACE_SHADE[f];
           const base = P.length / 3;
+          const ao = [0, 0, 0, 0];
           for (let k = 0; k < 4; k++) {
             const corner = d.c[k];
+            ao[k] = cornerAO(occ, x, y, z, f, k);
+            const c = shade * ao[k];
             P.push(x + corner[0], y + corner[1], z + corner[2]);
             N.push(d.n[0], d.n[1], d.n[2]);
             U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
-            C.push(shade, shade, shade);
+            C.push(c, c, c);
           }
-          I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+          // 按 AO 翻转四边形对角线，避免梯度插值出现折痕
+          if (ao[0] + ao[2] > ao[1] + ao[3]) {
+            I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+          } else {
+            I.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
+          }
         }
       }
     }
@@ -144,6 +200,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 
+  const occ = (x: number, y: number, z: number): boolean => isOpaque(world.getBlock(x, y, z));
   const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
     const d = DIRS[f];
     const tile = blockFaceTile(id, f as Face);
@@ -151,14 +208,22 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
     const shade = FACE_SHADE[f];
     const base = a.P.length / 3;
+    const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
+      ao[k] = cornerAO(occ, ox + lx, ly, oz + lz, f, k);
+      const c = shade * ao[k];
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.N.push(d.n[0], d.n[1], d.n[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
-      a.C.push(shade, shade, shade);
+      a.C.push(c, c, c);
     }
-    a.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    // 按 AO 翻转四边形对角线，避免梯度插值出现折痕
+    if (ao[0] + ao[2] > ao[1] + ao[3]) {
+      a.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    } else {
+      a.I.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
+    }
   };
 
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。

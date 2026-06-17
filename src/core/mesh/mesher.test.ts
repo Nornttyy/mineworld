@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Section } from '../world/section';
-import { meshSection } from './mesher';
+import { meshSection, aoLevel } from './mesher';
 
 describe('mesher (face culling)', () => {
   it('empty section -> no geometry', () => {
@@ -54,5 +54,15 @@ describe('mesher (face culling)', () => {
     // 旧的半像素内缩(0.5/64)把跨度压到 0.9375×(1/4)，这里要求 >0.99×。
     expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.99 / 4);
     expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 4);
+  });
+
+  it('AO level：标准体素环境光遮蔽', () => {
+    expect(aoLevel(false, false, false)).toBe(3); // 无遮挡=最亮
+    expect(aoLevel(true, false, false)).toBe(2);
+    expect(aoLevel(false, true, false)).toBe(2);
+    expect(aoLevel(false, false, true)).toBe(2);
+    expect(aoLevel(true, false, true)).toBe(1);
+    expect(aoLevel(true, true, false)).toBe(0); // 两侧都挡=最暗(忽略对角)
+    expect(aoLevel(true, true, true)).toBe(0);
   });
 });
