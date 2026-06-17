@@ -22,7 +22,16 @@
         display: block;
         cursor: pointer;
       }
-      /* 菜单/存档/暂停三屏：MC 经典泥土平铺底，与游戏无关 */
+      #app {
+        z-index: 0;
+      }
+      /* 独立的旋转全景背景画布（与游戏无关，仅装饰主菜单/存档） */
+      #menubg {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: block;
+      }
       #menu,
       #worldlist,
       #pause {
@@ -31,8 +40,21 @@
         z-index: 10;
         font-family: 'Zpix', monospace;
         -webkit-font-smoothing: none;
+      }
+      /* 主菜单/存档：透出后面旋转的全景，仅加暗角 */
+      #menu,
+      #worldlist {
+        background: linear-gradient(
+          rgba(0, 0, 0, 0.35),
+          rgba(0, 0, 0, 0.05) 30%,
+          rgba(0, 0, 0, 0.05) 70%,
+          rgba(0, 0, 0, 0.45)
+        );
+      }
+      /* 暂停：盖住冻结的游戏 */
+      #pause {
         background:
-          linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+          linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
           url('./textures/blocks/dirt.png');
         background-size:
           cover,
@@ -286,6 +308,7 @@
   </head>
   <body>
     <canvas id="app"></canvas>
+    <canvas id="menubg"></canvas>
     <div id="menu">
       <div class="menu-main">
         <div class="logo">

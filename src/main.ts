@@ -1,8 +1,13 @@
 import { Game } from './game/Game';
+import { MenuBackground } from './render/MenuBackground';
 import { listWorlds, createWorld, saveWorld, deleteWorld, type WorldSave } from './save/worldStore';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
+
+// 主菜单/存档界面的旋转全景背景（独立画布，与游戏无关）
+const menubgCanvas = $('menubg') as HTMLCanvasElement;
+const menubg = new MenuBackground(menubgCanvas);
 
 const menu = $('menu');
 const worldlist = $('worldlist');
@@ -34,6 +39,11 @@ function showOnly(el: HTMLElement | null): void {
   for (const s of [menu, worldlist, pause]) s.classList.add('hidden');
   if (el) el.classList.remove('hidden');
   setHud(false);
+  // 旋转背景只在主菜单/存档界面显示
+  const bg = el === menu || el === worldlist;
+  menubgCanvas.style.display = bg ? 'block' : 'none';
+  if (bg) menubg.start();
+  else menubg.stop();
 }
 
 // --- 主菜单 ---
