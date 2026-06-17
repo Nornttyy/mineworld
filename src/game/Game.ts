@@ -11,6 +11,7 @@ import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
+import { Hotbar } from '../ui/hotbar';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const SEED = 1337;
@@ -33,7 +34,7 @@ export class Game {
   private readonly underFog = new THREE.Fog(0x245f8a, 0.1, 16); // 水下：浓蓝雾
   private player: Player;
   private prev: Player;
-  private selected = PALETTE[3]; // 默认圆石
+  private readonly hotbar: Hotbar;
   private fov = 70; // 当前相机 FOV（疾跑时平滑拉宽）
   private last = 0;
   private acc = 0;
@@ -42,6 +43,7 @@ export class Game {
     this.renderer = new Renderer(canvas);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
+    this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, PALETTE);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas());
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
@@ -82,11 +84,20 @@ export class Game {
       if (e.button === 0) this.breakBlock();
       else if (e.button === 2) this.placeBlock();
     });
-    // 数字键选放置方块
+    // 数字键选快捷栏方块
     window.addEventListener('keydown', (e) => {
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= PALETTE.length) this.selected = PALETTE[n - 1];
+      if (Number.isInteger(n) && n >= 1 && n <= PALETTE.length) this.hotbar.setSelected(n - 1);
     });
+    // 滚轮切换快捷栏（同 MC）
+    canvas.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        this.hotbar.scroll(Math.sign(e.deltaY));
+      },
+      { passive: false },
+    );
   }
 
   // 从原点向外找一处略高于海平面的海岸陆地作为出生点
@@ -178,7 +189,7 @@ export class Game {
     const target = this.world.getBlock(px, py, pz);
     if (target !== AIR && !isWaterId(target)) return; // 仅可放进空气或水
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
-    this.world.setBlock(px, py, pz, this.selected);
+    this.world.setBlock(px, py, pz, PALETTE[this.hotbar.index]);
     this.chunks.remeshDirty();
   }
 
