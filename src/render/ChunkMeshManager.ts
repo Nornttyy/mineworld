@@ -5,6 +5,7 @@ import { meshChunk, type MeshData } from '../core/mesh/mesher';
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
   water: THREE.Mesh | null;
 }
 
@@ -12,6 +13,7 @@ interface ChunkMeshes {
 export class ChunkMeshManager {
   private readonly meshes = new Map<string, ChunkMeshes>();
   private readonly opaqueMat: THREE.MeshBasicMaterial;
+  private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
 
   constructor(
@@ -20,6 +22,8 @@ export class ChunkMeshManager {
     atlas: THREE.Texture,
   ) {
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
+    // 镂空(树叶)：alpha-test 裁掉透明像素，照常写深度
+    this.cutoutMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, alphaTest: 0.5 });
     // 水：半透明、不写深度（避免遮挡排序问题），单独成批
     this.waterMat = new THREE.MeshBasicMaterial({
       map: atlas,
@@ -47,28 +51,32 @@ export class ChunkMeshManager {
   private unload(k: string): void {
     const m = this.meshes.get(k);
     if (!m) return;
-    this.scene.remove(m.opaque);
-    m.opaque.geometry.dispose();
-    if (m.water) {
-      this.scene.remove(m.water);
-      m.water.geometry.dispose();
+    for (const mesh of [m.opaque, m.cutout, m.water]) {
+      if (mesh) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
     }
     this.meshes.delete(k);
   }
 
+  // 把一套网格数据建成 Mesh 并入场景（空数据返回 null）
+  private addMesh(data: MeshData, mat: THREE.Material, cx: number, cz: number): THREE.Mesh | null {
+    if (data.indices.length === 0) return null;
+    const mesh = new THREE.Mesh(this.buildGeo(data), mat);
+    mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
+    this.scene.add(mesh);
+    return mesh;
+  }
+
   private rebuild(cx: number, cz: number): void {
     this.unload(this.key(cx, cz));
-    const { opaque, water } = meshChunk(this.world, cx, cz);
-    const om = new THREE.Mesh(this.buildGeo(opaque), this.opaqueMat);
-    om.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
-    this.scene.add(om);
-    let wm: THREE.Mesh | null = null;
-    if (water.indices.length > 0) {
-      wm = new THREE.Mesh(this.buildGeo(water), this.waterMat);
-      wm.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
-      this.scene.add(wm);
-    }
-    this.meshes.set(this.key(cx, cz), { opaque: om, water: wm });
+    const { opaque, cutout, water } = meshChunk(this.world, cx, cz);
+    this.meshes.set(this.key(cx, cz), {
+      opaque: this.addMesh(opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh(),
+      cutout: this.addMesh(cutout, this.cutoutMat, cx, cz),
+      water: this.addMesh(water, this.waterMat, cx, cz),
+    });
     this.world.getChunk(cx, cz).dirty = false;
   }
 

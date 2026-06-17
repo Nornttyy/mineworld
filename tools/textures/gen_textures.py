@@ -231,10 +231,18 @@ def water(rng):
 
 
 def oak_leaves(rng):
-    im = new()
-    noise(im, ["#3f6b22", "#4f7e2b", "#365e1c", "#5a8a32", "#2c4d16"], [3, 3, 2, 2, 2], rng)
-    for _ in range(14):  # 暗色缝隙，更有叶簇感
-        blob(im, rng.randrange(S), rng.randrange(S), 0, "#23400f", rng)
+    # 带透明孔洞的树叶（RGBA）：约 14% 像素镂空，能透看后面
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    cols = [hx(c) for c in ["#3f6b22", "#4f7e2b", "#365e1c", "#5a8a32", "#2c4d16"]]
+    wts = [3, 3, 2, 2, 2]
+    for y in range(S):
+        for x in range(S):
+            if rng.random() < 0.14:
+                px[x, y] = (0, 0, 0, 0)  # 镂空
+            else:
+                r, g, b = rng.choices(cols, wts)[0]
+                px[x, y] = (r, g, b, 255)
     return im
 
 
@@ -277,7 +285,7 @@ def iso_icon(top_tex, left_tex, right_tex):
         if det == 0:
             continue
         i0, i1, i2, i3 = v[1] / det, -v[0] / det, -u[1] / det, u[0] / det
-        tpx = tex.convert("RGB").load()
+        tpx = tex.convert("RGBA").load()
         for oy in range(H):
             for ox in range(W):
                 dx = ox - p0[0] + 0.5
@@ -285,8 +293,9 @@ def iso_icon(top_tex, left_tex, right_tex):
                 s = i0 * dx + i1 * dy
                 t = i2 * dx + i3 * dy
                 if 0 <= s < 1 and 0 <= t < 1:
-                    r, g, b = tpx[min(15, int(s * 16)), min(15, int(t * 16))]
-                    cpx[ox, oy] = (int(r * shade), int(g * shade), int(b * shade), 255)
+                    r, g, b, a = tpx[min(15, int(s * 16)), min(15, int(t * 16))]
+                    if a >= 128:
+                        cpx[ox, oy] = (int(r * shade), int(g * shade), int(b * shade), 255)
     return canvas
 
 
@@ -305,9 +314,9 @@ def main():
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves']
-    atlas = Image.new('RGB', (S * 4, S * 4))
+    atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm], ((i % 4) * S, (i // 4) * S))
+        atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
     atlas.save(os.path.join(OUT, '..', 'atlas.png'))
     print(f'wrote atlas.png ({S * 4}x{S * 4}, {len(ATLAS_ORDER)} tiles)')
 

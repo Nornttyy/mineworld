@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, blockFaceTile, Face } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face } from '../blocks/registry';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -128,6 +128,7 @@ const toMeshData = (a: FaceArrays): MeshData => ({
 
 export interface ChunkMesh {
   opaque: MeshData;
+  cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
 }
 
@@ -137,6 +138,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const ox = cx * CHUNK_W;
   const oz = cz * CHUNK_W;
   const op = emptyArrays();
+  const cut = emptyArrays();
   const wa = emptyArrays();
   const eps = 0.5 / (TILE_PX * ATLAS_COLS);
   const du = 1 / ATLAS_COLS - 2 * eps;
@@ -170,6 +172,13 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
             if (isOpaque(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
             emit(op, lx, ly, lz, id, f);
           }
+        } else if (isCutoutId(id)) {
+          for (let f = 0; f < 6; f++) {
+            const d = DIRS[f];
+            // 镂空(树叶)：露给非实心(空气/水)的面才画；叶-叶、叶-实心剔除
+            if (isSolidId(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            emit(cut, lx, ly, lz, id, f);
+          }
         } else if (isWaterId(id)) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
@@ -182,5 +191,5 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     }
   }
 
-  return { opaque: toMeshData(op), water: toMeshData(wa) };
+  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa) };
 }

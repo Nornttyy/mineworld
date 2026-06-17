@@ -67,13 +67,16 @@ export const BLOCKS: BlockDef[] = [
   { id: 8, name: 'coal_ore', solid: true, transparent: false, faces: all(T.coal_ore) },
   // 水：非实心（可进入）、半透明（渲染单独成批）
   { id: 9, name: 'water', solid: false, transparent: true, faces: all(T.water) },
-  { id: 10, name: 'oak_leaves', solid: true, transparent: false, faces: all(T.oak_leaves) },
+  // 树叶：实心(可站)但非不透明(能透看)，渲染走镂空(alpha-test)
+  { id: 10, name: 'oak_leaves', solid: true, transparent: true, faces: all(T.oak_leaves) },
 ];
 
 export const WATER = 9;
+export const OAK_LEAVES = 10;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
+export const isCutoutId = (id: number): boolean => id === OAK_LEAVES; // 镂空(树叶)
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
 export const isOpaque = (id: number): boolean => {
   const b = BLOCKS[id];
