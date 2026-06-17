@@ -42,6 +42,17 @@ describe('physics step', () => {
     expect(maxY - startY).toBeLessThan(1.6); // 但不会高得离谱
   });
 
+  it('sprinting moves farther per tick than walking', () => {
+    const start = (): Player => ({
+      pos: { x: 0, y: 0, z: 0 },
+      vel: { x: 0, y: 0, z: 0 },
+      onGround: true,
+    });
+    const walk = step(start(), { forward: 1, right: 0, yaw: 0, jump: false }, floor);
+    const sprint = step(start(), { forward: 1, right: 0, yaw: 0, jump: false, sprint: true }, floor);
+    expect(sprint.pos.x).toBeGreaterThan(walk.pos.x);
+  });
+
   it('walking into a wall does not tunnel through it', () => {
     const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 2 };
     let p: Player = { pos: { x: 0.5, y: 0, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };

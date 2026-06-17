@@ -9,6 +9,7 @@ import {
   VDRAG,
   JUMP,
   WALK_PER_TICK,
+  SPRINT_PER_TICK,
 } from './player';
 
 const HW = WIDTH / 2;
@@ -89,7 +90,8 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   if (!inWater && grounded && intent.jump) vel.y = JUMP; // 陆上起跳
 
   const wish = wishDir(intent);
-  const speed = inWater ? WALK_PER_TICK * 0.5 : WALK_PER_TICK; // 水中变慢
+  const groundSpeed = intent.sprint ? SPRINT_PER_TICK : WALK_PER_TICK; // 疾跑更快
+  const speed = inWater ? WALK_PER_TICK * 0.5 : groundSpeed; // 水中变慢
   vel.x = wish.x * speed;
   vel.z = wish.z * speed;
 

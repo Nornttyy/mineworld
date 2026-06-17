@@ -31,6 +31,7 @@ export class Game {
   private player: Player;
   private prev: Player;
   private selected = PALETTE[3]; // 默认圆石
+  private fov = 70; // 当前相机 FOV（疾跑时平滑拉宽）
   private last = 0;
   private acc = 0;
 
@@ -120,6 +121,11 @@ export class Game {
         RENDER_RADIUS,
         2,
       );
+      // 疾跑时平滑拉宽视野（同 MC 的速度感）
+      const wantFov = readMove().sprint ? 80 : 70;
+      this.fov += (wantFov - this.fov) * 0.15;
+      this.renderer.camera.fov = this.fov;
+      this.renderer.camera.updateProjectionMatrix();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
       this.renderer.render();

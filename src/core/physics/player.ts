@@ -15,6 +15,7 @@ export interface MoveIntent {
   right: number; // -1..1
   yaw: number; // 朝向（弧度）
   jump: boolean;
+  sprint?: boolean; // 疾跑（双击 W）
 }
 
 export interface VoxelWorld {
@@ -29,4 +30,5 @@ export const EYE = 1.62;
 export const GRAVITY = 0.08;
 export const VDRAG = 0.98;
 export const JUMP = 0.42;
-export const WALK_PER_TICK = 4.317 / 20; // ≈0.216 b/tick 目标水平速度
+export const WALK_PER_TICK = 4.317 / 20; // ≈0.216 b/tick 行走速度（同 MC）
+export const SPRINT_PER_TICK = 5.612 / 20; // ≈0.281 b/tick 疾跑速度（同 MC）
