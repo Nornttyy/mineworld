@@ -1,5 +1,5 @@
 import { World } from '../world/world';
-import { Chunk, CHUNK_W, CHUNK_H } from '../world/chunk';
+import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2 } from '../math/noise';
 import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
@@ -10,6 +10,7 @@ const DIRT = 2;
 const GRASS = 3;
 const SAND = 5;
 export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
+const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
 // 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续，确定性）。
 // 叠加多种尺度形成：大海(大陆度)、池子(丘陵凹陷)、河流(蜿蜒细谷)。
@@ -114,7 +115,10 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
         else if (y >= height - 3) id = beach ? SAND : DIRT;
         c.set(lx, y, lz, id);
       }
-      for (let y = height + 1; y <= SEA_LEVEL; y++) c.set(lx, y, lz, WATER); // 注水到海平面
+      for (let y = height + 1; y <= SEA_LEVEL; y++) {
+        c.set(lx, y, lz, WATER); // 注水到海平面
+        c.setFluid(lx, y, lz, SEA_FLUID); // 海/湖/河皆为稳定源头(满量)
+      }
     }
   }
 

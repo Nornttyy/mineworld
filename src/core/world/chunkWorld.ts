@@ -1,6 +1,7 @@
-import { Chunk, CHUNK_H } from './chunk';
+import { Chunk, CHUNK_H, flByte, flAmount, flIsSource, flIsFalling } from './chunk';
 import { worldToChunk, localCoord } from './coords';
 import { generateChunk } from '../worldgen/terrain';
+import { WATER } from '../blocks/registry';
 
 // 无限世界：按需生成并缓存区块列，提供世界坐标的方块读写。
 export class ChunkWorld {
@@ -41,7 +42,50 @@ export class ChunkWorld {
     const lz = localCoord(wz);
     const c = this.getChunk(cx, cz);
     c.set(lx, wy, lz, id);
+    if (id !== WATER) c.setFluid(lx, wy, lz, 0); // 放固体/挖空 → 清掉该格水数据
     c.dirty = true;
+    this.markNeighborsDirty(cx, cz, lx, lz);
+  }
+
+  // —— 流体读写（供流动水模拟与网格化）——
+  private fluidByte(wx: number, wy: number, wz: number): number {
+    if (wy < 0 || wy >= CHUNK_H) return 0;
+    return this.getChunk(worldToChunk(wx), worldToChunk(wz)).getFluid(localCoord(wx), wy, localCoord(wz));
+  }
+
+  waterAmount(wx: number, wy: number, wz: number): number {
+    if (this.getBlock(wx, wy, wz) !== WATER) return 0;
+    return flAmount(this.fluidByte(wx, wy, wz));
+  }
+
+  isWaterSource(wx: number, wy: number, wz: number): boolean {
+    return this.getBlock(wx, wy, wz) === WATER && flIsSource(this.fluidByte(wx, wy, wz));
+  }
+
+  isWaterFalling(wx: number, wy: number, wz: number): boolean {
+    return this.getBlock(wx, wy, wz) === WATER && flIsFalling(this.fluidByte(wx, wy, wz));
+  }
+
+  // 设置/移除水（amount<=0 → 若该格是水则清成空气）。标脏便于重新网格化。
+  setWater(wx: number, wy: number, wz: number, amount: number, source: boolean, falling: boolean): void {
+    if (wy < 0 || wy >= CHUNK_H) return;
+    const cx = worldToChunk(wx);
+    const cz = worldToChunk(wz);
+    const lx = localCoord(wx);
+    const lz = localCoord(wz);
+    const c = this.getChunk(cx, cz);
+    if (amount <= 0) {
+      if (c.get(lx, wy, lz) === WATER) c.set(lx, wy, lz, 0);
+      c.setFluid(lx, wy, lz, 0);
+    } else {
+      c.set(lx, wy, lz, WATER);
+      c.setFluid(lx, wy, lz, flByte(amount, source, falling));
+    }
+    c.dirty = true;
+    this.markNeighborsDirty(cx, cz, lx, lz);
+  }
+
+  private markNeighborsDirty(cx: number, cz: number, lx: number, lz: number): void {
     if (lx === 0) this.markDirty(cx - 1, cz);
     if (lx === 15) this.markDirty(cx + 1, cz);
     if (lz === 0) this.markDirty(cx, cz - 1);

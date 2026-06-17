@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face, WATER } from '../blocks/registry';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -161,6 +161,37 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     a.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
 
+  // 水专用：把单位立方某面的 y(0/1) 替换为实际高度 [yLow,yHigh]，可画半高水面与落差侧壁。
+  const emitWaterFace = (
+    lx: number,
+    ly: number,
+    lz: number,
+    f: number,
+    yLow: number,
+    yHigh: number,
+  ): void => {
+    const d = DIRS[f];
+    const tile = blockFaceTile(WATER, f as Face);
+    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const shade = FACE_SHADE[f];
+    const base = wa.P.length / 3;
+    for (let k = 0; k < 4; k++) {
+      const corner = d.c[k];
+      const yy = corner[1] === 0 ? yLow : yHigh; // 单位立方 y 替换为实际水高
+      wa.P.push(lx + corner[0], ly + yy, lz + corner[2]);
+      wa.N.push(d.n[0], d.n[1], d.n[2]);
+      wa.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
+      wa.C.push(shade, shade, shade);
+    }
+    wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  // 水面高度(0..1)：上方有水→满；否则按水量(源 8 满，流动越低越浅)。
+  const waterTop = (wx: number, wy: number, wz: number): number => {
+    if (world.waterAmount(wx, wy + 1, wz) > 0) return 1;
+    return world.waterAmount(wx, wy, wz) / 8;
+  };
+
   for (let ly = 0; ly < CHUNK_H; ly++) {
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
@@ -180,11 +211,30 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
             emit(cut, lx, ly, lz, id, f);
           }
         } else if (isWaterId(id)) {
-          for (let f = 0; f < 6; f++) {
-            const d = DIRS[f];
-            // 水面：只画露给空气的面（水-水、水-实心都剔除）
-            if (world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]) !== 0) continue;
-            emit(wa, lx, ly, lz, id, f);
+          const wx = ox + lx;
+          const wz = oz + lz;
+          const h = waterTop(wx, ly, wz);
+          // 顶面：上方不是水且非不透明 → 露出水面，画在高度 h
+          if (world.waterAmount(wx, ly + 1, wz) === 0 && !isOpaque(world.getBlock(wx, ly + 1, wz))) {
+            emitWaterFace(lx, ly, lz, Face.PosY, h, h);
+          }
+          // 底面：下方是空气才画
+          if (world.getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, 0, 0);
+          // 四侧：露给空气 → 整段；与较低水相邻 → 只画落差那段水壁
+          const sides: [number, number, number][] = [
+            [Face.PosX, 1, 0],
+            [Face.NegX, -1, 0],
+            [Face.PosZ, 0, 1],
+            [Face.NegZ, 0, -1],
+          ];
+          for (const [f, dx, dz] of sides) {
+            const nb = world.getBlock(wx + dx, ly, wz + dz);
+            if (isWaterId(nb)) {
+              const nh = waterTop(wx + dx, ly, wz + dz);
+              if (h > nh + 1e-4) emitWaterFace(lx, ly, lz, f, nh, h);
+            } else if (nb === 0) {
+              emitWaterFace(lx, ly, lz, f, 0, h);
+            }
           }
         }
       }

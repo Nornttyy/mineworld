@@ -12,6 +12,7 @@ import { DropRenderer } from '../render/DropRenderer';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
+import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
 import {
   emptyInventory,
   addItem,
@@ -55,6 +56,9 @@ export class Game {
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
+  private readonly fluidSim = new FluidSim();
+  private readonly fluidGrid: FluidGrid;
+  private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
   private fov = 70;
   private last = 0;
   private acc = 0;
@@ -70,10 +74,18 @@ export class Game {
     this.hotbar.render(this.inv);
 
     this.world = new ChunkWorld(save.seed);
-    // 应用存档里玩家改过的方块（delta）
+    this.fluidGrid = {
+      isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
+      amount: (x, y, z) => this.world.waterAmount(x, y, z),
+      isSource: (x, y, z) => this.world.isWaterSource(x, y, z),
+      isFalling: (x, y, z) => this.world.isWaterFalling(x, y, z),
+      setWater: (x, y, z, a, s, f) => this.world.setWater(x, y, z, a, s, f),
+    };
+    // 应用存档里玩家改过的方块（delta），并激活其周围的水（重新流入/退去）
     for (const key of Object.keys(save.edits)) {
       const [x, y, z] = key.split(',').map(Number);
       this.world.setBlock(x, y, z, save.edits[key]);
+      this.fluidSim.activate(x, y, z);
     }
     const atlas = loadAtlas();
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
@@ -192,6 +204,12 @@ export class Game {
           },
           this.physWorld,
         );
+        // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
+        if (++this.fluidTick >= 5) {
+          this.fluidTick = 0;
+          this.fluidSim.tick(this.fluidGrid);
+          this.chunks.remeshDirty();
+        }
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -234,6 +252,7 @@ export class Game {
   private edit(x: number, y: number, z: number, id: number): void {
     this.world.setBlock(x, y, z, id);
     this.save.edits[`${x},${y},${z}`] = id;
+    this.fluidSim.activate(x, y, z); // 让相邻的水流进/退去
     this.chunks.remeshDirty();
   }
 
