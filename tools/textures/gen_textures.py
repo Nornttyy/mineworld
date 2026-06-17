@@ -230,6 +230,14 @@ def water(rng):
     return im
 
 
+def oak_leaves(rng):
+    im = new()
+    noise(im, ["#3f6b22", "#4f7e2b", "#365e1c", "#5a8a32", "#2c4d16"], [3, 3, 2, 2, 2], rng)
+    for _ in range(14):  # 暗色缝隙，更有叶簇感
+        blob(im, rng.randrange(S), rng.randrange(S), 0, "#23400f", rng)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -242,6 +250,7 @@ BLOCKS = [
     ("oak_log_top", oak_log_top),
     ("coal_ore", coal_ore),
     ("water", water),
+    ("oak_leaves", oak_leaves),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -294,7 +303,8 @@ def main():
     # Pack block tiles into one atlas (4x4 grid, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
-                   'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water']
+                   'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
+                   'oak_leaves']
     atlas = Image.new('RGB', (S * 4, S * 4))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm], ((i % 4) * S, (i // 4) * S))
@@ -311,7 +321,7 @@ def main():
         'oak_log': ('oak_log_top', 'oak_log_side'),
         'oak_planks': ('oak_planks', 'oak_planks'),
         'coal_ore': ('coal_ore', 'coal_ore'),
-        'water': ('water', 'water'),
+        'oak_leaves': ('oak_leaves', 'oak_leaves'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
