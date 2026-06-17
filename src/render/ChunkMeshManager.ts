@@ -71,4 +71,12 @@ export class ChunkMeshManager {
       this.rebuild(todo[i].cx, todo[i].cz);
     }
   }
+
+  /** 立即重建所有已加载且变脏的区块（挖/放后调用，保证即时更新）。 */
+  remeshDirty(): void {
+    for (const k of [...this.meshes.keys()]) {
+      const [cx, cz] = k.split(',').map(Number);
+      if (this.world.getChunk(cx, cz).dirty) this.rebuild(cx, cz);
+    }
+  }
 }

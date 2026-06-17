@@ -16,10 +16,40 @@
         display: block;
         cursor: pointer;
       }
+      #crosshair {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        pointer-events: none;
+        opacity: 0.65;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: '';
+        position: absolute;
+        background: #fff;
+        box-shadow: 0 0 1px #000;
+      }
+      #crosshair::before {
+        left: 8px;
+        top: 0;
+        width: 2px;
+        height: 18px;
+      }
+      #crosshair::after {
+        top: 8px;
+        left: 0;
+        height: 2px;
+        width: 18px;
+      }
     </style>
   </head>
   <body>
     <canvas id="app"></canvas>
+    <div id="crosshair"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
