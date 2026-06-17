@@ -161,15 +161,8 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     a.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
 
-  // 水专用：把单位立方某面的 y(0/1) 替换为实际高度 [yLow,yHigh]，可画半高水面与落差侧壁。
-  const emitWaterFace = (
-    lx: number,
-    ly: number,
-    lz: number,
-    f: number,
-    yLow: number,
-    yHigh: number,
-  ): void => {
+  // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
+  const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const tile = blockFaceTile(WATER, f as Face);
     const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
@@ -178,18 +171,39 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     const base = wa.P.length / 3;
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
-      const yy = corner[1] === 0 ? yLow : yHigh; // 单位立方 y 替换为实际水高
-      wa.P.push(lx + corner[0], ly + yy, lz + corner[2]);
+      wa.P.push(lx + corner[0], ly + yArr[k], lz + corner[2]);
       wa.N.push(d.n[0], d.n[1], d.n[2]);
       wa.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       wa.C.push(shade, shade, shade);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  // 水面高度(0..1)：上方有水→满；否则按水量(源 8 满，流动越低越浅)。
-  const waterTop = (wx: number, wy: number, wz: number): number => {
+  // 单格水自身高度(0..1)：上方有水→1；否则水量/9（同 MC，源 8/9≈0.889）。
+  const ownH = (wx: number, wy: number, wz: number): number => {
     if (world.waterAmount(wx, wy + 1, wz) > 0) return 1;
-    return world.waterAmount(wx, wy, wz) / 8;
+    return world.waterAmount(wx, wy, wz) / 9;
+  };
+  // 角高度(MC 平均法)：该角周围 4 格水的自身高度平均；近满(≥0.8)权重×10；空气计 0 高度。
+  const cornerH = (wy: number, cells: [number, number][]): number => {
+    let total = 0;
+    let count = 0;
+    for (const [cx, cz] of cells) {
+      if (world.waterAmount(cx, wy + 1, cz) > 0) return 1;
+      const a = world.waterAmount(cx, wy, cz);
+      if (a > 0) {
+        const h = a / 9;
+        if (h >= 0.8) {
+          total += h * 10;
+          count += 10;
+        } else {
+          total += h;
+          count += 1;
+        }
+      } else if (!isSolidId(world.getBlock(cx, wy, cz))) {
+        count += 1; // 空气：贡献 0 高度，把该角往下拉成斜坡
+      }
+    }
+    return count > 0 ? total / count : 0.5;
   };
 
   for (let ly = 0; ly < CHUNK_H; ly++) {
@@ -213,29 +227,33 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
         } else if (isWaterId(id)) {
           const wx = ox + lx;
           const wz = oz + lz;
-          const h = waterTop(wx, ly, wz);
-          // 顶面：上方不是水且非不透明 → 露出水面，画在高度 h
+          // 四角高度（取邻格平均 → 顺流斜面）。角命名 hAB：A=本格 x 侧(0/1)，B=z 侧(0/1)。
+          const h00 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz - 1], [wx - 1, wz - 1]]);
+          const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);
+          const h11 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz + 1], [wx + 1, wz + 1]]);
+          const h10 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz - 1], [wx + 1, wz - 1]]);
+          // 顶面（上方非水且非不透明）：斜水面
           if (world.waterAmount(wx, ly + 1, wz) === 0 && !isOpaque(world.getBlock(wx, ly + 1, wz))) {
-            emitWaterFace(lx, ly, lz, Face.PosY, h, h);
+            emitWaterFace(lx, ly, lz, Face.PosY, [h00, h01, h11, h10]);
           }
           // 底面：下方是空气才画
-          if (world.getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, 0, 0);
-          // 四侧：露给空气 → 整段；与较低水相邻 → 只画落差那段水壁
-          const sides: [number, number, number][] = [
-            [Face.PosX, 1, 0],
-            [Face.NegX, -1, 0],
-            [Face.PosZ, 0, 1],
-            [Face.NegZ, 0, -1],
-          ];
-          for (const [f, dx, dz] of sides) {
+          if (world.getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, [0, 0, 0, 0]);
+          // 侧面：空气邻 → 整段；较低水邻 → 只画高出的落差；固体/树叶 → 剔除。
+          //  yArr 顺序对应该面 DIRS.c；low=邻格水面高(或 0)，顶边用对应两角高度。
+          const side = (f: number, dx: number, dz: number, yArr: (low: number) => number[], topA: number, topB: number): void => {
             const nb = world.getBlock(wx + dx, ly, wz + dz);
-            if (isWaterId(nb)) {
-              const nh = waterTop(wx + dx, ly, wz + dz);
-              if (h > nh + 1e-4) emitWaterFace(lx, ly, lz, f, nh, h);
-            } else if (nb === 0) {
-              emitWaterFace(lx, ly, lz, f, 0, h);
+            if (isSolidId(nb)) return; // 固体/树叶挡住
+            if (nb === 0) {
+              emitWaterFace(lx, ly, lz, f, yArr(0));
+            } else if (isWaterId(nb)) {
+              const low = ownH(wx + dx, ly, wz + dz);
+              if (Math.max(topA, topB) > low + 1e-4) emitWaterFace(lx, ly, lz, f, yArr(low));
             }
-          }
+          };
+          side(Face.PosX, 1, 0, (low) => [low, h10, h11, low], h10, h11);
+          side(Face.NegX, -1, 0, (low) => [low, low, h01, h00], h00, h01);
+          side(Face.PosZ, 0, 1, (low) => [low, low, h11, h01], h01, h11);
+          side(Face.NegZ, 0, -1, (low) => [low, h00, h10, low], h00, h10);
         }
       }
     }
