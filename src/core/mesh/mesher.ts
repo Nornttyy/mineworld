@@ -59,7 +59,7 @@ function meshGrid(g: BlockGrid): MeshData {
   const solidAt = (x: number, y: number, z: number): boolean =>
     x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz ? false : isSolidId(g.get(x, y, z));
 
-  const eps = 0.5 / (TILE_PX * ATLAS_COLS); // 半像素内缩，防接缝渗色
+  const eps = 0.01 / (TILE_PX * ATLAS_COLS); // 极小内缩防图集邻块渗色；NearestFilter 下别用半像素内缩(否则方块边缘像素只剩半格)
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 
@@ -140,7 +140,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const op = emptyArrays();
   const cut = emptyArrays();
   const wa = emptyArrays();
-  const eps = 0.5 / (TILE_PX * ATLAS_COLS);
+  const eps = 0.01 / (TILE_PX * ATLAS_COLS);
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 

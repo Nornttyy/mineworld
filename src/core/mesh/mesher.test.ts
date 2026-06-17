@@ -39,4 +39,20 @@ describe('mesher (face culling)', () => {
     expect(mx).toBeCloseTo(1.0);
     expect(mn).toBeCloseTo(0.5);
   });
+
+  it('UV 内缩为亚像素：方块边缘纹素近满格（不是半格）', () => {
+    const s = new Section();
+    s.set(0, 0, 0, 1); // stone = 图集 tile 0
+    const m = meshSection(s);
+    const us: number[] = [];
+    const vs: number[] = [];
+    for (let i = 0; i < m.uvs.length; i += 2) {
+      us.push(m.uvs[i]);
+      vs.push(m.uvs[i + 1]);
+    }
+    // 一格图集 = 1/4 UV；内缩须远小于 1 像素，否则边缘像素只剩半格。
+    // 旧的半像素内缩(0.5/64)把跨度压到 0.9375×(1/4)，这里要求 >0.99×。
+    expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.99 / 4);
+    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 4);
+  });
 });
