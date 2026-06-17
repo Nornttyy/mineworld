@@ -246,6 +246,32 @@ def oak_leaves(rng):
     return im
 
 
+def crack_strip():
+    """10 段挖掘裂纹（destroy_stage_0..9），横排成 160x16 RGBA。
+    裂纹从中心向外随机游走生长；后一段包含前一段（单调加深）。渲染层按进度选段。"""
+    STAGES = 10
+    rng = random.Random(424242)
+    pts, seen = [], set()
+    for _ in range(7):  # 7 条裂纹分支，从中心向外游走
+        x, y = 8, 8
+        for _ in range(34):
+            if (x, y) not in seen:
+                seen.add((x, y))
+                pts.append((x, y))
+            x += rng.choice([-1, -1, 0, 1, 1])
+            y += rng.choice([-1, -1, 0, 1, 1])
+            x, y = max(0, min(S - 1, x)), max(0, min(S - 1, y))
+    strip = Image.new("RGBA", (S * STAGES, S), (0, 0, 0, 0))
+    sp = strip.load()
+    n = len(pts)
+    for k in range(STAGES):
+        cut = int(round((k + 1) / STAGES * n))
+        for i in range(cut):
+            x, y = pts[i]
+            sp[k * S + x, y] = (16, 16, 16, 210)  # 暗灰半透，像裂缝
+    return strip
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -337,6 +363,10 @@ def main():
     for nm, (top, side) in ICON_FACES.items():
         iso_icon(tex[top], tex[side], tex[side]).save(os.path.join(icons_dir, nm + '.png'))
     print(f'wrote {len(ICON_FACES)} iso icons -> public/textures/icons/')
+
+    # 挖掘裂纹条（10 段，160x16）→ public/textures/crack.png
+    crack_strip().save(os.path.join(OUT, '..', 'crack.png'))
+    print('wrote crack.png (10 stages)')
 
     # Build a labelled 3x3-tiled preview so seams/quality are easy to judge.
     cols, scale, tilepx, lbl = 5, 8, None, 16

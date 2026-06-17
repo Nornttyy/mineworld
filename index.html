@@ -264,6 +264,19 @@
         background-position: center;
         image-rendering: pixelated;
       }
+      /* 数量角标（MC 同款，右下角带描边） */
+      .hotbar-count {
+        position: absolute;
+        right: 3px;
+        bottom: 1px;
+        font-family: 'Zpix', monospace;
+        font-size: 15px;
+        color: #fff;
+        text-shadow:
+          1px 1px 0 #3f3f3f,
+          2px 2px 0 rgba(0, 0, 0, 0.6);
+        pointer-events: none;
+      }
       /* 选中：外凸的浅色框（同 MC 选择光标） */
       .hotbar-slot.selected::after {
         content: '';
@@ -328,8 +341,8 @@
         <p>浏览器里的体素沙盒</p>
         <p>TypeScript + Three.js 纯手工打造</p>
         <p class="ctrl">
-          WASD 移动 · 鼠标看 · 左键挖 · 右键放<br />
-          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选方块 · ESC 暂停
+          WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
+          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停
         </p>
         <button id="about-close" class="btn">关闭</button>
       </div>

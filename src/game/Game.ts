@@ -3,12 +3,23 @@ import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
-import { isSolidId, isWaterId } from '../core/blocks/registry';
+import { isSolidId, isWaterId, breakTimeMs, blockDrop } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
+import { CrackOverlay } from '../render/CrackOverlay';
+import { DropRenderer } from '../render/DropRenderer';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
+import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
+import {
+  emptyInventory,
+  addItem,
+  takeOne,
+  serializeInventory,
+  deserializeInventory,
+  type Inventory,
+} from '../core/inventory/inventory';
 import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
@@ -17,8 +28,8 @@ import type { WorldSave } from '../save/worldStore';
 const TICK_MS = 50; // 20 TPS 固定步长
 const RENDER_RADIUS = 6; // 渲染半径（区块）
 const REACH = 5; // 交互距离（方块）
-// 快捷栏 1..9 的放置方块（id 见 registry；水不可放置，故第9格用树叶）
-const PALETTE = [1, 2, 3, 4, 5, 6, 7, 8, 10]; // 石/土/草/圆石/沙/原木/木板/煤矿/树叶
+const HOTBAR_SLOTS = 9;
+const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const AIR = 0;
 
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置。从存档启动。 */
@@ -37,6 +48,13 @@ export class Game {
   private player: Player;
   private prev: Player;
   private readonly hotbar: Hotbar;
+  private readonly inv: Inventory;
+  private readonly crack: CrackOverlay;
+  private readonly dropRenderer: DropRenderer;
+  private readonly drops: ItemDrop[] = [];
+  private digging = false; // 是否按住左键挖掘
+  private digTarget: { x: number; y: number; z: number } | null = null;
+  private digProgress = 0; // 当前目标已挖秒数
   private fov = 70;
   private last = 0;
   private acc = 0;
@@ -47,7 +65,9 @@ export class Game {
     this.renderer = new Renderer(canvas);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
-    this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, PALETTE);
+    this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
+    this.inv = save.inv ? deserializeInventory(save.inv) : emptyInventory();
+    this.hotbar.render(this.inv);
 
     this.world = new ChunkWorld(save.seed);
     // 应用存档里玩家改过的方块（delta）
@@ -55,7 +75,10 @@ export class Game {
       const [x, y, z] = key.split(',').map(Number);
       this.world.setBlock(x, y, z, save.edits[key]);
     }
-    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas());
+    const atlas = loadAtlas();
+    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
+    this.crack = new CrackOverlay(this.renderer.scene);
+    this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -83,12 +106,26 @@ export class Game {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
       if (document.pointerLockElement !== canvas) return;
-      if (e.button === 0) this.breakBlock();
-      else if (e.button === 2) this.placeBlock();
+      if (e.button === 0) {
+        this.digging = true; // 按住左键持续挖掘（按硬度耗时）
+        this.digTarget = null; // 重新评估目标
+      } else if (e.button === 2) this.placeBlock();
+    });
+    const stopDig = (): void => {
+      this.digging = false;
+      this.digProgress = 0;
+      this.digTarget = null;
+      this.crack.hide();
+    };
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) stopDig();
+    });
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement !== canvas) stopDig(); // 松开锁定即停挖
     });
     window.addEventListener('keydown', (e) => {
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= PALETTE.length) this.hotbar.setSelected(n - 1);
+      if (Number.isInteger(n) && n >= 1 && n <= HOTBAR_SLOTS) this.hotbar.setSelected(n - 1);
     });
     canvas.addEventListener(
       'wheel',
@@ -109,6 +146,7 @@ export class Game {
       yaw: this.look.yaw,
       pitch: this.look.pitch,
     };
+    this.save.inv = serializeInventory(this.inv);
     this.save.lastPlayed = Date.now();
     return this.save;
   }
@@ -134,6 +172,7 @@ export class Game {
     this.last = performance.now();
     const frame = (now: number): void => {
       requestAnimationFrame(frame);
+      const dt = Math.min(now - this.last, 100) / 1000; // 帧间隔(秒)，限幅防卡顿跳变
       this.acc += now - this.last;
       this.last = now;
       if (this.acc > 250) this.acc = 250;
@@ -167,6 +206,12 @@ export class Game {
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
       this.renderer.camera.updateProjectionMatrix();
+      if (playing) {
+        this.updateMining(dt);
+        this.updateDrops(dt);
+      } else {
+        this.crack.hide();
+      }
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
@@ -192,12 +237,80 @@ export class Game {
     this.chunks.remeshDirty();
   }
 
-  private breakBlock(): void {
+  // 持续挖掘：按住左键，按方块硬度累积进度并显示裂纹；满了就破坏、掉落。
+  private updateMining(dt: number): void {
+    if (!this.digging) {
+      this.crack.hide();
+      return;
+    }
     const hit = this.rayHit();
-    if (hit) this.edit(hit.x, hit.y, hit.z, AIR);
+    if (!hit) {
+      this.digProgress = 0;
+      this.digTarget = null;
+      this.crack.hide();
+      return;
+    }
+    if (
+      !this.digTarget ||
+      this.digTarget.x !== hit.x ||
+      this.digTarget.y !== hit.y ||
+      this.digTarget.z !== hit.z
+    ) {
+      this.digTarget = { x: hit.x, y: hit.y, z: hit.z }; // 换了目标 → 进度归零
+      this.digProgress = 0;
+    }
+    const id = this.world.getBlock(hit.x, hit.y, hit.z);
+    const need = breakTimeMs(id) / 1000;
+    if (need <= 0) {
+      this.mineBlock(hit.x, hit.y, hit.z, id); // 瞬破方块
+      return;
+    }
+    this.digProgress += dt;
+    if (this.digProgress >= need) {
+      this.mineBlock(hit.x, hit.y, hit.z, id);
+    } else {
+      this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
+    }
   }
 
+  // 破坏一个方块：清空 + 按掉落表生成掉落物。
+  private mineBlock(x: number, y: number, z: number, id: number): void {
+    const drop = blockDrop(id);
+    this.edit(x, y, z, AIR);
+    if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
+    this.digProgress = 0;
+    this.digTarget = null;
+    this.crack.hide();
+  }
+
+  // 推进掉落物物理 + 拾取 + 超时消失，并同步渲染。
+  private updateDrops(dt: number): void {
+    const px = this.player.pos.x;
+    const py = this.player.pos.y + 0.9; // 玩家身体中部
+    const pz = this.player.pos.z;
+    for (let i = this.drops.length - 1; i >= 0; i--) {
+      const d = this.drops[i];
+      stepDrop(d, this.physWorld, dt);
+      if (d.age > DROP_TTL) {
+        this.drops.splice(i, 1);
+        continue;
+      }
+      if (canPickup(d, px, py, pz)) {
+        const leftover = addItem(this.inv, d.id, 1);
+        if (leftover === 0) {
+          this.drops.splice(i, 1);
+          this.hotbar.render(this.inv);
+        }
+      }
+    }
+    this.dropRenderer.sync(this.drops);
+  }
+
+  // 放置：消耗当前快捷栏格里的方块（空手则不放）。
   private placeBlock(): void {
+    const sel = this.hotbar.index;
+    const stack = this.inv[sel];
+    if (!stack || stack.count <= 0) return; // 空手
     const hit = this.rayHit();
     if (!hit) return;
     const px = hit.x + hit.nx;
@@ -206,7 +319,10 @@ export class Game {
     const target = this.world.getBlock(px, py, pz);
     if (target !== AIR && !isWaterId(target)) return; // 仅可放进空气或水
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
-    this.edit(px, py, pz, PALETTE[this.hotbar.index]);
+    const id = takeOne(this.inv, sel);
+    if (id === null) return;
+    this.edit(px, py, pz, id);
+    this.hotbar.render(this.inv);
   }
 
   private overlapsPlayer(bx: number, by: number, bz: number): boolean {
