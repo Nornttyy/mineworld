@@ -26,51 +26,128 @@
         position: fixed;
         inset: 0;
         z-index: 10;
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+        /* 顶/底暗角，中间露出旋转的世界全景 */
+        background: linear-gradient(
+          rgba(0, 0, 0, 0.4),
+          rgba(0, 0, 0, 0.05) 28%,
+          rgba(0, 0, 0, 0.05) 70%,
+          rgba(0, 0, 0, 0.5)
+        );
+      }
+      .hidden {
+        display: none !important;
+      }
+      .menu-main {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 15%;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: 22px;
-        background: rgba(0, 0, 0, 0.55);
-        font-family: 'Zpix', monospace;
-        -webkit-font-smoothing: none;
+        gap: 18px;
       }
-      #menu h1 {
+      .logo {
+        position: relative;
+      }
+      .logo h1 {
         margin: 0;
-        font-size: 68px;
-        font-weight: 800;
+        font-size: 72px;
         letter-spacing: 6px;
         color: #fff;
-        text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
+        text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.6);
       }
-      #menu .sub {
-        margin-top: -14px;
-        color: #cfcfcf;
-        font-size: 15px;
+      #splash {
+        position: absolute;
+        right: -18px;
+        bottom: -10px;
+        color: #ffec3d;
+        font-size: 17px;
+        white-space: nowrap;
+        text-shadow: 2px 2px 0 rgba(60, 45, 0, 0.75);
+        transform-origin: center;
+        animation: splashBounce 0.55s ease-in-out infinite alternate;
       }
-      #menu button {
-        width: 340px;
-        padding: 13px 0;
-        font-size: 20px;
-        font-weight: 700;
+      @keyframes splashBounce {
+        from {
+          transform: rotate(-16deg) scale(1);
+        }
+        to {
+          transform: rotate(-16deg) scale(1.09);
+        }
+      }
+      .btn {
+        font-family: inherit;
         color: #fff;
-        background: #6c6c6c;
+        font-size: 18px;
+        padding: 11px 18px;
+        background: rgba(108, 108, 108, 0.85);
         border: 2px solid #000;
         box-shadow:
           inset 2px 2px 0 rgba(255, 255, 255, 0.25),
-          inset -2px -2px 0 rgba(0, 0, 0, 0.35);
+          inset -2px -2px 0 rgba(0, 0, 0, 0.4);
         cursor: pointer;
       }
-      #menu button:hover {
-        background: #6f8f5a;
+      .btn:hover {
+        background: rgba(118, 150, 92, 0.9);
       }
-      #menu .hint {
-        margin-top: 6px;
-        color: #b8b8b8;
-        font-size: 13px;
-        max-width: 480px;
+      .btn-wide {
+        width: 360px;
+        font-size: 20px;
+      }
+      .btn-row {
+        display: flex;
+        gap: 14px;
+      }
+      .btn-row .btn {
+        width: 173px;
+      }
+      .footer-left,
+      .footer-right {
+        position: absolute;
+        bottom: 8px;
+        color: #e6e6e6;
+        font-size: 12px;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .footer-left {
+        left: 10px;
+      }
+      .footer-right {
+        right: 10px;
+      }
+      #about-panel {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 470px;
+        padding: 26px;
         text-align: center;
-        line-height: 1.6;
+        color: #fff;
+        background: rgba(20, 20, 26, 0.93);
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.15),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+      }
+      #about-panel h2 {
+        margin: 0 0 14px;
+        font-size: 30px;
+      }
+      #about-panel p {
+        margin: 8px 0;
+        font-size: 14px;
+        color: #cfcfcf;
+        line-height: 1.7;
+      }
+      #about-panel .ctrl {
+        color: #9fd17a;
+      }
+      #about-panel .btn {
+        margin-top: 18px;
       }
       #underwater {
         position: fixed;
@@ -152,12 +229,28 @@
   <body>
     <canvas id="app"></canvas>
     <div id="menu">
-      <h1>MINEWORLD</h1>
-      <div class="sub">体素沙盒 · Voxel Sandbox</div>
-      <button id="play">开始游戏</button>
-      <div class="hint">
-        WASD 移动 · 鼠标看 · 左键挖 · 右键放 · 空格跳<br />
-        双击 W 疾跑 · 数字键 1-9 / 滚轮 选方块 · ESC 暂停
+      <div class="menu-main">
+        <div class="logo">
+          <h1>MINEWORLD</h1>
+          <div id="splash"></div>
+        </div>
+        <button id="play" class="btn btn-wide">开始游戏</button>
+        <div class="btn-row">
+          <button id="fullscreen" class="btn">全屏</button>
+          <button id="about" class="btn">关于</button>
+        </div>
+      </div>
+      <div class="footer-left">MINEWORLD 0.1.0</div>
+      <div class="footer-right">用 Three.js 打造</div>
+      <div id="about-panel" class="hidden">
+        <h2>MINEWORLD</h2>
+        <p>浏览器里的体素沙盒</p>
+        <p>TypeScript + Three.js 纯手工打造</p>
+        <p class="ctrl">
+          WASD 移动 · 鼠标看 · 左键挖 · 右键放<br />
+          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选方块 · ESC 暂停
+        </p>
+        <button id="about-close" class="btn">关闭</button>
       </div>
     </div>
     <div id="underwater"></div>

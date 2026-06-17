@@ -123,6 +123,7 @@ export class Game {
     this.last = performance.now();
     const frame = (now: number): void => {
       requestAnimationFrame(frame);
+      if (!document.pointerLockElement) this.look.yaw += 0.0009; // 菜单时世界全景缓转
       this.acc += now - this.last;
       this.last = now;
       if (this.acc > 250) this.acc = 250;
