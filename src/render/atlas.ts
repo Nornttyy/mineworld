@@ -22,3 +22,20 @@ export function loadWaterTexture(): THREE.Texture {
   tex.wrapT = THREE.RepeatWrapping;
   return tex;
 }
+
+/** 加载 N 帧水动画纹理（water_0..N-1.png）；渲染层按时间切 material.map 播放。 */
+export function loadWaterFrames(n: number): THREE.Texture[] {
+  const loader = new THREE.TextureLoader();
+  const frames: THREE.Texture[] = [];
+  for (let i = 0; i < n; i++) {
+    const tex = loader.load(import.meta.env.BASE_URL + `textures/blocks/water_${i}.png`);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    frames.push(tex);
+  }
+  return frames;
+}

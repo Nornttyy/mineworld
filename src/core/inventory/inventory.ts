@@ -7,18 +7,27 @@ export interface ItemStack {
 }
 
 export const HOTBAR_SIZE = 9;
+export const MAIN_SIZE = 27; // 主背包格数（MC：3×9）
+export const INV_SIZE = HOTBAR_SIZE + MAIN_SIZE; // 36：槽 0..8 = 快捷栏，9..35 = 主背包
 export const STACK_MAX = 64;
 
 export type Inventory = (ItemStack | null)[];
 
 export function emptyInventory(): Inventory {
-  return Array.from({ length: HOTBAR_SIZE }, () => null);
+  return Array.from({ length: INV_SIZE }, () => null);
 }
 
 // 加入 count 个 id：先叠到已有同类未满栈，再填空槽。返回放不下的剩余数量。
 // maxStack 为该物品的堆叠上限（工具=1，方块=64）。
-export function addItem(inv: Inventory, id: number, count: number, maxStack = STACK_MAX): number {
-  for (let i = 0; i < inv.length && count > 0; i++) {
+export function addItem(
+  inv: Inventory,
+  id: number,
+  count: number,
+  maxStack = STACK_MAX,
+  start = 0,
+  end = inv.length,
+): number {
+  for (let i = start; i < end && count > 0; i++) {
     const s = inv[i];
     if (s && s.id === id && s.count < maxStack) {
       const add = Math.min(maxStack - s.count, count);
@@ -26,7 +35,7 @@ export function addItem(inv: Inventory, id: number, count: number, maxStack = ST
       count -= add;
     }
   }
-  for (let i = 0; i < inv.length && count > 0; i++) {
+  for (let i = start; i < end && count > 0; i++) {
     if (!inv[i]) {
       const add = Math.min(maxStack, count);
       inv[i] = { id, count: add };
@@ -76,7 +85,8 @@ export function serializeInventory(inv: Inventory): (ItemStack | null)[] {
 export function deserializeInventory(data: unknown): Inventory {
   const inv = emptyInventory();
   if (!Array.isArray(data)) return inv;
-  for (let i = 0; i < HOTBAR_SIZE; i++) {
+  // 读满整个背包；旧的 9 格存档也能读（前 9 格有数据，其余留空）
+  for (let i = 0; i < INV_SIZE; i++) {
     const s = data[i];
     if (s && typeof s.id === 'number' && typeof s.count === 'number' && s.count > 0) {
       inv[i] = { id: s.id, count: Math.min(STACK_MAX, s.count) };

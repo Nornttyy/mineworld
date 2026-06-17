@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type MeshData } from '../core/mesh/mesher';
-import { loadWaterTexture } from './atlas';
+import { loadWaterFrames } from './atlas';
+
+const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
@@ -16,7 +18,10 @@ export class ChunkMeshManager {
   private readonly opaqueMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
+  private readonly waterFrames: THREE.Texture[];
   private readonly waterTex: THREE.Texture;
+  private waterAnimT = 0;
+  private waterFrame = 0;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -31,21 +36,34 @@ export class ChunkMeshManager {
       alphaTest: 0.5,
       side: THREE.DoubleSide,
     });
-    // 水：半透明、不写深度（避免遮挡排序问题），单独成批；用独立可滚动纹理做流动动画
-    this.waterTex = loadWaterTexture();
+    // 水：半透明、不写深度（避免遮挡排序问题），单独成批。多帧动画用一个固定显示纹理，
+    // 每帧换它的 image 像素（clone 出独立容器，避免污染帧源；换像素而非换 map 引用，确保 GPU 重传）。
+    this.waterFrames = loadWaterFrames(WATER_FRAMES);
+    this.waterTex = this.waterFrames[0].clone();
+    this.waterTex.needsUpdate = true;
     this.waterMat = new THREE.MeshBasicMaterial({
       map: this.waterTex,
       vertexColors: true,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.78,
       depthWrite: false,
     });
   }
 
-  /** 水面动画：原先是整张 UV 单向滚动（看着像水在往一个方向流走，不自然），按需求去掉——水面现为静止。
-   *  保留方法与每帧调用钩子，便于以后接 MC 风格的"原地波纹"帧动画（届时按帧跳 offset，而非连续平移）。 */
+  /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
+   *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {
-    void dt; // 暂不滚动 UV；waterTex.offset 保持 (0,0)
+    this.waterAnimT += dt;
+    const FRAME_DUR = 0.09; // 每帧约 90ms（接近 MC 水的节奏）
+    while (this.waterAnimT >= FRAME_DUR) {
+      this.waterAnimT -= FRAME_DUR;
+      this.waterFrame = (this.waterFrame + 1) % this.waterFrames.length;
+      const next = this.waterFrames[this.waterFrame];
+      if (next.image) {
+        this.waterTex.image = next.image;
+        this.waterTex.needsUpdate = true; // 只重传像素，不重编译 shader
+      }
+    }
   }
 
   private key(cx: number, cz: number): string {

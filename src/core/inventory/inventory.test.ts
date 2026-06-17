@@ -6,13 +6,13 @@ import {
   serializeInventory,
   deserializeInventory,
   STACK_MAX,
-  HOTBAR_SIZE,
+  INV_SIZE,
 } from './inventory';
 
 describe('inventory', () => {
-  it('空背包是 9 个空格', () => {
+  it('空背包是 36 个空格(9 快捷栏 + 27 主背包)', () => {
     const inv = emptyInventory();
-    expect(inv).toHaveLength(HOTBAR_SIZE);
+    expect(inv).toHaveLength(INV_SIZE);
     expect(inv.every((s) => s === null)).toBe(true);
   });
 
@@ -40,7 +40,7 @@ describe('inventory', () => {
 
   it('背包满时返回放不下的剩余', () => {
     const inv = emptyInventory();
-    for (let i = 0; i < HOTBAR_SIZE; i++) addItem(inv, 1, STACK_MAX);
+    for (let i = 0; i < INV_SIZE; i++) addItem(inv, 1, STACK_MAX);
     expect(addItem(inv, 1, 10)).toBe(10); // 全满，10 个都放不下
   });
 
@@ -63,7 +63,7 @@ describe('inventory', () => {
   });
 
   it('反序列化能容忍脏数据', () => {
-    expect(deserializeInventory(null)).toHaveLength(HOTBAR_SIZE);
+    expect(deserializeInventory(null)).toHaveLength(INV_SIZE);
     expect(deserializeInventory([{ id: 1, count: 0 }, 'x', null])[0]).toBeNull();
   });
 });

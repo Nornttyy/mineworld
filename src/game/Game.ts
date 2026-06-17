@@ -35,8 +35,7 @@ import { readMove, consumeJump } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
 import { StatusBar } from '../ui/statusBar';
-import { CraftingMenu } from '../ui/craftingMenu';
-import { availableRecipes, craftRecipe } from '../core/crafting/craft';
+import { InventoryUI } from '../ui/inventoryUI';
 import {
   newSurvival,
   tickSurvival,
@@ -85,8 +84,8 @@ export class Game {
   private readonly crack: CrackOverlay;
   private readonly dropRenderer: DropRenderer;
   private readonly hand: FirstPersonHand;
-  private readonly craftMenu: CraftingMenu;
-  private craftingGrid = 0; // 合成界面：0=关闭 2=个人(2×2) 3=工作台(3×3)
+  private readonly invUI: InventoryUI;
+  private craftingGrid = 0; // 背包/合成界面：0=关闭 2=个人(2×2) 3=工作台(3×3)
   private readonly drops: ItemDrop[] = [];
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
@@ -143,12 +142,8 @@ export class Game {
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.hand = new FirstPersonHand(atlas);
-    this.craftMenu = new CraftingMenu(document.getElementById('crafting') as HTMLElement);
-    this.craftMenu.onCraft = (opt): void => {
-      craftRecipe(this.inv, opt.recipe);
-      this.hotbar.render(this.inv);
-      this.refreshCrafting();
-    };
+    this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
+    this.invUI.onChange = (): void => this.hotbar.render(this.inv);
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -402,17 +397,13 @@ export class Game {
   }
   private openCrafting(gridSize: number): void {
     this.craftingGrid = gridSize;
-    this.refreshCrafting();
-    this.craftMenu.show();
+    this.invUI.show(this.inv, gridSize);
     document.exitPointerLock(); // 解锁鼠标操作界面（暂停在 pointerlockchange 里被抑制）
   }
   private closeCrafting(): void {
     this.craftingGrid = 0;
-    this.craftMenu.hide();
+    this.invUI.hide();
     void this.canvas.requestPointerLock(); // 回到游戏
-  }
-  private refreshCrafting(): void {
-    this.craftMenu.render(availableRecipes(this.inv, this.craftingGrid), this.craftingGrid >= 3 ? '工作台' : '合成');
   }
 
   private stopEating(): void {

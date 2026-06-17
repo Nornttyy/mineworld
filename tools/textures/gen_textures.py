@@ -76,59 +76,61 @@ def streak(px, color, x, y, length, rng):
         y += rng.choice([0, 1, 1])
 
 
-# ---- per-block generators：经典闷色 + 立体软阴影 + 低噪点 -------------------
+# ---- per-block generators：鲜艳干净卡通色 + 强明暗分块 + 极低噪点 -----------
+# 卡通方向：主色高饱和+高亮度，高光更亮、暗部更深，色块清晰；speck 概率压到很低
+# 让色块干净通透。NearestFilter 渲染，全程无抗锯齿。继续用 % S 包裹保证无缝平铺。
 
 def stone(rng):
     im = new()
-    fill(im, "#888888")
-    speck(im, ["#7f7f7f", "#929292"], 0.12, rng)
-    for _ in range(4):  # 软颗粒
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#888888", "#9b9b9b", "#747474", rng)
+    fill(im, "#a3a6b0")  # 干净中灰（略带冷调，更通透不发黄）
+    speck(im, ["#9396a0", "#b4b7c1"], 0.05, rng)  # 噪点压到极低
+    for _ in range(4):  # 软颗粒，强高光/深暗，立体感更分明
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#a3a6b0", "#c2c5cf", "#7f828c", rng)
     px = im.load()
-    for _ in range(3):  # 细裂纹，增加岩石质感
-        streak(px, "#6f6f6f", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
+    for _ in range(2):  # 少量细裂纹，保留岩石质感但更干净
+        streak(px, "#7a7d87", rng.randrange(S), rng.randrange(S), rng.randint(2, 3), rng)
     return im
 
 
 def cobblestone(rng):
-    # 圆润鹅卵石 + 深色石缝（不再是噪点砖）。石头 wraps，故石缝平铺无缝。
+    # 圆润鹅卵石 + 深色石缝。卡通：石头更亮更干净，石缝更深，对比拉满。
     im = new()
-    fill(im, "#565656")  # mortar
+    fill(im, "#43454e")  # 深石缝（更暗 → 卵石更跳）
     for cx, cy in [(3, 3), (11, 4), (7, 9), (2, 12), (13, 11), (9, 1), (14, 15), (5, 7)]:
-        pebble(im, cx, cy, rng.choice([3, 3, 4]), "#8a8a8a", "#9c9c9c", "#737373", rng, 0.3)
+        pebble(im, cx, cy, rng.choice([3, 3, 4]), "#a8abb5", "#c6c9d3", "#83868f", rng, 0.3)
     return im
 
 
 def dirt(rng):
     im = new()
-    fill(im, "#7e5a3c")
-    speck(im, ["#6f4f33", "#8a6648"], 0.15, rng)
-    for _ in range(5):
-        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2]), "#7e5a3c", "#8f6a49", "#654227", rng)
+    fill(im, "#9a6638")  # 温暖鲜棕
+    speck(im, ["#8a5a30", "#aa7444"], 0.06, rng)  # 噪点压低
+    for _ in range(5):  # 强明暗土块
+        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2]), "#9a6638", "#b27e4c", "#774c28", rng)
     return im
 
 
-GB, GH, GL = "#6a9a4a", "#79ad57", "#577f3c"  # 经典闷绿（base/highlight/shadow）
+GB, GH, GL = "#5fbf3a", "#74d84c", "#469328"  # 翠绿卡通草（base/亮/暗），饱和拉高
 
 
 def grass_top(rng):
     im = new()
     fill(im, GB)
-    speck(im, ["#638f45", "#73a651"], 0.15, rng)
-    for _ in range(5):  # 软草簇
+    speck(im, ["#57b234", "#6ccf45"], 0.06, rng)  # 干净，噪点极低
+    for _ in range(5):  # 软草簇，强高光暗部
         pebble(im, rng.randrange(S), rng.randrange(S), 2, GB, GH, GL, rng)
     return im
 
 
 def grass_side(rng):
-    # 泥土身 + 顶部草带（顶行提亮、按列锯齿下垂）
+    # 暖棕泥土身 + 顶部翠绿草带（顶行提亮、按列锯齿下垂），上下对比强。
     im = new()
-    fill(im, "#7e5a3c")
-    speck(im, ["#6f4f33", "#8a6648"], 0.14, rng)
+    fill(im, "#9a6638")
+    speck(im, ["#8a5a30", "#aa7444"], 0.06, rng)
     px = im.load()
     for _ in range(3):
-        pebble(im, rng.randrange(S), rng.randrange(4, S), 2, "#7e5a3c", "#8f6a49", "#654227", rng)
-    g = [GB, "#638f45", "#73a651"]
+        pebble(im, rng.randrange(S), rng.randrange(4, S), 2, "#9a6638", "#b27e4c", "#774c28", rng)
+    g = [GB, "#57b234", "#6ccf45"]
     for x in range(S):
         depth = rng.randint(3, 4)
         for y in range(depth):
@@ -141,26 +143,26 @@ def grass_side(rng):
 
 def sand(rng):
     im = new()
-    fill(im, "#ddd0a0")
-    speck(im, ["#d4c694", "#e6daad"], 0.12, rng)
-    for _ in range(3):
-        pebble(im, rng.randrange(S), rng.randrange(S), 1, "#ddd0a0", "#e8dcae", "#cabd86", rng)
+    fill(im, "#f2dc82")  # 明黄沙
+    speck(im, ["#e8d070", "#f8e89a"], 0.05, rng)  # 干净
+    for _ in range(3):  # 柔和立体颗粒
+        pebble(im, rng.randrange(S), rng.randrange(S), 1, "#f2dc82", "#fbec9e", "#dcc468", rng)
     return im
 
 
 def oak_planks(rng):
     im = new()
-    fill(im, "#9a7843")
-    speck(im, ["#8c6d3c", "#a6844f"], 0.4, rng)
+    fill(im, "#bf9050")  # 暖亮木
+    speck(im, ["#b3854a", "#cb9d5b"], 0.18, rng)  # 噪点压低，保留一点木纹
     px = im.load()
-    groove = hx("#5f4827")
-    hi = hx("#ad8a52")
+    groove = hx("#6e5128")  # 深槽，对比更强
+    hi = hx("#d3aa66")      # 顶边高光更亮
     for gy in (3, 7, 11, 15):  # 木板间深槽
         for x in range(S):
             px[x, gy] = groove
     for top in (0, 4, 8, 12):  # 每块木板顶边提亮
         for x in range(S):
-            if rng.random() < 0.45:
+            if rng.random() < 0.5:
                 px[x, top] = hi
     seams = [4, 11, 2, 9]  # 错位竖缝
     for i, top in enumerate((0, 4, 8, 12)):
@@ -171,77 +173,99 @@ def oak_planks(rng):
 
 def oak_log_side(rng):
     im = new()
-    bark = ["#7a5d33", "#6b5028", "#866637", "#5a4424"]
+    bark = ["#9a713e", "#8a6435", "#a87f48", "#7a5830"]  # 更暖更亮的树皮
     w = [3, 3, 2, 2]
     px = im.load()
     for x in range(S):  # 竖向树皮
         cb = rng.choices(bark, w)[0]
-        groove = rng.random() < 0.22
+        groove = rng.random() < 0.20
         for y in range(S):
             if groove and rng.random() < 0.6:
-                px[x, y] = hx("#4e3a1e")
+                px[x, y] = hx("#5e4424")  # 深沟槽，强对比
             else:
-                px[x, y] = hx(rng.choices([cb, "#937243", "#4e3a1e"], [7, 1, 1])[0])
+                px[x, y] = hx(rng.choices([cb, "#b88f52", "#5e4424"], [8, 1, 1])[0])
     return im
 
 
 def oak_log_top(rng):
     im = new()
     px = im.load()
-    a, b = hx("#9a7843"), hx("#866637")
-    light = hx("#b08c52")
+    a, b = hx("#bf9050"), hx("#a87f48")  # 暖亮年轮双色
+    light = hx("#d6ac66")  # 心材高光
     for y in range(S):
         for x in range(S):
             d = max(abs(x - 7.5), abs(y - 7.5))
             r = int(d)
             if r >= 7:
-                px[x, y] = hx("#5f4727")  # 树皮边
+                px[x, y] = hx("#6e5128")  # 树皮边（深，框住木心）
             else:
                 base = a if (r % 2 == 0) else b
                 if d < 1.6:
                     base = light  # 心材
-                px[x, y] = base if rng.random() < 0.85 else b
+                px[x, y] = base if rng.random() < 0.9 else b
     return im
 
 
 def coal_ore(rng):
-    im = stone(rng)  # 石底 + 软深灰煤块（非死黑死噪）
+    im = stone(rng)  # 干净石底 + 分明的近黑煤块（高光/暗部清晰）
     for cx, cy, r in [(4, 4, 2), (11, 10, 2), (8, 13, 1), (13, 4, 1), (2, 11, 1), (6, 8, 1)]:
-        pebble(im, cx, cy, r, "#2b2b2b", "#3c3c3c", "#1d1d1d", rng, 0.2)
+        pebble(im, cx, cy, r, "#26262c", "#3d3d46", "#141418", rng, 0.2)
     return im
 
 
 def water(rng):
     im = new()
-    fill(im, "#3a6ea5")  # 经典闷蓝
-    speck(im, ["#33639a", "#4178b0"], 0.14, rng)
+    fill(im, "#2f86e0")  # 鲜艳卡通蓝（单帧静态，不做动画）
+    speck(im, ["#2877cc", "#3f93ec"], 0.06, rng)  # 干净
     px = im.load()
-    for _ in range(4):  # 微波纹
+    for _ in range(4):  # 微波纹高光
         y = rng.randrange(S)
         x0 = rng.randrange(S)
         for dx in range(rng.randint(2, 4)):
-            px[(x0 + dx) % S, y] = hx("#5188bf")
+            px[(x0 + dx) % S, y] = hx("#6db4f5")
     return im
+
+
+def water_frames(n):
+    """N 帧卡通水动画：两道斜向正弦波纹随相位流动+变化。
+    横纵频率取 2π/S 的整数倍 → 平铺无缝；帧相位 0..2π 整循环 → 首尾无缝。
+    渲染层每帧整张切 material.map（所有水格同步），不做 UV 平移。"""
+    import math
+
+    base, hi, dk = hx("#2f86e0")[:3], hx("#6db4f5")[:3], hx("#2877cc")[:3]
+    frames = []
+    for f in range(n):
+        ph = 2 * math.pi * f / n
+        im = new()
+        px = im.load()
+        for y in range(S):
+            for x in range(S):
+                w = math.sin(2 * math.pi * (2 * x + y) / S + ph) + 0.7 * math.sin(
+                    2 * math.pi * (x - 2 * y) / S - ph * 1.3
+                )
+                px[x, y] = hi if w > 0.9 else dk if w < -1.0 else base
+        frames.append(im)
+    return frames
 
 
 def oak_leaves(rng):
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     px = im.load()
-    cols = ["#3f6b22", "#4a7a2a", "#365e1c", "#558736", "#2c4d16"]
+    cols = ["#4fa024", "#5bb52c", "#43881d", "#6fcb3c", "#3a751a"]  # 鲜翠叶，饱和高
     wts = [3, 3, 2, 2, 2]
     for y in range(S):
         for x in range(S):
-            if rng.random() < 0.12:
-                px[x, y] = (0, 0, 0, 0)  # 镂空
+            if rng.random() < 0.10:
+                px[x, y] = (0, 0, 0, 0)  # 镂空（略减少，色块更整）
             else:
                 r, g, b = hx(rng.choices(cols, wts)[0])
                 px[x, y] = (r, g, b, 255)
-    for _ in range(4):  # 软明暗叶簇
+    for _ in range(4):  # 软明暗叶簇，强高光/暗部
         cx, cy = rng.randrange(S), rng.randrange(S)
         for dy in range(-1, 2):
             for dx in range(-1, 2):
                 if rng.random() < 0.6:
-                    r, g, b = hx("#558736") if rng.random() < 0.5 else hx("#2c4d16")
+                    r, g, b = hx("#6fcb3c") if rng.random() < 0.5 else hx("#3a751a")
                     px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
     return im
 
@@ -389,6 +413,11 @@ def main():
     # 挖掘裂纹条（10 段，160x16）→ public/textures/crack.png
     crack_strip().save(os.path.join(OUT, '..', 'crack.png'))
     print('wrote crack.png (10 stages)')
+
+    # 水帧动画序列 → public/textures/blocks/water_0..N-1.png（渲染层切 material.map 播放）
+    for i, wim in enumerate(water_frames(24)):
+        wim.save(os.path.join(OUT, f'water_{i}.png'))
+    print('wrote 24 water animation frames')
 
     # Build a labelled 3x3-tiled preview so seams/quality are easy to judge.
     cols, scale, tilepx, lbl = 5, 8, None, 16
