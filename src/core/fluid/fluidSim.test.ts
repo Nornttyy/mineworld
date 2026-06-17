@@ -114,7 +114,7 @@ describe('fluidSim（对照 MC）', () => {
     expect(sim.activeCount).toBe(0); // 收敛，不再 churn
   });
 
-  it('海平面下、连到水源的洼地被灌满（MC 海边挖坑会进水）', () => {
+  it('海平面下、连到水源的洼地进水（衰减铺开，绝不生成新源头）', () => {
     const g = new Grid(0); // y<0 固体
     const SEA = 5;
     for (let y = 0; y <= SEA; y++) g.src(-1, y, 0); // 一面"深海"源头墙(x=-1)
@@ -129,11 +129,45 @@ describe('fluidSim（对照 MC）', () => {
     const sim = new FluidSim(SEA); // 传入海平面
     for (let y = 0; y <= SEA; y++) sim.activate(-1, y, 0);
     run(sim, g, 40);
-    // 坑(x=0,1 各 y=0..5)应被灌满到海平面，而不是只在底部积一薄层
+    // 坑(x=0,1 各 y=0..5)应进水，但只能是流动水，不能凭空变成无限源头
     expect(g.amount(0, 0, 0)).toBeGreaterThan(0); // 底
     expect(g.amount(0, SEA, 0)).toBeGreaterThan(0); // 顶
-    expect(g.amount(1, 0, 0)).toBeGreaterThan(0); // 远一格的底也灌满
-    expect(g.amount(1, SEA, 0)).toBeGreaterThan(0);
+    expect(g.amount(1, 0, 0)).toBeGreaterThan(0); // 远一格的底也进水
+    expect(g.isSource(0, 0, 0)).toBe(false); // 进来的水绝不是源头 → 可被抽干
+    expect(g.isSource(1, 0, 0)).toBe(false);
+  });
+
+  it('永不生成无限水：两源头夹一格 → 中间只是流动水(7)，撤掉源头后退干', () => {
+    const g = new Grid(0);
+    g.src(0, 0, 0);
+    g.src(2, 0, 0); // 两侧源头夹住 (1,0,0)
+    const sim = new FluidSim();
+    sim.activate(0, 0, 0);
+    sim.activate(2, 0, 0);
+    run(sim, g, 40);
+    expect(g.amount(1, 0, 0)).toBe(7); // 衰减为 7，而非 MC 经典“变源头”
+    expect(g.isSource(1, 0, 0)).toBe(false);
+    // 撤掉两个源头 → 中间应彻底退干（证明不是无限水）
+    g.setWater(0, 0, 0, 0, false, false);
+    g.setWater(2, 0, 0, 0, false, false);
+    sim.activate(0, 0, 0);
+    sim.activate(2, 0, 0);
+    run(sim, g, 60);
+    expect(g.amount(1, 0, 0)).toBe(0);
+  });
+
+  it('三面(及以上)是源头 → 该格灌满到满量(8)，但仍不是源头', () => {
+    const g = new Grid(0);
+    g.src(1, 0, 0);
+    g.src(-1, 0, 0);
+    g.src(0, 0, 1); // 中心 (0,0,0) 被三面源头包围
+    const sim = new FluidSim();
+    sim.activate(1, 0, 0);
+    sim.activate(-1, 0, 0);
+    sim.activate(0, 0, 1);
+    run(sim, g, 30);
+    expect(g.amount(0, 0, 0)).toBe(8); // 三面源头 → 直接填满
+    expect(g.isSource(0, 0, 0)).toBe(false); // 仍是流动水，不是无限源头
   });
 
   it('空闲时收敛（无活跃格）', () => {

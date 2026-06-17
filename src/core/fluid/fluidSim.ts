@@ -2,8 +2,10 @@
 //
 // 关键规则（同 MC）：
 //  - 水量 1..8（8=满/源头）；源头(source)恒满、稳定；falling=从上方灌下的瀑布柱。
-//  - 更新某格水：先 getNewLiquid 重算自身水量（来自水平最高邻格 −1；上方有水→满 falling；
-//    ≥2 源头且脚下实心/源头→变源头）；source 移除后由此逐刻退水。
+//  - 没有无限水：模拟过程【绝不】新生成源头。源头只来自世界生成(海/湖)或玩家放置；
+//    撤掉上游源头后，下游流动水会逐刻退干。
+//  - 更新某格水(getNewLiquid)：上方有水→满 falling(瀑布)；三面及以上邻格是源头→灌满到 8
+//    (但仍是流动水，不变源头)；否则取水平最高邻格 −1 衰减。水永不向上爬。
 //  - 扩散(spread)：能向下就只向下（下方成 falling 满水，柱体单薄）；不能向下才向四周铺。
 //  - 朝洞找路：向四周铺时用"坡度距离"(最多探 SLOPE_FIND=4 格)找最近的落差，只朝最近方向铺；
 //    多个方向并列或找不到洞 → 一起铺（平地铺成片）。这就是 MC 水会"找洞流过去"的行为。
@@ -41,8 +43,8 @@ export class FluidSim {
   private readonly seaLevel: number;
   private readonly maxPerTick: number;
 
-  // seaLevel：海平面 y。挖到海平面及以下、且连到水源的洼地会被灌满到海平面（复刻 MC
-  //   "在海边往下挖会被淹"）。默认 -Infinity = 关闭该行为（纯流动，供单测）。
+  // seaLevel：海平面 y。仅用于扩散：海平面那一层即使能下流也照样横向铺满开口，让海面保持连片
+  //   (不新生成源头)。默认 -Infinity = 关闭该行为（纯流动，供单测）。
   constructor(seaLevel = -Infinity, maxPerTick = 4000) {
     this.seaLevel = seaLevel;
     this.maxPerTick = maxPerTick;
@@ -110,7 +112,12 @@ export class FluidSim {
     if (self.amount > 0) this.spread(g, x, y, z, self, propose);
   }
 
-  // 重算某(已是水的)格应有的水量：水平最高邻格 −1；上方有水→满 falling；无限水源规则。
+  // 重算某(已是水的)格应有的水量。规则：
+  //  - 上方有水 → 满 falling（瀑布柱往下灌）。上方是方块(无水)就走不到这条 → 水不会向上爬。
+  //  - 三面(及以上)邻格是源头 → 直接灌满到满量(8)，但【不】变成源头。
+  //  - 否则衰减：水平最高邻格 −1。
+  // 关键：本函数永不产出 source=true → 流动水绝不会凭空变成新源头，因此【没有无限水】，
+  //   撤掉上游源头后整片都会退干。源头只来自世界生成(海/湖)或玩家放置。
   private getNewLiquid(g: FluidGrid, x: number, y: number, z: number): Cell {
     if (g.amount(x, y + 1, z) > 0) return { amount: FULL, source: false, falling: true };
 
@@ -123,13 +130,9 @@ export class FluidSim {
         if (g.isSource(x + dx, y, z + dz)) srcCount++;
       }
     }
-    // 变源头(灌满)：海平面及以下，连到任一水源就灌成源头(忽略下方) → 洼地被淹到海平面，
-    //   像 MC 海边挖坑会进水填满。海平面之上用 MC 默认(≥2 源头邻居 且 脚下实心/源头)。
-    const seaFill = y <= this.seaLevel;
-    const belowOk = g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z);
-    if (srcCount >= (seaFill ? 1 : 2) && (seaFill || belowOk)) {
-      return { amount: FULL, source: true, falling: false };
-    }
+    // 三面或以上是源头 → 填满(8)，但保持流动水身份(可被抽干，绝不无限)。
+    if (srcCount >= 3) return { amount: FULL, source: false, falling: false };
+    // 否则衰减。
     const n = maxN - DROPOFF;
     return n > 0 ? { amount: n, source: false, falling: false } : EMPTY;
   }
