@@ -1,4 +1,5 @@
 import { World } from '../world/world';
+import { Chunk, CHUNK_W } from '../world/chunk';
 import { fbm2 } from '../math/noise';
 
 // 方块 id（见 core/blocks/registry）
@@ -6,6 +7,30 @@ const STONE = 1;
 const DIRT = 2;
 const GRASS = 3;
 const SAND = 5;
+
+// 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续）
+export function columnHeight(wx: number, wz: number, seed: number): number {
+  const n = fbm2(wx / 80, wz / 80, seed, 4);
+  return Math.floor(12 + n * 26); // 12..38
+}
+
+// 生成单个区块列 (cx,cz)：石基→土→草顶。确定性、跨区块无缝。（沙/水等阶段 3 配海平面再加）
+export function generateChunk(cx: number, cz: number, seed: number): Chunk {
+  const c = new Chunk();
+  for (let lz = 0; lz < CHUNK_W; lz++) {
+    for (let lx = 0; lx < CHUNK_W; lx++) {
+      const height = columnHeight(cx * CHUNK_W + lx, cz * CHUNK_W + lz, seed);
+      for (let y = 0; y <= height; y++) {
+        let id = STONE;
+        if (y === height) id = GRASS;
+        else if (y >= height - 3) id = DIRT;
+        c.set(lx, y, lz, id);
+      }
+    }
+  }
+  c.dirty = true;
+  return c;
+}
 
 export interface TerrainOptions {
   sizeX?: number;

@@ -1,5 +1,7 @@
 import { Section } from '../world/section';
 import { World } from '../world/world';
+import { ChunkWorld } from '../world/chunkWorld';
+import { CHUNK_W, CHUNK_H } from '../world/chunk';
 import { isSolidId, blockFaceTile, Face } from '../blocks/registry';
 
 const ATLAS_COLS = 4;
@@ -106,4 +108,56 @@ export function meshSection(sec: Section): MeshData {
 // 整片地形网格化
 export function meshWorld(world: World): MeshData {
   return meshGrid(world);
+}
+
+// 网格化无限世界中的一个区块 (cx,cz)。位置用区块局部坐标（0..CHUNK_W / 0..CHUNK_H），
+// 邻居按世界坐标采样（含相邻区块），故区块接缝处正确剔除、无内墙。Mesh 放到 (cx*16,0,cz*16)。
+export function meshChunk(world: ChunkWorld, cx: number, cz: number): MeshData {
+  const ox = cx * CHUNK_W;
+  const oz = cz * CHUNK_W;
+  const P: number[] = [];
+  const N: number[] = [];
+  const U: number[] = [];
+  const C: number[] = [];
+  const I: number[] = [];
+
+  const eps = 0.5 / (TILE_PX * ATLAS_COLS);
+  const du = 1 / ATLAS_COLS - 2 * eps;
+  const dv = 1 / ATLAS_ROWS - 2 * eps;
+
+  for (let ly = 0; ly < CHUNK_H; ly++) {
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const id = world.getBlock(ox + lx, ly, oz + lz);
+        if (!isSolidId(id)) continue;
+        for (let f = 0; f < 6; f++) {
+          const d = DIRS[f];
+          if (isSolidId(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+          const tile = blockFaceTile(id, f as Face);
+          const col = tile % ATLAS_COLS;
+          const row = Math.floor(tile / ATLAS_COLS);
+          const u0 = col / ATLAS_COLS + eps;
+          const v0 = 1 - (row + 1) / ATLAS_ROWS + eps;
+          const shade = FACE_SHADE[f];
+          const base = P.length / 3;
+          for (let k = 0; k < 4; k++) {
+            const corner = d.c[k];
+            P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
+            N.push(d.n[0], d.n[1], d.n[2]);
+            U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
+            C.push(shade, shade, shade);
+          }
+          I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        }
+      }
+    }
+  }
+
+  return {
+    positions: new Float32Array(P),
+    normals: new Float32Array(N),
+    uvs: new Float32Array(U),
+    colors: new Float32Array(C),
+    indices: new Uint32Array(I),
+  };
 }
