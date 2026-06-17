@@ -16,6 +16,55 @@
         display: block;
         cursor: pointer;
       }
+      #menu {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: rgba(0, 0, 0, 0.55);
+        font-family: 'Trebuchet MS', system-ui, sans-serif;
+      }
+      #menu h1 {
+        margin: 0;
+        font-size: 68px;
+        font-weight: 800;
+        letter-spacing: 6px;
+        color: #fff;
+        text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
+      }
+      #menu .sub {
+        margin-top: -14px;
+        color: #cfcfcf;
+        font-size: 15px;
+      }
+      #menu button {
+        width: 340px;
+        padding: 13px 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+        background: #6c6c6c;
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+      }
+      #menu button:hover {
+        background: #6f8f5a;
+      }
+      #menu .hint {
+        margin-top: 6px;
+        color: #b8b8b8;
+        font-size: 13px;
+        max-width: 480px;
+        text-align: center;
+        line-height: 1.6;
+      }
       #underwater {
         position: fixed;
         inset: 0;
@@ -95,6 +144,15 @@
   </head>
   <body>
     <canvas id="app"></canvas>
+    <div id="menu">
+      <h1>MINEWORLD</h1>
+      <div class="sub">体素沙盒 · Voxel Sandbox</div>
+      <button id="play">开始游戏</button>
+      <div class="hint">
+        WASD 移动 · 鼠标看 · 左键挖 · 右键放 · 空格跳<br />
+        双击 W 疾跑 · 数字键 1-9 / 滚轮 选方块 · ESC 暂停
+      </div>
+    </div>
     <div id="underwater"></div>
     <div id="crosshair"></div>
     <div id="hotbar"></div>
