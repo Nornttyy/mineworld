@@ -293,6 +293,7 @@ BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keep
 # 把方块渲染成等距(2:1)立方体图标：顶面 + 左右两侧面，按 MC 面亮度着色。
 def iso_icon(top_tex, left_tex, right_tex):
     A, B, CH = 16, 8, 16  # 顶面半宽、顶面半高、侧面高
+    M = 0.04  # 相邻面微重叠，消除接缝处的缺像素
     W, H = 2 * A, 2 * B + CH
     cx = A
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -318,10 +319,31 @@ def iso_icon(top_tex, left_tex, right_tex):
                 dy = oy - p0[1] + 0.5
                 s = i0 * dx + i1 * dy
                 t = i2 * dx + i3 * dy
-                if 0 <= s < 1 and 0 <= t < 1:
-                    r, g, b, a = tpx[min(15, int(s * 16)), min(15, int(t * 16))]
+                if -M <= s <= 1 + M and -M <= t <= 1 + M:  # 微重叠消接缝
+                    sx = min(15, max(0, int(s * 16)))
+                    sy = min(15, max(0, int(t * 16)))
+                    r, g, b, a = tpx[sx, sy]
                     if a >= 128:
                         cpx[ox, oy] = (int(r * shade), int(g * shade), int(b * shade), 255)
+    # 补缝：透明但被 ≥5 个不透明邻居包围的像素，用邻居平均色填上（堵接缝缺像素，不外扩轮廓）
+    fills = []
+    for oy in range(H):
+        for ox in range(W):
+            if cpx[ox, oy][3]:
+                continue
+            nb = [
+                cpx[ox + dx, oy + dy]
+                for dx in (-1, 0, 1)
+                for dy in (-1, 0, 1)
+                if (dx or dy) and 0 <= ox + dx < W and 0 <= oy + dy < H and cpx[ox + dx, oy + dy][3]
+            ]
+            if len(nb) >= 5:
+                n = len(nb)
+                fills.append(
+                    (ox, oy, (sum(c[0] for c in nb) // n, sum(c[1] for c in nb) // n, sum(c[2] for c in nb) // n, 255))
+                )
+    for ox, oy, c in fills:
+        cpx[ox, oy] = c
     return canvas
 
 
