@@ -31,218 +31,218 @@ def new():
     return Image.new("RGB", (S, S))
 
 
-def noise(im, palette, weights, rng):
-    """Fill every pixel with a weighted-random palette colour (seamless when tiled)."""
+def fill(im, color):
+    """Flat base colour."""
+    c = hx(color)
+    px = im.load()
+    for y in range(S):
+        for x in range(S):
+            px[x, y] = c
+
+
+def speck(im, palette, prob, rng):
+    """Sprinkle a few palette pixels over the base (seamless; keep prob low)."""
     cols = [hx(c) for c in palette]
     px = im.load()
     for y in range(S):
         for x in range(S):
-            px[x, y] = rng.choices(cols, weights)[0]
+            if rng.random() < prob:
+                px[x, y] = rng.choice(cols)
 
 
-def blob(im, cx, cy, r, color, rng, jitter=0.45):
-    """Paint a rough roundish cluster (used for ore inclusions, pebbles)."""
+def pebble(im, cx, cy, r, base, hi, lo, rng, jit=0.25):
+    """Rounded cluster with soft top-left highlight + bottom-right shadow（立体颗粒）。
+    Wraps with `% S` so it tiles seamlessly."""
     px = im.load()
-    c = hx(color)
-    for dy in range(-r, r + 1):
-        for dx in range(-r, r + 1):
+    b, h, l = hx(base), hx(hi), hx(lo)
+    for dy in range(-r - 1, r + 2):
+        for dx in range(-r - 1, r + 2):
             d = (dx * dx + dy * dy) ** 0.5
-            if d <= r - rng.random() * (r * jitter):
-                px[(cx + dx) % S, (cy + dy) % S] = c
+            if d <= r - rng.random() * r * jit:
+                col = b
+                if dx + dy < -r * 0.45:
+                    col = h
+                elif dx + dy > r * 0.55:
+                    col = l
+                px[(cx + dx) % S, (cy + dy) % S] = col
 
 
-# ---- per-block generators -------------------------------------------------
+def streak(px, color, x, y, length, rng):
+    """Short random-walk line (细裂纹/纹理), wraps seamlessly."""
+    c = hx(color)
+    for _ in range(length):
+        px[x % S, y % S] = c
+        x += rng.choice([-1, 0, 1])
+        y += rng.choice([0, 1, 1])
+
+
+# ---- per-block generators：经典闷色 + 立体软阴影 + 低噪点 -------------------
 
 def stone(rng):
     im = new()
-    noise(im, ["#888888", "#7e7e7e", "#757575", "#6d6d6d"], [3, 4, 3, 2], rng)
-    for _ in range(5):  # a few darker speckle clusters for texture
-        blob(im, rng.randrange(S), rng.randrange(S), 1, "#666666", rng)
+    fill(im, "#888888")
+    speck(im, ["#7f7f7f", "#929292"], 0.12, rng)
+    for _ in range(4):  # 软颗粒
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#888888", "#9b9b9b", "#747474", rng)
+    px = im.load()
+    for _ in range(3):  # 细裂纹，增加岩石质感
+        streak(px, "#6f6f6f", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
     return im
 
 
 def cobblestone(rng):
+    # 圆润鹅卵石 + 深色石缝（不再是噪点砖）。石头 wraps，故石缝平铺无缝。
     im = new()
-    noise(im, ["#8a8a8a", "#7e7e7e", "#6f6f6f"], [3, 4, 3], rng)
-    # Irregular cobbles separated by dark mortar. Draw mortar as broken lines.
-    px = im.load()
-    mortar = hx("#4d4d4d")
-    seams_y = [0, 5, 10]
-    for sy in seams_y:
-        for x in range(S):
-            if rng.random() < 0.85:
-                px[x, (sy + rng.randint(0, 1)) % S] = mortar
-    seams_x = [(0, 0, 5), (8, 5, 10), (3, 10, 16), (12, 10, 16)]
-    for sx, y0, y1 in seams_x:
-        for y in range(y0, y1):
-            if rng.random() < 0.85:
-                px[(sx + rng.randint(0, 1)) % S, y] = mortar
-    for _ in range(6):  # subtle highlights on cobble tops
-        blob(im, rng.randrange(S), rng.randrange(S), 1, "#9a9a9a", rng)
+    fill(im, "#565656")  # mortar
+    for cx, cy in [(3, 3), (11, 4), (7, 9), (2, 12), (13, 11), (9, 1), (14, 15), (5, 7)]:
+        pebble(im, cx, cy, rng.choice([3, 3, 4]), "#8a8a8a", "#9c9c9c", "#737373", rng, 0.3)
     return im
 
 
 def dirt(rng):
     im = new()
-    noise(im, ["#8a6443", "#7e5a3c", "#735133", "#92694a"], [3, 4, 3, 2], rng)
-    for _ in range(6):
-        blob(im, rng.randrange(S), rng.randrange(S), 1, "#5e4228", rng)  # pebbles
-    for _ in range(3):
-        blob(im, rng.randrange(S), rng.randrange(S), 0, "#9c7350", rng)  # light grit
+    fill(im, "#7e5a3c")
+    speck(im, ["#6f4f33", "#8a6648"], 0.15, rng)
+    for _ in range(5):
+        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2]), "#7e5a3c", "#8f6a49", "#654227", rng)
     return im
 
 
-GRASS = ["#6aa84f", "#5f9e45", "#74b357", "#569140", "#7cbf60"]
-GRASS_W = [4, 3, 3, 2, 2]
-DIRT_P = ["#8a6443", "#7e5a3c", "#735133", "#92694a"]
-DIRT_W = [3, 4, 3, 2]
+GB, GH, GL = "#6a9a4a", "#79ad57", "#577f3c"  # 经典闷绿（base/highlight/shadow）
 
 
 def grass_top(rng):
     im = new()
-    noise(im, GRASS, GRASS_W, rng)
-    for _ in range(4):
-        blob(im, rng.randrange(S), rng.randrange(S), 1, "#4d8636", rng)
+    fill(im, GB)
+    speck(im, ["#638f45", "#73a651"], 0.15, rng)
+    for _ in range(5):  # 软草簇
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, GB, GH, GL, rng)
     return im
 
 
 def grass_side(rng):
+    # 泥土身 + 顶部草带（顶行提亮、按列锯齿下垂）
     im = new()
-    # Body is dirt; grass spills over the top edge with a jagged, per-column depth.
-    noise(im, DIRT_P, DIRT_W, rng)
+    fill(im, "#7e5a3c")
+    speck(im, ["#6f4f33", "#8a6648"], 0.14, rng)
     px = im.load()
-    gcols = [hx(c) for c in GRASS]
+    for _ in range(3):
+        pebble(im, rng.randrange(S), rng.randrange(4, S), 2, "#7e5a3c", "#8f6a49", "#654227", rng)
+    g = [GB, "#638f45", "#73a651"]
     for x in range(S):
-        depth = rng.randint(3, 5)
+        depth = rng.randint(3, 4)
         for y in range(depth):
-            px[x, y] = rng.choices(gcols, GRASS_W)[0]
-        if rng.random() < 0.5:  # occasional drip of grass lower into the dirt
-            px[x, depth] = rng.choices(gcols, GRASS_W)[0]
+            c = GH if y == 0 else (rng.choice(g) if y < depth - 1 else GL)
+            px[x, y] = hx(c)
+        if rng.random() < 0.4:
+            px[x, depth] = hx(rng.choice(g))
     return im
 
 
 def sand(rng):
     im = new()
-    noise(im, ["#e0d6a0", "#dbd098", "#d6ca90", "#e6dcab"], [3, 4, 3, 2], rng)
-    for _ in range(4):
-        blob(im, rng.randrange(S), rng.randrange(S), 0, "#c9bd82", rng)
+    fill(im, "#ddd0a0")
+    speck(im, ["#d4c694", "#e6daad"], 0.12, rng)
+    for _ in range(3):
+        pebble(im, rng.randrange(S), rng.randrange(S), 1, "#ddd0a0", "#e8dcae", "#cabd86", rng)
     return im
 
 
 def oak_planks(rng):
     im = new()
-    base = ["#a07d45", "#94703c", "#ab8950"]
-    noise(im, base, [4, 3, 3], rng)
+    fill(im, "#9a7843")
+    speck(im, ["#8c6d3c", "#a6844f"], 0.4, rng)
     px = im.load()
-    line = hx("#6f5128")
-    # Four horizontal planks (4px tall). Dark groove between planks + staggered
-    # vertical seams so it tiles and looks like offset planking.
-    for gy in (3, 7, 11, 15):
+    groove = hx("#5f4827")
+    hi = hx("#ad8a52")
+    for gy in (3, 7, 11, 15):  # 木板间深槽
         for x in range(S):
-            px[x, gy] = line
-    seams = [4, 12, 2, 9]  # one vertical seam per plank, staggered
-    for i, plank_top in enumerate((0, 4, 8, 12)):
-        sx = seams[i]
-        for y in range(plank_top, plank_top + 3):
-            px[sx % S, y] = line
-    blob(im, 6, 5, 1, "#5f4422", rng)  # a knot
+            px[x, gy] = groove
+    for top in (0, 4, 8, 12):  # 每块木板顶边提亮
+        for x in range(S):
+            if rng.random() < 0.45:
+                px[x, top] = hi
+    seams = [4, 11, 2, 9]  # 错位竖缝
+    for i, top in enumerate((0, 4, 8, 12)):
+        for y in range(top, top + 3):
+            px[seams[i] % S, y] = groove
     return im
 
 
 def oak_log_side(rng):
     im = new()
-    # Vertical bark: each column gets a base shade + occasional darker streak.
-    bark = ["#6b5028", "#5a4222", "#7a5d33", "#4e3a1e"]
-    bark_w = [3, 3, 3, 2]
-    cols = [hx(c) for c in bark]
+    bark = ["#7a5d33", "#6b5028", "#866637", "#5a4424"]
+    w = [3, 3, 2, 2]
     px = im.load()
-    for x in range(S):
-        cbase = rng.choices(cols, bark_w)[0]
-        streak = rng.random() < 0.3
+    for x in range(S):  # 竖向树皮
+        cb = rng.choices(bark, w)[0]
+        groove = rng.random() < 0.22
         for y in range(S):
-            if streak and rng.random() < 0.6:
-                px[x, y] = hx("#3f3018")
+            if groove and rng.random() < 0.6:
+                px[x, y] = hx("#4e3a1e")
             else:
-                # slight per-pixel jitter around the column base
-                px[x, y] = rng.choices([cbase, hx("#876a3a"), hx("#4e3a1e")], [6, 1, 1])[0]
+                px[x, y] = hx(rng.choices([cb, "#937243", "#4e3a1e"], [7, 1, 1])[0])
     return im
 
 
 def oak_log_top(rng):
     im = new()
-    # Concentric growth rings around centre + dark bark ring at the border.
     px = im.load()
-    ring_a, ring_b = hx("#a07d45"), hx("#8a6a38")
-    light = hx("#b89556")
+    a, b = hx("#9a7843"), hx("#866637")
+    light = hx("#b08c52")
     for y in range(S):
         for x in range(S):
-            d = max(abs(x - 7.5), abs(y - 7.5))  # square rings (chebyshev)
+            d = max(abs(x - 7.5), abs(y - 7.5))
             r = int(d)
             if r >= 7:
-                px[x, y] = hx("#5f4727")  # bark border
+                px[x, y] = hx("#5f4727")  # 树皮边
             else:
-                base = ring_a if (r % 2 == 0) else ring_b
+                base = a if (r % 2 == 0) else b
                 if d < 1.6:
-                    base = light  # bright heartwood centre
-                # tiny jitter so rings aren't dead-flat
-                px[x, y] = base if rng.random() < 0.85 else ring_b
+                    base = light  # 心材
+                px[x, y] = base if rng.random() < 0.85 else b
     return im
 
 
-def _coal_cluster(px, cx, cy, R, rng, core, dark, edge):
-    """Paint one rough coal blob of radius R: dark core, ragged probabilistic edge."""
-    rad = int(R) + 1
-    for dy in range(-rad, rad + 1):
-        for dx in range(-rad, rad + 1):
-            d = (dx * dx + dy * dy) ** 0.5
-            r = rng.random()
-            if d < 0.7:
-                px[(cx + dx) % S, (cy + dy) % S] = core
-            elif d <= R * 0.65 and r < 0.9:
-                px[(cx + dx) % S, (cy + dy) % S] = dark
-            elif d <= R and r < 0.45:  # ragged outline
-                px[(cx + dx) % S, (cy + dy) % S] = edge
-
-
 def coal_ore(rng):
-    im = stone(rng)  # ore = stone base + mineral deposits
-    px = im.load()
-    core, dark, edge = hx("#0e0e0e"), hx("#1a1a1a"), hx("#2b2b2b")
-    # Mix of sizes (cx, cy, radius): a couple of big chunks, some medium, many
-    # small flecks — matches how real coal ore reads, not one uniform grain size.
-    clusters = [
-        (4, 4, 2.7), (11, 11, 2.5),                       # large
-        (12, 3, 1.6), (3, 11, 1.7), (8, 7, 1.5),          # medium
-        (14, 8, 0.8), (7, 1, 0.8), (1, 7, 0.9),
-        (10, 14, 0.8), (14, 14, 0.8), (6, 13, 0.9),       # small
-    ]
-    for cx, cy, radius in clusters:
-        _coal_cluster(px, cx, cy, radius, rng, core, dark, edge)
-    for _ in range(6):  # stray single flecks
-        px[rng.randrange(S), rng.randrange(S)] = dark
+    im = stone(rng)  # 石底 + 软深灰煤块（非死黑死噪）
+    for cx, cy, r in [(4, 4, 2), (11, 10, 2), (8, 13, 1), (13, 4, 1), (2, 11, 1), (6, 8, 1)]:
+        pebble(im, cx, cy, r, "#2b2b2b", "#3c3c3c", "#1d1d1d", rng, 0.2)
     return im
 
 
 def water(rng):
-    # 不透明蓝噪声；半透明由渲染材质的 opacity 统一处理
     im = new()
-    noise(im, ["#3b6fb0", "#3568a6", "#4279bd", "#3060a0"], [3, 3, 2, 2], rng)
+    fill(im, "#3a6ea5")  # 经典闷蓝
+    speck(im, ["#33639a", "#4178b0"], 0.14, rng)
+    px = im.load()
+    for _ in range(4):  # 微波纹
+        y = rng.randrange(S)
+        x0 = rng.randrange(S)
+        for dx in range(rng.randint(2, 4)):
+            px[(x0 + dx) % S, y] = hx("#5188bf")
     return im
 
 
 def oak_leaves(rng):
-    # 带透明孔洞的树叶（RGBA）：约 14% 像素镂空，能透看后面
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     px = im.load()
-    cols = [hx(c) for c in ["#3f6b22", "#4f7e2b", "#365e1c", "#5a8a32", "#2c4d16"]]
+    cols = ["#3f6b22", "#4a7a2a", "#365e1c", "#558736", "#2c4d16"]
     wts = [3, 3, 2, 2, 2]
     for y in range(S):
         for x in range(S):
-            if rng.random() < 0.14:
+            if rng.random() < 0.12:
                 px[x, y] = (0, 0, 0, 0)  # 镂空
             else:
-                r, g, b = rng.choices(cols, wts)[0]
+                r, g, b = hx(rng.choices(cols, wts)[0])
                 px[x, y] = (r, g, b, 255)
+    for _ in range(4):  # 软明暗叶簇
+        cx, cy = rng.randrange(S), rng.randrange(S)
+        for dy in range(-1, 2):
+            for dx in range(-1, 2):
+                if rng.random() < 0.6:
+                    r, g, b = hx("#558736") if rng.random() < 0.5 else hx("#2c4d16")
+                    px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
     return im
 
 
