@@ -175,6 +175,7 @@ export const BLOCKS: BlockDef[] = [
   },
 ];
 
+export const GRASS = 3;
 export const WATER = 9;
 export const OAK_LEAVES = 10;
 export const OAK_LOG = 6;

@@ -12,6 +12,7 @@ import {
   OAK_LEAVES,
   CRAFTING_TABLE,
   FURNACE,
+  GRASS,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -24,6 +25,10 @@ import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
+import { updateMob, hurtMob, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
+import { spawnGroup } from '../core/entity/mobSpawn';
+import { MobRenderer } from '../render/MobRenderer';
+import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
 import {
   emptyInventory,
@@ -53,7 +58,7 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, isFood, foodValue, toolOf } from '../core/items/items';
+import { APPLE, EGG, isFood, foodValue, toolOf } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
@@ -72,6 +77,40 @@ const JUMP_EXHAUSTION = 0.05;
 const SPRINT_JUMP_EXHAUSTION = 0.2;
 const BREAK_EXHAUSTION = 0.005;
 const DAMAGE_EXHAUSTION = 0.1;
+const MOB_REACH = 3.5; // 攻击实体距离（格，≈MC）
+const MOB_CAP = 12; // 玩家附近生物上限（性能保险）
+
+// 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6（非剑按拳算）。
+function mobDamage(heldId: number | null): number {
+  if (heldId == null) return 1;
+  const t = toolOf(heldId);
+  if (t?.kind === 'sword') return t.tier === 1 ? 4 : t.tier === 2 ? 5 : 6;
+  return 1;
+}
+
+// 射线 vs 轴对齐盒（slab 法）：返回最近正向命中距离 t，未命中返回 null。
+function rayAabb(
+  ox: number, oy: number, oz: number,
+  dx: number, dy: number, dz: number,
+  minX: number, minY: number, minZ: number,
+  maxX: number, maxY: number, maxZ: number,
+): number | null {
+  let tmin = 0;
+  let tmax = Infinity;
+  const slab = (o: number, d: number, lo: number, hi: number): boolean => {
+    if (Math.abs(d) < 1e-9) return o >= lo && o <= hi;
+    let t1 = (lo - o) / d;
+    let t2 = (hi - o) / d;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tmin = Math.max(tmin, t1);
+    tmax = Math.min(tmax, t2);
+    return tmax >= tmin;
+  };
+  if (!slab(ox, dx, minX, maxX)) return null;
+  if (!slab(oy, dy, minY, maxY)) return null;
+  if (!slab(oz, dz, minZ, maxZ)) return null;
+  return tmin;
+}
 
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置 + 生命/饥饿。从存档启动。 */
 export class Game {
@@ -102,6 +141,10 @@ export class Game {
   private readonly furnaces = new Map<string, FurnaceState>(); // 坐标"x,y,z"→熔炉状态
   private furnaceKey: string | null = null; // 当前打开的熔炉坐标(null=没开)
   private readonly drops: ItemDrop[] = [];
+  private readonly mobs: Mob[] = []; // 世界里的被动动物
+  private readonly mobRenderer: MobRenderer;
+  private readonly mobRng: () => number;
+  private mobSpawnTick = 0; // 周期刷新计时
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
@@ -162,6 +205,8 @@ export class Game {
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
+    this.mobRenderer = new MobRenderer(this.renderer.scene);
+    this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
@@ -180,6 +225,11 @@ export class Game {
     this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
     this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
+    // 出生周边撒几群动物（让玩家一进世界就能看到）
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2;
+      this.spawnMobsAt(Math.floor(spawn.x + Math.cos(ang) * 12), Math.floor(spawn.z + Math.sin(ang) * 12));
+    }
 
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
     this.highlight = new THREE.LineSegments(
@@ -197,6 +247,11 @@ export class Game {
     canvas.addEventListener('mousedown', (e) => {
       if (document.pointerLockElement !== canvas) return;
       if (e.button === 0) {
+        const target = this.mobUnderCrosshair();
+        if (target) {
+          this.attackMob(target); // 准星对着生物 → 打它（不挖方块）
+          return;
+        }
         this.digging = true; // 按住左键持续挖掘（按硬度耗时）
         this.digTarget = null; // 重新评估目标
       } else if (e.button === 2) this.onUseDown(); // 右键：吃 / 放方块
@@ -349,6 +404,7 @@ export class Game {
           if (furnaceActive(st)) tickFurnace(st);
         }
         if (this.furnaceKey) this.furnaceUI.render();
+        this.tickMobs(); // 生物 AI/物理/掉蛋/周期刷新（每刻）
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -380,6 +436,7 @@ export class Game {
       // 碎屑粒子：每帧推进 + 刷新
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
+      this.mobRenderer.sync(this.mobs); // 生物模型跟随/动画
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
@@ -679,6 +736,98 @@ export class Game {
       }
     }
     this.dropRenderer.sync(this.drops);
+  }
+
+  // —— 生物 ——
+  // 每刻：推进所有生物 + 处理事件(掉蛋) + 太远则卸载 + 周期补刷维持种群。
+  private tickMobs(): void {
+    const px = this.player.pos.x;
+    const pz = this.player.pos.z;
+    for (let i = this.mobs.length - 1; i >= 0; i--) {
+      const mob = this.mobs[i];
+      const ddx = mob.pos.x - px;
+      const ddz = mob.pos.z - pz;
+      if (ddx * ddx + ddz * ddz > 96 * 96) {
+        this.mobs.splice(i, 1);
+        continue;
+      }
+      const res = updateMob(mob, this.physWorld, this.mobRng);
+      Object.assign(mob, res.mob); // 原地更新，保持对象身份（渲染按身份缓存模型）
+      for (const ev of res.events) {
+        if (ev.kind === 'layEgg') {
+          this.drops.push(spawnDrop(EGG, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+        }
+      }
+    }
+    if (++this.mobSpawnTick >= 200 && this.mobs.length < MOB_CAP) {
+      this.mobSpawnTick = 0;
+      const ang = this.mobRng() * Math.PI * 2;
+      const dist = 24 + this.mobRng() * 16;
+      this.spawnMobsAt(Math.floor(px + Math.cos(ang) * dist), Math.floor(pz + Math.sin(ang) * dist));
+    }
+  }
+
+  // 在 (cx,cz) 列的地表草地上撒一群随机动物。
+  private spawnMobsAt(cx: number, cz: number): void {
+    const h = columnHeight(cx, cz, this.save.seed);
+    if (this.world.getBlock(cx, h, cz) !== GRASS) return; // 只在草地刷
+    const kinds: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
+    const kind = kinds[Math.floor(this.mobRng() * kinds.length)];
+    const group = spawnGroup(kind, cx + 0.5, h + 1, cz + 0.5, this.mobRng, {
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+    });
+    this.mobs.push(...group);
+  }
+
+  // 准星(视线)对准的最近生物（攻击距离内），无则 null。
+  private mobUnderCrosshair(): Mob | null {
+    const ox = this.player.pos.x;
+    const oy = this.player.pos.y + EYE;
+    const oz = this.player.pos.z;
+    const cy = Math.cos(this.look.yaw);
+    const sy = Math.sin(this.look.yaw);
+    const cp = Math.cos(this.look.pitch);
+    const sp = Math.sin(this.look.pitch);
+    const dx = cy * cp;
+    const dy = sp;
+    const dz = sy * cp;
+    let best: Mob | null = null;
+    let bestT = MOB_REACH;
+    for (const mob of this.mobs) {
+      const def = MOB_DEFS[mob.kind];
+      const hw = def.width / 2;
+      const t = rayAabb(
+        ox, oy, oz, dx, dy, dz,
+        mob.pos.x - hw, mob.pos.y, mob.pos.z - hw,
+        mob.pos.x + hw, mob.pos.y + def.height, mob.pos.z + hw,
+      );
+      if (t !== null && t < bestT) {
+        bestT = t;
+        best = mob;
+      }
+    }
+    return best;
+  }
+
+  // 攻击一只生物：按手持武器结算伤害 + 击退；死亡则掉落 + 移除。
+  private attackMob(mob: Mob): void {
+    this.hand.swing();
+    const held = this.inv[this.hotbar.index];
+    const dmg = mobDamage(held ? held.id : null);
+    const cy = Math.cos(this.look.yaw);
+    const sy = Math.sin(this.look.yaw);
+    const res = hurtMob(mob, dmg, { x: cy, z: sy }, this.mobRng);
+    Object.assign(mob, res.mob);
+    for (const ev of res.events) {
+      if (ev.kind === 'drops') {
+        for (const stack of ev.items)
+          for (let k = 0; k < stack.count; k++)
+            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+      } else if (ev.kind === 'death') {
+        const idx = this.mobs.indexOf(mob);
+        if (idx >= 0) this.mobs.splice(idx, 1);
+      }
+    }
   }
 
   // 放置：消耗当前快捷栏格里的方块（空手/手持食物则不放）。
