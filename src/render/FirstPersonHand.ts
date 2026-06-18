@@ -15,6 +15,35 @@ export function heldRenderKind(id: number | null): HeldKind {
   return 'none';
 }
 
+// 挥击姿态：在静止姿上叠加的平移(格)+旋转(弧度，按 mulPose 顺序 Y→Z→X→Y 应用)。
+export interface SwingPose {
+  tx: number;
+  ty: number;
+  tz: number;
+  ry1: number;
+  rz: number;
+  rx: number;
+  ry2: number;
+}
+
+// 1:1 复刻 MC ItemInHandRenderer 的右手挥击：sqrt(t) 时序(出手快收手稳)，
+// 平移往中间+前方+上下颠，主旋转是绕 X 的大幅 −80° 下劈。t∈[0,1]，t=0 即静止(净零旋转)。
+const SWING_POS_SCALE = 0.8; // 适配本手臂的平移尺度（MC 静止位移略大）
+export function mcSwingPose(t: number): SwingPose {
+  const D = Math.PI / 180;
+  const ft = Math.sin(Math.sqrt(Math.max(0, t)) * Math.PI); // 主弧线项 sin(√t·π)
+  const ft2 = Math.sin(t * t * Math.PI); // Y 旋转项 sin(t²·π)
+  return {
+    tx: -0.4 * ft * SWING_POS_SCALE, // 往中间(右手向左)
+    ty: 0.2 * Math.sin(Math.sqrt(Math.max(0, t)) * Math.PI * 2) * SWING_POS_SCALE, // 上下颠(双峰)
+    tz: -0.2 * Math.sin(t * Math.PI) * SWING_POS_SCALE, // 往画面里(前方)
+    ry1: (45 + ft2 * -20) * D,
+    rz: ft * -20 * D,
+    rx: ft * -80 * D, // 主下劈：绕 X 最多 −80°
+    ry2: -45 * D,
+  };
+}
+
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
 const TILE_PX = 16;
@@ -22,6 +51,8 @@ const EPS = 0.01 / (TILE_PX * ATLAS_COLS);
 // 面亮度（同方块）：+X,-X,+Y,-Y,+Z,-Z
 const SHADE = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8];
 const SWING_TIME = 0.3; // 一次摆臂 0.3 秒（同 MC）
+const X_AXIS = new THREE.Vector3(1, 0, 0); // 视图右轴（主下劈绕它）
+const Y_AXIS = new THREE.Vector3(0, 1, 0); // 视图上轴
 
 // 把面亮度烤进盒子顶点色，给纯色盒子一点立体感
 function shadedBox(w: number, h: number, d: number, color: number): THREE.BufferGeometry {
@@ -168,27 +199,23 @@ export class FirstPersonHand {
     const bobX = Math.cos(this.bobPhase) * 0.012 * Math.min(1, walkSpeed);
     const bobY = Math.abs(Math.sin(this.bobPhase)) * 0.012 * Math.min(1, walkSpeed);
 
-    // 摆臂弧线：向前下方挥出再收回（sin 上凸）。z 取负=往画面里(前方)挥，不是往脸前(后方)缩。
-    const s = Math.sin(this.swingT * Math.PI);
-    let px = 0.42 + bobX - s * 0.08;
-    let py = -0.28 + bobY - s * 0.22;
-    let pz = -0.72 - s * 0.14;
-    let rx = 0.1 + s * 0.7;
-    const ry = -0.5 + s * 0.35;
-    let rz = 0.4 - s * 0.15;
+    // 挥击：静止基姿 + MC 挥臂。主下劈绕【视图】X 轴(世界轴)做，保证永远朝正下-前方挥，
+    // 不被静止基姿的偏航带歪；再叠加一点朝中间的偏转。
+    const sp = mcSwingPose(this.swingT);
+    this.root.position.set(0.42 + bobX + sp.tx, -0.28 + bobY + sp.ty, -0.72 + sp.tz);
+    this.root.rotation.set(0.1, -0.5, 0.4); // 静止基姿（手臂斜插入）
+    this.root.rotateOnWorldAxis(X_AXIS, sp.rx); // 主下劈：绕视图 X，最多 −80°
+    this.root.rotateOnWorldAxis(Y_AXIS, sp.rz); // 轻微朝中间偏
 
-    // 吃东西：把食物抬到嘴边(往中间+往脸前) + 高频抖动（同 MC 啃食抖动）。
+    // 吃东西：把食物抬到嘴边(往中间+往脸前) + 高频抖动（叠加在静止/挥击之上）。
     if (this.eating) {
       this.eatT += dt;
       const j = Math.sin(this.eatT * 30); // 快速抖
-      px += -0.18 + j * 0.015; // 往中间靠
-      py += 0.16 + j * 0.02; // 抬到嘴边 + 上下抖
-      pz += 0.18; // 凑近脸
-      rx += 0.4 + j * 0.12; // 前倾 + 抖
-      rz += -0.25;
+      this.root.position.x += -0.18 + j * 0.015; // 往中间靠
+      this.root.position.y += 0.16 + j * 0.02; // 抬到嘴边 + 上下抖
+      this.root.position.z += 0.18; // 凑近脸
+      this.root.rotateX(0.4 + j * 0.12); // 前倾 + 抖
+      this.root.rotateZ(-0.25);
     }
-
-    this.root.position.set(px, py, pz);
-    this.root.rotation.set(rx, ry, rz);
   }
 }
