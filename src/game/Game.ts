@@ -284,6 +284,26 @@ export class Game {
     return { x: 0.5, y: SEA_LEVEL + 3, z: 0.5 };
   }
 
+  // 加载阶段：请求出生周围区块(后台并行生成)并等全部就绪 + 网格化，避免进游戏后远处渐显。
+  async preloadSpawn(radius = 3): Promise<void> {
+    const cx = worldToChunk(Math.floor(this.player.pos.x));
+    const cz = worldToChunk(Math.floor(this.player.pos.z));
+    for (let dz = -radius; dz <= radius; dz++)
+      for (let dx = -radius; dx <= radius; dx++) this.world.request(cx + dx, cz + dz);
+    await new Promise<void>((resolve) => {
+      const check = (): void => {
+        let ready = true;
+        for (let dz = -radius; dz <= radius && ready; dz++)
+          for (let dx = -radius; dx <= radius && ready; dx++)
+            if (!this.world.peek(cx + dx, cz + dz)) ready = false;
+        if (ready) resolve();
+        else setTimeout(check, 30);
+      };
+      check();
+    });
+    this.chunks.update(cx, cz, radius, 9999); // 一次性把出生周围网格化好
+  }
+
   start(): void {
     this.last = performance.now();
     const frame = (now: number): void => {

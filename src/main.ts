@@ -131,8 +131,9 @@ function startGame(world: WorldSave): void {
   showLoading(true);
   // 双 rAF：先让浏览器把 spinner 画出来，再做阻塞的世界构建 + 初始区块生成。
   requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
       game = new Game(canvas, world);
+      await game.preloadSpawn(); // 等出生周围地形后台并行生成 + 网格化好，再进游戏(不渐显)
       game.start();
       showLoading(false);
       void canvas.requestPointerLock();

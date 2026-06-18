@@ -8,23 +8,30 @@ import ChunkGenWorker from './chunkGen.worker?worker';
 export class ChunkWorld {
   private readonly chunks = new Map<string, Chunk>();
   private readonly pending = new Set<string>(); // 已请求后台生成、还没回来的区块
-  private readonly worker: Worker | null;
+  private readonly workers: Worker[] = [];
+  private rr = 0; // round-robin 派发到各 worker
 
   constructor(readonly seed: number) {
-    // 浏览器有 Worker → 后台生成；node/测试环境没有 → worker=null，request 回退同步生成
-    this.worker = typeof Worker !== 'undefined' ? new ChunkGenWorker() : null;
-    if (this.worker) {
-      this.worker.onmessage = (
-        e: MessageEvent<{ cx: number; cz: number; blocks: ArrayBuffer; fluid: ArrayBuffer }>,
-      ): void => {
-        const { cx, cz, blocks, fluid } = e.data;
-        const k = this.key(cx, cz);
-        this.pending.delete(k);
-        if (this.chunks.has(k)) return; // 已被同步回退生成，丢弃后台结果
-        const c = Chunk.fromBuffers(blocks, fluid);
-        c.dirty = true; // 等网格化调度下一帧把它建出来
-        this.chunks.set(k, c);
-      };
+    // 浏览器：开多个后台 Worker 并行生成(深世界生成重)，数量按 CPU 核数(上限4)；
+    // node/测试环境没有 Worker → workers 为空，request 回退同步生成。
+    if (typeof Worker !== 'undefined') {
+      const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+      const n = Math.max(1, Math.min(4, cores));
+      for (let i = 0; i < n; i++) {
+        const w = new ChunkGenWorker();
+        w.onmessage = (
+          e: MessageEvent<{ cx: number; cz: number; blocks: ArrayBuffer; fluid: ArrayBuffer }>,
+        ): void => {
+          const { cx, cz, blocks, fluid } = e.data;
+          const k = this.key(cx, cz);
+          this.pending.delete(k);
+          if (this.chunks.has(k)) return; // 已被同步回退生成，丢弃后台结果
+          const c = Chunk.fromBuffers(blocks, fluid);
+          c.dirty = true; // 等网格化调度下一帧把它建出来
+          this.chunks.set(k, c);
+        };
+        this.workers.push(w);
+      }
     }
   }
 
@@ -40,12 +47,13 @@ export class ChunkWorld {
   request(cx: number, cz: number): void {
     const k = this.key(cx, cz);
     if (this.chunks.has(k) || this.pending.has(k)) return;
-    if (!this.worker) {
+    if (this.workers.length === 0) {
       this.getChunk(cx, cz); // 无 Worker(测试/node)：同步生成回退
       return;
     }
     this.pending.add(k);
-    this.worker.postMessage({ cx, cz, seed: this.seed });
+    this.workers[this.rr].postMessage({ cx, cz, seed: this.seed });
+    this.rr = (this.rr + 1) % this.workers.length;
   }
 
   // 只看缓存、不生成(网格化调度用，避免触发同步生成卡帧)。
