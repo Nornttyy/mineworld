@@ -1,5 +1,7 @@
-import { GRASS, isSolidId } from '../blocks/registry';
+import { GRASS, isSolidId, TORCH } from '../blocks/registry';
 import { spawnMob, type Mob, type MobKind } from './mob';
+
+const TORCH_LIGHT = 14; // 火把发光等级（与 registry 一致）；逐格 −1 衰减
 
 // 自然生成规则（纯逻辑，靠只读世界视图，可单测）。
 export interface SpawnWorld {
@@ -49,8 +51,24 @@ export function canSpawnHostileAt(world: SpawnWorld, x: number, y: number, z: nu
   return true;
 }
 
-// 夜里在玩家周围环带(默认 20–40 格)的地表刷一小群敌对生物：远到不贴脸、近到会摸上门。
-// 仅在 Game 判定"夜晚"时调用（白天它们会被日晒清掉）。找不到合适地表则返回空、不硬刷。
+// (x,y,z) 处是否够暗能刷敌对：曼哈顿 14 格内无火把（→ 方块光为 0）。忽略遮挡=偏保守(火把安全区略大些)。
+// 夜里天光本就≈0，故"无火把照到"即"亮度 0"。火把因此能在身边圈出不刷怪的安全区（同 MC）。
+export function isDarkEnoughForSpawn(world: SpawnWorld, x: number, y: number, z: number): boolean {
+  const R = TORCH_LIGHT - 1; // 13：火把在此距离内会让该格方块光 >0
+  for (let dy = -R; dy <= R; dy++) {
+    const ry = R - Math.abs(dy);
+    for (let dz = -ry; dz <= ry; dz++) {
+      const rx = ry - Math.abs(dz);
+      for (let dx = -rx; dx <= rx; dx++) {
+        if (world.getBlock(x + dx, y + dy, z + dz) === TORCH) return false; // 有火把照到 → 不够暗
+      }
+    }
+  }
+  return true;
+}
+
+// 夜里在玩家周围环带(默认 16–32 格)的【暗处】地表刷一小群敌对生物：远到不贴脸、近到会摸上门。
+// 仅在 Game 判定"夜晚"时调用（白天会被日晒清掉）；火把照亮处(亮度>0)不刷。找不到合适地表则返回空。
 export function spawnHostileRing(
   kind: MobKind,
   cx: number,
@@ -58,14 +76,16 @@ export function spawnHostileRing(
   rng: () => number,
   world: SpawnWorld,
   surfaceY: (x: number, z: number) => number,
-  ringMin = 20,
-  ringMax = 40,
+  ringMin = 16,
+  ringMax = 32,
 ): Mob[] {
   for (let tries = 0; tries < 14; tries++) {
     const ang = rng() * Math.PI * 2;
     const d = ringMin + rng() * (ringMax - ringMin);
     const bx = Math.floor(cx + Math.cos(ang) * d);
     const bz = Math.floor(cz + Math.sin(ang) * d);
+    const bh = surfaceY(bx, bz);
+    if (!isDarkEnoughForSpawn(world, bx, bh + 1, bz)) continue; // 太亮(近火把) → 换个方向再试
     const mobs: Mob[] = [];
     const n = 1 + Math.floor(rng() * 3); // 1–3 只一小群
     for (let i = 0; i < n; i++) {
