@@ -3,6 +3,7 @@ import {
   emptyInventory,
   addItem,
   takeOne,
+  damageTool,
   serializeInventory,
   deserializeInventory,
   STACK_MAX,
@@ -65,5 +66,23 @@ describe('inventory', () => {
   it('反序列化能容忍脏数据', () => {
     expect(deserializeInventory(null)).toHaveLength(INV_SIZE);
     expect(deserializeInventory([{ id: 1, count: 0 }, 'x', null])[0]).toBeNull();
+  });
+
+  it('damageTool：用一次扣 1 耐久，用尽则该格清空(损坏)', () => {
+    const inv = emptyInventory();
+    inv[0] = { id: 259, count: 1 }; // 工具，dur 未定义 → 视作满
+    expect(damageTool(inv, 0, 3)).toBe(false); // 满3 → 2
+    expect(inv[0]?.dur).toBe(2);
+    expect(damageTool(inv, 0, 3)).toBe(false); // 2 → 1
+    expect(inv[0]?.dur).toBe(1);
+    expect(damageTool(inv, 0, 3)).toBe(true); // 1 → 0 损坏
+    expect(inv[0]).toBeNull();
+  });
+
+  it('耐久随存档往返保留', () => {
+    const inv = emptyInventory();
+    inv[0] = { id: 259, count: 1, dur: 17 };
+    const round = deserializeInventory(serializeInventory(inv));
+    expect(round[0]?.dur).toBe(17);
   });
 });

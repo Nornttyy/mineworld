@@ -8,7 +8,7 @@ export interface WorldSave {
   lastPlayed: number;
   edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）
   player?: { x: number; y: number; z: number; yaw: number; pitch: number };
-  inv?: ({ id: number; count: number } | null)[]; // 背包（9 格快捷栏），不存则空手
+  inv?: ({ id: number; count: number; dur?: number } | null)[]; // 背包；dur=工具剩余耐久
   survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
   worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
 }

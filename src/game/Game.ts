@@ -27,6 +27,7 @@ import {
   emptyInventory,
   addItem,
   takeOne,
+  damageTool,
   serializeInventory,
   deserializeInventory,
   type Inventory,
@@ -413,7 +414,8 @@ export class Game {
       return;
     }
     const stack = this.inv[this.hotbar.index];
-    if (stack && stack.count > 0 && isFood(stack.id)) {
+    // 手持食物且饱食度未满 → 开吃；饱食度满时不能吃（同 MC，普通食物吃不下）。
+    if (stack && stack.count > 0 && isFood(stack.id) && this.survival.food < MAX_FOOD) {
       this.eating = true;
       this.eatProgress = 0;
     } else {
@@ -551,6 +553,13 @@ export class Game {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
     }
     addExhaustion(this.survival, BREAK_EXHAUSTION);
+    // 工具耐久：用工具挖一格 −1，用尽则损坏消失（空手/食物等无 tool → 不扣）。
+    const sel = this.inv[this.hotbar.index];
+    const td = sel ? toolOf(sel.id) : null;
+    if (td) {
+      damageTool(this.inv, this.hotbar.index, td.maxDurability);
+      this.hotbar.render(this.inv); // 刷新耐久条 / 损坏后清格
+    }
     this.digProgress = 0;
     this.digTarget = null;
     this.crack.hide();

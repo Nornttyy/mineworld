@@ -4,6 +4,7 @@
 export interface ItemStack {
   id: number;
   count: number;
+  dur?: number; // 工具剩余耐久（仅工具有意义；undefined = 满耐久）
 }
 
 export const HOTBAR_SIZE = 9;
@@ -79,7 +80,7 @@ export function takeOne(inv: Inventory, slot: number): number | null {
 
 // 序列化/反序列化（存档用）：直接是 (ItemStack|null)[]，已是纯数据，做个深拷贝与校验。
 export function serializeInventory(inv: Inventory): (ItemStack | null)[] {
-  return inv.map((s) => (s ? { id: s.id, count: s.count } : null));
+  return inv.map((s) => (s ? { id: s.id, count: s.count, dur: s.dur } : null));
 }
 
 export function deserializeInventory(data: unknown): Inventory {
@@ -89,8 +90,23 @@ export function deserializeInventory(data: unknown): Inventory {
   for (let i = 0; i < INV_SIZE; i++) {
     const s = data[i];
     if (s && typeof s.id === 'number' && typeof s.count === 'number' && s.count > 0) {
-      inv[i] = { id: s.id, count: Math.min(STACK_MAX, s.count) };
+      const stack: ItemStack = { id: s.id, count: Math.min(STACK_MAX, s.count) };
+      if (typeof s.dur === 'number') stack.dur = s.dur; // 续上工具耐久
+      inv[i] = stack;
     }
   }
   return inv;
+}
+
+// 工具用一次扣 1 耐久（maxDur=该工具满耐久）；耐久用尽则该格清空(工具损坏)。返回 true=刚损坏。
+export function damageTool(inv: Inventory, slot: number, maxDur: number): boolean {
+  const s = inv[slot];
+  if (!s) return false;
+  const next = (s.dur ?? maxDur) - 1;
+  if (next <= 0) {
+    inv[slot] = null; // 损坏消失
+    return true;
+  }
+  s.dur = next;
+  return false;
 }
