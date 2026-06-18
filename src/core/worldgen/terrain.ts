@@ -31,20 +31,19 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 // depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
 function caveAt(wx: number, wy: number, wz: number, height: number, seed: number): boolean {
   const depth = height - wy;
-  if (depth < 3) return false;
-  if (depth < 45) {
-    // 浅层：小矿洞为主 + 一点中矿洞
-    if (Math.abs(valueNoise3(wx / 13, wy / 9, wz / 13, seed + 222) - 0.5) < 0.06) return true;
-    return Math.abs(valueNoise3(wx / 17, wy / 12, wz / 17, seed + 333) - 0.5) < 0.03;
+  if (depth < 14) return false; // 表层 14 格留实心：挖一阵才见洞、山体不被浅洞啃成波浪线
+  if (depth < 50) {
+    // 浅层：小矿洞，稀疏(密度降低，避免地上挖几下就掉进洞)
+    return Math.abs(valueNoise3(wx / 14, wy / 10, wz / 14, seed + 222) - 0.5) < 0.03;
   }
   if (depth < 100) {
-    // 中层：中矿洞为主 + 一些大矿洞
-    if (Math.abs(valueNoise3(wx / 17, wy / 13, wz / 17, seed + 333) - 0.5) < 0.08) return true;
-    return valueNoise3(wx / 22, wy / 16, wz / 22, seed + 700) < 0.1;
+    // 中层：中矿洞 + 一些大矿洞
+    if (Math.abs(valueNoise3(wx / 18, wy / 14, wz / 18, seed + 333) - 0.5) < 0.05) return true;
+    return valueNoise3(wx / 22, wy / 16, wz / 22, seed + 700) < 0.07;
   }
   // 深层：大矿洞为主 + 连通中隧道
-  if (valueNoise3(wx / 26, wy / 18, wz / 26, seed + 700) < 0.2) return true;
-  return Math.abs(valueNoise3(wx / 17, wy / 13, wz / 17, seed + 333) - 0.5) < 0.05;
+  if (valueNoise3(wx / 26, wy / 18, wz / 26, seed + 700) < 0.16) return true;
+  return Math.abs(valueNoise3(wx / 18, wy / 14, wz / 18, seed + 333) - 0.5) < 0.04;
 }
 
 // 峡谷(独立，不算矿洞)：平坦地形的竖直深裂缝，从近地表一直切到很深。
