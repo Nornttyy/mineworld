@@ -660,7 +660,7 @@
           opacity: 0;
         }
       }
-      /* MC 风启动/加载界面：深泥土背景 + 像素标题 + 绿条纹进度条。#boot 写死在 HTML、默认显示 → JS 加载前就可见，无白屏 */
+      /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
       #boot {
         position: fixed;
         inset: 0;
@@ -669,56 +669,141 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 30px;
-        background: linear-gradient(#4a3a28, #16110b);
+        gap: 24px;
+        background:
+          radial-gradient(ellipse 80% 55% at 50% 116%, rgba(96, 168, 72, 0.3), transparent 70%),
+          linear-gradient(#52402c, #14100a);
         font-family: 'Zpix', monospace;
         -webkit-font-smoothing: none;
+        overflow: hidden;
       }
       #boot.hidden {
         display: none;
       }
+      /* 像素噪点纹理（泥土颗粒感） */
+      #boot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px),
+          repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+      }
+      /* 飘落的像素方块装饰（草/泥/石/木） */
+      .boot-blocks {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .boot-blocks i {
+        position: absolute;
+        top: -32px;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(0, 0, 0, 0.28);
+        animation: boot-fall linear infinite;
+      }
+      .boot-blocks i:nth-child(1) { left: 8%;  background: #6fc44f; animation-duration: 9s;    animation-delay: 0s; }
+      .boot-blocks i:nth-child(2) { left: 21%; background: #8b5a2b; animation-duration: 12s;   animation-delay: 2s; }
+      .boot-blocks i:nth-child(3) { left: 34%; background: #9a9a9a; animation-duration: 10s;   animation-delay: 5s; }
+      .boot-blocks i:nth-child(4) { left: 47%; background: #a87445; animation-duration: 11s;   animation-delay: 3.5s; }
+      .boot-blocks i:nth-child(5) { left: 63%; background: #6fc44f; animation-duration: 8.5s;  animation-delay: 1s; }
+      .boot-blocks i:nth-child(6) { left: 76%; background: #8b5a2b; animation-duration: 13s;   animation-delay: 4s; }
+      .boot-blocks i:nth-child(7) { left: 89%; background: #9a9a9a; animation-duration: 10.5s; animation-delay: 6.5s; }
+      .boot-blocks i:nth-child(8) { left: 95%; background: #6fc44f; animation-duration: 9.5s;  animation-delay: 7.5s; }
+      @keyframes boot-fall {
+        0% { transform: translateY(-32px) rotate(0deg); opacity: 0; }
+        12% { opacity: 0.5; }
+        88% { opacity: 0.5; }
+        100% { transform: translateY(110vh) rotate(210deg); opacity: 0; }
+      }
+      .boot-center {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
       .boot-logo {
-        font-size: 54px;
-        color: #ededed;
+        font-size: 56px;
+        color: #f2f2f2;
         letter-spacing: 7px;
-        text-shadow: 4px 4px 0 #20180f;
+        text-shadow: 0 4px 0 #2a2016, 4px 4px 0 #19120b, 0 0 16px rgba(120, 200, 90, 0.3);
+      }
+      /* MC 黄色 splash：斜挂 + 跳动 */
+      .boot-splash {
+        margin-top: -10px;
+        color: #fff04a;
+        font-size: 17px;
+        transform: rotate(-7deg);
+        text-shadow: 2px 2px 0 #3a3000;
+        animation: boot-bob 0.9s ease-in-out infinite;
+      }
+      @keyframes boot-bob {
+        0%, 100% { transform: rotate(-7deg) scale(1); }
+        50% { transform: rotate(-7deg) scale(1.1); }
       }
       .boot-bar {
-        width: 340px;
-        height: 20px;
+        position: relative;
+        width: 360px;
+        height: 22px;
         padding: 3px;
-        background: #1d1d1d;
+        background: #191919;
         border: 3px solid #000;
-        box-shadow: 0 0 0 3px #5a5a5a;
+        box-shadow: 0 0 0 3px #5a5a5a, 0 5px 10px rgba(0, 0, 0, 0.45);
       }
       .boot-fill {
         height: 100%;
-        background: repeating-linear-gradient(90deg, #66d166 0 9px, #50b850 9px 13px);
-        animation: boot-load 1.2s ease-in-out infinite;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0 36%, transparent 37%),
+          repeating-linear-gradient(90deg, #6cd85a 0 9px, #4fb544 9px 13px);
+        animation: boot-load 1.3s ease-in-out infinite;
       }
       @keyframes boot-load {
-        0% {
-          width: 6%;
-        }
-        50% {
-          width: 94%;
-        }
-        100% {
-          width: 6%;
-        }
+        0% { width: 6%; }
+        50% { width: 94%; }
+        100% { width: 6%; }
       }
       .boot-tip {
-        font-size: 16px;
-        color: #d8c9a8;
-        letter-spacing: 4px;
+        position: relative;
+        z-index: 1;
+        font-size: 15px;
+        color: #e6d8b8;
+        letter-spacing: 3px;
+      }
+      .boot-ver {
+        position: absolute;
+        right: 16px;
+        bottom: 13px;
+        color: #b3aa92;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .boot-hint {
+        position: absolute;
+        left: 16px;
+        bottom: 13px;
+        max-width: 46%;
+        color: #b3aa92;
+        font-size: 13px;
+        opacity: 0.8;
       }
     </style>
   </head>
   <body>
     <div id="boot">
-      <div class="boot-logo">MINEWORLD</div>
-      <div class="boot-bar"><div class="boot-fill"></div></div>
-      <div class="boot-tip">加载中…</div>
+      <div class="boot-blocks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="boot-center">
+        <div class="boot-logo">MINEWORLD</div>
+        <div class="boot-splash">100% 纯方块!</div>
+        <div class="boot-bar"><div class="boot-fill"></div></div>
+        <div class="boot-tip">加载中…</div>
+      </div>
+      <div class="boot-hint">提示: 按住左键挖方块</div>
+      <div class="boot-ver">v0.1.0</div>
     </div>
     <canvas id="app"></canvas>
     <canvas id="menubg"></canvas>

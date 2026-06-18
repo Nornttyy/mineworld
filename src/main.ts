@@ -39,6 +39,29 @@ const SPLASHES = [
 ];
 $('splash').textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 
+// boot 加载界面增强：随机 splash + 轮换小贴士（HTML 里已有默认值，JS 跑起来后接管）
+const bootSplashEl = bootEl.querySelector('.boot-splash') as HTMLElement | null;
+if (bootSplashEl) bootSplashEl.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
+const BOOT_HINTS = [
+  '提示: 按住左键挖方块',
+  '提示: 双击 W 可以疾跑',
+  '提示: 右键放方块(会消耗物品)',
+  '提示: 数字键 1-9 / 滚轮 切换物品',
+  '提示: 石头要用镐才挖得动',
+  '提示: 砍树 → 木板 → 工作台 → 工具',
+  '提示: 熔炉能把铁矿炼成铁锭',
+  '提示: 天黑了小心怪物',
+];
+const bootHintEl = bootEl.querySelector('.boot-hint') as HTMLElement | null;
+if (bootHintEl) {
+  let hi = Math.floor(Math.random() * BOOT_HINTS.length);
+  bootHintEl.textContent = BOOT_HINTS[hi];
+  setInterval(() => {
+    hi = (hi + 1) % BOOT_HINTS.length;
+    bootHintEl.textContent = BOOT_HINTS[hi];
+  }, 2600);
+}
+
 function setHud(show: boolean): void {
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
