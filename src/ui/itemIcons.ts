@@ -36,6 +36,18 @@ const ICON: Record<number, string> = {
   272: 'iron_sword',
   273: 'iron_hoe',
   274: 'iron_ingot',
+  275: 'raw_porkchop',
+  276: 'cooked_porkchop',
+  277: 'raw_beef',
+  278: 'cooked_beef',
+  279: 'raw_mutton',
+  280: 'cooked_mutton',
+  281: 'raw_chicken',
+  282: 'cooked_chicken',
+  283: 'leather',
+  284: 'wool',
+  285: 'feather',
+  286: 'egg',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）
