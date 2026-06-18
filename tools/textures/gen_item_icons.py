@@ -207,23 +207,23 @@ def make_sword(stone=False):
 def make_stick():
     im, px = blank()
     base, hi, lo = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
-
-    def bar(x0, y0, x1, y1):
-        cells = []
-        n = max(abs(x1 - x0), abs(y1 - y0))
-        for i in range(n + 1):
-            cells.append((round(x0 + (x1 - x0) * i / n), round(y0 + (y1 - y0) * i / n)))
-        return cells
-
-    for (x0, y0, x1, y1) in [(5, 12, 9, 4), (8, 12, 12, 4)]:  # 两节平行木棒
-        cells = bar(x0, y0, x1, y1)
-        for (x, y) in cells:
-            px[x, y] = base
-        for (x, y) in cells:  # 上沿高光
-            if (x, y - 1) not in cells:
-                px[x, y] = hi
-        px[cells[0][0], cells[0][1]] = lo   # 端头截面暗
-        px[cells[-1][0], cells[-1][1]] = lo
+    # 一根斜木棒(左下→右上)，2px 宽、居中(MC 木棍是单根)
+    cells = []
+    x0, y0, x1, y1 = 4, 11, 11, 4
+    n = max(abs(x1 - x0), abs(y1 - y0))
+    for i in range(n + 1):
+        x = round(x0 + (x1 - x0) * i / n)
+        y = round(y0 + (y1 - y0) * i / n)
+        for (cx, cy) in ((x, y), (x + 1, y)):  # 2px 宽
+            cells.append((cx, cy))
+    cells = list(dict.fromkeys(cells))
+    for (x, y) in cells:
+        px[x, y] = base
+    for (x, y) in cells:  # 上沿高光
+        if (x, y - 1) not in cells and (x - 1, y) not in cells:
+            px[x, y] = hi
+    px[cells[0][0], cells[0][1]] = lo   # 端头截面暗
+    px[cells[-1][0], cells[-1][1]] = lo
     add_outline(px, OUTLINE)
     return im
 
