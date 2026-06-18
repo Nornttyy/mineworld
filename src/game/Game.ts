@@ -12,7 +12,6 @@ import {
   OAK_LEAVES,
   CRAFTING_TABLE,
   FURNACE,
-  GRASS,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -26,7 +25,7 @@ import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
 import { updateMob, hurtMob, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
-import { spawnGroup } from '../core/entity/mobSpawn';
+import { spawnRingGroup, type SpawnWorld } from '../core/entity/mobSpawn';
 import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
@@ -78,7 +77,12 @@ const SPRINT_JUMP_EXHAUSTION = 0.2;
 const BREAK_EXHAUSTION = 0.005;
 const DAMAGE_EXHAUSTION = 0.1;
 const MOB_REACH = 3.5; // 攻击实体距离（格，≈MC）
-const MOB_CAP = 12; // 玩家附近生物上限（性能保险）
+const MOB_CAP = 16; // 玩家附近生物上限（性能保险）
+const MOB_DESPAWN_R = 88; // 超出此横向距离即卸载（略小于渲染半径，让落在身后的及时清掉、腾出名额）
+const MOB_NEAR_R = 48; // 统计/维持种群的半径
+const MOB_NEAR_TARGET = 6; // 身边维持的目标数量
+const MOB_SPAWN_EVERY = 25; // 每多少刻尝试一次补刷（~1.25s）
+const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
 
 // 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6（非剑按拳算）。
 function mobDamage(heldId: number | null): number {
@@ -144,7 +148,9 @@ export class Game {
   private readonly mobs: Mob[] = []; // 世界里的被动动物
   private readonly mobRenderer: MobRenderer;
   private readonly mobRng: () => number;
-  private mobSpawnTick = 0; // 周期刷新计时
+  private readonly spawnWorld: SpawnWorld; // 给生物生成用的只读世界视图
+  private readonly surfaceY = (x: number, z: number): number => columnHeight(x, z, this.save.seed);
+  private mobSpawnTick = 0; // 补刷计时
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
@@ -207,6 +213,7 @@ export class Game {
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.mobRenderer = new MobRenderer(this.renderer.scene);
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
+    this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
@@ -225,10 +232,9 @@ export class Game {
     this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
     this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
-    // 出生周边撒几群动物（让玩家一进世界就能看到）
-    for (let i = 0; i < 3; i++) {
-      const ang = (i / 3) * Math.PI * 2;
-      this.spawnMobsAt(Math.floor(spawn.x + Math.cos(ang) * 12), Math.floor(spawn.z + Math.sin(ang) * 12));
+    // 出生周边撒几群动物（让玩家一进世界就能看到；近环带 6–26 格）
+    for (let i = 0; i < 4; i++) {
+      this.mobs.push(...spawnRingGroup(MOB_KINDS[i % 4], spawn.x, spawn.z, this.mobRng, this.spawnWorld, this.surfaceY, 6, 26));
     }
 
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
@@ -739,18 +745,22 @@ export class Game {
   }
 
   // —— 生物 ——
-  // 每刻：推进所有生物 + 处理事件(掉蛋) + 太远则卸载 + 周期补刷维持种群。
+  // 每刻：推进所有生物 + 处理事件(掉蛋) + 太远卸载 + 维持玩家周边种群(边走边在前方补群，
+  //   修"走几步就看不到"——旧逻辑刷太慢/太远，走动后身边掉到 0)。
   private tickMobs(): void {
     const px = this.player.pos.x;
     const pz = this.player.pos.z;
+    let nearCount = 0;
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
       const ddx = mob.pos.x - px;
       const ddz = mob.pos.z - pz;
-      if (ddx * ddx + ddz * ddz > 96 * 96) {
+      const d2 = ddx * ddx + ddz * ddz;
+      if (d2 > MOB_DESPAWN_R * MOB_DESPAWN_R) {
         this.mobs.splice(i, 1);
         continue;
       }
+      if (d2 < MOB_NEAR_R * MOB_NEAR_R) nearCount++;
       const res = updateMob(mob, this.physWorld, this.mobRng);
       Object.assign(mob, res.mob); // 原地更新，保持对象身份（渲染按身份缓存模型）
       for (const ev of res.events) {
@@ -759,24 +769,29 @@ export class Game {
         }
       }
     }
-    if (++this.mobSpawnTick >= 200 && this.mobs.length < MOB_CAP) {
+    // 维持种群：每 ~1.25s 一次，身边不足目标且未到上限 → 朝玩家前进方向的环带补一群，
+    //   让玩家边走边走进新兽群（同 MC 的"跟着玩家刷"体感）。
+    if (++this.mobSpawnTick >= MOB_SPAWN_EVERY) {
       this.mobSpawnTick = 0;
-      const ang = this.mobRng() * Math.PI * 2;
-      const dist = 24 + this.mobRng() * 16;
-      this.spawnMobsAt(Math.floor(px + Math.cos(ang) * dist), Math.floor(pz + Math.sin(ang) * dist));
+      if (nearCount < MOB_NEAR_TARGET && this.mobs.length < MOB_CAP) {
+        const v = this.player.vel;
+        const dir = Math.hypot(v.x, v.z) > 1e-3 ? Math.atan2(v.z, v.x) : null;
+        this.mobs.push(
+          ...spawnRingGroup(
+            MOB_KINDS[Math.floor(this.mobRng() * 4)],
+            px,
+            pz,
+            this.mobRng,
+            this.spawnWorld,
+            this.surfaceY,
+            24,
+            44,
+            dir,
+            Math.PI / 2,
+          ),
+        );
+      }
     }
-  }
-
-  // 在 (cx,cz) 列的地表草地上撒一群随机动物。
-  private spawnMobsAt(cx: number, cz: number): void {
-    const h = columnHeight(cx, cz, this.save.seed);
-    if (this.world.getBlock(cx, h, cz) !== GRASS) return; // 只在草地刷
-    const kinds: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
-    const kind = kinds[Math.floor(this.mobRng() * kinds.length)];
-    const group = spawnGroup(kind, cx + 0.5, h + 1, cz + 0.5, this.mobRng, {
-      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
-    });
-    this.mobs.push(...group);
   }
 
   // 准星(视线)对准的最近生物（攻击距离内），无则 null。
