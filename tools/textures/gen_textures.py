@@ -296,37 +296,62 @@ def crack_strip():
     return strip
 
 
-def crafting_table_top(rng):
-    """工作台顶：木板底 + 田字工作格(4 格) + 外框。"""
+def crafting_table_side(rng):
+    """工作台侧：木板底 + 顶沿 + 一把横放的锯(钢刃带齿 + 木柄)。仿 MC 工作台侧面工具。"""
     im = oak_planks(rng)
     px = im.load()
-    g = hx("#4a3418")
-    for i in range(S):
-        px[i, 7] = g
-        px[i, 8] = g
-        px[7, i] = g
-        px[8, i] = g
-        px[i, 0] = g
-        px[i, S - 1] = g
-        px[0, i] = g
-        px[S - 1, i] = g
+    d = hx("#3d2b13")       # 刻线/暗木
+    steel = hx("#b9bcc6")   # 锯刃(亮钢)
+    steel_d = hx("#7d818c")  # 锯刃暗边
+    handle = hx("#6b4a23")  # 锯柄(木)
+    handle_d = hx("#4a3418")
+    # 顶沿(桌面边)
+    for x in range(S):
+        px[x, 1] = d
+    # 锯刃：横放，刃背在上、齿在下，刃尖朝左
+    for x in range(2, 12):
+        px[x, 6] = steel_d   # 刃背
+        px[x, 7] = steel     # 刃身
+    for x in range(2, 12):   # 锯齿(隔格)
+        px[x, 8] = steel if x % 2 == 0 else steel_d
+    px[2, 7] = steel_d       # 刃尖收一下
+    # 木柄(右端握把)
+    for x in range(11, 15):
+        for y in range(5, 10):
+            px[x, y] = handle if (y in (6, 7, 8)) else handle_d
+    px[13, 7] = handle_d     # 握孔
+    # 两颗钉(角落细节)
+    px[3, 12] = d
+    px[12, 12] = d
     return im
 
 
-def crafting_table_side(rng):
-    """工作台侧：木板底 + 台面边线 + 工具(锯)剪影 + 物品小方。"""
+def crafting_table_top(rng):
+    """工作台顶：木板底 + 外框 + 田字刻线(凹槽带高光) + 角落小节疤。仿 MC 顶面工作格。"""
     im = oak_planks(rng)
     px = im.load()
-    d, lt = hx("#4a3418"), hx("#caa24e")
-    for x in range(S):
-        px[x, 2] = d  # 台面边线
-    for x in range(3, 9):
-        px[x, 6] = d  # 工具横条
-    for y in range(6, 11):
-        px[4, y] = d  # 锯柄竖条
-    for x in range(10, 13):
-        for y in range(6, 10):
-            px[x, y] = lt if (x + y) % 2 == 0 else d  # 右侧物品小方
+    d = hx("#3d2b13")       # 刻线(暗)
+    hl = hx("#caa24e")      # 刻线高光(凹槽立体感)
+    # 外框
+    for i in range(S):
+        px[i, 0] = d
+        px[i, S - 1] = d
+        px[0, i] = d
+        px[S - 1, i] = d
+    # 田字刻线(2px) + 紧贴的一侧高光，做出"刻进去"的凹槽
+    for i in range(1, S - 1):
+        px[7, i] = d
+        px[8, i] = d
+        px[i, 7] = d
+        px[i, 8] = d
+    for i in range(1, S - 1):
+        if px[6, i] != d:
+            px[6, i] = hl
+        if px[i, 6] != d:
+            px[i, 6] = hl
+    # 小节疤(右下格)
+    px[11, 11] = d
+    px[12, 12] = d
     return im
 
 
