@@ -247,6 +247,27 @@ def make_coal():
     return im
 
 
+# 石质工具 = 用户手绘的木质工具**换色**(木色→石灰)，形状完全沿用用户的；柄也一并变灰。
+WOOD_TO_STONE = {
+    (79, 60, 32): (43, 43, 43),      # 4f3c20 描边/暗 → 深灰
+    (110, 85, 48): (94, 94, 94),     # 6e5530 深木
+    (139, 111, 66): (128, 128, 128),  # 8b6f42 深木高光
+    (164, 127, 69): (154, 154, 154),  # a47f45 主木 → 石
+    (198, 160, 100): (190, 190, 190),  # c6a064 木高光 → 亮石
+}
+
+
+def make_stone_from_wood(wood_name):
+    im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
+    px = im.load()
+    for y in range(S):
+        for x in range(S):
+            r, g, b, a = px[x, y]
+            if a > 0:
+                px[x, y] = (*WOOD_TO_STONE.get((r, g, b), (r, g, b)), 255)
+    return im
+
+
 def main():
     os.makedirs(ICON, exist_ok=True)
     out = {
@@ -254,10 +275,11 @@ def main():
         "coal": make_coal(),
         # wooden_pickaxe / wooden_axe / wooden_shovel / wooden_sword 由用户手绘(paint.html)，不在此生成
         "wooden_hoe": make_hoe(False),
-        "stone_pickaxe": make_pickaxe(True),
-        "stone_axe": make_axe(True),
-        "stone_shovel": make_shovel(True),
-        "stone_sword": make_sword(True),
+        # 石质 = 用户木质换色(石锄暂用生成版，待用户画木锄)
+        "stone_pickaxe": make_stone_from_wood("wooden_pickaxe"),
+        "stone_axe": make_stone_from_wood("wooden_axe"),
+        "stone_shovel": make_stone_from_wood("wooden_shovel"),
+        "stone_sword": make_stone_from_wood("wooden_sword"),
         "stone_hoe": make_hoe(True),
     }
     for name, im in out.items():
