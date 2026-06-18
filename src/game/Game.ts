@@ -277,7 +277,9 @@ export class Game {
           [r, i],
         ] as [number, number][]) {
           const h = columnHeight(x, z, seed);
-          if (h > SEA_LEVEL && h <= SEA_LEVEL + 4) return { x: x + 0.5, y: h + 2, z: z + 0.5 };
+          // 该列须是海岸平地，且地面上方是空气(没长树)，否则会出生卡在树干里
+          if (h > SEA_LEVEL && h <= SEA_LEVEL + 4 && this.world.getBlock(x, h + 1, z) === 0)
+            return { x: x + 0.5, y: h + 2, z: z + 0.5 };
         }
       }
     }

@@ -313,10 +313,10 @@ def center_png(name):
 def main():
     os.makedirs(ICON, exist_ok=True)
     # 先把用户手绘工具图案居中（石质换色、手持、物品栏都基于居中后的图标）
-    for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel"]:
+    for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel", "stick"]:
         center_png(n)
     # 基础(脚本生成的)先存盘，供下面 recolor 读取
-    base = {"stick": make_stick(), "coal": make_coal(), "wooden_hoe": make_hoe(False)}
+    base = {"coal": make_coal(), "wooden_hoe": make_hoe(False)}  # stick 由用户手绘，不在此生成
     for name, im in base.items():
         im.save(os.path.join(ICON, f"{name}.png"))
     # 石质=整体换石、铁质=整体换银(都从木质换色)，加铁锭
