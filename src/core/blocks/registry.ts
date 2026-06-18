@@ -22,6 +22,8 @@ const T = {
   coal_ore: 9,
   water: 10,
   oak_leaves: 11,
+  crafting_table_top: 12,
+  crafting_table_side: 13,
 } as const;
 
 export interface BlockDef {
@@ -131,13 +133,13 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: null,
   },
-  // 工作台：木质，斧更快；右键打开 3×3 合成（游戏层处理）。复用木板/原木顶贴图。
+  // 工作台：木质，斧更快；右键打开 3×3 合成（游戏层处理）。专属贴图：顶=田字工作格，侧=工具剪影。
   {
     id: 11,
     name: 'crafting_table',
     solid: true,
     transparent: false,
-    faces: column(T.oak_planks, T.oak_log_top, T.oak_planks),
+    faces: column(T.crafting_table_side, T.crafting_table_top, T.oak_planks),
     hardness: 2.5,
     drop: 11,
     needsTool: false,

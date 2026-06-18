@@ -561,6 +561,58 @@
         pointer-events: none;
         z-index: 30;
       }
+      /* 氧气气泡条（饥饿条正上方，仅水下显示，靠右对齐饥饿条） */
+      #oxygen {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 462px;
+        bottom: 86px;
+        display: none;
+        flex-direction: row-reverse;
+        pointer-events: none;
+        user-select: none;
+      }
+      /* 低血 / 低饱食：对应条整体抖动 */
+      @keyframes hud-shake {
+        0%,
+        100% {
+          transform: translate(0, 0);
+        }
+        20% {
+          transform: translate(-1px, -2px);
+        }
+        60% {
+          transform: translate(1px, 1px);
+        }
+      }
+      #health.low .hud-icon,
+      #hunger.low .hud-icon {
+        animation: hud-shake 0.45s infinite;
+      }
+      /* 受伤红屏（边缘红色 vignette 闪一下） */
+      #hurt {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 25;
+        opacity: 0;
+        background: radial-gradient(ellipse at center, rgba(160, 0, 0, 0) 45%, rgba(160, 0, 0, 0.6) 100%);
+      }
+      #hurt.flash {
+        animation: hurt-flash 0.4s ease-out;
+      }
+      @keyframes hurt-flash {
+        0% {
+          opacity: 0;
+        }
+        18% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -610,7 +662,9 @@
       <div id="health"></div>
       <div id="hunger"></div>
     </div>
+    <div id="oxygen"></div>
     <div id="hotbar"></div>
+    <div id="hurt"></div>
     <div id="death">
       <h2>你死了！</h2>
       <button id="respawn" class="btn btn-wide">重生</button>

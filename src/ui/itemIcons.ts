@@ -13,7 +13,20 @@ const ICON: Record<number, string> = {
   7: 'oak_planks',
   8: 'coal_ore',
   10: 'oak_leaves',
+  11: 'crafting_table',
   [APPLE]: 'apple',
+  257: 'stick',
+  258: 'coal',
+  259: 'wooden_pickaxe',
+  260: 'wooden_axe',
+  261: 'wooden_shovel',
+  262: 'wooden_sword',
+  263: 'wooden_hoe',
+  264: 'stone_pickaxe',
+  265: 'stone_axe',
+  266: 'stone_shovel',
+  267: 'stone_sword',
+  268: 'stone_hoe',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）

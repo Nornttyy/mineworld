@@ -1,20 +1,8 @@
 import type { Inventory } from '../core/inventory/inventory';
-import { APPLE } from '../core/items/items';
+import { iconUrl } from './itemIcons';
 
 // 底部快捷栏（MC 同款，生存式）：9 格，显示背包前 9 格的方块/物品图标 + 数量，当前选中高亮。
-// id → 等距图标名（public/textures/icons/<name>.png）
-const ICON: Record<number, string> = {
-  1: 'stone',
-  2: 'dirt',
-  3: 'grass',
-  4: 'cobblestone',
-  5: 'sand',
-  6: 'oak_log',
-  7: 'oak_planks',
-  8: 'coal_ore',
-  10: 'oak_leaves',
-  [APPLE]: 'apple',
-};
+// 图标统一走 itemIcons（方块 iso + 工具/棍/煤 2D 图标）。
 
 export class Hotbar {
   private readonly icons: HTMLElement[] = [];
@@ -49,10 +37,8 @@ export class Hotbar {
       const icon = this.icons[i];
       const count = this.counts[i];
       if (s && s.count > 0) {
-        const name = ICON[s.id];
-        icon.style.backgroundImage = name
-          ? `url(${import.meta.env.BASE_URL}textures/icons/${name}.png)`
-          : 'none';
+        const url = iconUrl(s.id);
+        icon.style.backgroundImage = url ? `url(${url})` : 'none';
         count.textContent = s.count > 1 ? String(s.count) : '';
       } else {
         icon.style.backgroundImage = 'none';

@@ -243,7 +243,7 @@ def water_frames(n):
                 w = math.sin(2 * math.pi * (2 * x + y) / S + ph) + 0.7 * math.sin(
                     2 * math.pi * (x - 2 * y) / S - ph * 1.3
                 )
-                px[x, y] = hi if w > 0.9 else dk if w < -1.0 else base
+                px[x, y] = hi if w > 1.35 else dk if w < -1.45 else base
         frames.append(im)
     return frames
 
@@ -296,6 +296,40 @@ def crack_strip():
     return strip
 
 
+def crafting_table_top(rng):
+    """工作台顶：木板底 + 田字工作格(4 格) + 外框。"""
+    im = oak_planks(rng)
+    px = im.load()
+    g = hx("#4a3418")
+    for i in range(S):
+        px[i, 7] = g
+        px[i, 8] = g
+        px[7, i] = g
+        px[8, i] = g
+        px[i, 0] = g
+        px[i, S - 1] = g
+        px[0, i] = g
+        px[S - 1, i] = g
+    return im
+
+
+def crafting_table_side(rng):
+    """工作台侧：木板底 + 台面边线 + 工具(锯)剪影 + 物品小方。"""
+    im = oak_planks(rng)
+    px = im.load()
+    d, lt = hx("#4a3418"), hx("#caa24e")
+    for x in range(S):
+        px[x, 2] = d  # 台面边线
+    for x in range(3, 9):
+        px[x, 6] = d  # 工具横条
+    for y in range(6, 11):
+        px[4, y] = d  # 锯柄竖条
+    for x in range(10, 13):
+        for y in range(6, 10):
+            px[x, y] = lt if (x + y) % 2 == 0 else d  # 右侧物品小方
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -309,6 +343,8 @@ BLOCKS = [
     ("coal_ore", coal_ore),
     ("water", water),
     ("oak_leaves", oak_leaves),
+    ("crafting_table_top", crafting_table_top),
+    ("crafting_table_side", crafting_table_side),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -385,7 +421,7 @@ def main():
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
-                   'oak_leaves']
+                   'oak_leaves', 'crafting_table_top', 'crafting_table_side']
     atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
@@ -403,6 +439,7 @@ def main():
         'oak_planks': ('oak_planks', 'oak_planks'),
         'coal_ore': ('coal_ore', 'coal_ore'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
+        'crafting_table': ('crafting_table_top', 'crafting_table_side'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)

@@ -110,10 +110,34 @@ def apple():
     return im
 
 
+def bubble(full):
+    """氧气气泡：full=亮蓝带白高光，empty=暗蓝(已消耗)。"""
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    cx, cy, r = 7.5, 7.5, 5.5
+    if full:
+        base, hi, line = hx("#3aa6e8"), hx("#bfe9ff"), hx("#1d5f8f")
+    else:
+        base, hi, line = hx("#26485c"), hx("#3a7088"), hx("#19303f")
+    for y in range(S):
+        for x in range(S):
+            d = math.hypot(x - cx, y - cy)
+            if d <= r:
+                if d > r - 1.1:
+                    px[x, y] = line
+                elif (x - cx) + (y - cy) < -2.2:
+                    px[x, y] = hi
+                else:
+                    px[x, y] = base
+    return im
+
+
 os.makedirs(UI, exist_ok=True)
 os.makedirs(ICON, exist_ok=True)
 for v in ("full", "half", "empty"):
     icon(HEART, HEART_FILL, HEART_HILO, v).save(os.path.join(UI, f"heart_{v}.png"))
     icon(DRUM, DRUM_FILL, DRUM_HILO, v, half_empty_side="left").save(os.path.join(UI, f"food_{v}.png"))
 apple().save(os.path.join(ICON, "apple.png"))
-print("wrote 6 hud sprites + apple.png")
+bubble(True).save(os.path.join(UI, "bubble_full.png"))
+bubble(False).save(os.path.join(UI, "bubble_empty.png"))
+print("wrote 6 hud sprites + apple.png + 2 bubbles")

@@ -44,6 +44,7 @@ import {
   isDead as survivalIsDead,
   eat,
   trackFall,
+  tickOxygen,
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
@@ -341,21 +342,32 @@ export class Game {
     const dy = this.player.pos.y - this.prev.pos.y;
     if (sprint) addExhaustion(this.survival, SPRINT_EXHAUSTION * Math.hypot(dx, dz));
     if (jumped) addExhaustion(this.survival, sprint ? SPRINT_JUMP_EXHAUSTION : JUMP_EXHAUSTION);
-    const inWater = isWaterId(
-      this.world.getBlock(
-        Math.floor(this.player.pos.x),
-        Math.floor(this.player.pos.y),
-        Math.floor(this.player.pos.z),
-      ),
-    );
+    const px = Math.floor(this.player.pos.x);
+    const pz = Math.floor(this.player.pos.z);
+    const inWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y), pz));
     const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
     this.fallDistance = fall.fallDistance;
     if (fall.damage > 0) {
       applyDamage(this.survival, fall.damage);
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
+      this.flashHurt();
     }
+    // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
+    const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
+    const hpBefore = this.survival.health;
+    tickOxygen(this.survival, headInWater);
+    if (this.survival.health < hpBefore) this.flashHurt();
     tickSurvival(this.survival);
     if (survivalIsDead(this.survival) && !this.dead) this.die();
+  }
+
+  // 受伤红屏反馈：触发一次 CSS 闪动（先移除再加 class 以重启动画）。
+  private flashHurt(): void {
+    const el = document.getElementById('hurt');
+    if (!el) return;
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
   }
 
   private die(): void {
