@@ -15,6 +15,12 @@ export const STONE_AXE = 265;
 export const STONE_SHOVEL = 266;
 export const STONE_SWORD = 267;
 export const STONE_HOE = 268;
+export const IRON_PICKAXE = 269;
+export const IRON_AXE = 270;
+export const IRON_SHOVEL = 271;
+export const IRON_SWORD = 272;
+export const IRON_HOE = 273;
+export const IRON_INGOT = 274;
 
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
@@ -34,7 +40,7 @@ interface ItemDef {
 // 工具：剑/锄不是挖矿工具，速度压低
 function toolDef(name: string, kind: ToolKind, tier: number, baseSpeed: number): ItemDef {
   const speed = kind === 'sword' ? 1.5 : kind === 'hoe' ? 1 : baseSpeed;
-  const maxDurability = tier === 1 ? 59 : 131; // 木 59 / 石 131（同 MC）
+  const maxDurability = tier === 1 ? 59 : tier === 2 ? 131 : 250; // 木59/石131/铁250（同 MC）
   return { name, maxStack: 1, food: null, tool: { kind, tier, speed, maxDurability } };
 }
 
@@ -52,6 +58,12 @@ const ITEMS: Record<number, ItemDef> = {
   [STONE_SHOVEL]: toolDef('stone_shovel', 'shovel', 2, 4),
   [STONE_SWORD]: toolDef('stone_sword', 'sword', 2, 4),
   [STONE_HOE]: toolDef('stone_hoe', 'hoe', 2, 4),
+  [IRON_PICKAXE]: toolDef('iron_pickaxe', 'pickaxe', 3, 6),
+  [IRON_AXE]: toolDef('iron_axe', 'axe', 3, 6),
+  [IRON_SHOVEL]: toolDef('iron_shovel', 'shovel', 3, 6),
+  [IRON_SWORD]: toolDef('iron_sword', 'sword', 3, 6),
+  [IRON_HOE]: toolDef('iron_hoe', 'hoe', 3, 6),
+  [IRON_INGOT]: { name: 'iron_ingot', maxStack: 64, food: null, tool: null },
 };
 
 export const ITEM_IDS: number[] = Object.keys(ITEMS).map(Number);
