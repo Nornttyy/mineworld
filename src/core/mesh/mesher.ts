@@ -83,10 +83,10 @@ function cornerAO(
 
 export interface MeshData {
   positions: Float32Array;
-  normals: Float32Array;
+  normals?: Float32Array; // 只有旧 meshGrid 路径产出；区块走 MeshBasicMaterial 不打灯，不需法线(省 ~23% 顶点带宽)
   uvs: Float32Array;
   colors: Float32Array;
-  indices: Uint32Array;
+  indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
 }
 
@@ -170,21 +170,23 @@ export function meshWorld(world: World): MeshData {
 
 interface FaceArrays {
   P: number[];
-  N: number[];
   U: number[];
   C: number[];
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
 }
-const emptyArrays = (): FaceArrays => ({ P: [], N: [], U: [], C: [], I: [], L: [] });
-const toMeshData = (a: FaceArrays): MeshData => ({
-  positions: new Float32Array(a.P),
-  normals: new Float32Array(a.N),
-  uvs: new Float32Array(a.U),
-  colors: new Float32Array(a.C),
-  indices: new Uint32Array(a.I),
-  light: new Float32Array(a.L),
-});
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [] });
+const toMeshData = (a: FaceArrays): MeshData => {
+  const verts = a.P.length / 3;
+  return {
+    positions: new Float32Array(a.P),
+    uvs: new Float32Array(a.U),
+    colors: new Float32Array(a.C),
+    // 顶点数没超 Uint16 上限就用 Uint16(绝大多数区块如此)，否则退回 Uint32
+    indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
+    light: new Float32Array(a.L),
+  };
+};
 
 export interface ChunkMesh {
   opaque: MeshData;
@@ -246,7 +248,6 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
       ao[k] = cornerAO(occ, ox + lx, ly, oz + lz, f, k);
       const c = shade * ao[k]; // 几何阴影 × AO；天光/方块光由 shader 再乘
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
-      a.N.push(d.n[0], d.n[1], d.n[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
       a.L.push(sky, blk);
@@ -281,7 +282,6 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
       ];
       for (const v of verts) {
         to.P.push(v[0], v[1], v[2]);
-        to.N.push(0, 1, 0);
         to.U.push(0, 0);
         to.C.push(v[3], v[4], v[5]);
       }
@@ -302,7 +302,6 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
       const corner = d.c[k];
       const py = ly + yArr[k];
       wa.P.push(lx + corner[0], py, lz + corner[2]);
-      wa.N.push(d.n[0], d.n[1], d.n[2]);
       const wx = ox + lx + corner[0];
       const wz = oz + lz + corner[2];
       if (f === 2 || f === 3) wa.U.push(wx, wz); // 顶/底面

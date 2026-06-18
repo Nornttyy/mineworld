@@ -6,6 +6,16 @@ import { loadWaterFrames } from './atlas';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 
+// 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
+// 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
+const FOG_FAR_BLOCKS = 110;
+const FOG_CULL_R2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 区块²为单位，比较平方省 sqrt
+const chunkFogged = (dCx: number, dCz: number): boolean => {
+  const nx = Math.max(0, Math.abs(dCx) - 0.5);
+  const nz = Math.max(0, Math.abs(dCz) - 0.5);
+  return nx * nx + nz * nz > FOG_CULL_R2;
+};
+
 interface ChunkMeshes {
   opaque: THREE.Mesh;
   cutout: THREE.Mesh | null;
@@ -127,7 +137,7 @@ export class ChunkMeshManager {
   private buildGeo(data: MeshData): THREE.BufferGeometry {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+    if (data.normals) g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3)); // MeshBasicMaterial 不打灯，区块网格不带法线
     g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
@@ -178,6 +188,7 @@ export class ChunkMeshManager {
     const todo: { cx: number; cz: number; d: number }[] = [];
     for (let dz = -radius; dz <= radius; dz++) {
       for (let dx = -radius; dx <= radius; dx++) {
+        if (chunkFogged(dx, dz)) continue; // 完全在雾里的角块：不生成、不网格化(看不见)
         const cx = centerCx + dx;
         const cz = centerCz + dz;
         this.world.request(cx, cz); // 异步请求后台生成(不卡主线程)
@@ -188,6 +199,12 @@ export class ChunkMeshManager {
     }
     todo.sort((a, b) => a.d - b.d);
     for (let i = 0; i < Math.min(budget, todo.length); i++) this.rebuild(todo[i].cx, todo[i].cz);
+    // 已加载但因移动落进雾区的区块：隐藏(不绘制)而非卸载——避免来回移动时反复重建网格、无闪烁
+    for (const [k, m] of this.meshes) {
+      const [cx, cz] = k.split(',').map(Number);
+      const vis = !chunkFogged(cx - centerCx, cz - centerCz);
+      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
+    }
   }
 
   /** 立即重建所有已加载且变脏的区块（挖/放后调用）。 */

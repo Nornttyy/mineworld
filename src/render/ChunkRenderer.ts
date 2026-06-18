@@ -5,7 +5,7 @@ import type { MeshData } from '../core/mesh/mesher';
 export function buildChunkMesh(data: MeshData, atlas: THREE.Texture): THREE.Mesh {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+  if (data.normals) g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
   g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
   g.setIndex(new THREE.BufferAttribute(data.indices, 1));
