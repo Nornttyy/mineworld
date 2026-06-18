@@ -3,8 +3,8 @@ import { RECIPES } from './recipes';
 import { hasItem } from '../item/registry';
 
 describe('recipe data', () => {
-  it('contains all 16 recipes', () => {
-    expect(RECIPES).toHaveLength(16);
+  it('contains all 21 recipes', () => {
+    expect(RECIPES).toHaveLength(21);
   });
 
   it('every referenced item id exists in the registry', () => {

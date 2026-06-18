@@ -28,6 +28,13 @@ const DEFS: ItemDef[] = [
   def('stone_shovel', 'Stone Shovel', 1),
   def('stone_sword', 'Stone Sword', 1),
   def('stone_hoe', 'Stone Hoe', 1),
+  def('iron_ore', 'Iron Ore'),
+  def('iron_ingot', 'Iron Ingot'),
+  def('iron_pickaxe', 'Iron Pickaxe', 1),
+  def('iron_axe', 'Iron Axe', 1),
+  def('iron_shovel', 'Iron Shovel', 1),
+  def('iron_sword', 'Iron Sword', 1),
+  def('iron_hoe', 'Iron Hoe', 1),
 ];
 
 export const ITEMS: ReadonlyMap<ItemId, ItemDef> = new Map(DEFS.map((d) => [d.id, d]));

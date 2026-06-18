@@ -457,7 +457,8 @@
         text-align: center;
       }
       /* —— MC 背包 / 合成界面 —— */
-      #inventory {
+      #inventory,
+      #furnace {
         position: fixed;
         inset: 0;
         z-index: 15;
@@ -521,6 +522,52 @@
         background: #9a9a90;
       }
       .inv-out {
+        width: 52px;
+        height: 52px;
+      }
+      .fur-top {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 6px 16px 10px;
+      }
+      .fur-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .fur-flame {
+        width: 24px;
+        height: 24px;
+        background: #555;
+        position: relative;
+        overflow: hidden;
+      }
+      .fur-flame-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 0;
+        background: linear-gradient(#ffd24a, #e0541f);
+      }
+      .fur-arrow {
+        width: 60px;
+        height: 14px;
+        background: #555;
+        position: relative;
+        overflow: hidden;
+      }
+      .fur-arrow-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 0;
+        background: #cfcfcf;
+      }
+      .fur-out {
         width: 52px;
         height: 52px;
       }
@@ -673,6 +720,7 @@
       <button id="respawn" class="btn btn-wide">重生</button>
     </div>
     <div id="inventory" class="hidden"></div>
+    <div id="furnace" class="hidden"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

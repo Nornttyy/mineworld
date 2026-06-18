@@ -11,6 +11,7 @@ import {
   dropFor,
   OAK_LEAVES,
   CRAFTING_TABLE,
+  FURNACE,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -38,6 +39,8 @@ import { PointerLookControls } from '../input/PointerLookControls';
 import { Hotbar } from '../ui/hotbar';
 import { StatusBar } from '../ui/statusBar';
 import { InventoryUI } from '../ui/inventoryUI';
+import { FurnaceUI } from '../ui/furnaceUI';
+import { newFurnace, tickFurnace, furnaceActive, type FurnaceState } from '../core/crafting/smelting';
 import {
   newSurvival,
   tickSurvival,
@@ -95,6 +98,9 @@ export class Game {
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
   private craftingGrid = 0; // 背包/合成界面：0=关闭 2=个人(2×2) 3=工作台(3×3)
+  private readonly furnaceUI: FurnaceUI;
+  private readonly furnaces = new Map<string, FurnaceState>(); // 坐标"x,y,z"→熔炉状态
+  private furnaceKey: string | null = null; // 当前打开的熔炉坐标(null=没开)
   private readonly drops: ItemDrop[] = [];
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
@@ -159,6 +165,8 @@ export class Game {
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
+    this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
+    this.furnaceUI.onChange = (): void => this.hotbar.render(this.inv);
     this.invUI.onChange = (): void => this.hotbar.render(this.inv);
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
@@ -211,8 +219,13 @@ export class Game {
     });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyE') {
-        if (this.craftingGrid > 0) this.closeCrafting();
+        if (this.furnaceKey) this.closeFurnace();
+        else if (this.craftingGrid > 0) this.closeCrafting();
         else if (document.pointerLockElement === canvas) this.openCrafting(2);
+        return;
+      }
+      if (e.code === 'Escape' && this.furnaceKey) {
+        this.closeFurnace();
         return;
       }
       if (e.code === 'Escape' && this.craftingGrid > 0) {
@@ -304,6 +317,11 @@ export class Game {
           this.fluidSim.tick(this.fluidGrid);
           this.chunks.remeshDirty();
         }
+        // 熔炉：每刻推进活跃熔炉的冶炼；打开中的熔炉刷新界面
+        for (const st of this.furnaces.values()) {
+          if (furnaceActive(st)) tickFurnace(st);
+        }
+        if (this.furnaceKey) this.furnaceUI.render();
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -426,6 +444,10 @@ export class Game {
       this.openCrafting(3);
       return;
     }
+    if (hit && this.world.getBlock(hit.x, hit.y, hit.z) === FURNACE) {
+      this.openFurnace(hit.x, hit.y, hit.z);
+      return;
+    }
     const stack = this.inv[this.hotbar.index];
     // 手持食物且饱食度未满 → 开吃；饱食度满时不能吃（同 MC，普通食物吃不下）。
     if (stack && stack.count > 0 && isFood(stack.id) && this.survival.food < MAX_FOOD) {
@@ -449,6 +471,24 @@ export class Game {
     this.craftingGrid = 0;
     this.invUI.hide();
     void this.canvas.requestPointerLock(); // 回到游戏
+  }
+
+  // —— 熔炉界面 ——
+  private openFurnace(x: number, y: number, z: number): void {
+    const key = `${x},${y},${z}`;
+    let st = this.furnaces.get(key);
+    if (!st) {
+      st = newFurnace();
+      this.furnaces.set(key, st);
+    }
+    this.furnaceKey = key;
+    this.furnaceUI.show(this.inv, st);
+    document.exitPointerLock();
+  }
+  private closeFurnace(): void {
+    this.furnaceKey = null;
+    this.furnaceUI.hide();
+    void this.canvas.requestPointerLock();
   }
 
   private stopEating(): void {
@@ -564,6 +604,19 @@ export class Game {
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
+    }
+    // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
+    if (id === FURNACE) {
+      const st = this.furnaces.get(`${x},${y},${z}`);
+      if (st) {
+        const slots: ReadonlyArray<readonly [number, number]> = [
+          [st.input, st.inputN],
+          [st.fuel, st.fuelN],
+          [st.output, st.outputN],
+        ];
+        for (const [bid, n] of slots) for (let k = 0; k < n; k++) this.drops.push(spawnDrop(bid, x, y, z));
+        this.furnaces.delete(`${x},${y},${z}`);
+      }
     }
     addExhaustion(this.survival, BREAK_EXHAUSTION);
     // 工具耐久：用工具挖一格 −1，用尽则损坏消失（空手/食物等无 tool → 不扣）。
