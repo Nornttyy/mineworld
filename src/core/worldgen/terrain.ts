@@ -1,7 +1,7 @@
 import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
-import { fbm2, hash2 } from '../math/noise';
+import { fbm2, hash2, fbm3, valueNoise3 } from '../math/noise';
 import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
 
 // 方块 id（见 core/blocks/registry）
@@ -9,8 +9,23 @@ const STONE = 1;
 const DIRT = 2;
 const GRASS = 3;
 const SAND = 5;
+const COAL_ORE = 8;
+const IRON_ORE = 12;
 export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
+
+// 地下某格(世界坐标)长什么：洞穴空腔(0) / 矿脉 / 普通石头。只在地表土层以下调用。
+// 洞穴：3D 噪声落在等值面带内 → 连续蜿蜒隧道。矿石：高频 3D 噪声取阈值 → 小矿簇。
+function undergroundBlock(wx: number, wy: number, wz: number, height: number, seed: number): number {
+  if (wy <= 1) return STONE; // 世界底 2 层留实心，防挖穿掉出世界
+  const cave = fbm3(wx / 20, wy / 13, wz / 20, seed + 555); // 等值面≈隧道中心
+  if (Math.abs(cave - 0.5) < 0.025) return 0; // 落在窄带内 → 挖空成蜿蜒隧道
+  const coal = valueNoise3(wx / 4.5, wy / 4.5, wz / 4.5, seed + 101); // 煤矿：各深度
+  if (coal > 0.84) return COAL_ORE;
+  const iron = valueNoise3(wx / 4, wy / 4, wz / 4, seed + 202); // 铁矿：偏中下层
+  if (iron > 0.83 && wy <= height * 0.6) return IRON_ORE;
+  return STONE;
+}
 
 // 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续，确定性）。
 // 叠加多种尺度形成：大海(大陆度)、池子(丘陵凹陷)、河流(蜿蜒细谷)。
@@ -114,13 +129,16 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
   const c = new Chunk();
   for (let lz = 0; lz < CHUNK_W; lz++) {
     for (let lx = 0; lx < CHUNK_W; lx++) {
-      const height = columnHeight(cx * CHUNK_W + lx, cz * CHUNK_W + lz, seed);
+      const wx = cx * CHUNK_W + lx;
+      const wz = cz * CHUNK_W + lz;
+      const height = columnHeight(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
-        c.set(lx, y, lz, id);
+        else id = undergroundBlock(wx, y, wz, height, seed); // 石层：洞穴/矿脉/石
+        if (id !== 0) c.set(lx, y, lz, id); // 洞穴(0)留空气
       }
       for (let y = height + 1; y <= SEA_LEVEL; y++) {
         c.set(lx, y, lz, WATER); // 注水到海平面

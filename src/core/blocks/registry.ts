@@ -24,6 +24,7 @@ const T = {
   oak_leaves: 11,
   crafting_table_top: 12,
   crafting_table_side: 13,
+  iron_ore: 14,
 } as const;
 
 export interface BlockDef {
@@ -145,6 +146,18 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: 'axe',
   },
+  // 铁矿：石中矿脉，需镐采集；挖掉得铁矿石方块（冶炼成锭待后续里程碑）。MC 硬度 3。
+  {
+    id: 12,
+    name: 'iron_ore',
+    solid: true,
+    transparent: false,
+    faces: all(T.iron_ore),
+    hardness: 3.0,
+    drop: 12,
+    needsTool: true,
+    tool: 'pickaxe',
+  },
 ];
 
 export const WATER = 9;
@@ -153,6 +166,8 @@ export const OAK_LOG = 6;
 export const OAK_PLANKS = 7;
 export const COBBLESTONE = 4;
 export const CRAFTING_TABLE = 11;
+export const IRON_ORE = 12;
+export const COAL_ORE = 8;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;

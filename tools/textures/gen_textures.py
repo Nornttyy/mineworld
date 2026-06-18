@@ -213,6 +213,13 @@ def coal_ore(rng):
     return im
 
 
+def iron_ore(rng):
+    im = stone(rng)  # 干净石底 + 米橙色铁矿斑点（仿 MC 铁矿）
+    for cx, cy, r in [(4, 4, 2), (11, 10, 2), (8, 13, 1), (13, 4, 1), (2, 11, 1), (6, 8, 1)]:
+        pebble(im, cx, cy, r, "#cf9b6c", "#e6c19a", "#a06a3c", rng, 0.2)
+    return im
+
+
 def water(rng):
     im = new()
     fill(im, "#2f86e0")  # 鲜艳卡通蓝（单帧静态，不做动画）
@@ -366,6 +373,7 @@ BLOCKS = [
     ("oak_log_side", oak_log_side),
     ("oak_log_top", oak_log_top),
     ("coal_ore", coal_ore),
+    ("iron_ore", iron_ore),
     ("water", water),
     ("oak_leaves", oak_leaves),
     ("crafting_table_top", crafting_table_top),
@@ -446,7 +454,7 @@ def main():
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
-                   'oak_leaves', 'crafting_table_top', 'crafting_table_side']
+                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore']
     atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
@@ -463,6 +471,7 @@ def main():
         'oak_log': ('oak_log_top', 'oak_log_side'),
         'oak_planks': ('oak_planks', 'oak_planks'),
         'coal_ore': ('coal_ore', 'coal_ore'),
+        'iron_ore': ('iron_ore', 'iron_ore'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
     }
