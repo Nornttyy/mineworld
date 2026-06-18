@@ -95,7 +95,7 @@ function blockCube(id: number, size: number): THREE.BufferGeometry {
 export class FirstPersonHand {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
-  private readonly atlas: THREE.Texture;
+  private atlas: THREE.Texture;
   private readonly root = new THREE.Group(); // 手臂+手持物的根（摆臂/晃动作用于它）
   private readonly arm: THREE.Mesh;
   private item: THREE.Mesh | null = null;
@@ -177,6 +177,14 @@ export class FirstPersonHand {
   // 触发摆臂（挖到方块/放方块时调用；按住挖时每帧调用以连续摆）
   swing(): void {
     this.wantSwing = true;
+  }
+
+  // 切换方块图集（材质风格切换）：换图集并重建当前手持(若是方块)以套用。
+  setAtlas(tex: THREE.Texture): void {
+    this.atlas = tex;
+    const id = this.itemId;
+    this.itemId = null; // 强制 setHeld 重建
+    this.setHeld(id);
   }
 
   // 吃东西状态（手持食物时由游戏层每帧设置）：true=把食物送到嘴边快速抖动。

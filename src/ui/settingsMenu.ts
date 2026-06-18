@@ -1,0 +1,91 @@
+import { loadSettings, saveSettings, type Settings, type TexturePack } from '../core/settings';
+
+// 设置面板：局内(暂停菜单)与局外(主菜单)共用。改动即存盘并通过 onChange 通知应用。
+// 覆盖在其它界面之上（半透明背板 + 居中卡片）；点"返回"只是隐藏，露出后面的菜单。
+export class SettingsMenu {
+  private readonly root: HTMLElement;
+  private settings: Settings;
+  onChange: ((s: Settings) => void) | null = null;
+
+  constructor(root: HTMLElement) {
+    this.root = root;
+    this.settings = loadSettings();
+    root.style.cssText =
+      'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+    root.innerHTML = `
+      <div class="settings-card" style="background:#1b2733;border:2px solid #3a536b;border-radius:10px;padding:22px 26px;min-width:340px;color:#dce8f2;font-family:monospace;display:flex;flex-direction:column;gap:16px;">
+        <h2 class="screen-title" style="margin:0 0 4px;text-align:center;">设置</h2>
+        <label style="display:flex;align-items:center;gap:12px;">
+          <span style="width:108px;">音量</span>
+          <input id="set-vol" type="range" min="0" max="100" style="flex:1;" />
+          <span id="set-vol-val" style="width:46px;text-align:right;"></span>
+        </label>
+        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">音效尚未开发，先存着</div>
+        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
+          <span style="width:108px;">光影</span>
+          <input id="set-shaders" type="checkbox" style="transform:scale(1.4);" />
+          <span style="color:#8aa;font-size:12px;">真实云 / 真实水面（即将接入）</span>
+        </label>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="width:108px;">材质</span>
+          <button id="set-tex-cartoon" class="btn" type="button">卡通</button>
+          <button id="set-tex-classic" class="btn" type="button">经典</button>
+        </div>
+        <button id="set-close" class="btn btn-wide" type="button" style="margin-top:6px;">返回</button>
+      </div>`;
+
+    const vol = root.querySelector('#set-vol') as HTMLInputElement;
+    const volVal = root.querySelector('#set-vol-val') as HTMLElement;
+    const shaders = root.querySelector('#set-shaders') as HTMLInputElement;
+    const texCartoon = root.querySelector('#set-tex-cartoon') as HTMLButtonElement;
+    const texClassic = root.querySelector('#set-tex-classic') as HTMLButtonElement;
+
+    const syncTexButtons = (): void => {
+      texCartoon.classList.toggle('active', this.settings.texturePack === 'cartoon');
+      texClassic.classList.toggle('active', this.settings.texturePack === 'classic');
+      texCartoon.style.outline = this.settings.texturePack === 'cartoon' ? '2px solid #6ab0ff' : 'none';
+      texClassic.style.outline = this.settings.texturePack === 'classic' ? '2px solid #6ab0ff' : 'none';
+    };
+    const apply = (): void => {
+      saveSettings(this.settings);
+      this.onChange?.(this.settings);
+    };
+    const setTex = (p: TexturePack): void => {
+      this.settings = { ...this.settings, texturePack: p };
+      syncTexButtons();
+      apply();
+    };
+
+    vol.addEventListener('input', () => {
+      this.settings = { ...this.settings, volume: Number(vol.value) };
+      volVal.textContent = `${this.settings.volume}%`;
+      apply();
+    });
+    shaders.addEventListener('change', () => {
+      this.settings = { ...this.settings, shaders: shaders.checked };
+      apply();
+    });
+    texCartoon.addEventListener('click', () => setTex('cartoon'));
+    texClassic.addEventListener('click', () => setTex('classic'));
+    (root.querySelector('#set-close') as HTMLElement).addEventListener('click', () => this.hide());
+
+    // 初值
+    vol.value = String(this.settings.volume);
+    volVal.textContent = `${this.settings.volume}%`;
+    shaders.checked = this.settings.shaders;
+    syncTexButtons();
+  }
+
+  get current(): Settings {
+    return this.settings;
+  }
+  show(): void {
+    this.root.style.display = 'flex';
+  }
+  hide(): void {
+    this.root.style.display = 'none';
+  }
+  get visible(): boolean {
+    return this.root.style.display !== 'none';
+  }
+}

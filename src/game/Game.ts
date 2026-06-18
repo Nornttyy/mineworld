@@ -15,6 +15,7 @@ import {
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { loadAtlas } from '../render/atlas';
+import { loadSettings, type TexturePack } from '../core/settings';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
 import { CrackOverlay } from '../render/CrackOverlay';
 import { DropRenderer } from '../render/DropRenderer';
@@ -113,6 +114,7 @@ export class Game {
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
+  private texturePack: TexturePack; // 当前材质风格（卡通/经典）
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -149,7 +151,8 @@ export class Game {
       this.world.setBlock(x, y, z, save.edits[key]);
       this.fluidSim.activate(x, y, z);
     }
-    const atlas = loadAtlas();
+    this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
+    const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
@@ -391,6 +394,16 @@ export class Game {
 
   isDead(): boolean {
     return this.dead;
+  }
+
+  // 切换材质风格（设置里改"材质"时由 main 调用）：换图集到方块/手持/掉落物，无需重建网格。
+  setTexturePack(pack: TexturePack): void {
+    if (pack === this.texturePack) return;
+    this.texturePack = pack;
+    const atlas = loadAtlas(pack);
+    this.chunks.setAtlas(atlas);
+    this.hand.setAtlas(atlas);
+    this.dropRenderer.setAtlas(atlas);
   }
 
   // 重生：满状态 + 回到世界出生点。

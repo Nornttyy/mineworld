@@ -48,6 +48,12 @@ export class DropRenderer {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
   }
 
+  /** 切换方块图集（材质风格切换）：换方块掉落物的贴图。物品掉落用各自图标，不受影响。 */
+  setAtlas(tex: THREE.Texture): void {
+    this.mat.map = tex;
+    this.mat.needsUpdate = true;
+  }
+
   // 非方块物品掉落：按 id 取对应图标(icons/<name>.png)做扁平方片材质，缓存复用。
   // （以前硬编码成苹果，导致煤/工具掉落都显示苹果。）
   private itemMat(id: number): THREE.MeshBasicMaterial {

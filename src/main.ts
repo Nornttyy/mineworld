@@ -1,6 +1,7 @@
 import { Game } from './game/Game';
 import { MenuBackground } from './render/MenuBackground';
 import { listWorlds, createWorld, saveWorld, deleteWorld, type WorldSave } from './save/worldStore';
+import { SettingsMenu } from './ui/settingsMenu';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -64,6 +65,15 @@ function showOnly(el: HTMLElement | null): void {
 
 // --- 主菜单 ---
 showOnly(menu);
+// 设置面板（局内/局外共用）：改材质即时套用到运行中的游戏；音量已存盘(音效待开发)。
+const settingsMenu = new SettingsMenu($('settings'));
+settingsMenu.onChange = (s): void => {
+  game?.setTexturePack(s.texturePack);
+  // 音量/光影：已存进设置，音频与光影渲染接入后会读取（本次先存）。
+};
+$('settings-btn').addEventListener('click', () => settingsMenu.show());
+$('settings-btn-pause').addEventListener('click', () => settingsMenu.show());
+
 $('play').addEventListener('click', () => openWorldList());
 $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) void document.exitFullscreen();

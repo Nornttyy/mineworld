@@ -59,6 +59,14 @@ export class ChunkMeshManager {
     for (const mat of [this.opaqueMat, this.cutoutMat, this.waterMat]) mat.color.setRGB(c[0], c[1], c[2]);
   }
 
+  /** 切换方块图集（卡通/经典材质切换）：换不透明/镂空材质的贴图；水有独立纹理不受影响。 */
+  setAtlas(tex: THREE.Texture): void {
+    this.opaqueMat.map = tex;
+    this.cutoutMat.map = tex;
+    this.opaqueMat.needsUpdate = true;
+    this.cutoutMat.needsUpdate = true;
+  }
+
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
    *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {

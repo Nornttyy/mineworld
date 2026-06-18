@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { asset } from '../asset';
 
-/** 加载方块图集纹理：最近邻取样、关 mipmap，保持像素硬边。 */
-export function loadAtlas(): THREE.Texture {
-  // 用 BASE_URL 前缀，dev('/') 与 Pages 子路径('/mineworld/') 都正确
-  const tex = new THREE.TextureLoader().load(asset('textures/atlas.png'));
+/** 加载方块图集纹理：最近邻取样、关 mipmap，保持像素硬边。pack 选卡通(默认)或经典(闷色)。 */
+export function loadAtlas(pack: 'cartoon' | 'classic' = 'cartoon'): THREE.Texture {
+  const file = pack === 'classic' ? 'textures/atlas_classic.png' : 'textures/atlas.png';
+  const tex = new THREE.TextureLoader().load(asset(file));
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
