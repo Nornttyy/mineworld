@@ -142,6 +142,31 @@ describe('updateMob — 不掉崖', () => {
   });
 });
 
+describe('updateMob — 上方块（自动跳台阶）', () => {
+  it('朝 1 格台阶走 → 自动跳上去，站到台阶顶', () => {
+    // 地面顶 y=10（y<10 实心）；x≥3 多一层 → 台阶顶 y=11
+    const w: VoxelWorld = { isSolid: (x, y) => y < 10 || (x >= 3 && y < 11) };
+    let m = spawnMob('pig', 0.5, 10, 0.5);
+    m.onGround = true;
+    m.ai = { state: 'wander', timer: 9999, target: { x: 12, y: 10, z: 0.5 } };
+    const rng = makeRng(1);
+    for (let i = 0; i < 80; i++) m = updateMob(m, w, rng).mob;
+    expect(m.pos.x).toBeGreaterThan(3.2); // 越过了台阶
+    expect(m.pos.y).toBeGreaterThan(10.5); // 站到了台阶顶（~11）
+  });
+
+  it('2 格高的墙不跳（跳不上去就别瞎跳）', () => {
+    const w: VoxelWorld = { isSolid: (x, y) => y < 10 || (x >= 3 && y < 12) }; // 台阶高 2 格
+    let m = spawnMob('pig', 0.5, 10, 0.5);
+    m.onGround = true;
+    m.ai = { state: 'wander', timer: 9999, target: { x: 12, y: 10, z: 0.5 } };
+    const rng = makeRng(1);
+    for (let i = 0; i < 60; i++) m = updateMob(m, w, rng).mob;
+    expect(m.pos.y).toBeLessThan(10.5); // 没爬上 2 格墙
+    expect(m.pos.x).toBeLessThan(3); // 被挡在墙前
+  });
+});
+
 describe('hurtMob', () => {
   it('扣血 + 进 panic + 击退 + 无敌帧', () => {
     const m = spawnMob('pig', 0, 10, 0);

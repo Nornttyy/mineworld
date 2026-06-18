@@ -5,6 +5,8 @@ import type { Mob, MobKind } from '../core/entity/mob';
 // (与体素世界同为 unlit)。走路摆腿、朝移动方向、受击 0.5s 红闪。
 // BoxGeometry 面序 +X,-X,+Y(顶),-Y(底),+Z,-Z；顶亮、底暗、侧中，模仿世界的烤光。
 const FACE_SHADE = [0.84, 0.84, 1.0, 0.55, 0.84, 0.84];
+const EYE_C = 0x141414; // 眼睛(近黑)
+const SWING_RATE = 3.4; // 摆腿快慢(弧度/走过一格)，按实际位移推进 → 不随帧率变、也不会太快
 
 function box(w: number, h: number, d: number, hex: number): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -54,6 +56,8 @@ function buildModel(kind: MobKind): Model {
     P(0.9, 0.5, 0.6, pink, 0, lH + 0.25, 0); // 身
     P(0.42, 0.44, 0.5, pink, 0.55, lH + 0.28, 0); // 头
     P(0.16, 0.16, 0.3, dk, 0.78, lH + 0.2, 0); // 猪鼻
+    P(0.05, 0.09, 0.08, EYE_C, 0.77, lH + 0.36, 0.14); // 眼
+    P(0.05, 0.09, 0.08, EYE_C, 0.77, lH + 0.36, -0.14);
     P(0.14, 0.12, 0.04, dk, 0.5, lH + 0.52, 0.2); // 耳
     P(0.14, 0.12, 0.04, dk, 0.5, lH + 0.52, -0.2);
     P(0.1, 0.1, 0.1, dk, -0.46, lH + 0.36, 0); // 尾根
@@ -69,6 +73,8 @@ function buildModel(kind: MobKind): Model {
     P(0.42, 0.46, 0.5, brown, 0.6, lH + 0.38, 0); // 头
     P(0.3, 0.28, 0.52, white, 0.72, lH + 0.3, 0); // 白脸
     P(0.16, 0.18, 0.42, 0x6f5a45, 0.84, lH + 0.28, 0); // 口鼻
+    P(0.05, 0.1, 0.09, EYE_C, 0.82, lH + 0.46, 0.16); // 眼
+    P(0.05, 0.1, 0.09, EYE_C, 0.82, lH + 0.46, -0.16);
     P(0.1, 0.13, 0.1, horn, 0.6, lH + 0.66, 0.2); // 角
     P(0.1, 0.13, 0.1, horn, 0.6, lH + 0.66, -0.2);
     P(0.16, 0.1, 0.34, 0xefb6c4, -0.18, lH - 0.02, 0); // 乳房
@@ -82,6 +88,8 @@ function buildModel(kind: MobKind): Model {
     P(0.9, 0.66, 0.74, wool, 0, lH + 0.34, 0); // 蓬松羊毛身
     P(0.5, 0.34, 0.42, wool, 0.4, lH + 0.6, 0); // 头顶绒毛
     P(0.28, 0.36, 0.34, face, 0.56, lH + 0.36, 0); // 脸
+    P(0.04, 0.08, 0.07, EYE_C, 0.71, lH + 0.4, 0.11); // 眼
+    P(0.04, 0.08, 0.07, EYE_C, 0.71, lH + 0.4, -0.11);
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, 0.18); // 耳
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, -0.18);
     for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const)
@@ -97,6 +105,8 @@ function buildModel(kind: MobKind): Model {
     P(0.32, 0.24, 0.06, white, -0.18, lH + 0.2, -0.16);
     P(0.18, 0.26, 0.16, white, -0.34, lH + 0.34, 0); // 尾(上翘)
     P(0.22, 0.24, 0.2, white, 0.2, lH + 0.4, 0); // 头
+    P(0.04, 0.06, 0.05, EYE_C, 0.31, lH + 0.46, 0.07); // 眼
+    P(0.04, 0.06, 0.05, EYE_C, 0.31, lH + 0.46, -0.07);
     P(0.13, 0.08, 0.1, beak, 0.36, lH + 0.4, 0); // 喙
     P(0.05, 0.1, 0.14, red, 0.18, lH + 0.55, 0); // 冠
     P(0.06, 0.08, 0.06, red, 0.32, lH + 0.32, 0); // 肉垂
@@ -113,7 +123,7 @@ export class MobRenderer {
   private readonly models = new Map<Mob, Model & { phase: number }>();
   constructor(private readonly scene: THREE.Scene) {}
 
-  sync(mobs: Mob[]): void {
+  sync(mobs: Mob[], dt: number): void {
     const present = new Set(mobs);
     for (const [mob, m] of this.models) {
       if (!present.has(mob)) {
@@ -132,9 +142,9 @@ export class MobRenderer {
       m.group.position.set(mob.pos.x, mob.pos.y, mob.pos.z);
       m.group.rotation.y = -mob.yaw; // 模型本地 +X 为正面
       m.mat.color.copy(mob.hurtCooldown > 0 ? FLASH : NORMAL); // 受击红闪
-      const speed = Math.hypot(mob.vel.x, mob.vel.z);
+      const speed = Math.hypot(mob.vel.x, mob.vel.z); // 格/tick
       const moving = speed > 0.002;
-      if (moving) m.phase += 0.35;
+      if (moving) m.phase += speed * 20 * dt * SWING_RATE; // 按实际位移推进(格/秒×秒×弧度/格)，慢而自然
       const swing = moving ? Math.sin(m.phase) * 0.6 : 0;
       m.legs.forEach((leg, i) => {
         leg.rotation.z = i % 2 === 0 ? swing : -swing;

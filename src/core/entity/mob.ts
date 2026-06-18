@@ -1,4 +1,4 @@
-import { type Vec3, type VoxelWorld, GRAVITY, VDRAG } from '../physics/player';
+import { type Vec3, type VoxelWorld, GRAVITY, VDRAG, JUMP } from '../physics/player';
 import { sweepAabb } from '../physics/aabbSweep';
 import {
   RAW_PORKCHOP,
@@ -155,10 +155,21 @@ export function updateMob(m: Mob, world: VoxelWorld, rng: () => number): MobUpda
     }
   }
 
-  // —— 速度：水平意图 + 重力（鸡缓降钳速）——
+  // —— 上方块：贴地且正前方是「1 格实心台阶、其上为空」→ 标记起跳（2 格墙跳不上就不跳）——
+  let wantJump = false;
+  if ((wishX !== 0 || wishZ !== 0) && mob.onGround) {
+    const len = Math.hypot(wishX, wishZ) || 1;
+    const ax = Math.floor(mob.pos.x + (wishX / len) * (def.width / 2 + 0.3));
+    const az = Math.floor(mob.pos.z + (wishZ / len) * (def.width / 2 + 0.3));
+    const fy = Math.floor(mob.pos.y);
+    if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) wantJump = true;
+  }
+
+  // —— 速度：水平意图 + 重力（鸡缓降钳速）；起跳覆盖本帧重力，才能跳满 1 格（同玩家：满速起跳）——
   mob.vel.x = wishX * speed;
   mob.vel.z = wishZ * speed;
   mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
+  if (wantJump) mob.vel.y = JUMP;
   if (def.fallImmune && mob.vel.y < CHICKEN_FALL_CLAMP) mob.vel.y = CHICKEN_FALL_CLAMP;
 
   // —— 物理扫掠 ——

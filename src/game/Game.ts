@@ -29,6 +29,7 @@ import { spawnRingGroup, type SpawnWorld } from '../core/entity/mobSpawn';
 import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
+import { presettleWater } from '../core/fluid/presettle';
 import {
   emptyInventory,
   addItem,
@@ -364,6 +365,9 @@ export class Game {
       };
       check();
     });
+    // 开局预流动：读档会重放玩家改过的方块并激活其周围的水(见构造)，这些水本会在进场后头几秒慢慢流。
+    // 这里在加载阶段先把活跃水跑到稳态，再网格化——玩家进场即见已流好的水，而非眼前慢慢流(全新世界活跃集空=瞬返)。
+    presettleWater(this.fluidSim, this.fluidGrid);
     // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
     for (let i = 0; i < rounds; i++) {
@@ -442,7 +446,7 @@ export class Game {
       // 碎屑粒子：每帧推进 + 刷新
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
-      this.mobRenderer.sync(this.mobs); // 生物模型跟随/动画
+      this.mobRenderer.sync(this.mobs, dt); // 生物模型跟随/动画
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
