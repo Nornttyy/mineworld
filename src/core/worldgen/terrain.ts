@@ -30,9 +30,8 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 // 矿洞(按深度分层)：浅层小矿洞为主+少量中、中层中矿洞+一些大、深层大矿洞。
 // depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
 // hmin=周围最低地表、flat=是否平坦，都只依赖 (wx,wz)→由调用方按列算一次传入(避免每格重算 9 次 columnHeight，这是生成耗时主因)。
-function caveAt(wx: number, wy: number, wz: number, hmin: number, flat: boolean, seed: number): boolean {
-  // 露天矿洞口：只在【平坦地形】开(山陡坡不破→不出现山体方块缺口)，稀疏大竖井贯通地表
-  if (flat && Math.abs(valueNoise3(wx / 7, wy / 72, wz / 7, seed + 888) - 0.5) < 0.05) return true;
+function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number): boolean {
+  // 注：露天竖井已移到 generateChunk 主循环单独处理(需破草顶成露天口)，这里只管地下隧道/矿洞。
   const depth = hmin - wy;
   if (depth < 12) return false; // 距周围最低地表 12 格内留实心(山坡侧面也不破洞)
   // domain warp：用低频噪声把采样坐标推歪 → 洞穴蜿蜒弯曲(单层 valueNoise3 等值面太规整笔直)；仅 2 次噪声，远快于 fbm3
@@ -190,9 +189,10 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const flat = isFlat(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
-        // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
-        // 矿洞(按周围最低地表留表层、竖井除外=露天口)或峡谷(露天裂缝)。草顶 y==height 始终保留。
-        if (y > 1 && y < height && (caveAt(wx, y, wz, hmin, flat, seed) || ravineAt(wx, y, wz, flat, seed))) continue;
+        // 露天竖井：平坦地形的稀疏大竖井，【连草顶一起挖穿】→ 地面可见的露天矿洞口(否则草顶封住、地面看不到洞)
+        const shaft = flat && valueNoise3(wx / 8, y / 120, wz / 8, seed + 888) > 0.9;
+        // 竖井破到地表(y<=height)；其余矿洞/峡谷只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
+        if (y > 1 && (shaft || (y < height && (caveAt(wx, y, wz, hmin, seed) || ravineAt(wx, y, wz, flat, seed))))) continue;
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
