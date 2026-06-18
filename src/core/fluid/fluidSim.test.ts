@@ -114,7 +114,7 @@ describe('fluidSim（对照 MC）', () => {
     expect(sim.activeCount).toBe(0); // 收敛，不再 churn
   });
 
-  it('海平面下、连到水源的洼地进水（衰减铺开，绝不生成新源头）', () => {
+  it('海平面下、连到水源的洼地被灌满（复刻 MC 海边/水下挖坑进水填满）', () => {
     const g = new Grid(0); // y<0 固体
     const SEA = 5;
     for (let y = 0; y <= SEA; y++) g.src(-1, y, 0); // 一面"深海"源头墙(x=-1)
@@ -128,13 +128,12 @@ describe('fluidSim（对照 MC）', () => {
     }
     const sim = new FluidSim(SEA); // 传入海平面
     for (let y = 0; y <= SEA; y++) sim.activate(-1, y, 0);
-    run(sim, g, 40);
-    // 坑(x=0,1 各 y=0..5)应进水，但只能是流动水，不能凭空变成无限源头
-    expect(g.amount(0, 0, 0)).toBeGreaterThan(0); // 底
-    expect(g.amount(0, SEA, 0)).toBeGreaterThan(0); // 顶
-    expect(g.amount(1, 0, 0)).toBeGreaterThan(0); // 远一格的底也进水
-    expect(g.isSource(0, 0, 0)).toBe(false); // 进来的水绝不是源头 → 可被抽干
-    expect(g.isSource(1, 0, 0)).toBe(false);
+    run(sim, g, 60);
+    // 坑(x=0,1 各 y=0..SEA)应被灌满到海平面（满量），而不是只在底部积薄层
+    expect(g.amount(0, 0, 0)).toBe(8); // 底满
+    expect(g.amount(0, SEA, 0)).toBe(8); // 顶满
+    expect(g.amount(1, SEA, 0)).toBe(8); // 远一格的顶也满
+    expect(g.isSource(0, SEA, 0)).toBe(true); // 海平面下连到海 → 灌成源头
   });
 
   it('永不生成无限水：两源头夹一格 → 中间只是流动水(7)，撤掉源头后退干', () => {
