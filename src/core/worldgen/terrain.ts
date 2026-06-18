@@ -86,7 +86,7 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
   {
     const rn = fbm2(wx / 140, wz / 140, seed + 777, 3); // 蜿蜒场
     const dist = Math.abs(rn - 0.5);
-    const width = 0.035 + hills * 0.03;
+    const width = 0.028 + hills * 0.022 + Math.max(0, continent - 0.54) * 0.4; // 平原河窄；经过山区(continent高)时明显加宽→"两山夹一河"的宽阔山谷
     if (dist < width) {
       let t = 1 - dist / width;
       t = t * t * (3 - 2 * t); // smoothstep：岸边平滑过渡
