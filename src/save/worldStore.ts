@@ -10,6 +10,7 @@ export interface WorldSave {
   player?: { x: number; y: number; z: number; yaw: number; pitch: number };
   inv?: ({ id: number; count: number } | null)[]; // 背包（9 格快捷栏），不存则空手
   survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
+  worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
 }
 
 const KEY = 'mineworld.saves';

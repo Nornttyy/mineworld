@@ -1,20 +1,40 @@
 import * as THREE from 'three';
-import { makeSkyTexture, HORIZON_COLOR } from './sky';
+import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
 
 /** 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。 */
 export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   private readonly gl: THREE.WebGLRenderer;
+  // 天空背景：自有 canvas，昼夜更替时重画渐变（见 setSkyColors）。
+  private readonly skyCanvas = document.createElement('canvas');
+  private readonly skyCtx: CanvasRenderingContext2D | null;
+  private readonly skyTex: THREE.CanvasTexture;
+  private lastSky = ''; // 上次套用的天空配色（相同则跳过重画）
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.scene.background = makeSkyTexture(); // 渐变天空
+    this.skyCanvas.width = 2;
+    this.skyCanvas.height = 256;
+    this.skyCtx = this.skyCanvas.getContext('2d');
+    if (this.skyCtx) drawSkyGradient(this.skyCtx, [0.3, 0.52, 0.79], [0.81, 0.9, 0.97]);
+    this.skyTex = new THREE.CanvasTexture(this.skyCanvas);
+    this.skyTex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = this.skyTex; // 渐变天空
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  // 昼夜更替：重画天空渐变（配色不变则跳过，避免每帧白重传）。
+  setSkyColors(top: RGB, horizon: RGB): void {
+    const sig = `${top.join()}|${horizon.join()}`;
+    if (sig === this.lastSky || !this.skyCtx) return;
+    this.lastSky = sig;
+    drawSkyGradient(this.skyCtx, top, horizon);
+    this.skyTex.needsUpdate = true;
   }
 
   resize(): void {

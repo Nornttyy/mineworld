@@ -48,6 +48,7 @@ import {
   type Survival,
 } from '../core/survival/survival';
 import { APPLE, isFood, foodValue, toolOf } from '../core/items/items';
+import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -93,6 +94,7 @@ export class Game {
   private readonly fluidSim = new FluidSim(SEA_LEVEL);
   private readonly fluidGrid: FluidGrid;
   private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
+  private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   private fov = 70;
   private last = 0;
   private acc = 0;
@@ -113,14 +115,16 @@ export class Game {
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
     this.inv = save.inv ? deserializeInventory(save.inv) : emptyInventory();
     this.hotbar.render(this.inv);
-    // 生命/饥饿：有存档用存档（已死状态则重置为满），否则全满
+    // 生命/饥饿：有存档用存档（已死状态则重置为满），否则全满。
+    // 先铺 newSurvival() 默认值，再覆盖存档字段——补齐旧存档没有的字段(如 oxygen)，避免缺值。
     const sv = save.survival;
-    this.survival = sv && sv.health > 0 ? { ...sv, foodTimer: 0 } : newSurvival();
+    this.survival = sv && sv.health > 0 ? { ...newSurvival(), ...sv, foodTimer: 0 } : newSurvival();
     this.statusBar = new StatusBar(
       document.getElementById('health') as HTMLElement,
       document.getElementById('hunger') as HTMLElement,
     );
     this.statusBar.render(this.survival);
+    this.worldTime = save.worldTime ?? DAY_START; // 昼夜：续存档时刻，新世界从清晨开始
 
     this.world = new ChunkWorld(save.seed);
     this.fluidGrid = {
@@ -233,6 +237,7 @@ export class Game {
       saturation: sv.saturation,
       exhaustion: sv.exhaustion,
     };
+    this.save.worldTime = this.worldTime; // 昼夜：存当前时刻，下次续上
     this.save.lastPlayed = Date.now();
     return this.save;
   }
@@ -280,6 +285,7 @@ export class Game {
           this.physWorld,
         );
         this.stepSurvival(m.sprint, jumped);
+        if (++this.worldTime >= DAY_LENGTH) this.worldTime = 0; // 昼夜推进：每模拟刻 +1（暂停即冻结）
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
         if (++this.fluidTick >= 5) {
           this.fluidTick = 0;
@@ -310,6 +316,7 @@ export class Game {
         this.crack.hide();
       }
       this.chunks.animateWater(dt); // 水面流动动画
+      this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
@@ -560,6 +567,16 @@ export class Game {
       bz < p.z + hw &&
       bz + 1 > p.z - hw
     );
+  }
+
+  // 昼夜更替：按世界时间套用天空渐变、雾色、世界亮度着色。水下时雾被 updateWater 换成蓝雾，
+  //   这里只改“正常雾”的颜色，故两者不冲突。
+  private updateDayNight(): void {
+    const s = skyStateAt(this.worldTime);
+    this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
+    const fog = this.normalFog;
+    if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
+    this.chunks.setTint(s.worldTint);
   }
 
   private updateWater(): void {

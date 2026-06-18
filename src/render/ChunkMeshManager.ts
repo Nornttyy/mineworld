@@ -50,6 +50,15 @@ export class ChunkMeshManager {
     });
   }
 
+  /** 昼夜更替：把世界亮度着色乘到所有方块材质 .color 上（白=全亮，暗蓝=夜）。配色不变则跳过。 */
+  private lastTint = '';
+  setTint(c: [number, number, number]): void {
+    const sig = c.join();
+    if (sig === this.lastTint) return;
+    this.lastTint = sig;
+    for (const mat of [this.opaqueMat, this.cutoutMat, this.waterMat]) mat.color.setRGB(c[0], c[1], c[2]);
+  }
+
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
    *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {
