@@ -248,12 +248,14 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
   // 角高度(MC 平均法)：该角周围 4 格水的自身高度平均；近满(≥0.8)权重×10；空气计 0 高度。
+  //  被"水或不透明方块"盖住头顶的水格 → 灌满到顶(高度 1)，否则方块下的浅水会露出空洞/缝。
   const cornerH = (wy: number, cells: [number, number][]): number => {
     let total = 0;
     let count = 0;
     for (const [cx, cz] of cells) {
-      if (world.waterAmount(cx, wy + 1, cz) > 0) return 1;
       const a = world.waterAmount(cx, wy, cz);
+      if (world.waterAmount(cx, wy + 1, cz) > 0) return 1; // 上方有水(柱内) → 满
+      if (a > 0 && isOpaque(world.getBlock(cx, wy + 1, cz))) return 1; // 头顶是实心方块的水 → 灌满到顶
       if (a > 0) {
         const h = a / 9;
         if (h >= 0.8) {

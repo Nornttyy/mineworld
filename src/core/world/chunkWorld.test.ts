@@ -53,6 +53,20 @@ describe('meshChunk', () => {
     expect(m.positions.length).toBe((m.indices.length / 6) * 12);
   });
 
+  it('上方有实心方块的水 → 渲染灌满到顶(不在方块下露空洞)', () => {
+    const w = new ChunkWorld(5);
+    const Y = 30; // 地形之上
+    w.setBlock(5, Y - 1, 5, 1); // 地板
+    w.setWater(5, Y, 5, 4, false, false); // 浅水(量4≈高度0.44)
+    w.setBlock(5, Y + 1, 5, 1); // 头顶盖实心方块
+    // (6,Y,5) 保持空气 → 会出一个朝空气的侧面，其顶边高度能验证
+    const water = meshChunk(w, 0, 0).water;
+    let maxY = 0;
+    for (let i = 1; i < water.positions.length; i += 3) maxY = Math.max(maxY, water.positions[i]);
+    // 被方块盖住 → 水面应灌到 ~Y+1（满），而不是 Y+4/9≈Y+0.44
+    expect(maxY).toBeGreaterThan(Y + 0.9);
+  });
+
   it('culls faces at chunk borders against the neighbour chunk (no internal wall)', () => {
     const w = new ChunkWorld(123);
     const h = 45; // 高于地形，干净的浮空块便于对比
