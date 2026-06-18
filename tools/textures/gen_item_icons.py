@@ -255,7 +255,7 @@ def main():
         # wooden_pickaxe 由用户手绘(paint.html)，不在此生成，避免覆盖
         "wooden_axe": make_axe(False),
         "wooden_shovel": make_shovel(False),
-        "wooden_sword": make_sword(False),
+        # wooden_sword 由用户手绘(paint.html)，不在此生成
         "wooden_hoe": make_hoe(False),
         "stone_pickaxe": make_pickaxe(True),
         "stone_axe": make_axe(True),
