@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Mob, MobKind } from '../core/entity/mob';
+import { bodyTexture } from './mobTextures';
 
 // 把生物渲染成 MC 风的盒状模型。每只一套自己的材质(便于受击红闪 + 个体染色)，颜色 + 假面光烤进顶点
 // (与体素世界同为 unlit)。走路摆腿 + 头点动 + 尾巴甩 + 鸡啄地 + 呼吸起伏；朝移动方向；受击 0.5s 红闪。
@@ -30,7 +31,7 @@ function part(g: THREE.Group, mat: THREE.Material, w: number, h: number, d: numb
 interface Model {
   group: THREE.Group;
   legs: THREE.Group[];
-  mat: THREE.MeshBasicMaterial; // 整只共用 → 受击染红 / 个体微染色
+  mats: THREE.MeshBasicMaterial[]; // 全部可染色材质(纯色 + 贴图身体) → 受击染红 / 个体微染色
   base: THREE.Color; // 个体基础色(平时用，受击换红)
   head?: THREE.Mesh;
   tail?: THREE.Mesh;
@@ -51,13 +52,16 @@ function buildModel(kind: MobKind): Model {
   const g = new THREE.Group();
   const legs: THREE.Group[] = [];
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const bodyMat = new THREE.MeshBasicMaterial({ map: bodyTexture(kind), vertexColors: true });
   const P = (w: number, h: number, d: number, hex: number, x: number, y: number, z: number): THREE.Mesh => part(g, mat, w, h, d, hex, x, y, z);
+  // 身体用贴图材质(白顶点 → 贴图本色 × 烤光 × 个体染色)
+  const B = (w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh => part(g, bodyMat, w, h, d, 0xffffff, x, y, z);
   let head: THREE.Mesh | undefined;
   let tail: THREE.Mesh | undefined;
 
   if (kind === 'pig') {
     const pink = 0xeaa6a0, dk = 0xd98c8c, lH = 0.26;
-    P(0.9, 0.5, 0.6, pink, 0, lH + 0.25, 0); // 身
+    B(0.9, 0.5, 0.6, 0, lH + 0.25, 0); // 身(贴图)
     head = P(0.42, 0.44, 0.5, pink, 0.55, lH + 0.28, 0); // 头
     P(0.16, 0.16, 0.3, dk, 0.78, lH + 0.2, 0); // 猪鼻
     P(0.05, 0.09, 0.08, EYE_C, 0.77, lH + 0.36, 0.14);
@@ -68,8 +72,7 @@ function buildModel(kind: MobKind): Model {
     for (const [x, z] of [[0.3, 0.2], [0.3, -0.2], [-0.32, 0.2], [-0.32, -0.2]] as const) addLeg(g, mat, legs, dk, x, z, lH, 0.16);
   } else if (kind === 'cow') {
     const brown = 0x4f3b2d, white = 0xe7ddcd, horn = 0xdcd0b8, lH = 0.52;
-    P(1.0, 0.6, 0.62, brown, 0, lH + 0.3, 0); // 身
-    P(0.5, 0.34, 0.64, white, -0.05, lH + 0.34, 0); // 白斑
+    B(1.0, 0.6, 0.62, 0, lH + 0.3, 0); // 身(贴图：棕底白斑)
     head = P(0.42, 0.46, 0.5, brown, 0.6, lH + 0.38, 0); // 头
     P(0.3, 0.28, 0.52, white, 0.72, lH + 0.3, 0); // 白脸
     P(0.16, 0.18, 0.42, 0x6f5a45, 0.84, lH + 0.28, 0); // 口鼻
@@ -82,7 +85,7 @@ function buildModel(kind: MobKind): Model {
     for (const [x, z] of [[0.34, 0.21], [0.34, -0.21], [-0.34, 0.21], [-0.34, -0.21]] as const) addLeg(g, mat, legs, brown, x, z, lH, 0.18, white);
   } else if (kind === 'sheep') {
     const wool = 0xeceae3, face = 0x47403a, lH = 0.46;
-    P(0.9, 0.66, 0.74, wool, 0, lH + 0.34, 0); // 羊毛身
+    B(0.9, 0.66, 0.74, 0, lH + 0.34, 0); // 羊毛身(贴图)
     P(0.5, 0.34, 0.42, wool, 0.4, lH + 0.6, 0); // 头顶绒
     head = P(0.28, 0.36, 0.34, face, 0.56, lH + 0.36, 0); // 脸
     P(0.04, 0.08, 0.07, EYE_C, 0.71, lH + 0.4, 0.11);
@@ -92,7 +95,7 @@ function buildModel(kind: MobKind): Model {
     for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const) addLeg(g, mat, legs, face, x, z, lH, 0.15);
   } else {
     const white = 0xf2f2f2, beak = 0xe7951f, red = 0xcc3b30, lH = 0.22;
-    P(0.34, 0.34, 0.3, white, -0.02, lH + 0.17, 0); // 身
+    B(0.34, 0.34, 0.3, -0.02, lH + 0.17, 0); // 身(贴图)
     P(0.32, 0.24, 0.06, white, -0.18, lH + 0.2, 0.16); // 翅
     P(0.32, 0.24, 0.06, white, -0.18, lH + 0.2, -0.16);
     tail = P(0.18, 0.26, 0.16, white, -0.34, lH + 0.34, 0); // 尾(上翘)
@@ -111,7 +114,7 @@ function buildModel(kind: MobKind): Model {
   const b = 0.9 + Math.random() * 0.16; // 亮度
   const warm = (Math.random() - 0.5) * 0.06; // 暖/冷
   const base = new THREE.Color(Math.min(1, b + warm), b, Math.max(0, b - warm));
-  return { group: g, legs, mat, base, head, tail, headY: head ? head.position.y : 0 };
+  return { group: g, legs, mats: [mat, bodyMat], base, head, tail, headY: head ? head.position.y : 0 };
 }
 
 const FLASH = new THREE.Color(0xff5a5a);
@@ -139,7 +142,8 @@ export class MobRenderer {
       m.t += dt;
       m.group.position.set(mob.pos.x, mob.pos.y, mob.pos.z);
       m.group.rotation.y = -mob.yaw;
-      m.mat.color.copy(mob.hurtCooldown > 0 ? FLASH : m.base); // 受击红闪，平时个体色
+      const tint = mob.hurtCooldown > 0 ? FLASH : m.base; // 受击红闪，平时个体色
+      for (const mt of m.mats) mt.color.copy(tint);
 
       const speed = Math.hypot(mob.vel.x, mob.vel.z); // 格/tick
       const moving = speed > 0.002;
