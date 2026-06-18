@@ -660,9 +660,66 @@
           opacity: 0;
         }
       }
+      /* MC 风启动/加载界面：深泥土背景 + 像素标题 + 绿条纹进度条。#boot 写死在 HTML、默认显示 → JS 加载前就可见，无白屏 */
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        background: linear-gradient(#4a3a28, #16110b);
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+      }
+      #boot.hidden {
+        display: none;
+      }
+      .boot-logo {
+        font-size: 54px;
+        color: #ededed;
+        letter-spacing: 7px;
+        text-shadow: 4px 4px 0 #20180f;
+      }
+      .boot-bar {
+        width: 340px;
+        height: 20px;
+        padding: 3px;
+        background: #1d1d1d;
+        border: 3px solid #000;
+        box-shadow: 0 0 0 3px #5a5a5a;
+      }
+      .boot-fill {
+        height: 100%;
+        background: repeating-linear-gradient(90deg, #66d166 0 9px, #50b850 9px 13px);
+        animation: boot-load 1.2s ease-in-out infinite;
+      }
+      @keyframes boot-load {
+        0% {
+          width: 6%;
+        }
+        50% {
+          width: 94%;
+        }
+        100% {
+          width: 6%;
+        }
+      }
+      .boot-tip {
+        font-size: 16px;
+        color: #d8c9a8;
+        letter-spacing: 4px;
+      }
     </style>
   </head>
   <body>
+    <div id="boot">
+      <div class="boot-logo">MINEWORLD</div>
+      <div class="boot-bar"><div class="boot-fill"></div></div>
+      <div class="boot-tip">加载中…</div>
+    </div>
     <canvas id="app"></canvas>
     <canvas id="menubg"></canvas>
     <div id="menu">
