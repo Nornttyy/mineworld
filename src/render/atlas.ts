@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { asset } from '../asset';
 
 /** 加载方块图集纹理：最近邻取样、关 mipmap，保持像素硬边。 */
 export function loadAtlas(): THREE.Texture {
   // 用 BASE_URL 前缀，dev('/') 与 Pages 子路径('/mineworld/') 都正确
-  const tex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/atlas.png');
+  const tex = new THREE.TextureLoader().load(asset('textures/atlas.png'));
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
@@ -13,7 +14,7 @@ export function loadAtlas(): THREE.Texture {
 
 /** 独立的水纹理（可平铺、可滚动做流动动画，不与图集共享，免得动到其它方块）。 */
 export function loadWaterTexture(): THREE.Texture {
-  const tex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/blocks/water.png');
+  const tex = new THREE.TextureLoader().load(asset('textures/blocks/water.png'));
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
@@ -28,7 +29,7 @@ export function loadWaterFrames(n: number): THREE.Texture[] {
   const loader = new THREE.TextureLoader();
   const frames: THREE.Texture[] = [];
   for (let i = 0; i < n; i++) {
-    const tex = loader.load(import.meta.env.BASE_URL + `textures/blocks/water_${i}.png`);
+    const tex = loader.load(asset(`textures/blocks/water_${i}.png`));
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;

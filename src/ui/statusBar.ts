@@ -1,6 +1,8 @@
 import { type Survival, MAX_OXYGEN } from '../core/survival/survival';
 
-const url = (n: string): string => `url(${import.meta.env.BASE_URL}textures/ui/${n}.png)`;
+import { asset } from '../asset';
+
+const url = (n: string): string => `url(${asset(`textures/ui/${n}.png`)})`;
 
 /** 快捷栏上方的红心 + 饥饿 + 氧气条（各 10 图标，每图标 = 2 点）。
  *  氧气满则隐藏（仅水下憋气时显示）；血量/饱食 ≤4 时对应条抖动（MC 低值提示）。 */

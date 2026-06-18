@@ -1,6 +1,7 @@
 // 物品/方块的显示资源：等距图标(public/textures/icons/<name>.png)或中文文字占位。
 // hotbar / 合成 / 背包界面共用，避免各处重复维护映射。
 import { APPLE } from '../core/items/items';
+import { asset } from '../asset';
 
 // 有等距图标文件的 id → 文件名；其余回退中文文字
 const ICON: Record<number, string> = {
@@ -57,6 +58,6 @@ const ZH: Record<number, string> = {
 };
 
 export const iconUrl = (id: number): string | null =>
-  ICON[id] ? `${import.meta.env.BASE_URL}textures/icons/${ICON[id]}.png` : null;
+  ICON[id] ? asset(`textures/icons/${ICON[id]}.png`) : null;
 
 export const itemLabel = (id: number): string => ZH[id] ?? `#${id}`;
