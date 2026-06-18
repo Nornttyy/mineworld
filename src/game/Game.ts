@@ -214,6 +214,7 @@ export class Game {
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
+    this.chunks.setShaders(loadSettings().shaders); // 光影开关初值(真实水面波动/反射)
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.mobRenderer = new MobRenderer(this.renderer.scene);
@@ -525,6 +526,11 @@ export class Game {
     this.chunks.setAtlas(atlas);
     this.hand.setAtlas(atlas);
     this.dropRenderer.setAtlas(atlas);
+  }
+
+  // 光影开关（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光，无需重建网格。
+  setShaders(on: boolean): void {
+    this.chunks.setShaders(on);
   }
 
   // 重生：满状态 + 回到世界出生点。
@@ -944,6 +950,10 @@ export class Game {
     const mx = Math.max(t[0], t[1], t[2], 0.001);
     this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
     this.chunks.setSkyMul(Math.pow(mx, 4));
+    // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
+    this.chunks.setSkyReflection(s.skyHorizon);
+    const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光
+    this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.35);
   }
 
   private updateWater(): void {

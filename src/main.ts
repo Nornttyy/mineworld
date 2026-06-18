@@ -91,7 +91,8 @@ void (async () => {
 const settingsMenu = new SettingsMenu($('settings'));
 settingsMenu.onChange = (s): void => {
   game?.setTexturePack(s.texturePack);
-  // 音量/光影：已存进设置，音频与光影渲染接入后会读取（本次先存）。
+  game?.setShaders(s.shaders); // 光影：真实水面(波动/反射/高光)，即时套用
+  // 音量：已存进设置，音频接入后会读取（本次先存）。
 };
 $('settings-btn').addEventListener('click', () => settingsMenu.show());
 $('settings-btn-pause').addEventListener('click', () => settingsMenu.show());

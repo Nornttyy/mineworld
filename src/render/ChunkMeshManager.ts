@@ -39,6 +39,11 @@ export class ChunkMeshManager {
   // 故昼夜只缩放天光、火把(方块光)恒亮；改昼夜只动 uniform，无需重建网格。
   private readonly uSkyMul = { value: 1 };
   private readonly uSkyTint = { value: new THREE.Color(1, 1, 1) };
+  // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
+  private readonly uShaders = { value: 0 };
+  private readonly uTime = { value: 0 };
+  private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) };
+  private readonly uSunDir = { value: new THREE.Vector3(0.4, 0.85, 0.3) };
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -65,8 +70,9 @@ export class ChunkMeshManager {
       opacity: 0.78,
       depthWrite: false,
     });
-    // 这三套方块网格都吃天光/方块光 shader
-    for (const m of [this.opaqueMat, this.cutoutMat, this.waterMat]) this.installLight(m);
+    // 不透明/镂空吃天光shader；水另走"天光 + 光影(波动/菲涅尔反射/高光)"shader
+    for (const m of [this.opaqueMat, this.cutoutMat]) this.installLight(m);
+    this.installWaterShader(this.waterMat);
     // 火把：自发光暖色十字，不参与天光(始终全亮)，双面可见
     this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   }
@@ -92,6 +98,50 @@ export class ChunkMeshManager {
     };
   }
 
+  // 水面专用：先按 installLight 同样烤天光/方块光，再叠"光影"(uShaders 开时)——
+  // 顶点正弦波动起伏、片元菲涅尔反射天空色(侧看反光、俯看见水)、太阳方向镜面高光(粼粼反光)。
+  private installWaterShader(mat: THREE.MeshBasicMaterial): void {
+    mat.onBeforeCompile = (shader): void => {
+      shader.uniforms.uSkyMul = this.uSkyMul;
+      shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.uniforms.uShaders = this.uShaders;
+      shader.uniforms.uTime = this.uTime;
+      shader.uniforms.uSkyRefl = this.uSkyRefl;
+      shader.uniforms.uSunDir = this.uSunDir;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+            'float wwave(vec2 p, float t){ return sin(p.x*0.55 + t*1.2)*0.04 + sin(p.y*0.5 - t*0.9)*0.035 + sin((p.x+p.y)*0.32 + t*0.7)*0.025; }',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
+            ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
+            'vec3 wp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
+            'transformed.y += uShaders * wwave(wp0.xz, uTime);\n' +
+            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform vec3 uSkyRefl;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
+        )
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
+            'if (uShaders > 0.5) {\n' +
+            '  vec3 V = normalize(cameraPosition - vWPos);\n' +
+            '  float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);\n' + // 侧看(V.y小)→反射强
+            '  diffuseColor.rgb = mix(diffuseColor.rgb, uSkyRefl, fres * 0.55);\n' +
+            '  vec3 R = reflect(-normalize(uSunDir), vec3(0.0, 1.0, 0.0));\n' +
+            '  float spec = pow(max(dot(R, V), 0.0), 80.0);\n' + // 太阳镜面高光
+            '  diffuseColor.rgb += spec * uSkyMul * vec3(1.0, 0.96, 0.85);\n' +
+            '}',
+        );
+    };
+  }
+
   /** 昼夜：天光着色 → uSkyTint（白天白、夜暗蓝），由 shader 按天光占比施加（火把照亮处不变蓝）。 */
   private lastTint = '';
   setTint(c: [number, number, number]): void {
@@ -106,6 +156,21 @@ export class ChunkMeshManager {
     this.uSkyMul.value = v;
   }
 
+  /** 光影总开关：开 → 水面波动 + 菲涅尔反射 + 太阳高光；关 → 平静水面(省性能)。 */
+  setShaders(on: boolean): void {
+    this.uShaders.value = on ? 1 : 0;
+  }
+
+  /** 水面反射的天空色(取地平线色，黄昏偏橙/夜里偏暗 → 水面反光随之变)。 */
+  setSkyReflection(c: [number, number, number]): void {
+    this.uSkyRefl.value.setRGB(c[0], c[1], c[2]);
+  }
+
+  /** 太阳方向(世界系，驱动水面镜面高光)。 */
+  setSunDir(x: number, y: number, z: number): void {
+    this.uSunDir.value.set(x, y, z);
+  }
+
   /** 切换方块图集（卡通/经典材质切换）：换不透明/镂空材质的贴图；水有独立纹理不受影响。 */
   setAtlas(tex: THREE.Texture): void {
     this.opaqueMat.map = tex;
@@ -117,6 +182,7 @@ export class ChunkMeshManager {
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
    *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {
+    this.uTime.value += dt; // 驱动光影水面波动
     this.waterAnimT += dt;
     const FRAME_DUR = 0.09; // 每帧约 90ms（接近 MC 水的节奏）
     while (this.waterAnimT >= FRAME_DUR) {
