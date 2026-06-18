@@ -29,37 +29,34 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 // 故洞穴不碰土层/草顶 → 山坡再陡也不会露出方块条纹。返回 true=挖空。
 // 矿洞(按深度分层)：浅层小矿洞为主+少量中、中层中矿洞+一些大、深层大矿洞。
 // depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
-function caveAt(wx: number, wy: number, wz: number, height: number, seed: number): boolean {
-  // 露天矿洞口：稀疏的大竖井，从地表贯通到地下(显眼大入口，故意可破表层)
-  if (Math.abs(valueNoise3(wx / 7, wy / 72, wz / 7, seed + 888) - 0.5) < 0.045) return true;
-  // 其余洞穴用【周围最低地表】算深度——否则 3D 洞会从陡坡侧面探出，把山啃成波浪线
-  const hmin = Math.min(
-    height,
-    columnHeight(wx + 4, wz, seed),
-    columnHeight(wx - 4, wz, seed),
-    columnHeight(wx, wz + 4, seed),
-    columnHeight(wx, wz - 4, seed),
-  );
+// hmin=周围最低地表、flat=是否平坦，都只依赖 (wx,wz)→由调用方按列算一次传入(避免每格重算 9 次 columnHeight，这是生成耗时主因)。
+function caveAt(wx: number, wy: number, wz: number, hmin: number, flat: boolean, seed: number): boolean {
+  // 露天矿洞口：只在【平坦地形】开(山陡坡不破→不出现山体方块缺口)，稀疏大竖井贯通地表
+  if (flat && Math.abs(valueNoise3(wx / 7, wy / 72, wz / 7, seed + 888) - 0.5) < 0.05) return true;
   const depth = hmin - wy;
   if (depth < 12) return false; // 距周围最低地表 12 格内留实心(山坡侧面也不破洞)
+  // domain warp：用低频噪声把采样坐标推歪 → 洞穴蜿蜒弯曲(单层 valueNoise3 等值面太规整笔直)；仅 2 次噪声，远快于 fbm3
+  const wxw = wx + (valueNoise3(wx / 36, wy / 30, wz / 36, seed + 991) - 0.5) * 26;
+  const wzw = wz + (valueNoise3(wz / 36, wy / 30, wx / 36, seed + 992) - 0.5) * 26;
   if (depth < 50) {
-    // 浅层：小矿洞，稀疏(密度降低，避免地上挖几下就掉进洞)
-    return Math.abs(valueNoise3(wx / 14, wy / 10, wz / 14, seed + 222) - 0.5) < 0.03;
+    // 浅层：小矿洞，稀疏
+    return Math.abs(valueNoise3(wxw / 14, wy / 10, wzw / 14, seed + 222) - 0.5) < 0.03;
   }
   if (depth < 100) {
     // 中层：中矿洞 + 一些大矿洞
-    if (Math.abs(valueNoise3(wx / 18, wy / 14, wz / 18, seed + 333) - 0.5) < 0.05) return true;
-    return valueNoise3(wx / 22, wy / 16, wz / 22, seed + 700) < 0.07;
+    if (Math.abs(valueNoise3(wxw / 18, wy / 14, wzw / 18, seed + 333) - 0.5) < 0.05) return true;
+    return valueNoise3(wxw / 22, wy / 16, wzw / 22, seed + 700) < 0.07;
   }
   // 深层：大矿洞为主 + 连通中隧道
-  if (valueNoise3(wx / 26, wy / 18, wz / 26, seed + 700) < 0.16) return true;
-  return Math.abs(valueNoise3(wx / 18, wy / 14, wz / 18, seed + 333) - 0.5) < 0.04;
+  if (valueNoise3(wxw / 26, wy / 18, wzw / 26, seed + 700) < 0.16) return true;
+  return Math.abs(valueNoise3(wxw / 18, wy / 14, wzw / 18, seed + 333) - 0.5) < 0.04;
 }
 
-// 峡谷(独立，不算矿洞)：平坦地形的竖直深裂缝，从近地表一直切到很深。
-function ravineAt(wx: number, wy: number, wz: number, seed: number): boolean {
+// 峡谷(独立，不算矿洞)：平坦地形的竖直深裂缝，从近地表一直切到很深。flat 由调用方列级传入。
+function ravineAt(wx: number, wy: number, wz: number, flat: boolean, seed: number): boolean {
+  if (!flat || wy < 2) return false;
   const rv = fbm2(wx / 145, wz / 145, seed + 888);
-  return Math.abs(rv - 0.5) < 0.02 && wy >= 2 && isFlat(wx, wz, seed);
+  return Math.abs(rv - 0.5) < 0.02;
 }
 
 // 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
@@ -176,11 +173,20 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const wx = cx * CHUNK_W + lx;
       const wz = cz * CHUNK_W + lz;
       const height = columnHeight(wx, wz, seed);
+      // 列级预算(只依赖 wx,wz)：hmin=周围最低地表(洞穴防破坡)、flat=平坦(竖井/峡谷)。算一次，y 循环复用 → 省掉每格 9 次 columnHeight。
+      const hmin = Math.min(
+        height,
+        columnHeight(wx + 4, wz, seed),
+        columnHeight(wx - 4, wz, seed),
+        columnHeight(wx, wz + 4, seed),
+        columnHeight(wx, wz - 4, seed),
+      );
+      const flat = isFlat(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
-        // 矿洞(caveAt 内已按周围最低地表留表层、竖井除外=露天口)或峡谷(露天裂缝)。草顶 y==height 始终保留。
-        if (y > 1 && y < height && (caveAt(wx, y, wz, height, seed) || ravineAt(wx, y, wz, seed))) continue;
+        // 矿洞(按周围最低地表留表层、竖井除外=露天口)或峡谷(露天裂缝)。草顶 y==height 始终保留。
+        if (y > 1 && y < height && (caveAt(wx, y, wz, hmin, flat, seed) || ravineAt(wx, y, wz, flat, seed))) continue;
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
