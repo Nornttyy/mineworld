@@ -28,6 +28,7 @@ import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from 
 import { updateHostile } from '../core/entity/hostileAi';
 import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
 import { serializeMob, deserializeMob } from '../core/entity/mobSave';
+import { isMobSunlit } from '../core/entity/mobSun';
 import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
@@ -843,14 +844,9 @@ export class Game {
   }
 
   // 此刻该生物是否被太阳直晒（白天 + 头顶通天，无遮挡）→ 敌对生物会被烧。
+  // 怪物是否被日晒（→ 白天燃烧）：夜里/在水里/头顶有方块或水遮挡 → 不烧（同 MC）。
   private isSunlit(mob: Mob): boolean {
-    if (skyStateAt(this.worldTime).isNight) return false;
-    const x = Math.floor(mob.pos.x);
-    const z = Math.floor(mob.pos.z);
-    for (let y = Math.floor(mob.pos.y + 2); y < CHUNK_H; y++) {
-      if (isSolidId(this.world.getBlock(x, y, z))) return false; // 头顶有遮挡 → 阴影里不晒
-    }
-    return true;
+    return isMobSunlit(mob, this.world, skyStateAt(this.worldTime).isNight);
   }
 
   // 准星(视线)对准的最近生物（攻击距离内），无则 null。
