@@ -1,8 +1,19 @@
 import * as THREE from 'three';
 import { BLOCKS } from '../core/blocks/registry';
+import { iconUrl } from '../ui/itemIcons';
 
-// 第一人称手臂 + 手持方块：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
-// 挖/放时摆臂，走路时轻微晃动。手持当前选中的方块；空手只露手臂。
+// 第一人称手臂 + 手持物：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
+// 挖/放时摆臂，走路时轻微晃动。手持方块=3D 立方体；手持物品(工具/食物/材料)=平面图标精灵；空手只露手臂。
+
+export type HeldKind = 'block' | 'sprite' | 'none';
+
+// 手持物如何渲染：注册表里的方块画 3D 立方体；有图标的物品(id≥256)画平面精灵；其余只露手臂。
+export function heldRenderKind(id: number | null): HeldKind {
+  if (id === null || id <= 0) return 'none';
+  if (BLOCKS[id]) return 'block';
+  if (iconUrl(id)) return 'sprite';
+  return 'none';
+}
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -58,6 +69,7 @@ export class FirstPersonHand {
   private readonly arm: THREE.Mesh;
   private item: THREE.Mesh | null = null;
   private itemId: number | null = null;
+  private readonly spriteTex = new Map<number, THREE.Texture>(); // 物品图标纹理缓存（按 id）
   private swingT = 0; // 0=不摆；(0,1]=摆臂进度
   private wantSwing = false;
   private bobPhase = 0;
@@ -81,7 +93,22 @@ export class FirstPersonHand {
     this.camera.updateProjectionMatrix();
   }
 
-  // 设置手持方块（null=空手，只露手臂）
+  // 物品图标纹理（按 id 缓存）：最近邻、关 mipmap、保像素硬边。
+  private itemTexture(id: number): THREE.Texture | null {
+    const cached = this.spriteTex.get(id);
+    if (cached) return cached;
+    const url = iconUrl(id);
+    if (!url) return null;
+    const tex = new THREE.TextureLoader().load(url);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.spriteTex.set(id, tex);
+    return tex;
+  }
+
+  // 设置手持物（null=空手，只露手臂）：方块→3D 立方体；物品→平面图标精灵。
   setHeld(id: number | null): void {
     if (id === this.itemId) return;
     this.itemId = id;
@@ -90,8 +117,8 @@ export class FirstPersonHand {
       this.item.geometry.dispose();
       this.item = null;
     }
-    // 只对方块显示手持立方体；物品/工具(id>=256)暂只露手臂
-    if (id !== null && id > 0 && BLOCKS[id]) {
+    const kind = heldRenderKind(id);
+    if (kind === 'block' && id !== null) {
       this.item = new THREE.Mesh(
         blockCube(id, 0.32),
         new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true }),
@@ -99,6 +126,18 @@ export class FirstPersonHand {
       this.item.position.set(-0.02, 0.16, 0.04); // 握在手臂上端
       this.item.rotation.set(-0.1, 0.6, 0.1);
       this.root.add(this.item);
+    } else if (kind === 'sprite' && id !== null) {
+      // 物品：用图标贴一个平面，斜握在手里（同 MC 手持物品=平面精灵）
+      const tex = this.itemTexture(id);
+      if (tex) {
+        this.item = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.34, 0.34),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
+        );
+        this.item.position.set(0.04, 0.2, 0.04);
+        this.item.rotation.set(0, -0.35, 0.35); // 斜一点，像握着柄
+        this.root.add(this.item);
+      }
     }
   }
 
