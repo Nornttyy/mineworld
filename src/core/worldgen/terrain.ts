@@ -39,12 +39,19 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
 // ── 树木（橡树）─────────────────────────────────────────────────────────────
 // 树冠最大水平半径：邻近区块里这么近的树会把枝叶探进本区块，生成时须一并考虑。
 const TREE_MARGIN = 2;
-const TREE_MAX_DENSITY = 0.07; // 便宜的快速剔除上限（须 ≥ treeDensity 的最大可能值）
+const TREE_MAX_DENSITY = 0.08; // 便宜的快速剔除上限（须 ≥ treeDensity 最大值=森林密度）
 
-// 某列长树的概率：低频噪声造出"森林斑块"——平原稀疏、林区茂密。
+// 生物群系：大尺度噪声把世界分成平原(开阔、几乎无树)与森林(密树)，中间平滑过渡。
+// 返回 0..1：<0.45 平原，>0.62 森林，之间过渡带。
+export function biomeForest(wx: number, wz: number, seed: number): number {
+  return fbm2(wx / 130, wz / 130, seed + 4321, 2);
+}
+// 某列长树的概率：平原极稀疏(开阔)、森林茂密(树冠近乎相连)。
 function treeDensity(wx: number, wz: number, seed: number): number {
-  const forest = fbm2(wx / 70, wz / 70, seed + 4321, 2); // 0..1 森林场
-  return 0.01 + Math.max(0, forest - 0.5) * 0.22; // 平原~1%，林区~6.5%
+  const f = biomeForest(wx, wz, seed);
+  if (f < 0.45) return 0.003; // 平原：几乎无树
+  if (f > 0.62) return 0.08; // 森林：密树
+  return 0.003 + ((f - 0.45) / 0.17) * 0.077; // 过渡带
 }
 
 // 树干高 4~6（确定性 → 接缝处同一棵树形状一致）
