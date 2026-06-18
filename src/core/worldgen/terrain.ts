@@ -14,19 +14,29 @@ const IRON_ORE = 12;
 export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
-// 多种洞穴类型叠加，判断某格是否为空腔。调用方在土层也调它 → 部分洞穴破顶=露天；
-// 海床(height<海平面)下的洞穴自然成水底矿洞。返回 true=挖空。
+// 地形是否平坦：四向各 5 格内地表高度差都 ≤3。峡谷只在平坦处刷，免把山体切碎成条纹。
+function isFlat(wx: number, wz: number, seed: number): boolean {
+  const h = columnHeight(wx, wz, seed);
+  return (
+    Math.abs(columnHeight(wx + 5, wz, seed) - h) <= 3 &&
+    Math.abs(columnHeight(wx - 5, wz, seed) - h) <= 3 &&
+    Math.abs(columnHeight(wx, wz + 5, seed) - h) <= 3 &&
+    Math.abs(columnHeight(wx, wz - 5, seed) - h) <= 3
+  );
+}
+
+// 多种洞穴类型叠加，判断某格是否为空腔。调用方限制 y<height-3(洞穴只在地表下≥4格)，
+// 故洞穴不碰土层/草顶 → 山坡再陡也不会露出方块条纹。返回 true=挖空。
 function caveAt(wx: number, wy: number, wz: number, seed: number): boolean {
   // 主隧道：fbm3 宽等值面带 → 2~3 格高、玩家能直接走的蜿蜒大隧道。
-  // 竖直频率放缓(wy/22)让洞更高；带宽 0.045 让洞够宽走，又不至于把地下挖空。
   const a = fbm3(wx / 30, wy / 22, wz / 30, seed + 222);
   if (Math.abs(a - 0.5) < 0.04) return true;
   // 大矿洞：低频谷底 → 偶发大空腔洞室(玩家能站直)
   const room = fbm3(wx / 32, wy / 24, wz / 32, seed + 700);
   if (room < 0.05) return true;
-  // 峡谷：2D 蜿蜒缝 + 竖直深切(从世界底一直到近地表)。宽而深的大裂缝。
+  // 峡谷：2D 蜿蜒缝 + 竖直深切，但只在平坦地形(山里不刷，免切碎山体)。
   const rv = fbm2(wx / 145, wz / 145, seed + 888);
-  if (Math.abs(rv - 0.5) < 0.02 && wy >= 2) return true;
+  if (Math.abs(rv - 0.5) < 0.02 && wy >= 2 && isFlat(wx, wz, seed)) return true;
   return false;
 }
 
@@ -147,7 +157,7 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
-        if (y > 1 && y < height && caveAt(wx, y, wz, seed)) continue; // 留空气
+        if (y > 1 && y < height - 3 && caveAt(wx, y, wz, seed)) continue; // 地表下≥4格才挖洞→不破表层(消除山坡条纹)
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
