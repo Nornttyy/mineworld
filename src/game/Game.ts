@@ -85,6 +85,7 @@ const MOB_DESPAWN_R = 88; // 超出此横向距离即卸载（略小于渲染半
 const MOB_NEAR_R = 48; // 统计/维持种群的半径
 const MOB_NEAR_TARGET = 6; // 身边维持的目标数量
 const HOSTILE_NEAR_TARGET = 4; // 夜里身边维持的敌对生物数（僵尸/骷髅）
+const HOSTILE_CAP = 8; // 敌对生物硬上限（玩家周围最多这么多僵尸/骷髅，防夜里越积越多）
 const MOB_SPAWN_EVERY = 25; // 每多少刻尝试一次补刷（~1.25s）
 const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
 
@@ -765,6 +766,7 @@ export class Game {
     const target = { x: px, y: this.player.pos.y, z: pz };
     let nearCount = 0;
     let hostileNear = 0;
+    let hostileTotal = 0; // 玩家周围(卸载半径内)敌对总数，用于硬上限
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
       const ddx = mob.pos.x - px;
@@ -775,6 +777,7 @@ export class Game {
         continue;
       }
       const hostile = isHostile(mob.kind);
+      if (hostile) hostileTotal++;
       if (d2 < MOB_NEAR_R * MOB_NEAR_R) {
         nearCount++;
         if (hostile) hostileNear++;
@@ -823,10 +826,12 @@ export class Game {
           ),
         );
       }
-      // 夜里刷僵尸/骷髅：身边敌对不足且未到总上限就在环带刷一小群（白天它们会被日晒烧光）
-      if (skyStateAt(this.worldTime).isNight && hostileNear < HOSTILE_NEAR_TARGET && this.mobs.length < MOB_CAP) {
+      // 夜里刷僵尸/骷髅：身边敌对不足、未达硬上限、且未到总生物上限才刷一小群（白天会被日晒烧光）。
+      // 刷出的群按剩余名额裁剪，确保敌对数不超过 HOSTILE_CAP（硬上限）。
+      const room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
+      if (skyStateAt(this.worldTime).isNight && hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const kind: MobKind = this.mobRng() < 0.5 ? 'zombie' : 'skeleton';
-        this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY));
+        this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
       }
     }
   }
