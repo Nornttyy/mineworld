@@ -247,11 +247,6 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  // 单格水自身高度(0..1)：上方有水→1；否则水量/9（同 MC，源 8/9≈0.889）。
-  const ownH = (wx: number, wy: number, wz: number): number => {
-    if (world.waterAmount(wx, wy + 1, wz) > 0) return 1;
-    return world.waterAmount(wx, wy, wz) / 9;
-  };
   // 角高度(MC 平均法)：该角周围 4 格水的自身高度平均；近满(≥0.8)权重×10；空气计 0 高度。
   const cornerH = (wy: number, cells: [number, number][]): number => {
     let total = 0;
@@ -307,22 +302,17 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
           }
           // 底面：下方是空气才画
           if (world.getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, [0, 0, 0, 0]);
-          // 侧面：空气邻 → 整段；较低水邻 → 只画高出的落差；固体/树叶 → 剔除。
-          //  yArr 顺序对应该面 DIRS.c；low=邻格水面高(或 0)，顶边用对应两角高度。
-          const side = (f: number, dx: number, dz: number, yArr: (low: number) => number[], topA: number, topB: number): void => {
+          // 侧面：只对【空气邻】画整段水墙。
+          //  较低的"水邻"不再单独画侧面——相邻水格顶面用 cornerH 已是连续的(共享角等高，
+          //  高度差表现为斜坡)，若再用 ownH(amount/9) 当侧面底边会和邻格真实顶面对不上，露竖缝(BUG)。
+          const side = (f: number, dx: number, dz: number, yTop: number[]): void => {
             const nb = world.getBlock(wx + dx, ly, wz + dz);
-            if (isSolidId(nb)) return; // 固体/树叶挡住
-            if (nb === 0) {
-              emitWaterFace(lx, ly, lz, f, yArr(0));
-            } else if (isWaterId(nb)) {
-              const low = ownH(wx + dx, ly, wz + dz);
-              if (Math.max(topA, topB) > low + 1e-4) emitWaterFace(lx, ly, lz, f, yArr(low));
-            }
+            if (nb === 0) emitWaterFace(lx, ly, lz, f, yTop); // 仅空气邻
           };
-          side(Face.PosX, 1, 0, (low) => [low, h10, h11, low], h10, h11);
-          side(Face.NegX, -1, 0, (low) => [low, low, h01, h00], h00, h01);
-          side(Face.PosZ, 0, 1, (low) => [low, low, h11, h01], h01, h11);
-          side(Face.NegZ, 0, -1, (low) => [low, h00, h10, low], h00, h10);
+          side(Face.PosX, 1, 0, [0, h10, h11, 0]);
+          side(Face.NegX, -1, 0, [0, 0, h01, h00]);
+          side(Face.PosZ, 0, 1, [0, 0, h11, h01]);
+          side(Face.NegZ, 0, -1, [0, h00, h10, 0]);
         }
       }
     }

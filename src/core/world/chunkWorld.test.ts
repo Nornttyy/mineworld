@@ -26,6 +26,18 @@ describe('ChunkWorld', () => {
     expect(c.dirty).toBe(true);
   });
 
+  it('改角格的水会把【对角】邻块也标脏（cornerH/AO 采样对角，否则角处留旧缝）', () => {
+    const w = new ChunkWorld(1);
+    w.getChunk(0, 0);
+    const diag = w.getChunk(1, 1);
+    const ortho = w.getChunk(1, 0);
+    diag.dirty = false;
+    ortho.dirty = false;
+    w.setWater(15, 20, 15, 5, false, false); // 区块(0,0) 的 +x+z 角格
+    expect(ortho.dirty).toBe(true); // 正交邻块(原本就会标)
+    expect(diag.dirty).toBe(true); // 对角邻块(BUG3 修复后也标)
+  });
+
   it('vertical out of range is air', () => {
     const w = new ChunkWorld(1);
     expect(w.getBlock(0, -1, 0)).toBe(0);

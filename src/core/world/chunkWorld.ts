@@ -90,6 +90,11 @@ export class ChunkWorld {
     if (lx === 15) this.markDirty(cx + 1, cz);
     if (lz === 0) this.markDirty(cx, cz - 1);
     if (lz === 15) this.markDirty(cx, cz + 1);
+    // 角格：网格化时角高度(cornerH)/AO 会采样对角邻块，故对角块也要标脏，否则角处水面/光照留旧缝
+    if (lx === 0 && lz === 0) this.markDirty(cx - 1, cz - 1);
+    if (lx === 0 && lz === 15) this.markDirty(cx - 1, cz + 1);
+    if (lx === 15 && lz === 0) this.markDirty(cx + 1, cz - 1);
+    if (lx === 15 && lz === 15) this.markDirty(cx + 1, cz + 1);
   }
 
   private markDirty(cx: number, cz: number): void {
