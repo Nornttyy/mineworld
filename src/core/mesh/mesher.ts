@@ -3,6 +3,7 @@ import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
 import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face } from '../blocks/registry';
+import { computeSkyLight, lightFactor } from '../light/skylight';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -201,18 +202,30 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 
   const occ = (x: number, y: number, z: number): boolean => isOpaque(world.getBlock(x, y, z));
+
+  // 天光：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 0..15。
+  // 取面朝向的那格空气的光 → 该面亮度。露天 15、洞里逐格变暗、封闭=0。昼夜明暗由全局 tint 叠加。
+  const LW = CHUNK_W + 2;
+  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1));
+  const lightAt = (lx: number, ly: number, lz: number): number => {
+    if (ly >= CHUNK_H) return 15; // 世界顶之上=露天
+    if (ly < 0) return 0; // 世界底之下=黑
+    return skyLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
+  };
+
   const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
     const d = DIRS[f];
     const tile = blockFaceTile(id, f as Face);
     const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
     const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
     const shade = FACE_SHADE[f];
+    const fl = lightFactor(lightAt(lx + d.o[0], ly + d.o[1], lz + d.o[2])); // 该面朝向格的天光
     const base = a.P.length / 3;
     const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
       ao[k] = cornerAO(occ, ox + lx, ly, oz + lz, f, k);
-      const c = shade * ao[k];
+      const c = shade * ao[k] * fl;
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.N.push(d.n[0], d.n[1], d.n[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
@@ -231,7 +244,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   // 配合独立可滚动水纹理做流动动画。
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
-    const shade = FACE_SHADE[f];
+    const shade = FACE_SHADE[f] * lightFactor(lightAt(lx + d.o[0], ly + d.o[1], lz + d.o[2])); // 叠天光
     const base = wa.P.length / 3;
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
