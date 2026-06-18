@@ -21,6 +21,7 @@ export interface ToolDef {
   kind: ToolKind;
   tier: number; // 1=木 2=石（采集门槛：needsTool 方块需对应 kind 的工具，tier 影响掉落上限/后续）
   speed: number; // 挖掘速度倍率（对口方块）
+  maxDurability: number; // 最大耐久（用尽即损坏）。1:1 MC：木=59，石=131。
 }
 
 interface ItemDef {
@@ -33,7 +34,8 @@ interface ItemDef {
 // 工具：剑/锄不是挖矿工具，速度压低
 function toolDef(name: string, kind: ToolKind, tier: number, baseSpeed: number): ItemDef {
   const speed = kind === 'sword' ? 1.5 : kind === 'hoe' ? 1 : baseSpeed;
-  return { name, maxStack: 1, food: null, tool: { kind, tier, speed } };
+  const maxDurability = tier === 1 ? 59 : 131; // 木 59 / 石 131（同 MC）
+  return { name, maxStack: 1, food: null, tool: { kind, tier, speed, maxDurability } };
 }
 
 const ITEMS: Record<number, ItemDef> = {

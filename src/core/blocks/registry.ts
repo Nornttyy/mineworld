@@ -37,6 +37,7 @@ export interface BlockDef {
   drop: number | null; // 用对工具挖掉后掉落的方块/物品 id；null=不掉落
   needsTool: boolean; // 是否需要工具(镐)才能采集：手挖会 ×5 耗时且不掉落（石/圆石/矿）
   tool: 'pickaxe' | 'axe' | 'shovel' | null; // 对口工具：用它挖更快(且 needsTool 时才掉落)
+  minTier?: number; // 采集所需最低工具等级（默认 1=木）。铁矿=2 → 需石镐才能挖出。
 }
 
 // 工具描述（由 items.ts 提供，这里只读其结构，避免反向依赖）
@@ -146,7 +147,7 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: 'axe',
   },
-  // 铁矿：石中矿脉，需镐采集；挖掉得铁矿石方块（冶炼成锭待后续里程碑）。MC 硬度 3。
+  // 铁矿：石中矿脉，需【石镐及以上】采集；挖掉得铁矿石方块（冶炼成锭待后续里程碑）。MC 硬度 3。
   {
     id: 12,
     name: 'iron_ore',
@@ -157,6 +158,7 @@ export const BLOCKS: BlockDef[] = [
     drop: 12,
     needsTool: true,
     tool: 'pickaxe',
+    minTier: 2, // 木镐挖不出来（慢且不掉），需石镐(tier≥2)
   },
 ];
 
@@ -187,13 +189,17 @@ function toolMatches(id: number, tool: HeldTool | null): tool is HeldTool {
   const bt = BLOCKS[id]?.tool ?? null;
   return tool !== null && bt !== null && tool.kind === bt;
 }
-// 能否采集(挖掉有掉落)：不需工具的随便挖；需工具的必须用对口工具。
-export const canHarvest = (id: number, tool: HeldTool | null = null): boolean =>
-  !blockNeedsTool(id) || toolMatches(id, tool);
+// 能否采集(挖掉有掉落)：不需工具的随便挖；需工具的必须用对口工具，且工具等级 ≥ 方块要求(铁矿需石镐)。
+export const canHarvest = (id: number, tool: HeldTool | null = null): boolean => {
+  if (!blockNeedsTool(id)) return true;
+  if (!toolMatches(id, tool)) return false;
+  return tool.tier >= (BLOCKS[id]?.minTier ?? 1);
+};
 
 // 破坏耗时(ms)，1:1 MC Java：ceil(硬度 ×(能采?30:100) / 工具速度) ×50（1 tick=50ms）。
 // tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镐挖石 ≈1.15s。
 export const breakTimeMs = (id: number, tool: HeldTool | null = null): number => {
+  if (tool && tool.kind === 'sword') return Infinity; // 剑不破坏方块（同 MC 不同：这里完全挖不动）
   const h = Math.max(0, blockHardness(id));
   if (h === 0) return 0;
   const speed = toolMatches(id, tool) ? tool.speed : 1;

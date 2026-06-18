@@ -38,4 +38,20 @@ describe('工具采集 1:1 MC', () => {
   it('用错工具不加速（镐挖土 = 徒手）', () => {
     expect(breakTimeMs(DIRT, woodPick)).toBe(breakTimeMs(DIRT, null));
   });
+
+  it('铁矿：木镐挖不出(慢且不掉)，石镐才能采', () => {
+    const IRON = 12;
+    expect(canHarvest(IRON, woodPick)).toBe(false); // 木镐 tier1 < 铁矿要求 2
+    expect(dropFor(IRON, woodPick)).toBeNull();
+    expect(canHarvest(IRON, stonePick)).toBe(true); // 石镐 tier2 ✓
+    expect(dropFor(IRON, stonePick)).toBe(IRON);
+    expect(breakTimeMs(IRON, stonePick)).toBeLessThan(breakTimeMs(IRON, woodPick)); // 石镐更快
+  });
+
+  it('剑不破坏任何方块（破坏耗时 = Infinity）', () => {
+    const sword: HeldTool = { kind: 'sword', tier: 1, speed: 1.5 };
+    expect(breakTimeMs(STONE, sword)).toBe(Infinity);
+    expect(breakTimeMs(DIRT, sword)).toBe(Infinity);
+    expect(breakTimeMs(8 /* coal_ore */, sword)).toBe(Infinity);
+  });
 });
