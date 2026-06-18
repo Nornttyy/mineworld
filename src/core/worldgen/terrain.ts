@@ -14,15 +14,30 @@ const IRON_ORE = 12;
 export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
-// 地下某格(世界坐标)长什么：洞穴空腔(0) / 矿脉 / 普通石头。只在地表土层以下调用。
-// 洞穴：3D 噪声落在等值面带内 → 连续蜿蜒隧道。矿石：高频 3D 噪声取阈值 → 小矿簇。
-function undergroundBlock(wx: number, wy: number, wz: number, height: number, seed: number): number {
-  if (wy <= 1) return STONE; // 世界底 2 层留实心，防挖穿掉出世界
-  const cave = fbm3(wx / 20, wy / 13, wz / 20, seed + 555); // 等值面≈隧道中心
-  if (Math.abs(cave - 0.5) < 0.025) return 0; // 落在窄带内 → 挖空成蜿蜒隧道
-  const coal = valueNoise3(wx / 4.5, wy / 4.5, wz / 4.5, seed + 101); // 煤矿：各深度
+// 多种洞穴类型叠加，判断某格是否为空腔。调用方在土层也调它 → 部分洞穴破顶=露天；
+// 海床(height<海平面)下的洞穴自然成水底矿洞。返回 true=挖空。
+function caveAt(wx: number, wy: number, wz: number, seed: number): boolean {
+  // 小矿洞：两条 fbm3 等值面相交 → 蜿蜒细管(spaghetti caves)
+  const a = fbm3(wx / 26, wy / 18, wz / 26, seed + 555);
+  const b = fbm3(wx / 26, wy / 18, wz / 26, seed + 1555);
+  if (Math.abs(a - 0.5) < 0.02 && Math.abs(b - 0.5) < 0.055) return true;
+  // 中矿洞：单 fbm3 中等带宽隧道
+  const m = fbm3(wx / 17, wy / 12, wz / 17, seed + 222);
+  if (Math.abs(m - 0.5) < 0.02) return true;
+  // 大矿洞：低频 3D 噪声谷底 → 偶发大空腔洞室(cheese caves)
+  const room = fbm3(wx / 34, wy / 24, wz / 34, seed + 700);
+  if (room < 0.12) return true;
+  // 峡谷：2D 蜿蜒窄缝(横向极窄) + 竖直深切(从深处一直到近地表)
+  const rv = fbm2(wx / 110, wz / 110, seed + 888);
+  if (Math.abs(rv - 0.5) < 0.006 && wy >= 3) return true;
+  return false;
+}
+
+// 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
+function oreAt(wx: number, wy: number, wz: number, height: number, seed: number): number {
+  const coal = valueNoise3(wx / 4.5, wy / 4.5, wz / 4.5, seed + 101);
   if (coal > 0.84) return COAL_ORE;
-  const iron = valueNoise3(wx / 4, wy / 4, wz / 4, seed + 202); // 铁矿：偏中下层
+  const iron = valueNoise3(wx / 4, wy / 4, wz / 4, seed + 202);
   if (iron > 0.83 && wy <= height * 0.6) return IRON_ORE;
   return STONE;
 }
@@ -134,11 +149,13 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const height = columnHeight(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
+        // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
+        if (y > 1 && y < height && caveAt(wx, y, wz, seed)) continue; // 留空气
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
-        else id = undergroundBlock(wx, y, wz, height, seed); // 石层：洞穴/矿脉/石
-        if (id !== 0) c.set(lx, y, lz, id); // 洞穴(0)留空气
+        else id = oreAt(wx, y, wz, height, seed); // 石层：矿脉/石
+        c.set(lx, y, lz, id);
       }
       for (let y = height + 1; y <= SEA_LEVEL; y++) {
         c.set(lx, y, lz, WATER); // 注水到海平面
