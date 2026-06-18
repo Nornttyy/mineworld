@@ -160,9 +160,9 @@ export class FirstPersonHand {
     const bobX = Math.cos(this.bobPhase) * 0.012 * Math.min(1, walkSpeed);
     const bobY = Math.abs(Math.sin(this.bobPhase)) * 0.012 * Math.min(1, walkSpeed);
 
-    // 摆臂弧线：先下挥再回（sin 上凸）
+    // 摆臂弧线：向前下方挥出再收回（sin 上凸）。z 取负=往画面里(前方)挥，不是往脸前(后方)缩。
     const s = Math.sin(this.swingT * Math.PI);
-    this.root.position.set(0.42 + bobX - s * 0.12, -0.28 + bobY - s * 0.2, -0.72 + s * 0.08);
-    this.root.rotation.set(0.1 + s * 0.5, -0.5 + s * 0.5, 0.4 - s * 0.2);
+    this.root.position.set(0.42 + bobX - s * 0.08, -0.28 + bobY - s * 0.22, -0.72 - s * 0.14);
+    this.root.rotation.set(0.1 + s * 0.7, -0.5 + s * 0.35, 0.4 - s * 0.15);
   }
 }
