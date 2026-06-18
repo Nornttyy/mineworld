@@ -50,6 +50,8 @@ import {
 } from '../core/survival/survival';
 import { APPLE, isFood, foodValue, toolOf } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
+import { ParticleRenderer } from '../render/ParticleRenderer';
+import { spawnBurst, stepParticles, blockColor, type Particle } from '../core/particles/particles';
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -86,6 +88,9 @@ export class Game {
   private readonly crack: CrackOverlay;
   private readonly dropRenderer: DropRenderer;
   private readonly hand: FirstPersonHand;
+  private readonly particleFx: ParticleRenderer;
+  private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
+  private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
   private craftingGrid = 0; // 背包/合成界面：0=关闭 2=个人(2×2) 3=工作台(3×3)
   private readonly drops: ItemDrop[] = [];
@@ -147,6 +152,7 @@ export class Game {
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.hand = new FirstPersonHand(atlas);
+    this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.invUI.onChange = (): void => this.hotbar.render(this.inv);
     this.physWorld = {
@@ -321,9 +327,13 @@ export class Game {
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
-      // 第一人称手臂：手持当前选中方块、按移动速度晃动
+      // 碎屑粒子：每帧推进 + 刷新
+      this.particles = stepParticles(this.particles, dt);
+      this.particleFx.sync(this.particles);
+      // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
+      this.hand.setEating(playing && this.eating);
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
       if (this.hand.camera.aspect !== this.renderer.camera.aspect) {
@@ -502,6 +512,12 @@ export class Game {
       this.mineBlock(hit.x, hit.y, hit.z, id);
     } else {
       this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
+      // 挖掘中持续喷碎屑（节流，免得每帧爆量）
+      this.digFxT += dt;
+      if (this.digFxT >= 0.07) {
+        this.digFxT = 0;
+        this.particles.push(...spawnBurst(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, blockColor(id), 3));
+      }
     }
   }
 
@@ -515,6 +531,7 @@ export class Game {
   private mineBlock(x: number, y: number, z: number, id: number): void {
     const drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
     this.edit(x, y, z, AIR);
+    this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, blockColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）

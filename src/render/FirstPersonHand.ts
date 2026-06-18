@@ -73,6 +73,8 @@ export class FirstPersonHand {
   private swingT = 0; // 0=不摆；(0,1]=摆臂进度
   private wantSwing = false;
   private bobPhase = 0;
+  private eating = false; // 是否在吃东西（手持食物送嘴边抖动）
+  private eatT = 0; // 吃东西计时（驱动抖动）
 
   constructor(atlas: THREE.Texture) {
     this.atlas = atlas;
@@ -146,6 +148,12 @@ export class FirstPersonHand {
     this.wantSwing = true;
   }
 
+  // 吃东西状态（手持食物时由游戏层每帧设置）：true=把食物送到嘴边快速抖动。
+  setEating(active: boolean): void {
+    this.eating = active;
+    if (!active) this.eatT = 0;
+  }
+
   update(dt: number, walkSpeed: number): void {
     // 摆臂进度
     if (this.wantSwing && this.swingT === 0) this.swingT = 0.0001;
@@ -162,7 +170,25 @@ export class FirstPersonHand {
 
     // 摆臂弧线：向前下方挥出再收回（sin 上凸）。z 取负=往画面里(前方)挥，不是往脸前(后方)缩。
     const s = Math.sin(this.swingT * Math.PI);
-    this.root.position.set(0.42 + bobX - s * 0.08, -0.28 + bobY - s * 0.22, -0.72 - s * 0.14);
-    this.root.rotation.set(0.1 + s * 0.7, -0.5 + s * 0.35, 0.4 - s * 0.15);
+    let px = 0.42 + bobX - s * 0.08;
+    let py = -0.28 + bobY - s * 0.22;
+    let pz = -0.72 - s * 0.14;
+    let rx = 0.1 + s * 0.7;
+    const ry = -0.5 + s * 0.35;
+    let rz = 0.4 - s * 0.15;
+
+    // 吃东西：把食物抬到嘴边(往中间+往脸前) + 高频抖动（同 MC 啃食抖动）。
+    if (this.eating) {
+      this.eatT += dt;
+      const j = Math.sin(this.eatT * 30); // 快速抖
+      px += -0.18 + j * 0.015; // 往中间靠
+      py += 0.16 + j * 0.02; // 抬到嘴边 + 上下抖
+      pz += 0.18; // 凑近脸
+      rx += 0.4 + j * 0.12; // 前倾 + 抖
+      rz += -0.25;
+    }
+
+    this.root.position.set(px, py, pz);
+    this.root.rotation.set(rx, ry, rz);
   }
 }
