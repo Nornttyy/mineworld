@@ -59,7 +59,7 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
 const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
 export const BLOCKS: BlockDef[] = [
   { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
-  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true, tool: 'pickaxe' },
+  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 2.0, drop: 4, needsTool: true, tool: 'pickaxe' }, // 徒手 10s（需镐 ×5）
   { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
   {
     id: 3,
@@ -90,7 +90,7 @@ export const BLOCKS: BlockDef[] = [
     solid: true,
     transparent: false,
     faces: column(T.oak_log_side, T.oak_log_top, T.oak_log_top),
-    hardness: 2.0,
+    hardness: 3.33, // 徒手 5s（×1.5）；斧更快
     drop: 6,
     needsTool: false, // 木头手挖即可采集(斧只是更快)
     tool: 'axe',

@@ -8,8 +8,10 @@ import {
   eat,
   fallDamage,
   trackFall,
+  tickOxygen,
   MAX_HEALTH,
   MAX_FOOD,
+  MAX_OXYGEN,
 } from './survival';
 
 const APPLE = { nutrition: 4, saturationModifier: 0.3 }; // MC 苹果
@@ -174,5 +176,32 @@ describe('survival: fall-distance tracking (MC 1:1)', () => {
   it('water cancels fall (no damage, reset)', () => {
     expect(trackFall(10, 0, false, true)).toEqual({ fallDistance: 0, damage: 0 });
     expect(trackFall(10, 0, true, true).damage).toBe(0);
+  });
+});
+
+describe('survival: oxygen 水下憋气', () => {
+  it('头不在水下 → 氧气保持满', () => {
+    const s = newSurvival();
+    s.oxygen = 3;
+    tickOxygen(s, false);
+    expect(s.oxygen).toBe(MAX_OXYGEN);
+  });
+  it('头在水下每 30 刻耗 1 气泡', () => {
+    const s = newSurvival();
+    for (let i = 0; i < 30; i++) tickOxygen(s, true);
+    expect(s.oxygen).toBe(MAX_OXYGEN - 1);
+  });
+  it('气泡耗尽后每 20 刻淹溺掉 2 血', () => {
+    const s = newSurvival();
+    s.oxygen = 0;
+    s.health = 10;
+    for (let i = 0; i < 20; i++) tickOxygen(s, true);
+    expect(s.health).toBe(8);
+  });
+  it('出水立即回满气泡', () => {
+    const s = newSurvival();
+    s.oxygen = 2;
+    tickOxygen(s, false);
+    expect(s.oxygen).toBe(MAX_OXYGEN);
   });
 });

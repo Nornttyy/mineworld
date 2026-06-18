@@ -3,10 +3,13 @@
 
 export const MAX_HEALTH = 20; // 10 颗心（半心 = 1 HP）
 export const MAX_FOOD = 20; // 10 个鸡腿
+export const MAX_OXYGEN = 10; // 10 个气泡（水下憋气）
 const STARVE_FLOOR = 1; // 普通难度：饿到剩 1 心就不再掉（不会饿死）
 const HEAL_EXHAUSTION = 6; // 自然回 1 心所消耗的疲劳（MC 1.9+）
 const REGEN_TICKS = 80; // 慢速回血 / 掉血周期（4s）
 const FAST_REGEN_TICKS = 10; // 满饥饿+饱和时的快速回血周期（0.5s）
+const OXY_DRAIN_TICKS = 30; // 头在水下每 30 刻(1.5s)耗 1 气泡（10 泡≈15s）
+const DROWN_TICKS = 20; // 气泡耗尽后每 20 刻(1s)淹溺掉 2 血
 
 export interface Survival {
   health: number; // 0..MAX_HEALTH
@@ -14,6 +17,8 @@ export interface Survival {
   saturation: number; // 0..food（隐藏值）
   exhaustion: number; // 0..40，>4 时结算
   foodTimer: number; // 朝下一次回血/掉血累计的刻数
+  oxygen: number; // 0..MAX_OXYGEN 气泡数（仅头在水下时消耗）
+  oxygenTimer: number; // 氧气消耗 / 淹溺计时
 }
 
 export interface FoodValue {
@@ -22,7 +27,15 @@ export interface FoodValue {
 }
 
 export function newSurvival(): Survival {
-  return { health: MAX_HEALTH, food: MAX_FOOD, saturation: 5, exhaustion: 0, foodTimer: 0 };
+  return {
+    health: MAX_HEALTH,
+    food: MAX_FOOD,
+    saturation: 5,
+    exhaustion: 0,
+    foodTimer: 0,
+    oxygen: MAX_OXYGEN,
+    oxygenTimer: 0,
+  };
 }
 
 export function addExhaustion(s: Survival, amount: number): void {
@@ -93,5 +106,25 @@ export function tickSurvival(s: Survival): void {
     }
   } else {
     s.foodTimer = 0;
+  }
+}
+
+// 氧气：头在水下才消耗（每 30 刻 -1 气泡），耗尽后每 20 刻淹溺掉 2 血；出水立即回满。
+// headInWater 由游戏层（玩家眼睛所在格是否为水）传入。
+export function tickOxygen(s: Survival, headInWater: boolean): void {
+  if (!headInWater) {
+    s.oxygen = MAX_OXYGEN;
+    s.oxygenTimer = 0;
+    return;
+  }
+  s.oxygenTimer++;
+  if (s.oxygen > 0) {
+    if (s.oxygenTimer >= OXY_DRAIN_TICKS) {
+      s.oxygen = Math.max(0, s.oxygen - 1);
+      s.oxygenTimer = 0;
+    }
+  } else if (s.oxygenTimer >= DROWN_TICKS) {
+    applyDamage(s, 2);
+    s.oxygenTimer = 0;
   }
 }
