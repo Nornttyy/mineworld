@@ -48,6 +48,8 @@ const ICON: Record<number, string> = {
   284: 'wool',
   285: 'feather',
   286: 'egg',
+  287: 'rotten_flesh',
+  288: 'bone',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）

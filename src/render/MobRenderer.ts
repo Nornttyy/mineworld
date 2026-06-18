@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Mob, MobKind } from '../core/entity/mob';
-import { bodyTexture } from './mobTextures';
+import { bodyTexture, headTexture } from './mobTextures';
 
 // 把生物渲染成 MC 风的盒状模型。每只一套自己的材质(便于受击红闪 + 个体染色)，颜色 + 假面光烤进顶点
 // (与体素世界同为 unlit)。走路摆腿 + 头点动 + 尾巴甩 + 鸡啄地 + 呼吸起伏；朝移动方向；受击 0.5s 红闪。
@@ -53,9 +53,16 @@ function buildModel(kind: MobKind): Model {
   const legs: THREE.Group[] = [];
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const bodyMat = new THREE.MeshBasicMaterial({ map: bodyTexture(kind), vertexColors: true });
+  const mats: THREE.MeshBasicMaterial[] = [mat, bodyMat]; // 全部可染色材质(受击红闪/个体色一起作用)
   const P = (w: number, h: number, d: number, hex: number, x: number, y: number, z: number): THREE.Mesh => part(g, mat, w, h, d, hex, x, y, z);
   // 身体用贴图材质(白顶点 → 贴图本色 × 烤光 × 个体染色)
   const B = (w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh => part(g, bodyMat, w, h, d, 0xffffff, x, y, z);
+  // 另起一块贴图材质的部件(如僵尸/骷髅的头)，登记进 mats 以便一起染色
+  const T = (tex: THREE.Texture, w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh => {
+    const tm = new THREE.MeshBasicMaterial({ map: tex, vertexColors: true });
+    mats.push(tm);
+    return part(g, tm, w, h, d, 0xffffff, x, y, z);
+  };
   let head: THREE.Mesh | undefined;
   let tail: THREE.Mesh | undefined;
 
@@ -94,20 +101,23 @@ function buildModel(kind: MobKind): Model {
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, -0.18);
     for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const) addLeg(g, mat, legs, face, x, z, lH, 0.15);
   } else if (kind === 'zombie') {
-    const skin = 0x5a8f4a, shirt = 0x2f6a6a, pants = 0x2a2f55, lH = 0.82; // 绿皮 + 青衫 + 深裤
-    P(0.5, 0.66, 0.28, shirt, 0, lH + 0.33, 0); // 躯干
-    head = P(0.44, 0.44, 0.44, skin, 0, lH + 0.88, 0); // 头
+    const skin = 0x5a8f4a, pants = 0x2a2f55, lH = 0.82; // 绿皮 + 深裤
+    B(0.5, 0.66, 0.28, 0, lH + 0.33, 0); // 躯干(贴图:破青衫)
+    head = T(headTexture('zombie')!, 0.44, 0.44, 0.44, 0, lH + 0.88, 0); // 头(贴图:绿烂皮)
     P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, 0.11); // 眼
     P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, -0.11);
+    P(0.06, 0.05, 0.22, 0x32562a, 0.22, lH + 0.8, 0); // 嘴(暗)
     P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, 0.3); // 双臂前伸(僵尸招牌姿势)
     P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, -0.3);
     for (const [x, z] of [[0, 0.12], [0, -0.12]] as const) addLeg(g, mat, legs, pants, x, z, lH, 0.2);
   } else if (kind === 'skeleton') {
     const bone = 0xd8d8cc, lH = 0.84; // 骨白、瘦
-    P(0.32, 0.6, 0.2, bone, 0, lH + 0.3, 0); // 胸骨(窄)
-    head = P(0.42, 0.42, 0.42, bone, 0, lH + 0.81, 0); // 头骨
-    P(0.07, 0.09, 0.08, EYE_C, 0.21, lH + 0.87, 0.1);
+    B(0.32, 0.6, 0.2, 0, lH + 0.3, 0); // 胸骨(贴图:肋骨)
+    head = T(headTexture('skeleton')!, 0.42, 0.42, 0.42, 0, lH + 0.81, 0); // 头骨(贴图:裂骨)
+    P(0.07, 0.09, 0.08, EYE_C, 0.21, lH + 0.87, 0.1); // 眼窝(深)
     P(0.07, 0.09, 0.08, EYE_C, 0.21, lH + 0.87, -0.1);
+    P(0.05, 0.05, 0.06, 0x8a8a7e, 0.22, lH + 0.79, 0); // 鼻孔
+    P(0.05, 0.05, 0.22, 0x7a7a70, 0.21, lH + 0.72, 0); // 牙列/嘴
     P(0.1, 0.58, 0.1, bone, 0, lH + 0.3, 0.24); // 双臂垂体侧
     P(0.1, 0.58, 0.1, bone, 0, lH + 0.3, -0.24);
     for (const [x, z] of [[0, 0.1], [0, -0.1]] as const) addLeg(g, mat, legs, bone, x, z, lH, 0.12);
@@ -132,7 +142,7 @@ function buildModel(kind: MobKind): Model {
   const b = 0.9 + Math.random() * 0.16; // 亮度
   const warm = (Math.random() - 0.5) * 0.06; // 暖/冷
   const base = new THREE.Color(Math.min(1, b + warm), b, Math.max(0, b - warm));
-  return { group: g, legs, mats: [mat, bodyMat], base, head, tail, headY: head ? head.position.y : 0 };
+  return { group: g, legs, mats, base, head, tail, headY: head ? head.position.y : 0 };
 }
 
 const FLASH = new THREE.Color(0xff5a5a);

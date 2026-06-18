@@ -93,6 +93,30 @@ def egg():
     return shade(im)
 
 
+def rotten():
+    im = new()
+    d = ImageDraw.Draw(im)
+    d.ellipse([3, 5, 13, 14], fill=(150, 116, 96, 255))  # 烂肉块
+    d.ellipse([5, 4, 12, 11], fill=(150, 116, 96, 255))
+    px = im.load()
+    for (x, y) in [(6, 7), (9, 9), (7, 11), (10, 6), (8, 8)]:
+        if px[x, y][3]:
+            d.point((x, y), fill=(112, 124, 78, 255))  # 发霉绿点
+    return shade(im)
+
+
+def bone_icon():
+    im = new()
+    d = ImageDraw.Draw(im)
+    col = (238, 236, 226, 255)
+    d.line([5, 12, 11, 4], fill=col, width=3)  # 骨干(斜)
+    d.ellipse([2, 11, 6, 15], fill=col)  # 下端两瓣
+    d.ellipse([4, 12, 7, 15], fill=col)
+    d.ellipse([10, 1, 14, 5], fill=col)  # 上端两瓣
+    d.ellipse([9, 2, 12, 5], fill=col)
+    return shade(im)
+
+
 ICONS = {
     "raw_porkchop": meat((224, 132, 132, 255)),
     "cooked_porkchop": meat((176, 112, 64, 255)),
@@ -106,6 +130,8 @@ ICONS = {
     "wool": square((240, 240, 240, 255), [(5, 5, (220, 220, 220, 255)), (9, 6, (220, 220, 220, 255)), (7, 9, (224, 224, 224, 255)), (11, 10, (220, 220, 220, 255))]),
     "feather": feather(),
     "egg": egg(),
+    "rotten_flesh": rotten(),
+    "bone": bone_icon(),
 }
 
 for name, im in ICONS.items():
