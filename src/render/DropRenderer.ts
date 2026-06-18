@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { BLOCKS } from '../core/blocks/registry';
 import { isItem } from '../core/items/items';
+import { iconUrl } from '../ui/itemIcons';
+import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 
 const ATLAS_COLS = 4;
@@ -37,24 +39,28 @@ export class DropRenderer {
   private readonly meshes = new Map<ItemDrop, THREE.Mesh>();
   private readonly geoCache = new Map<number, THREE.BufferGeometry>();
   private readonly mat: THREE.MeshBasicMaterial;
-  private readonly itemMat: THREE.MeshBasicMaterial;
+  private readonly itemMats = new Map<number, THREE.MeshBasicMaterial>();
 
   constructor(
     private readonly scene: THREE.Scene,
     atlas: THREE.Texture,
   ) {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
-    // 物品图标贴图（目前只有苹果）：扁平方片、镂空裁切、双面
-    const tex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/icons/apple.png');
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    this.itemMat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      alphaTest: 0.5,
-      side: THREE.DoubleSide,
-    });
+  }
+
+  // 非方块物品掉落：按 id 取对应图标(icons/<name>.png)做扁平方片材质，缓存复用。
+  // （以前硬编码成苹果，导致煤/工具掉落都显示苹果。）
+  private itemMat(id: number): THREE.MeshBasicMaterial {
+    let m = this.itemMats.get(id);
+    if (!m) {
+      const tex = new THREE.TextureLoader().load(iconUrl(id) ?? asset('textures/icons/apple.png'));
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
+      this.itemMats.set(id, m);
+    }
+    return m;
   }
 
   private geo(id: number): THREE.BufferGeometry {
@@ -77,7 +83,7 @@ export class DropRenderer {
     for (const d of drops) {
       let mesh = this.meshes.get(d);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.geo(d.id), isItem(d.id) ? this.itemMat : this.mat);
+        mesh = new THREE.Mesh(this.geo(d.id), isItem(d.id) ? this.itemMat(d.id) : this.mat);
         this.scene.add(mesh);
         this.meshes.set(d, mesh);
       }
