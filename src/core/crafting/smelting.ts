@@ -1,5 +1,17 @@
 // 熔炉冶炼：纯逻辑（配方表 + 燃料表 + 单熔炉状态机 tick）。UI/存档/调度在游戏层。
-import { COAL, STICK, IRON_INGOT } from '../items/items';
+import {
+  COAL,
+  STICK,
+  IRON_INGOT,
+  RAW_PORKCHOP,
+  COOKED_PORKCHOP,
+  RAW_BEEF,
+  COOKED_BEEF,
+  RAW_MUTTON,
+  COOKED_MUTTON,
+  RAW_CHICKEN,
+  COOKED_CHICKEN,
+} from '../items/items';
 import { OAK_LOG, OAK_PLANKS, IRON_ORE } from '../blocks/registry';
 
 export const COOK_TICKS = 200; // 炼 1 个耗 200 刻(=10s @20TPS，同 MC)
@@ -8,6 +20,10 @@ export const MAX_STACK = 64;
 // 冶炼配方：原料 id → 产物 id
 const SMELT: Record<number, number> = {
   [IRON_ORE]: IRON_INGOT,
+  [RAW_PORKCHOP]: COOKED_PORKCHOP,
+  [RAW_BEEF]: COOKED_BEEF,
+  [RAW_MUTTON]: COOKED_MUTTON,
+  [RAW_CHICKEN]: COOKED_CHICKEN,
 };
 // 燃料：id → 可燃烧刻数（MC：煤 1600(炼8)、原木/木板 300(炼1.5)、棍 100(炼0.5)）
 const FUEL: Record<number, number> = {
