@@ -114,29 +114,7 @@ describe('fluidSim（对照 MC）', () => {
     expect(sim.activeCount).toBe(0); // 收敛，不再 churn
   });
 
-  it('海平面下、连到水源的洼地被灌满（复刻 MC 海边/水下挖坑进水填满）', () => {
-    const g = new Grid(0); // y<0 固体
-    const SEA = 5;
-    for (let y = 0; y <= SEA; y++) g.src(-1, y, 0); // 一面"深海"源头墙(x=-1)
-    g.solid(2, 0, 0); // 远端挡墙，限制洪泛范围便于断言
-    for (let y = 0; y <= SEA + 1; y++) {
-      g.solid(2, y, 0);
-      g.solid(0, y, 1);
-      g.solid(0, y, -1);
-      g.solid(1, y, 1);
-      g.solid(1, y, -1);
-    }
-    const sim = new FluidSim(SEA); // 传入海平面
-    for (let y = 0; y <= SEA; y++) sim.activate(-1, y, 0);
-    run(sim, g, 60);
-    // 坑(x=0,1 各 y=0..SEA)应被灌满到海平面（满量），而不是只在底部积薄层
-    expect(g.amount(0, 0, 0)).toBe(8); // 底满
-    expect(g.amount(0, SEA, 0)).toBe(8); // 顶满
-    expect(g.amount(1, SEA, 0)).toBe(8); // 远一格的顶也满
-    expect(g.isSource(0, SEA, 0)).toBe(true); // 海平面下连到海 → 灌成源头
-  });
-
-  it('永不生成无限水：两源头夹一格 → 中间只是流动水(7)，撤掉源头后退干', () => {
+  it('MC 无限水：两源头夹一格 → 中间变源头(8)；撤掉一侧后中间仍是源头(自我修复)', () => {
     const g = new Grid(0);
     g.src(0, 0, 0);
     g.src(2, 0, 0); // 两侧源头夹住 (1,0,0)
@@ -144,18 +122,17 @@ describe('fluidSim（对照 MC）', () => {
     sim.activate(0, 0, 0);
     sim.activate(2, 0, 0);
     run(sim, g, 40);
-    expect(g.amount(1, 0, 0)).toBe(7); // 衰减为 7，而非 MC 经典“变源头”
-    expect(g.isSource(1, 0, 0)).toBe(false);
-    // 撤掉两个源头 → 中间应彻底退干（证明不是无限水）
+    expect(g.amount(1, 0, 0)).toBe(8); // ≥2 相邻源头 → 自身成源头（MC 经典无限水）
+    expect(g.isSource(1, 0, 0)).toBe(true);
+    // 撤掉一侧源头：中间已是源头 → 持久存在（不退干），并把空出来的一侧重新喂成流动水
     g.setWater(0, 0, 0, 0, false, false);
-    g.setWater(2, 0, 0, 0, false, false);
     sim.activate(0, 0, 0);
-    sim.activate(2, 0, 0);
-    run(sim, g, 60);
-    expect(g.amount(1, 0, 0)).toBe(0);
+    run(sim, g, 40);
+    expect(g.isSource(1, 0, 0)).toBe(true); // 仍是源头（无限水自我修复）
+    expect(g.amount(0, 0, 0)).toBe(7); // 被中间源头重新喂满成流动水
   });
 
-  it('三面(及以上)是源头 → 该格灌满到满量(8)，但仍不是源头', () => {
+  it('三面是源头 → 中心也变源头(8)', () => {
     const g = new Grid(0);
     g.src(1, 0, 0);
     g.src(-1, 0, 0);
@@ -165,8 +142,45 @@ describe('fluidSim（对照 MC）', () => {
     sim.activate(-1, 0, 0);
     sim.activate(0, 0, 1);
     run(sim, g, 30);
-    expect(g.amount(0, 0, 0)).toBe(8); // 三面源头 → 直接填满
-    expect(g.isSource(0, 0, 0)).toBe(false); // 仍是流动水，不是无限源头
+    expect(g.amount(0, 0, 0)).toBe(8); // ≥2 源头 → 填满
+    expect(g.isSource(0, 0, 0)).toBe(true); // 并成为源头
+  });
+
+  it('bug 修复：单源头绝不连锁出新源头（小口子不会把整片灌满成源头）', () => {
+    // 旧 bug（今天引入）：海平面以下「挨着 1 个源头就变源头」→ 一个口子连锁把整片变永久源头。
+    // 现在：单个源头只会衰减流动铺开，邻格【绝不】变成源头，远处自然衰减为 0。
+    const g = new Grid(0);
+    g.src(0, 0, 0);
+    const sim = new FluidSim();
+    sim.activate(0, 0, 0);
+    run(sim, g, 80);
+    // 平地铺开 7,6,…,1，全是流动水、无一变源头（关键：没有连锁灌满）
+    for (let x = 1; x <= 7; x++) {
+      expect(g.amount(x, 0, 0)).toBe(8 - x);
+      expect(g.isSource(x, 0, 0)).toBe(false);
+    }
+    expect(g.amount(8, 0, 0)).toBe(0); // 不无限蔓延
+  });
+
+  it('全世界一套规则：高 y 与低 y 行为完全相同（无海平面 y=18 突变）', () => {
+    const make = (baseY: number): Grid => {
+      const g = new Grid(baseY); // 地面在 baseY 之下
+      g.src(0, baseY, 0);
+      return g;
+    };
+    const low = make(2);
+    const high = make(40);
+    const simL = new FluidSim();
+    const simH = new FluidSim();
+    simL.activate(0, 2, 0);
+    simH.activate(0, 40, 0);
+    run(simL, low, 50);
+    run(simH, high, 50);
+    // 同样的单源头平地铺开，结果逐格一致，证明不再以海平面分上下两套
+    for (let x = 0; x <= 8; x++) {
+      expect(low.amount(x, 2, 0)).toBe(high.amount(x, 40, 0));
+      expect(low.isSource(x, 2, 0)).toBe(high.isSource(x, 40, 0));
+    }
   });
 
   it('空闲时收敛（无活跃格）', () => {

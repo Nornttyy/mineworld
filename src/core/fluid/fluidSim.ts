@@ -1,12 +1,11 @@
 // 流动水模拟 —— 严格对照 Minecraft Java 的水机制。纯逻辑，operates on FluidGrid，可单测。
 //
-// 关键规则（同 MC）：
+// 关键规则（同 MC，全世界一套，无海平面分界）：
 //  - 水量 1..8（8=满/源头）；源头(source)恒满、稳定；falling=从上方灌下的瀑布柱。
 //  - 更新某格水(getNewLiquid)：上方有水→满 falling(瀑布)；
-//    海平面【及以下】连到任一源头→灌满成源头(复刻 MC 海边/水下挖坑进水填满洼地)；
-//    海平面【之上】三面及以上邻格是源头→灌满到 8(但仍是流动水，不变源头)，
-//    且绝不靠 2 源头凭空生成源头 → 水面没有可滥用的无限水复制；否则取水平最高邻格 −1 衰减。
-//    水永不向上爬。（本游戏无水桶，玩家无法手动放源头复制水。）
+//    否则 MC 经典「无限水」：**≥2 个正交相邻源头 → 自身也成源头**（水自我找平到水位）。
+//    单个源头不连锁（邻格只挨着 1 个源头→只是衰减流动水），所以一个小口子不会把整片秒变源头。
+//    再否则衰减：取水平最高邻格 −1。水永不向上爬。
 //  - 扩散(spread)：能向下就只向下（下方成 falling 满水，柱体单薄）；不能向下才向四周铺。
 //  - 朝洞找路：向四周铺时用"坡度距离"(最多探 SLOPE_FIND=4 格)找最近的落差，只朝最近方向铺；
 //    多个方向并列或找不到洞 → 一起铺（平地铺成片）。这就是 MC 水会"找洞流过去"的行为。
@@ -41,13 +40,10 @@ const key = (x: number, y: number, z: number): string => `${x},${y},${z}`;
 
 export class FluidSim {
   private active = new Set<string>();
-  private readonly seaLevel: number;
   private readonly maxPerTick: number;
 
-  // seaLevel：海平面 y。仅用于扩散：海平面那一层即使能下流也照样横向铺满开口，让海面保持连片
-  //   (不新生成源头)。默认 -Infinity = 关闭该行为（纯流动，供单测）。
-  constructor(seaLevel = -Infinity, maxPerTick = 4000) {
-    this.seaLevel = seaLevel;
+  // maxPerTick：单刻最多评估的活跃格数（预算，防卡顿）；超出的留到下刻继续。
+  constructor(maxPerTick = 4000) {
     this.maxPerTick = maxPerTick;
   }
 
@@ -113,12 +109,12 @@ export class FluidSim {
     if (self.amount > 0) this.spread(g, x, y, z, self, propose);
   }
 
-  // 重算某(已是水的)格应有的水量。规则：
+  // 重算某(已是水的)格应有的水量。规则（同 MC，全世界一套）：
   //  - 上方有水 → 满 falling（瀑布柱往下灌）。上方是方块(无水)就走不到这条 → 水不会向上爬。
-  //  - 三面(及以上)邻格是源头 → 直接灌满到满量(8)，但【不】变成源头。
+  //  - MC 经典「无限水」：≥2 个正交相邻源头 → 自身也成源头（水找平到水位、自我修复）。
   //  - 否则衰减：水平最高邻格 −1。
-  // 关键：本函数永不产出 source=true → 流动水绝不会凭空变成新源头，因此【没有无限水】，
-  //   撤掉上游源头后整片都会退干。源头只来自世界生成(海/湖)或玩家放置。
+  // 单个源头【不】连锁（邻格只挨 1 源头 → 只是衰减流动水），所以挖个小口子不会把整片秒变源头；
+  //   只有真正连到一大片水体(多源头相邻)的同层凹陷才会被填到水位——这正是 MC 的行为。
   private getNewLiquid(g: FluidGrid, x: number, y: number, z: number): Cell {
     if (g.amount(x, y + 1, z) > 0) return { amount: FULL, source: false, falling: true };
 
@@ -131,12 +127,7 @@ export class FluidSim {
         if (g.isSource(x + dx, y, z + dz)) srcCount++;
       }
     }
-    // 海平面及以下、连到任一源头 → 灌满成源头：复刻 MC 海边/水下挖坑会进水填满洼地。
-    //   本游戏没有水桶，玩家无法靠此"复制水"，故这不是可滥用的无限水。
-    if (y <= this.seaLevel && srcCount >= 1) return { amount: FULL, source: true, falling: false };
-    // 海平面【之上】：三面及以上源头才灌满(且不变源头)；绝不靠 2 个源头凭空生成源头 → 杜绝水面无限复制。
-    if (srcCount >= 3) return { amount: FULL, source: false, falling: false };
-    // 否则衰减。
+    if (srcCount >= 2) return { amount: FULL, source: true, falling: false };
     const n = maxN - DROPOFF;
     return n > 0 ? { amount: n, source: false, falling: false } : EMPTY;
   }
@@ -147,9 +138,7 @@ export class FluidSim {
     const belowFull = g.amount(x, by, z) === FULL && !g.isFalling(x, by, z); // 下方已成池满水
     if (!g.isSolid(x, by, z) && !belowFull) {
       propose(x, by, z, { amount: FULL, source: false, falling: true }); // 下落柱
-      // 海平面那一层：即使能下流，也照样横向铺满开口(否则水只顺缺口灌到坑底成薄层)。
-      // 其它层维持"下流优先"，保证瀑布柱单薄。
-      if (y !== this.seaLevel) return;
+      return; // 能向下就只向下，保证瀑布柱单薄（全世界一致，无海平面特例）
     }
     const own = cell.source ? FULL : cell.amount;
     const give = own - DROPOFF;

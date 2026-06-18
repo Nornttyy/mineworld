@@ -105,7 +105,7 @@ export class Game {
   private digging = false; // 是否按住左键挖掘
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
-  private readonly fluidSim = new FluidSim(SEA_LEVEL);
+  private readonly fluidSim = new FluidSim();
   private readonly fluidGrid: FluidGrid;
   private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
