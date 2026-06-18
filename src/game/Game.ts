@@ -303,7 +303,12 @@ export class Game {
       };
       check();
     });
-    this.chunks.update(cx, cz, radius, 9999); // 一次性把出生周围网格化好
+    // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
+    const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
+    for (let i = 0; i < rounds; i++) {
+      this.chunks.update(cx, cz, radius, 4);
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    }
   }
 
   start(): void {
@@ -352,7 +357,7 @@ export class Game {
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
         RENDER_RADIUS,
-        2,
+        1, // 每帧最多建 1 个区块网格(深世界 mesh 重，降到 1 避免移动间隔卡)
       );
       const wantFov = playing && readMove().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
