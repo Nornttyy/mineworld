@@ -26,10 +26,10 @@ function caveAt(wx: number, wy: number, wz: number, seed: number): boolean {
   if (Math.abs(m - 0.5) < 0.02) return true;
   // 大矿洞：低频 3D 噪声谷底 → 偶发大空腔洞室(cheese caves)
   const room = fbm3(wx / 34, wy / 24, wz / 34, seed + 700);
-  if (room < 0.12) return true;
-  // 峡谷：2D 蜿蜒窄缝(横向极窄) + 竖直深切(从深处一直到近地表)
-  const rv = fbm2(wx / 110, wz / 110, seed + 888);
-  if (Math.abs(rv - 0.5) < 0.006 && wy >= 3) return true;
+  if (room < 0.1) return true;
+  // 峡谷：2D 蜿蜒缝 + 竖直深切(从世界底一直到近地表)。宽而深的大裂缝。
+  const rv = fbm2(wx / 145, wz / 145, seed + 888);
+  if (Math.abs(rv - 0.5) < 0.02 && wy >= 2) return true;
   return false;
 }
 

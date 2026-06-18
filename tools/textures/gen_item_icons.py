@@ -269,8 +269,26 @@ def make_stone_from_wood(wood_name):
     return im
 
 
+def center_png(name):
+    """把手绘图标的图案 bbox 平移居中到 16×16 正中（用户画时常偏，物品栏/手持会歪）。"""
+    p = os.path.join(ICON, f"{name}.png")
+    if not os.path.exists(p):
+        return
+    im = Image.open(p).convert("RGBA")
+    bb = im.getbbox()
+    if not bb:
+        return
+    bw, bh = bb[2] - bb[0], bb[3] - bb[1]
+    out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    out.paste(im.crop(bb), ((S - bw) // 2, (S - bh) // 2))
+    out.save(p)
+
+
 def main():
     os.makedirs(ICON, exist_ok=True)
+    # 先把用户手绘工具图案居中（石质换色、手持、物品栏都基于居中后的图标）
+    for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel"]:
+        center_png(n)
     out = {
         "stick": make_stick(),
         "coal": make_coal(),
