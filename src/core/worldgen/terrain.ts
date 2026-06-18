@@ -73,8 +73,14 @@ function oreAt(wx: number, wy: number, wz: number, height: number, seed: number)
 export function columnHeight(wx: number, wz: number, seed: number): number {
   const continent = fbm2(wx / 260, wz / 260, seed, 4); // 大尺度：海(低) vs 陆(高)，尺度放大=坡更缓
   const hills = fbm2(wx / 72, wz / 72, seed + 17, 3); // 中尺度丘陵：波长放缓+幅度减半 → 地表平滑、不再密集锯齿台阶
-  // 起伏主要来自大尺度 continent(缓坡)，hills 只加小起伏(±5)；海/湖深度仍随 continent 自然变化。
-  let h = 88 + continent * 100 + (hills - 0.5) * 10;
+  // continent 重塑成三段，让"平原"紧贴海平面(玩家站平地不再像俯视深谷、水系不再深凹)，丘陵/山只是少数：
+  //   c<0.45 海/海岸(海床→岸，低于海平面=水) · 0.45~0.72 平原(贴海平面、微起伏) · >0.72 丘陵→山
+  // 阈值按 continent 实际分布(集中 0.43~0.62)定：c<0.46 海(~38%) · 0.46~0.56 平原(~37%,贴海平面) · >0.56 丘陵山(~25%)
+  let base: number;
+  if (continent < 0.46) base = 90 + continent * 56; // ~90~116：低于海平面 → 海/湖(海床深度随 c)
+  else if (continent < 0.56) base = 116 + (continent - 0.46) * 80; // 116~124：平原，紧贴海平面(占比最大)
+  else base = 124 + (continent - 0.56) * 180; // 124~167：丘陵→山(约 1/4)
+  let h = base + (hills - 0.5) * 8;
 
   // 河流：蜿蜒河谷下切；河床深度随噪声变化(3~8 格)，不再固定整齐。
   {
@@ -84,7 +90,7 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
     if (dist < width) {
       let t = 1 - dist / width;
       t = t * t * (3 - 2 * t); // smoothstep：岸边平滑过渡
-      const depth = 3 + Math.floor(fbm2(wx / 60, wz / 60, seed + 555, 2) * 6); // 河床深 3~8 变化
+      const depth = 2 + Math.floor(fbm2(wx / 60, wz / 60, seed + 555, 2) * 3); // 河床深 2~4：浅河，不再深谷
       const bed = SEA_LEVEL - depth;
       h = h * (1 - t) + bed * t;
     }
