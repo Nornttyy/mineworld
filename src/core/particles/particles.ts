@@ -17,8 +17,8 @@ export interface Particle {
 
 const GRAVITY = 16; // 格/秒²
 
-// 各方块的代表色（挖它时碎屑的颜色）。缺省灰色。
-const BLOCK_COLOR: Record<number, [number, number, number]> = {
+// 方块/物品的代表色（挖方块的碎屑、吃东西喷的食物渣都用它）。缺省灰色。
+const PARTICLE_COLOR: Record<number, [number, number, number]> = {
   1: [0.54, 0.54, 0.54], // 石头
   2: [0.55, 0.42, 0.25], // 泥土
   3: [0.42, 0.67, 0.25], // 草
@@ -29,9 +29,10 @@ const BLOCK_COLOR: Record<number, [number, number, number]> = {
   8: [0.34, 0.34, 0.34], // 煤矿
   10: [0.25, 0.48, 0.19], // 树叶
   11: [0.5, 0.36, 0.2], // 工作台
+  256: [0.79, 0.16, 0.13], // 苹果（吃东西的食物渣）
 };
 
-export const blockColor = (id: number): [number, number, number] => BLOCK_COLOR[id] ?? [0.5, 0.5, 0.5];
+export const particleColor = (id: number): [number, number, number] => PARTICLE_COLOR[id] ?? [0.5, 0.5, 0.5];
 
 // 在 (cx,cy,cz) 附近喷出 count 个碎屑：随机散开 + 向上初速，之后受重力下落。
 export function spawnBurst(

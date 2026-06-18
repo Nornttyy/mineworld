@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { spawnBurst, stepParticles, blockColor, type Particle } from './particles';
+import { spawnBurst, stepParticles, particleColor, type Particle } from './particles';
 
 // 确定性 rand：固定序列，便于断言。
 function seq(vals: number[]): () => number {
@@ -42,8 +42,9 @@ describe('particles 碎屑粒子', () => {
     expect(cur).toHaveLength(2);
   });
 
-  it('blockColor：已知方块给专属色，未知给灰', () => {
-    expect(blockColor(2)).toEqual([0.55, 0.42, 0.25]); // 泥土
-    expect(blockColor(99999)).toEqual([0.5, 0.5, 0.5]);
+  it('particleColor：已知方块/食物给专属色，未知给灰', () => {
+    expect(particleColor(2)).toEqual([0.55, 0.42, 0.25]); // 泥土
+    expect(particleColor(256)).toEqual([0.79, 0.16, 0.13]); // 苹果
+    expect(particleColor(99999)).toEqual([0.5, 0.5, 0.5]);
   });
 });

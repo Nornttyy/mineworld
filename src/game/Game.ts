@@ -51,7 +51,7 @@ import {
 import { APPLE, isFood, foodValue, toolOf } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
-import { spawnBurst, stepParticles, blockColor, type Particle } from '../core/particles/particles';
+import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -111,6 +111,7 @@ export class Game {
   private fallDistance = 0; // 当前连续下落格数
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
+  private eatFxT = 0; // 吃东西喷食物渣的节流计时
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -450,6 +451,19 @@ export class Game {
       return;
     }
     this.eatProgress += dt;
+    // 吃东西喷食物渣：在嘴前方按节流喷出食物色碎屑（同 MC 啃食粒子）
+    this.eatFxT += dt;
+    if (this.eatFxT >= 0.09) {
+      this.eatFxT = 0;
+      const cy = Math.cos(this.look.yaw);
+      const sy = Math.sin(this.look.yaw);
+      const cp = Math.cos(this.look.pitch);
+      const sp = Math.sin(this.look.pitch);
+      const ox = this.player.pos.x + cy * cp * 0.4;
+      const oy = this.player.pos.y + EYE - 0.18 + sp * 0.4;
+      const oz = this.player.pos.z + sy * cp * 0.4;
+      this.particles.push(...spawnBurst(ox, oy, oz, particleColor(stack.id), 2));
+    }
     if (this.eatProgress >= EAT_TIME) {
       const food = foodValue(stack.id);
       const id = takeOne(this.inv, sel);
@@ -516,7 +530,7 @@ export class Game {
       this.digFxT += dt;
       if (this.digFxT >= 0.07) {
         this.digFxT = 0;
-        this.particles.push(...spawnBurst(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, blockColor(id), 3));
+        this.particles.push(...spawnBurst(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, particleColor(id), 3));
       }
     }
   }
@@ -531,7 +545,7 @@ export class Game {
   private mineBlock(x: number, y: number, z: number, id: number): void {
     const drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
     this.edit(x, y, z, AIR);
-    this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, blockColor(id), 16)); // 破碎爆一蓬碎屑
+    this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
