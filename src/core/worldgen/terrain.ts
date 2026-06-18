@@ -30,8 +30,18 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 // 矿洞(按深度分层)：浅层小矿洞为主+少量中、中层中矿洞+一些大、深层大矿洞。
 // depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
 function caveAt(wx: number, wy: number, wz: number, height: number, seed: number): boolean {
-  const depth = height - wy;
-  if (depth < 14) return false; // 表层 14 格留实心：挖一阵才见洞、山体不被浅洞啃成波浪线
+  // 露天矿洞口：稀疏的大竖井，从地表贯通到地下(显眼大入口，故意可破表层)
+  if (Math.abs(valueNoise3(wx / 7, wy / 72, wz / 7, seed + 888) - 0.5) < 0.045) return true;
+  // 其余洞穴用【周围最低地表】算深度——否则 3D 洞会从陡坡侧面探出，把山啃成波浪线
+  const hmin = Math.min(
+    height,
+    columnHeight(wx + 4, wz, seed),
+    columnHeight(wx - 4, wz, seed),
+    columnHeight(wx, wz + 4, seed),
+    columnHeight(wx, wz - 4, seed),
+  );
+  const depth = hmin - wy;
+  if (depth < 12) return false; // 距周围最低地表 12 格内留实心(山坡侧面也不破洞)
   if (depth < 50) {
     // 浅层：小矿洞，稀疏(密度降低，避免地上挖几下就掉进洞)
     return Math.abs(valueNoise3(wx / 14, wy / 10, wz / 14, seed + 222) - 0.5) < 0.03;
@@ -170,7 +180,8 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
-        if (y > 1 && y < height - 3 && (caveAt(wx, y, wz, height, seed) || ravineAt(wx, y, wz, seed))) continue; // 矿洞(分层)或峡谷；地表下≥4格才挖→不破表层
+        // 矿洞(caveAt 内已按周围最低地表留表层、竖井除外=露天口)或峡谷(露天裂缝)。草顶 y==height 始终保留。
+        if (y > 1 && y < height && (caveAt(wx, y, wz, height, seed) || ravineAt(wx, y, wz, seed))) continue;
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
