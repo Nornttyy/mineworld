@@ -20,7 +20,7 @@ let game: Game | null = null;
 // 加载动画：进世界时(区块生成是阻塞的)先盖一层旋转 spinner，生成完再撤。
 const loadingEl = document.createElement('div');
 loadingEl.style.cssText =
-  'position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;background:#0b1622;color:#cfe6f7;font-family:monospace;';
+  "position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;background:#0b1622;color:#cfe6f7;font-family:'Zpix',monospace;";
 loadingEl.innerHTML =
   '<div style="width:56px;height:56px;border:6px solid rgba(255,255,255,.18);border-top-color:#6ab0ff;border-radius:50%;animation:mw-spin .9s linear infinite"></div>' +
   '<div style="font-size:18px;letter-spacing:3px">生成世界中…</div>';

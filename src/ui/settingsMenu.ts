@@ -11,10 +11,11 @@ export class SettingsMenu {
     this.root = root;
     this.settings = loadSettings();
     root.classList.remove('hidden'); // 改用内联 display 控制(避开 .hidden 的 !important)
+    // 占满全屏的设置页（不再是小浮窗）：不透明深底铺满，控件居中成列。
     root.style.cssText =
-      'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+      'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#0e1a28;';
     root.innerHTML = `
-      <div class="settings-card" style="background:#1b2733;border:2px solid #3a536b;border-radius:10px;padding:22px 26px;min-width:340px;color:#dce8f2;font-family:monospace;display:flex;flex-direction:column;gap:16px;">
+      <div class="settings-card" style="width:min(560px,90vw);color:#dce8f2;font-family:'Zpix',monospace;display:flex;flex-direction:column;gap:24px;">
         <h2 class="screen-title" style="margin:0 0 4px;text-align:center;">设置</h2>
         <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">音量</span>
