@@ -16,6 +16,7 @@ const ICON: Record<number, string> = {
   10: 'oak_leaves',
   11: 'crafting_table',
   12: 'iron_ore',
+  13: 'furnace',
   [APPLE]: 'apple',
   257: 'stick',
   258: 'coal',
@@ -29,6 +30,12 @@ const ICON: Record<number, string> = {
   266: 'stone_shovel',
   267: 'stone_sword',
   268: 'stone_hoe',
+  269: 'iron_pickaxe',
+  270: 'iron_axe',
+  271: 'iron_shovel',
+  272: 'iron_sword',
+  273: 'iron_hoe',
+  274: 'iron_ingot',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）
@@ -44,6 +51,7 @@ const ZH: Record<number, string> = {
   10: '树叶',
   11: '工作台',
   12: '铁矿',
+  13: '熔炉',
   256: '苹果',
   257: '木棍',
   258: '煤炭',
@@ -57,6 +65,12 @@ const ZH: Record<number, string> = {
   266: '石锹',
   267: '石剑',
   268: '石锄',
+  269: '铁镐',
+  270: '铁斧',
+  271: '铁锹',
+  272: '铁剑',
+  273: '铁锄',
+  274: '铁锭',
 };
 
 export const iconUrl = (id: number): string | null =>

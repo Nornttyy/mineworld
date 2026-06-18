@@ -59,4 +59,9 @@ export const RECIPES: Recipe[] = [
   toolRecipe(SHOVEL, 'cobblestone', 'stone_shovel'),
   toolRecipe(SWORD, 'cobblestone', 'stone_sword'),
   toolRecipe(HOE, 'cobblestone', 'stone_hoe'),
+  toolRecipe(PICKAXE, 'iron_ingot', 'iron_pickaxe'),
+  toolRecipe(AXE, 'iron_ingot', 'iron_axe'),
+  toolRecipe(SHOVEL, 'iron_ingot', 'iron_shovel'),
+  toolRecipe(SWORD, 'iron_ingot', 'iron_sword'),
+  toolRecipe(HOE, 'iron_ingot', 'iron_hoe'),
 ];

@@ -25,6 +25,7 @@ const T = {
   crafting_table_top: 12,
   crafting_table_side: 13,
   iron_ore: 14,
+  furnace_front: 15,
 } as const;
 
 export interface BlockDef {
@@ -160,6 +161,18 @@ export const BLOCKS: BlockDef[] = [
     tool: 'pickaxe',
     minTier: 2, // 木镐挖不出来（慢且不掉），需石镐(tier≥2)
   },
+  // 熔炉：圆石质，侧面炉口(4 面同贴图)；右键开冶炼界面(游戏层)。配方已在 recipes(8 圆石)。
+  {
+    id: 13,
+    name: 'furnace',
+    solid: true,
+    transparent: false,
+    faces: column(T.furnace_front, T.cobblestone, T.cobblestone),
+    hardness: 3.5,
+    drop: 13,
+    needsTool: true,
+    tool: 'pickaxe',
+  },
 ];
 
 export const WATER = 9;
@@ -170,6 +183,7 @@ export const COBBLESTONE = 4;
 export const CRAFTING_TABLE = 11;
 export const IRON_ORE = 12;
 export const COAL_ORE = 8;
+export const FURNACE = 13;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
