@@ -63,8 +63,8 @@ export class MenuBackground {
     this.camera.updateProjectionMatrix();
   }
 
-  // 预加载：请求近处区块后台生成 + 等就绪 + 网格化，主菜单背景一显示就完整(不渐显)。
-  async preload(radius = 4): Promise<void> {
+  // 预加载：请求整个渲染范围(=RADIUS，雾内全部)区块后台生成 + 等就绪 + 网格化，主菜单背景一显示就完整(不渐显)。
+  async preload(radius = RADIUS): Promise<void> {
     const cx = worldToChunk(Math.floor(this.x));
     const cz = worldToChunk(Math.floor(this.z));
     for (let dz = -radius; dz <= radius; dz++)
