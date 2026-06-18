@@ -252,7 +252,7 @@ def main():
     out = {
         "stick": make_stick(),
         "coal": make_coal(),
-        "wooden_pickaxe": make_pickaxe(False),
+        # wooden_pickaxe 由用户手绘(paint.html)，不在此生成，避免覆盖
         "wooden_axe": make_axe(False),
         "wooden_shovel": make_shovel(False),
         "wooden_sword": make_sword(False),
