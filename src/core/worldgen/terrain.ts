@@ -11,7 +11,7 @@ const GRASS = 3;
 const SAND = 5;
 const COAL_ORE = 8;
 const IRON_ORE = 12;
-export const SEA_LEVEL = 250; // 海平面（地表抬高到~256 后相应抬升）：低于此的地表注水、岸边铺沙
+export const SEA_LEVEL = 116; // 海平面(地表~99-151 偏下段→陆多海少~45%)：低于此注水成海/湖，岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
 // 地形是否平坦：四向各 5 格内地表高度差都 ≤3。峡谷只在平坦处刷，免把山体切碎成条纹。
@@ -32,12 +32,12 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 function caveAt(wx: number, wy: number, wz: number, height: number, seed: number): boolean {
   const depth = height - wy;
   if (depth < 3) return false;
-  if (depth < 90) {
+  if (depth < 45) {
     // 浅层：小矿洞为主 + 一点中矿洞
     if (Math.abs(valueNoise3(wx / 13, wy / 9, wz / 13, seed + 222) - 0.5) < 0.06) return true;
     return Math.abs(valueNoise3(wx / 17, wy / 12, wz / 17, seed + 333) - 0.5) < 0.03;
   }
-  if (depth < 200) {
+  if (depth < 100) {
     // 中层：中矿洞为主 + 一些大矿洞
     if (Math.abs(valueNoise3(wx / 17, wy / 13, wz / 17, seed + 333) - 0.5) < 0.08) return true;
     return valueNoise3(wx / 22, wy / 16, wz / 22, seed + 700) < 0.1;
@@ -67,20 +67,21 @@ function oreAt(wx: number, wy: number, wz: number, height: number, seed: number)
 export function columnHeight(wx: number, wz: number, seed: number): number {
   const continent = fbm2(wx / 220, wz / 220, seed, 4); // 大尺度：海(低) vs 陆(高)
   const hills = fbm2(wx / 42, wz / 42, seed + 17, 4); // 中尺度：丘陵/小池
-  let h = 256 + continent * 46 + (hills - 0.5) * 12; // 地表抬到~250-308，地下留~250+格深
+  // 海(~100)→山(~180)：起伏拉大，让 continent 低处低于海平面 → 真正的海/湖；
+  // 海/湖深度随 continent 自然变化(越低越深)，不再整齐。
+  let h = 80 + continent * 110 + (hills - 0.5) * 20;
 
-  // 河流：一条横贯地图的蜿蜒河谷。沿河心把地形平滑压到水下，两岸用 smoothstep
-  // 渐变成谷(不是突兀的峭壁)，因此平原、丘陵都能被一条河穿过、与海/湖相连。
-  // 宽度随位置变 → 河有宽有窄、有长有短。
+  // 河流：蜿蜒河谷下切；河床深度随噪声变化(3~8 格)，不再固定整齐。
   {
     const rn = fbm2(wx / 140, wz / 140, seed + 777, 3); // 蜿蜒场
-    const dist = Math.abs(rn - 0.5); // 沿蜿蜒中线≈0
+    const dist = Math.abs(rn - 0.5);
     const width = 0.035 + hills * 0.03;
     if (dist < width) {
-      let t = 1 - dist / width; // 0..1，河心=1
+      let t = 1 - dist / width;
       t = t * t * (3 - 2 * t); // smoothstep：岸边平滑过渡
-      const bed = SEA_LEVEL - 2; // 河床高度
-      h = h * (1 - t) + bed * t; // 向河床平滑下切
+      const depth = 3 + Math.floor(fbm2(wx / 60, wz / 60, seed + 555, 2) * 6); // 河床深 3~8 变化
+      const bed = SEA_LEVEL - depth;
+      h = h * (1 - t) + bed * t;
     }
   }
   return Math.floor(h);

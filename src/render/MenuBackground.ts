@@ -21,7 +21,7 @@ export class MenuBackground {
   private x = 0.5;
   private z = 0.5;
   private heading = 0.7;
-  private readonly y = 290; // 飞行高度（地表抬到~256 后相应抬升，仍在地形之上）
+  private readonly y = 175; // 飞行高度（地表~100-180，在地形之上俯瞰海/湖）
 
   constructor(canvas: HTMLCanvasElement, seed = 4242) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });

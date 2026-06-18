@@ -1,6 +1,6 @@
 // 一个区块"列"：16×H×16 的体素，存一个数组。无限世界以 (cx,cz) 为键管理这些列。
 export const CHUNK_W = 16;
-export const CHUNK_H = 320; // 世界高度：地表抬到~256，地下留~250+格深供挖矿
+export const CHUNK_H = 192; // 世界高度：地表~100-180，地下~100-180格深(深度与流畅/mesh成本的折中)
 
 export class Chunk {
   readonly blocks = new Uint16Array(CHUNK_W * CHUNK_H * CHUNK_W);
