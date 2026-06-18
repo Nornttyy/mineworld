@@ -10,6 +10,7 @@ export class SettingsMenu {
   constructor(root: HTMLElement) {
     this.root = root;
     this.settings = loadSettings();
+    root.classList.remove('hidden'); // 改用内联 display 控制(避开 .hidden 的 !important)
     root.style.cssText =
       'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
     root.innerHTML = `
