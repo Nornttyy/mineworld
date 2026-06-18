@@ -34,6 +34,8 @@ export const LEATHER = 283;
 export const WOOL = 284;
 export const FEATHER = 285;
 export const EGG = 286;
+export const ROTTEN_FLESH = 287; // 僵尸掉落，可吃(MC 有饥饿debuff，这里先只给营养)
+export const BONE = 288; // 骷髅掉落
 
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
@@ -90,6 +92,8 @@ const ITEMS: Record<number, ItemDef> = {
   [WOOL]: { name: 'wool', maxStack: 64, food: null, tool: null },
   [FEATHER]: { name: 'feather', maxStack: 64, food: null, tool: null },
   [EGG]: { name: 'egg', maxStack: 16, food: null, tool: null },
+  [ROTTEN_FLESH]: { name: 'rotten_flesh', maxStack: 64, food: { nutrition: 4, saturationModifier: 0.1 }, tool: null },
+  [BONE]: { name: 'bone', maxStack: 64, food: null, tool: null },
 };
 
 export const ITEM_IDS: number[] = Object.keys(ITEMS).map(Number);

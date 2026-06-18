@@ -41,6 +41,44 @@ export function spawnRingGroup(
   return [];
 }
 
+// 敌对生物落脚：脚下任意实心(不限草地) + 头两格空。用于夜里在地表刷僵尸/骷髅。
+export function canSpawnHostileAt(world: SpawnWorld, x: number, y: number, z: number): boolean {
+  if (!isSolidId(world.getBlock(x, y - 1, z))) return false;
+  if (isSolidId(world.getBlock(x, y, z))) return false;
+  if (isSolidId(world.getBlock(x, y + 1, z))) return false;
+  return true;
+}
+
+// 夜里在玩家周围环带(默认 20–40 格)的地表刷一小群敌对生物：远到不贴脸、近到会摸上门。
+// 仅在 Game 判定"夜晚"时调用（白天它们会被日晒清掉）。找不到合适地表则返回空、不硬刷。
+export function spawnHostileRing(
+  kind: MobKind,
+  cx: number,
+  cz: number,
+  rng: () => number,
+  world: SpawnWorld,
+  surfaceY: (x: number, z: number) => number,
+  ringMin = 20,
+  ringMax = 40,
+): Mob[] {
+  for (let tries = 0; tries < 14; tries++) {
+    const ang = rng() * Math.PI * 2;
+    const d = ringMin + rng() * (ringMax - ringMin);
+    const bx = Math.floor(cx + Math.cos(ang) * d);
+    const bz = Math.floor(cz + Math.sin(ang) * d);
+    const mobs: Mob[] = [];
+    const n = 1 + Math.floor(rng() * 3); // 1–3 只一小群
+    for (let i = 0; i < n; i++) {
+      const x = bx + Math.floor((rng() * 2 - 1) * 2);
+      const z = bz + Math.floor((rng() * 2 - 1) * 2);
+      const h = surfaceY(x, z);
+      if (canSpawnHostileAt(world, x, h + 1, z)) mobs.push(spawnMob(kind, x + 0.5, h + 1, z + 0.5));
+    }
+    if (mobs.length) return mobs;
+  }
+  return [];
+}
+
 // 成群生成（最多 4 只，同 MC）：在中心 ±4 格内随机撒点，每点在 cy 附近上下找可落脚的格。
 export function spawnGroup(
   kind: MobKind,

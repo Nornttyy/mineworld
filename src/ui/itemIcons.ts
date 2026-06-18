@@ -96,6 +96,8 @@ const ZH: Record<number, string> = {
   284: '羊毛',
   285: '羽毛',
   286: '鸡蛋',
+  287: '腐肉',
+  288: '骨头',
 };
 
 export const iconUrl = (id: number): string | null =>

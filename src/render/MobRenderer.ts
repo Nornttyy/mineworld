@@ -93,6 +93,24 @@ function buildModel(kind: MobKind): Model {
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, 0.18); // 耳
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, -0.18);
     for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const) addLeg(g, mat, legs, face, x, z, lH, 0.15);
+  } else if (kind === 'zombie') {
+    const skin = 0x5a8f4a, shirt = 0x2f6a6a, pants = 0x2a2f55, lH = 0.82; // 绿皮 + 青衫 + 深裤
+    P(0.5, 0.66, 0.28, shirt, 0, lH + 0.33, 0); // 躯干
+    head = P(0.44, 0.44, 0.44, skin, 0, lH + 0.88, 0); // 头
+    P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, 0.11); // 眼
+    P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, -0.11);
+    P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, 0.3); // 双臂前伸(僵尸招牌姿势)
+    P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, -0.3);
+    for (const [x, z] of [[0, 0.12], [0, -0.12]] as const) addLeg(g, mat, legs, pants, x, z, lH, 0.2);
+  } else if (kind === 'skeleton') {
+    const bone = 0xd8d8cc, lH = 0.84; // 骨白、瘦
+    P(0.32, 0.6, 0.2, bone, 0, lH + 0.3, 0); // 胸骨(窄)
+    head = P(0.42, 0.42, 0.42, bone, 0, lH + 0.81, 0); // 头骨
+    P(0.07, 0.09, 0.08, EYE_C, 0.21, lH + 0.87, 0.1);
+    P(0.07, 0.09, 0.08, EYE_C, 0.21, lH + 0.87, -0.1);
+    P(0.1, 0.58, 0.1, bone, 0, lH + 0.3, 0.24); // 双臂垂体侧
+    P(0.1, 0.58, 0.1, bone, 0, lH + 0.3, -0.24);
+    for (const [x, z] of [[0, 0.1], [0, -0.1]] as const) addLeg(g, mat, legs, bone, x, z, lH, 0.12);
   } else {
     const white = 0xf2f2f2, beak = 0xe7951f, red = 0xcc3b30, lH = 0.22;
     B(0.34, 0.34, 0.3, -0.02, lH + 0.17, 0); // 身(贴图)

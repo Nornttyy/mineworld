@@ -24,8 +24,9 @@ import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
-import { updateMob, hurtMob, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
-import { spawnRingGroup, type SpawnWorld } from '../core/entity/mobSpawn';
+import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
+import { updateHostile } from '../core/entity/hostileAi';
+import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
 import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
@@ -82,6 +83,7 @@ const MOB_CAP = 16; // 玩家附近生物上限（性能保险）
 const MOB_DESPAWN_R = 88; // 超出此横向距离即卸载（略小于渲染半径，让落在身后的及时清掉、腾出名额）
 const MOB_NEAR_R = 48; // 统计/维持种群的半径
 const MOB_NEAR_TARGET = 6; // 身边维持的目标数量
+const HOSTILE_NEAR_TARGET = 4; // 夜里身边维持的敌对生物数（僵尸/骷髅）
 const MOB_SPAWN_EVERY = 25; // 每多少刻尝试一次补刷（~1.25s）
 const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
 
@@ -754,7 +756,9 @@ export class Game {
   private tickMobs(): void {
     const px = this.player.pos.x;
     const pz = this.player.pos.z;
+    const target = { x: px, y: this.player.pos.y, z: pz };
     let nearCount = 0;
+    let hostileNear = 0;
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const mob = this.mobs[i];
       const ddx = mob.pos.x - px;
@@ -764,14 +768,32 @@ export class Game {
         this.mobs.splice(i, 1);
         continue;
       }
-      if (d2 < MOB_NEAR_R * MOB_NEAR_R) nearCount++;
-      const res = updateMob(mob, this.physWorld, this.mobRng);
+      const hostile = isHostile(mob.kind);
+      if (d2 < MOB_NEAR_R * MOB_NEAR_R) {
+        nearCount++;
+        if (hostile) hostileNear++;
+      }
+      // 敌对走追击 AI（追玩家+接触攻击+日晒受损），被动走原游荡 AI
+      const res = hostile
+        ? updateHostile(mob, this.physWorld, this.mobRng, target, this.isSunlit(mob))
+        : updateMob(mob, this.physWorld, this.mobRng);
       Object.assign(mob, res.mob); // 原地更新，保持对象身份（渲染按身份缓存模型）
+      let died = false;
       for (const ev of res.events) {
         if (ev.kind === 'layEgg') {
           this.drops.push(spawnDrop(EGG, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+        } else if (ev.kind === 'attackPlayer') {
+          applyDamage(this.survival, ev.damage);
+          if (survivalIsDead(this.survival) && !this.dead) this.die();
+        } else if (ev.kind === 'drops') {
+          for (const stack of ev.items)
+            for (let k = 0; k < stack.count; k++)
+              this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+        } else if (ev.kind === 'death') {
+          died = true; // 日晒烧死：本刻末移除
         }
       }
+      if (died) this.mobs.splice(i, 1);
     }
     // 维持种群：每 ~1.25s 一次，身边不足目标且未到上限 → 朝玩家前进方向的环带补一群，
     //   让玩家边走边走进新兽群（同 MC 的"跟着玩家刷"体感）。
@@ -795,7 +817,23 @@ export class Game {
           ),
         );
       }
+      // 夜里刷僵尸/骷髅：身边敌对不足且未到总上限就在环带刷一小群（白天它们会被日晒烧光）
+      if (skyStateAt(this.worldTime).isNight && hostileNear < HOSTILE_NEAR_TARGET && this.mobs.length < MOB_CAP) {
+        const kind: MobKind = this.mobRng() < 0.5 ? 'zombie' : 'skeleton';
+        this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY));
+      }
     }
+  }
+
+  // 此刻该生物是否被太阳直晒（白天 + 头顶通天，无遮挡）→ 敌对生物会被烧。
+  private isSunlit(mob: Mob): boolean {
+    if (skyStateAt(this.worldTime).isNight) return false;
+    const x = Math.floor(mob.pos.x);
+    const z = Math.floor(mob.pos.z);
+    for (let y = Math.floor(mob.pos.y + 2); y < CHUNK_H; y++) {
+      if (isSolidId(this.world.getBlock(x, y, z))) return false; // 头顶有遮挡 → 阴影里不晒
+    }
+    return true;
   }
 
   // 准星(视线)对准的最近生物（攻击距离内），无则 null。

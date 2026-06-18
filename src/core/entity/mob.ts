@@ -8,12 +8,14 @@ import {
   WOOL,
   RAW_CHICKEN,
   FEATHER,
+  ROTTEN_FLESH,
+  BONE,
 } from '../items/items';
 
 // 被动动物（猪/牛/羊/鸡）——朴素数据 + 纯函数（AI/物理/受伤/掉落），可无头单测。
 // 渲染在 render/MobRenderer；副作用（生成掉落物 ItemDrop、移除死亡实体）由 game/ 按事件施加。
 
-export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken';
+export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton';
 
 export interface MobDef {
   hp: number;
@@ -21,15 +23,22 @@ export interface MobDef {
   height: number;
   moveSpeed: number; // 格/tick（游荡）
   fallImmune: boolean; // 鸡=true：扇翅缓降、不受摔伤
+  hostile?: boolean; // 敌对：会追玩家、接触造成伤害、白天日晒受损（僵尸/骷髅）
+  attack?: number; // 接触攻击伤害（半心=1）
+  sense?: number; // 察觉/追击半径（格）
 }
 
-// 1:1 MC Java（生命=2×心；体型/移速按手感+Wiki）
+// 1:1 MC Java（生命=2×心；体型/移速按手感+Wiki）。僵尸/骷髅敌对、夜行、白天暴晒受损。
 export const MOB_DEFS: Record<MobKind, MobDef> = {
   pig: { hp: 10, width: 0.9, height: 0.9, moveSpeed: 0.09, fallImmune: false },
   cow: { hp: 10, width: 0.9, height: 1.4, moveSpeed: 0.08, fallImmune: false },
   sheep: { hp: 8, width: 0.9, height: 1.3, moveSpeed: 0.08, fallImmune: false },
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
+  zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16 },
+  skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.052, fallImmune: false, hostile: true, attack: 3, sense: 16 },
 };
+
+export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
 
 export interface Mob {
   kind: MobKind;
@@ -39,8 +48,9 @@ export interface Mob {
   onGround: boolean;
   health: number;
   hurtCooldown: number; // 受击无敌帧（tick）
-  ai: { state: 'idle' | 'wander' | 'panic'; timer: number; target: Vec3 | null };
+  ai: { state: 'idle' | 'wander' | 'panic' | 'chase'; timer: number; target: Vec3 | null };
   eggTimer: number; // 仅鸡：下个蛋的 tick
+  atkCd: number; // 敌对：攻击冷却（tick），>0 时不再造成接触伤害
 }
 
 export interface MobDrop {
@@ -51,7 +61,8 @@ export type MobEvent =
   | { kind: 'drops'; items: MobDrop[]; pos: Vec3 }
   | { kind: 'layEgg'; pos: Vec3 }
   | { kind: 'death'; pos: Vec3 }
-  | { kind: 'hurt' };
+  | { kind: 'hurt' }
+  | { kind: 'attackPlayer'; damage: number }; // 敌对接触攻击 → 游戏层对玩家施伤
 export interface MobUpdate {
   mob: Mob;
   events: MobEvent[];
@@ -74,6 +85,7 @@ export function spawnMob(kind: MobKind, x: number, y: number, z: number): Mob {
     hurtCooldown: 0,
     ai: { state: 'idle', timer: 20, target: null },
     eggTimer: kind === 'chicken' ? 6000 : 0,
+    atkCd: 0,
   };
 }
 
@@ -249,6 +261,14 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       const f = Math.floor(rng() * 3);
       if (f > 0) out.push({ id: FEATHER, count: f });
       return out;
+    }
+    case 'zombie': {
+      const n = Math.floor(rng() * 3); // 0–2 腐肉
+      return n > 0 ? [{ id: ROTTEN_FLESH, count: n }] : [];
+    }
+    case 'skeleton': {
+      const n = Math.floor(rng() * 3); // 0–2 骨头
+      return n > 0 ? [{ id: BONE, count: n }] : [];
     }
   }
 }
