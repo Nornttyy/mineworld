@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """物品图标：木棍/煤 + 木质&石质工具(镐/斧/锹/剑/锄)。
-画法(用户建议)：先把工具**正放**画好(柄竖直、头在正上方，形状容易画准)，
-再整体**旋转 45°** 得到斜放(柄左下→头右上，与 MC 一致)。NEAREST 旋转保像素硬边。
-木质头=暖木色，石质头=灰石色;柄=深木;旋转后统一 1px 深描边。
+16×16 RGBA 透明背景、像素硬边、确定性。布局参照 MC 真实工具图标:
+- 剑/镐/锄：斜柄(左下→右上)，作用端在上/右上。
+- 斧/锹：竖直柄，头在正上方(斧=顶横斧头偏左刃；锹=顶方铲)。
+- 镐：柄左下，镐头是上方横弧。
+木质头=暖木色，石质头=灰石色;柄=深木;统一 1px 深描边。
 独立于 gen_textures.py / gen_ui.py。
 """
 import os
@@ -17,9 +19,9 @@ HANDLE_LO = "#4f3c20"
 WOOD = "#a47f45"
 WOOD_HI = "#c6a064"
 WOOD_LO = "#7c5e32"
-STONE = "#9a9a9a"
-STONE_HI = "#bdbdbd"
-STONE_LO = "#6f6f6f"
+STONE = "#909090"
+STONE_HI = "#b4b4b4"
+STONE_LO = "#686868"
 OUTLINE = "#231910"
 OUTLINE_STONE = "#272727"
 COAL = "#2b2b2b"
@@ -56,15 +58,7 @@ def _hc(stone):
     return (STONE, STONE_HI, STONE_LO) if stone else (WOOD, WOOD_HI, WOOD_LO)
 
 
-def fill(px, pts, color):
-    c = hx(color)
-    for (x, y) in pts:
-        if 0 <= x < S and 0 <= y < S:
-            px[x, y] = c
-
-
-def shade(px, pts, base, hi, lo):
-    """对一组像素着色：上/左沿高光、下/右沿暗、其余主色。"""
+def shade_head(px, pts, base, hi, lo):
     bs, hs, ls = hx(base), hx(hi), hx(lo)
     pset = set(pts)
     for (x, y) in pts:
@@ -77,109 +71,155 @@ def shade(px, pts, base, hi, lo):
             px[x, y] = ls
 
 
-def vbar(x, y0, y1):
-    return [(x, y) for y in range(y0, y1 + 1)] + [(x + 1, y) for y in range(y0, y1 + 1)]
+def handle_diag(px, x0=2, y0=13, x1=8, y1=6):
+    """斜柄(左下→右上)，2px 宽；上沿高光、下沿暗。"""
+    base, hi, lo = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+    cells = []
+    n = max(abs(x1 - x0), abs(y1 - y0))
+    for i in range(n + 1):
+        x = round(x0 + (x1 - x0) * i / n)
+        y = round(y0 + (y1 - y0) * i / n)
+        for (cx, cy) in ((x, y), (x + 1, y)):
+            cells.append((cx, cy))
+    cells = list(dict.fromkeys(cells))
+    for (cx, cy) in cells:
+        px[cx, cy] = base
+    for (cx, cy) in cells:
+        if (cx - 1, cy) not in cells and (cx, cy - 1) not in cells:
+            px[cx, cy] = hi
+    for (cx, cy) in cells:
+        if (cx + 1, cy) not in cells and (cx, cy + 1) not in cells and px[cx, cy] != hi:
+            px[cx, cy] = lo
+    return set(cells)
 
 
-def rotate45(im, outline):
-    """正放图整体顺时针旋转 45°(柄竖→左下、头顶→右上)，裁回 16×16，再描边。"""
-    rot = im.rotate(-45, resample=Image.NEAREST, expand=True)
-    w, h = rot.size
-    l, t = (w - S) // 2, (h - S) // 2
-    crop = rot.crop((l, t, l + S, t + S))
-    add_outline(crop.load(), outline)
-    return crop
+def handle_vert(px, x=7, y0=14, y1=6):
+    """竖直柄(斧/锹用)，2px 宽；左列高光、右列暗。"""
+    base, hi, lo = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+    cells = set()
+    for y in range(y1, y0 + 1):
+        px[x, y] = hi
+        px[x + 1, y] = lo
+        cells.add((x, y))
+        cells.add((x + 1, y))
+    return cells
 
 
-# ── 正放工具(柄竖直、头在正上方) → 旋转 ────────────────────────────────
 def make_pickaxe(stone=False):
     im, px = blank()
+    handle_diag(px, 2, 13, 7, 4)
     base, hi, lo = _hc(stone)
-    shade(px, vbar(7, 6, 14), HANDLE, HANDLE_HI, HANDLE_LO)  # 竖柄
-    # 正放镐头：横梁 + 右端下折竖臂(采矿尖) + 左端尖；旋转后成 MC 的"7"斜镐头
+    # 镐头："7"字形(MC)：顶横梁 + 右端下折成竖臂(采矿尖) + 左端小尖；柄从横梁中部向左下。
     head = [
-        (3, 2), (4, 2), (5, 2), (6, 2), (7, 2), (8, 2), (9, 2), (10, 2), (11, 2),  # 横梁
-        (3, 3), (3, 4),            # 左端尖
-        (11, 3), (11, 4),          # 右端下折竖臂
-        (7, 3),                    # 横梁中接柄
+        (4, 2), (5, 2), (6, 2), (7, 2), (8, 2), (9, 2), (10, 2),  # 顶横梁
+        (4, 3),                                                    # 左端尖
+        (10, 3), (11, 3), (10, 4), (11, 4), (11, 5),               # 右端下折竖臂(采矿尖)
+        (7, 3),                                                    # 横梁中部接柄
     ]
-    shade(px, head, base, hi, lo)
-    return rotate45(im, OUTLINE_STONE if stone else OUTLINE)
+    shade_head(px, head, base, hi, lo)
+    add_outline(px, OUTLINE_STONE if stone else OUTLINE)
+    return im
 
 
 def make_axe(stone=False):
     im, px = blank()
+    handle_diag(px, 2, 13, 9, 5)
     base, hi, lo = _hc(stone)
-    shade(px, vbar(7, 6, 14), HANDLE, HANDLE_HI, HANDLE_LO)  # 竖柄
-    # 正放斧头：柄顶一侧的横斧头(偏左凸刃)
+    # 斧头：斜柄右上端的横斧头，斧刃朝左上外凸(仿 MC)
     head = [
-        (4, 2), (5, 2), (6, 2), (7, 2), (8, 2),
-        (3, 3), (4, 3), (5, 3), (6, 3), (7, 3), (8, 3),
-        (3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (8, 4),
-        (4, 5), (5, 5), (6, 5), (7, 5),
+        (7, 2), (8, 2), (9, 2), (10, 2),
+        (6, 3), (7, 3), (8, 3), (9, 3), (10, 3),
+        (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+        (7, 5), (8, 5), (9, 5),
     ]
-    shade(px, head, base, hi, lo)
-    return rotate45(im, OUTLINE_STONE if stone else OUTLINE)
+    shade_head(px, head, base, hi, lo)
+    add_outline(px, OUTLINE_STONE if stone else OUTLINE)
+    return im
 
 
 def make_shovel(stone=False):
     im, px = blank()
+    handle_diag(px, 2, 13, 9, 5)
     base, hi, lo = _hc(stone)
-    shade(px, vbar(7, 7, 14), HANDLE, HANDLE_HI, HANDLE_LO)  # 竖柄
-    # 正放铲头：柄顶的方铲(顶宽下收)
+    # 锹头：斜柄右上端的方铲(顶宽下收)
     head = [
-        (5, 2), (6, 2), (7, 2), (8, 2), (9, 2),
-        (5, 3), (6, 3), (7, 3), (8, 3), (9, 3),
-        (5, 4), (6, 4), (7, 4), (8, 4), (9, 4),
-        (6, 5), (7, 5), (8, 5),
+        (8, 2), (9, 2), (10, 2), (11, 2),
+        (8, 3), (9, 3), (10, 3), (11, 3),
+        (8, 4), (9, 4), (10, 4), (11, 4),
+        (9, 5), (10, 5),
     ]
-    shade(px, head, base, hi, lo)
-    return rotate45(im, OUTLINE_STONE if stone else OUTLINE)
+    shade_head(px, head, base, hi, lo)
+    add_outline(px, OUTLINE_STONE if stone else OUTLINE)
+    return im
 
 
 def make_hoe(stone=False):
     im, px = blank()
+    handle_diag(px, 2, 13, 8, 6)
     base, hi, lo = _hc(stone)
-    shade(px, vbar(7, 6, 14), HANDLE, HANDLE_HI, HANDLE_LO)  # 竖柄
-    # 正放锄头：柄顶横刃 + 一端下折(旋转后成 MC 的 7/L)
+    # 锄头：右上横刃 + 右端向下折一格(MC 的 7/L 形)
     head = [
-        (3, 2), (4, 2), (5, 2), (6, 2), (7, 2), (8, 2),
-        (3, 3), (3, 4),    # 左端下折
-        (7, 3),            # 接柄
+        (7, 3), (8, 3), (9, 3), (10, 3), (11, 3), (12, 3),
+        (12, 4), (12, 5),   # 右端下折
+        (7, 4),             # 接柄
     ]
-    shade(px, head, base, hi, lo)
-    return rotate45(im, OUTLINE_STONE if stone else OUTLINE)
+    shade_head(px, head, base, hi, lo)
+    add_outline(px, OUTLINE_STONE if stone else OUTLINE)
+    return im
 
 
 def make_sword(stone=False):
     im, px = blank()
     base, hi, lo = _hc(stone)
-    # 正放剑：竖直剑刃(菱形+中脊高光) + 护手 + 柄
+    hb, hh, hl = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+    # 剑身：右上斜长菱形 + 中脊高光，剑尖 (13,1)
     blade = [
-        (7, 1),
-        (6, 2), (7, 2), (8, 2),
-        (6, 3), (7, 3), (8, 3),
-        (6, 4), (7, 4), (8, 4),
-        (6, 5), (7, 5), (8, 5),
-        (6, 6), (7, 6), (8, 6),
-        (6, 7), (7, 7), (8, 7),
+        (12, 1), (13, 1),
+        (11, 2), (12, 2), (13, 2),
+        (10, 3), (11, 3), (12, 3),
+        (9, 4), (10, 4), (11, 4),
+        (8, 5), (9, 5), (10, 5),
+        (7, 6), (8, 6), (9, 6),
+        (7, 7), (8, 7),
     ]
-    shade(px, blade, base, hi, lo)
-    for y in range(1, 8):
-        px[7, y] = hx(hi)  # 中脊亮线
-    fill(px, [(4, 8), (5, 8), (6, 8), (7, 8), (8, 8), (9, 8), (10, 8)], HANDLE)  # 护手
-    shade(px, vbar(7, 9, 13), HANDLE, HANDLE_HI, HANDLE_LO)  # 柄
-    px[7, 13] = hx(HANDLE_LO)
-    px[8, 13] = hx(HANDLE_LO)
-    return rotate45(im, OUTLINE_STONE if stone else OUTLINE)
+    shade_head(px, blade, base, hi, lo)
+    for (x, y) in [(13, 1), (12, 2), (11, 3), (10, 4), (9, 5), (8, 6)]:
+        px[x, y] = hx(hi)  # 中脊亮线
+    # 护手(木色十字)
+    for (x, y) in [(5, 8), (6, 8), (7, 8), (8, 8), (9, 8)]:
+        px[x, y] = hb
+    px[5, 8] = hl
+    px[9, 8] = hl
+    # 柄 + 柄尾(左下)
+    for (x, y) in [(6, 9), (5, 10), (4, 11)]:
+        px[x, y] = hb
+    px[7, 9] = hh
+    px[3, 12] = hl
+    add_outline(px, OUTLINE_STONE if stone else OUTLINE)
+    return im
 
 
 def make_stick():
     im, px = blank()
-    shade(px, vbar(7, 3, 13), HANDLE, HANDLE_HI, HANDLE_LO)  # 正放竖木棒
-    px[7, 3] = hx(HANDLE_LO)
-    px[8, 13] = hx(HANDLE_LO)
-    return rotate45(im, OUTLINE)
+    base, hi, lo = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+    cells = []
+    x0, y0, x1, y1 = 4, 11, 11, 4
+    n = max(abs(x1 - x0), abs(y1 - y0))
+    for i in range(n + 1):
+        x = round(x0 + (x1 - x0) * i / n)
+        y = round(y0 + (y1 - y0) * i / n)
+        for (cx, cy) in ((x, y), (x + 1, y)):
+            cells.append((cx, cy))
+    cells = list(dict.fromkeys(cells))
+    for (x, y) in cells:
+        px[x, y] = base
+    for (x, y) in cells:
+        if (x, y - 1) not in cells and (x - 1, y) not in cells:
+            px[x, y] = hi
+    px[cells[0][0], cells[0][1]] = lo
+    px[cells[-1][0], cells[-1][1]] = lo
+    add_outline(px, OUTLINE)
+    return im
 
 
 def make_coal():
@@ -203,7 +243,7 @@ def make_coal():
             px[x, y] = lo
     for (x, y) in [(6, 5), (7, 5), (5, 6), (6, 6), (8, 7), (9, 7)]:
         px[x, y] = hi
-    add_outline(px, OUTLINE_STONE)  # 煤不旋转
+    add_outline(px, OUTLINE_STONE)
     return im
 
 
