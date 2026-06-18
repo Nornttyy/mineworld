@@ -74,11 +74,10 @@ function oreAt(wx: number, wy: number, wz: number, height: number, seed: number)
 // 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续，确定性）。
 // 叠加多种尺度形成：大海(大陆度)、池子(丘陵凹陷)、河流(蜿蜒细谷)。
 export function columnHeight(wx: number, wz: number, seed: number): number {
-  const continent = fbm2(wx / 220, wz / 220, seed, 4); // 大尺度：海(低) vs 陆(高)
-  const hills = fbm2(wx / 42, wz / 42, seed + 17, 4); // 中尺度：丘陵/小池
-  // 海(~100)→山(~180)：起伏拉大，让 continent 低处低于海平面 → 真正的海/湖；
-  // 海/湖深度随 continent 自然变化(越低越深)，不再整齐。
-  let h = 80 + continent * 110 + (hills - 0.5) * 20;
+  const continent = fbm2(wx / 260, wz / 260, seed, 4); // 大尺度：海(低) vs 陆(高)，尺度放大=坡更缓
+  const hills = fbm2(wx / 72, wz / 72, seed + 17, 3); // 中尺度丘陵：波长放缓+幅度减半 → 地表平滑、不再密集锯齿台阶
+  // 起伏主要来自大尺度 continent(缓坡)，hills 只加小起伏(±5)；海/湖深度仍随 continent 自然变化。
+  let h = 88 + continent * 100 + (hills - 0.5) * 10;
 
   // 河流：蜿蜒河谷下切；河床深度随噪声变化(3~8 格)，不再固定整齐。
   {
