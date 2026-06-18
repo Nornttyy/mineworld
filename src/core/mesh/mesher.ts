@@ -2,8 +2,8 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, Face } from '../blocks/registry';
-import { computeSkyLight, lightFactor } from '../light/skylight';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, blockLight, Face, TORCH } from '../blocks/registry';
+import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 4;
@@ -87,6 +87,7 @@ export interface MeshData {
   uvs: Float32Array;
   colors: Float32Array;
   indices: Uint32Array;
+  light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
 }
 
 interface BlockGrid {
@@ -173,20 +174,23 @@ interface FaceArrays {
   U: number[];
   C: number[];
   I: number[];
+  L: number[]; // 每顶点 (天光01, 方块光01)
 }
-const emptyArrays = (): FaceArrays => ({ P: [], N: [], U: [], C: [], I: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], N: [], U: [], C: [], I: [], L: [] });
 const toMeshData = (a: FaceArrays): MeshData => ({
   positions: new Float32Array(a.P),
   normals: new Float32Array(a.N),
   uvs: new Float32Array(a.U),
   colors: new Float32Array(a.C),
   indices: new Uint32Array(a.I),
+  light: new Float32Array(a.L),
 });
 
 export interface ChunkMesh {
   opaque: MeshData;
   cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
+  torch: MeshData; // 火把：暖色小十字，自发光(不参与天光 shader)
 }
 
 // 网格化无限世界中的一个区块 (cx,cz)，分别产出"不透明"和"水"两套网格。
@@ -197,20 +201,31 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const op = emptyArrays();
   const cut = emptyArrays();
   const wa = emptyArrays();
+  const to = emptyArrays(); // 火把
   const eps = 0.01 / (TILE_PX * ATLAS_COLS);
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 
   const occ = (x: number, y: number, z: number): boolean => isOpaque(world.getBlock(x, y, z));
 
-  // 天光：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 0..15。
-  // 取面朝向的那格空气的光 → 该面亮度。露天 15、洞里逐格变暗、封闭=0。昼夜明暗由全局 tint 叠加。
+  // 光照：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 + 方块光，各 0..15。
+  // 顶点存"该面朝向格"的 (天光, 方块光)，交给材质 shader 合成亮度——昼夜只缩放天光，火把光恒定。
   const LW = CHUNK_W + 2;
   const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1));
-  const lightAt = (lx: number, ly: number, lz: number): number => {
+  const blkLight = computeBlockLight(
+    LW,
+    CHUNK_H,
+    (hx, hy, hz) => blockLight(world.getBlock(ox + hx - 1, hy, oz + hz - 1)),
+    (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1),
+  );
+  const skyAt = (lx: number, ly: number, lz: number): number => {
     if (ly >= CHUNK_H) return 15; // 世界顶之上=露天
     if (ly < 0) return 0; // 世界底之下=黑
     return skyLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
+  };
+  const blkAt = (lx: number, ly: number, lz: number): number => {
+    if (ly >= CHUNK_H || ly < 0) return 0;
+    return blkLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
   };
 
   const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
@@ -219,17 +234,22 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
     const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
     const shade = FACE_SHADE[f];
-    const fl = lightFactor(lightAt(lx + d.o[0], ly + d.o[1], lz + d.o[2])); // 该面朝向格的天光
+    const ex = lx + d.o[0]; // 该面朝向(外侧)那一格 → 取它的光
+    const ey = ly + d.o[1];
+    const ez = lz + d.o[2];
+    const sky = skyAt(ex, ey, ez) / 15;
+    const blk = blkAt(ex, ey, ez) / 15;
     const base = a.P.length / 3;
     const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
       ao[k] = cornerAO(occ, ox + lx, ly, oz + lz, f, k);
-      const c = shade * ao[k] * fl;
+      const c = shade * ao[k]; // 几何阴影 × AO；天光/方块光由 shader 再乘
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.N.push(d.n[0], d.n[1], d.n[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
+      a.L.push(sky, blk);
     }
     // 按 AO 翻转四边形对角线，避免梯度插值出现折痕
     if (ao[0] + ao[2] > ao[1] + ao[3]) {
@@ -239,12 +259,44 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     }
   };
 
+  // 火把：在格中心立一个暖色"交叉竖片"小网格，自发光(走独立材质，不参与天光 shader)。
+  const emitTorch = (lx: number, lz: number, ly: number): void => {
+    const cx = lx + 0.5;
+    const cz = lz + 0.5;
+    const r = 0.34;
+    const h = 0.62;
+    const body = [0.5, 0.32, 0.14]; // 棍身棕
+    const tip = [1.0, 0.74, 0.24]; // 顶端火光暖橙
+    const quads = [
+      [cx - r, cz - r, cx + r, cz + r], // 对角片
+      [cx - r, cz + r, cx + r, cz - r], // 反对角片
+    ];
+    for (const [x0, z0, x1, z1] of quads) {
+      const base = to.P.length / 3;
+      const verts = [
+        [x0, ly, z0, ...body],
+        [x1, ly, z1, ...body],
+        [x1, ly + h, z1, ...tip],
+        [x0, ly + h, z0, ...tip],
+      ];
+      for (const v of verts) {
+        to.P.push(v[0], v[1], v[2]);
+        to.N.push(0, 1, 0);
+        to.U.push(0, 0);
+        to.C.push(v[3], v[4], v[5]);
+      }
+      to.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  };
+
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
   // UV 用世界坐标平铺（顶/底用 x,z；侧面用 水平,y）：整片水面连续平铺、斜水面不会扭曲，
   // 配合独立可滚动水纹理做流动动画。
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
-    const shade = FACE_SHADE[f] * lightFactor(lightAt(lx + d.o[0], ly + d.o[1], lz + d.o[2])); // 叠天光
+    const shade = FACE_SHADE[f];
+    const sky = skyAt(lx + d.o[0], ly + d.o[1], lz + d.o[2]) / 15; // 该面朝向格的光，交 shader 合成
+    const blk = blkAt(lx + d.o[0], ly + d.o[1], lz + d.o[2]) / 15;
     const base = wa.P.length / 3;
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
@@ -257,6 +309,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
       else if (f === 0 || f === 1) wa.U.push(wz, py); // ±X 侧
       else wa.U.push(wx, py); // ±Z 侧
       wa.C.push(shade, shade, shade);
+      wa.L.push(sky, blk);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -328,10 +381,12 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
           side(Face.NegX, -1, 0, [0, 0, h01, h00]);
           side(Face.PosZ, 0, 1, [0, 0, h11, h01]);
           side(Face.NegZ, 0, -1, [0, h00, h10, 0]);
+        } else if (id === TORCH) {
+          emitTorch(lx, lz, ly);
         }
       }
     }
   }
 
-  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa) };
+  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa), torch: toMeshData(to) };
 }

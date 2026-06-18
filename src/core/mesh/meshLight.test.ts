@@ -1,33 +1,49 @@
 import { describe, it, expect } from 'vitest';
 import { ChunkWorld } from '../world/chunkWorld';
 import { meshChunk } from './mesher';
+import { TORCH } from '../blocks/registry';
 
-// 验证天光真的烤进了网格顶点色：封闭处的面应明显比露天的暗。
-describe('mesher 天光接入', () => {
-  it('封闭空腔的面 远暗于 露天表面', () => {
+// 天光/方块光现在以每顶点 aLight=(天光01, 方块光01) 存进网格，由 shader 按昼夜合成。
+// 这里直接验证 light 属性：封闭面天光≈0、露天面天光≈1；火把照亮周围(方块光>0)且自身生成网格。
+describe('mesher 光照属性(天光+方块光)', () => {
+  it('封闭空腔的面天光≈0，露天表面天光≈1', () => {
     const w = new ChunkWorld(42);
-    // 在地表之上(y=310)围一个空气格(9,310,9)：6 个正交邻居全设实心 → 该空气格被封死、天光=0，
-    // 这些实心块朝向它的面会很暗；而世界地表是露天(天光15)很亮。
-    const STONE = 1;
+    const STONE = 1; // y=188 接近世界顶(CHUNK_H=192)，必在地表之上=露天
     for (const [x, y, z] of [
-      [10, 310, 9],
-      [8, 310, 9],
-      [9, 311, 9],
-      [9, 309, 9],
-      [9, 310, 10],
-      [9, 310, 8],
+      [10, 188, 9],
+      [8, 188, 9],
+      [9, 189, 9],
+      [9, 187, 9],
+      [9, 188, 10],
+      [9, 188, 8],
     ])
       w.setBlock(x, y, z, STONE);
 
-    const colors = meshChunk(w, 0, 0).opaque.colors;
-    let min = 1,
-      max = 0;
-    for (let i = 0; i < colors.length; i++) {
-      if (colors[i] < min) min = colors[i];
-      if (colors[i] > max) max = colors[i];
+    const light = meshChunk(w, 0, 0).opaque.light!;
+    let skyMin = 1,
+      skyMax = 0;
+    for (let i = 0; i < light.length; i += 2) {
+      // 偶数下标=天光
+      if (light[i] < skyMin) skyMin = light[i];
+      if (light[i] > skyMax) skyMax = light[i];
     }
-    expect(max).toBeGreaterThan(0.7); // 露天表面：天光15 → 亮
-    expect(min).toBeLessThan(0.15); // 封闭面：天光0 → 暗
-    expect(max).toBeGreaterThan(min * 4); // 明暗确实拉开了差距(不是全局均匀)
+    expect(skyMax).toBeGreaterThan(0.9); // 露天表面：天光满
+    expect(skyMin).toBe(0); // 封闭面：天光 0
+  });
+
+  it('火把：生成自发光网格 + 给周围方块面带来方块光', () => {
+    const w = new ChunkWorld(7);
+    // 地表之上(y=186)搭一个石台 + 台上放火把，台面的面应当被方块光照亮
+    const STONE = 1;
+    for (let x = 6; x <= 12; x++) for (let z = 6; z <= 12; z++) w.setBlock(x, 186, z, STONE);
+    w.setBlock(9, 187, 9, TORCH); // 台面中央放火把
+
+    const m = meshChunk(w, 0, 0);
+    expect(m.torch.positions.length).toBeGreaterThan(0); // 火把画出了网格(交叉片)
+    // 不透明面里，方块光通道(奇数下标)应有 >0 的值(火把照亮了台面/邻块面)
+    const light = m.opaque.light!;
+    let blkMax = 0;
+    for (let i = 1; i < light.length; i += 2) if (light[i] > blkMax) blkMax = light[i];
+    expect(blkMax).toBeGreaterThan(0.5); // 紧邻火把的面方块光接近满
   });
 });

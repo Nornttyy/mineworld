@@ -870,7 +870,12 @@ export class Game {
     this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
-    this.chunks.setTint(s.worldTint);
+    // 把 worldTint 拆成"色相(满亮)"+"暗度"：色相给 uSkyTint(夜偏蓝)，暗度给 uSkyMul。
+    // mx⁴ → 白天 1、深夜≈0.06：地表夜里几乎全黑(要火把)，而火把=方块光不受 uSkyMul 影响照常亮。
+    const t = s.worldTint;
+    const mx = Math.max(t[0], t[1], t[2], 0.001);
+    this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
+    this.chunks.setSkyMul(Math.pow(mx, 4));
   }
 
   private updateWater(): void {

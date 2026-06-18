@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSkyLight, lightFactor, MAX_LIGHT } from './skylight';
+import { computeSkyLight, computeBlockLight, lightFactor, MAX_LIGHT } from './skylight';
 
 // 测试网格：W×H×W，opaque 由一个集合给出。idx 与实现一致。
 function make(W: number, H: number, solids: [number, number, number][]) {
@@ -56,5 +56,44 @@ describe('天光传播', () => {
     expect(lightFactor(15)).toBeCloseTo(1, 5);
     expect(lightFactor(15)).toBeGreaterThan(lightFactor(10));
     expect(lightFactor(10)).toBeGreaterThan(lightFactor(4));
+  });
+});
+
+describe('方块光传播(火把)', () => {
+  const noEmit = (): number => 0;
+  const noOpaque = (): boolean => false;
+
+  it('无光源 → 处处 0', () => {
+    const light = computeBlockLight(3, 3, noEmit, noOpaque);
+    expect(Math.max(...light)).toBe(0);
+  });
+
+  it('单个火把(14) → 自身 14，逐格 −1 球状衰减', () => {
+    const W = 9,
+      H = 9;
+    const c = 4; // 中心
+    const emit = (x: number, y: number, z: number): number => (x === c && y === c && z === c ? 14 : 0);
+    const light = computeBlockLight(W, H, emit, noOpaque);
+    const at = (x: number, y: number, z: number): number => light[x + z * W + y * W * W];
+    expect(at(c, c, c)).toBe(14);
+    expect(at(c + 1, c, c)).toBe(13); // 相邻 −1
+    expect(at(c + 2, c, c)).toBe(12);
+    expect(at(c, c, c)).toBeGreaterThan(at(c + 3, c, c)); // 越远越暗
+    expect(at(c + 4, c, c)).toBe(10); // 曼哈顿距离 4 → 14−4
+  });
+
+  it('挡光墙挡住火把光：墙后更暗(需绕路)', () => {
+    // 一面 x=c 的实心墙(除火把所在行外)，火把在 x=c-1，墙后 x=c+1 的光要绕墙顶 → 比直射更暗
+    const W = 7,
+      H = 7;
+    const c = 3;
+    const emit = (x: number, y: number, z: number): number => (x === c - 1 && y === 0 && z === c ? 14 : 0);
+    const opaque = (x: number, _y: number, _z: number): boolean => x === c; // 整面 x=c 墙
+    const light = computeBlockLight(W, H, emit, opaque);
+    const at = (x: number, y: number, z: number): number => light[x + z * W + y * W * W];
+    expect(at(c, 0, c)).toBe(0); // 墙内不带光
+    expect(at(c - 1, 0, c)).toBe(14); // 火把处
+    // 墙后(x=c+1,y=0) 只能从墙上方绕过来 → 远小于直射的 13
+    expect(at(c + 1, 0, c)).toBeLessThan(13);
   });
 });

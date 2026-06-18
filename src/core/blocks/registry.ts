@@ -39,6 +39,7 @@ export interface BlockDef {
   needsTool: boolean; // 是否需要工具(镐)才能采集：手挖会 ×5 耗时且不掉落（石/圆石/矿）
   tool: 'pickaxe' | 'axe' | 'shovel' | null; // 对口工具：用它挖更快(且 needsTool 时才掉落)
   minTier?: number; // 采集所需最低工具等级（默认 1=木）。铁矿=2 → 需石镐才能挖出。
+  light?: number; // 方块自发光等级 0..15（火把=14），供方块光传播。0/缺省=不发光。
 }
 
 // 工具描述（由 items.ts 提供，这里只读其结构，避免反向依赖）
@@ -173,6 +174,20 @@ export const BLOCKS: BlockDef[] = [
     needsTool: true,
     tool: 'pickaxe',
   },
+  // 火把：非实心(可穿过)、非阻光(不挡天光/视线)、瞬破；自发光 14 照亮四周。
+  // 无图集贴图——由 mesher 特判画成"暖色小十字"自发光网格(故 faces 仅占位)。配方=煤+棍→4(已在 recipes)。
+  {
+    id: 14,
+    name: 'torch',
+    solid: false,
+    transparent: true,
+    faces: all(0),
+    hardness: 0,
+    drop: 14,
+    needsTool: false,
+    tool: null,
+    light: 14,
+  },
 ];
 
 export const GRASS = 3;
@@ -185,6 +200,7 @@ export const CRAFTING_TABLE = 11;
 export const IRON_ORE = 12;
 export const COAL_ORE = 8;
 export const FURNACE = 13;
+export const TORCH = 14;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
@@ -198,6 +214,8 @@ export const blockFaceTile = (id: number, face: Face): number => BLOCKS[id].face
 
 export const blockHardness = (id: number): number => BLOCKS[id]?.hardness ?? 0;
 export const blockNeedsTool = (id: number): boolean => BLOCKS[id]?.needsTool ?? false;
+// 方块自发光等级 0..15（火把=14），供方块光(blocklight)播种。
+export const blockLight = (id: number): number => BLOCKS[id]?.light ?? 0;
 
 // 工具是否与某方块"对口"（用它挖更快；needsTool 时也靠它才能采集）
 function toolMatches(id: number, tool: HeldTool | null): tool is HeldTool {

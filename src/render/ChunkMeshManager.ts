@@ -10,6 +10,7 @@ interface ChunkMeshes {
   opaque: THREE.Mesh;
   cutout: THREE.Mesh | null;
   water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
 }
 
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
@@ -18,10 +19,16 @@ export class ChunkMeshManager {
   private readonly opaqueMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
+  private readonly torchMat: THREE.MeshBasicMaterial;
   private readonly waterFrames: THREE.Texture[];
   private readonly waterTex: THREE.Texture;
   private waterAnimT = 0;
   private waterFrame = 0;
+  // 共享光照 uniform：uSkyMul=天光昼夜系数(白天1/夜≈0.05)；uSkyTint=天光着色(白天白/夜暗蓝)。
+  // 顶点带 aLight=(天光01,方块光01)，shader 合成 亮度=曲线(max(天光×uSkyMul, 方块光))。
+  // 故昼夜只缩放天光、火把(方块光)恒亮；改昼夜只动 uniform，无需重建网格。
+  private readonly uSkyMul = { value: 1 };
+  private readonly uSkyTint = { value: new THREE.Color(1, 1, 1) };
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -48,15 +55,45 @@ export class ChunkMeshManager {
       opacity: 0.78,
       depthWrite: false,
     });
+    // 这三套方块网格都吃天光/方块光 shader
+    for (const m of [this.opaqueMat, this.cutoutMat, this.waterMat]) this.installLight(m);
+    // 火把：自发光暖色十字，不参与天光(始终全亮)，双面可见
+    this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   }
 
-  /** 昼夜更替：把世界亮度着色乘到所有方块材质 .color 上（白=全亮，暗蓝=夜）。配色不变则跳过。 */
+  // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
+  private installLight(mat: THREE.MeshBasicMaterial): void {
+    mat.onBeforeCompile = (shader): void => {
+      shader.uniforms.uSkyMul = this.uSkyMul;
+      shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
+            ' vLF = 0.07 + 0.93 * pow(lvl, 1.4); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vLF;\nvarying vec3 vTint;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;');
+    };
+  }
+
+  /** 昼夜：天光着色 → uSkyTint（白天白、夜暗蓝），由 shader 按天光占比施加（火把照亮处不变蓝）。 */
   private lastTint = '';
   setTint(c: [number, number, number]): void {
     const sig = c.join();
     if (sig === this.lastTint) return;
     this.lastTint = sig;
-    for (const mat of [this.opaqueMat, this.cutoutMat, this.waterMat]) mat.color.setRGB(c[0], c[1], c[2]);
+    this.uSkyTint.value.setRGB(c[0], c[1], c[2]);
+  }
+
+  /** 昼夜：天光亮度系数（白天=1，深夜≈0.05 → 地表变黑、要靠火把）。 */
+  setSkyMul(v: number): void {
+    this.uSkyMul.value = v;
   }
 
   /** 切换方块图集（卡通/经典材质切换）：换不透明/镂空材质的贴图；水有独立纹理不受影响。 */
@@ -93,6 +130,7 @@ export class ChunkMeshManager {
     g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+    if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
   }
@@ -100,7 +138,7 @@ export class ChunkMeshManager {
   private unload(k: string): void {
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of [m.opaque, m.cutout, m.water]) {
+    for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
       if (mesh) {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
@@ -120,11 +158,12 @@ export class ChunkMeshManager {
 
   private rebuild(cx: number, cz: number): void {
     this.unload(this.key(cx, cz));
-    const { opaque, cutout, water } = meshChunk(this.world, cx, cz);
+    const { opaque, cutout, water, torch } = meshChunk(this.world, cx, cz);
     this.meshes.set(this.key(cx, cz), {
       opaque: this.addMesh(opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh(),
       cutout: this.addMesh(cutout, this.cutoutMat, cx, cz),
       water: this.addMesh(water, this.waterMat, cx, cz),
+      torch: this.addMesh(torch, this.torchMat, cx, cz),
     });
     const built = this.world.peek(cx, cz);
     if (built) built.dirty = false;
