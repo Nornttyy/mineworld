@@ -23,13 +23,15 @@ loadingEl.style.cssText =
   "position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;background:#0b1622;color:#cfe6f7;font-family:'Zpix',monospace;";
 loadingEl.innerHTML =
   '<div style="width:56px;height:56px;border:6px solid rgba(255,255,255,.18);border-top-color:#6ab0ff;border-radius:50%;animation:mw-spin .9s linear infinite"></div>' +
-  '<div style="font-size:18px;letter-spacing:3px">生成世界中…</div>';
+  '<div class="mw-loadtext" style="font-size:18px;letter-spacing:3px">加载中…</div>';
 const spinStyle = document.createElement('style');
 spinStyle.textContent = '@keyframes mw-spin{to{transform:rotate(360deg)}}';
 document.head.appendChild(spinStyle);
 document.body.appendChild(loadingEl);
-const showLoading = (v: boolean): void => {
+const loadTextEl = loadingEl.querySelector('.mw-loadtext') as HTMLElement;
+const showLoading = (v: boolean, text = '加载中…'): void => {
   loadingEl.style.display = v ? 'flex' : 'none';
+  if (v) loadTextEl.textContent = text;
 };
 
 // 随机 splash 文字
@@ -64,7 +66,13 @@ function showOnly(el: HTMLElement | null): void {
 }
 
 // --- 主菜单 ---
-showOnly(menu);
+// 启动:先盖加载界面 + 预生成主菜单背景，就绪再显示主菜单(不渐显)。退出 reload 后也走这里。
+void (async () => {
+  showLoading(true, '加载中…');
+  await menubg.preload();
+  showOnly(menu);
+  showLoading(false);
+})();
 // 设置面板（局内/局外共用）：改材质即时套用到运行中的游戏；音量已存盘(音效待开发)。
 const settingsMenu = new SettingsMenu($('settings'));
 settingsMenu.onChange = (s): void => {
@@ -145,7 +153,8 @@ function startGame(world: WorldSave): void {
 $('resume').addEventListener('click', () => void canvas.requestPointerLock());
 $('save-quit').addEventListener('click', () => {
   if (game) saveWorld(game.snapshot());
-  location.reload(); // 回到主菜单（干净重置）
+  showLoading(true, '保存并返回主菜单…'); // 退出也过加载界面
+  location.reload(); // 干净重置；reload 后走启动流程(加载界面 + 菜单背景预加载)
 });
 
 // 指针锁定 = 游戏中；解锁(ESC) = 暂停；死亡时改显示死亡界面

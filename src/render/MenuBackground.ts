@@ -63,6 +63,30 @@ export class MenuBackground {
     this.camera.updateProjectionMatrix();
   }
 
+  // 预加载：请求近处区块后台生成 + 等就绪 + 网格化，主菜单背景一显示就完整(不渐显)。
+  async preload(radius = 4): Promise<void> {
+    const cx = worldToChunk(Math.floor(this.x));
+    const cz = worldToChunk(Math.floor(this.z));
+    for (let dz = -radius; dz <= radius; dz++)
+      for (let dx = -radius; dx <= radius; dx++) this.world.request(cx + dx, cz + dz);
+    await new Promise<void>((resolve) => {
+      const check = (): void => {
+        let ready = true;
+        for (let dz = -radius; dz <= radius && ready; dz++)
+          for (let dx = -radius; dx <= radius && ready; dx++)
+            if (!this.world.peek(cx + dx, cz + dz)) ready = false;
+        if (ready) resolve();
+        else setTimeout(check, 30);
+      };
+      check();
+    });
+    const rounds = Math.ceil((radius * 2 + 1) ** 2 / 6) + 1;
+    for (let i = 0; i < rounds; i++) {
+      this.chunks.update(cx, cz, radius, 6);
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    }
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
