@@ -65,11 +65,11 @@ describe('trees', () => {
       (r) => localCoord(r.wx) >= 14,
     );
     expect(edge, '应能在大范围内找到一棵贴边的树').toBeTruthy();
-    const { wx, wz } = edge!;
+    const { wx, wz, g } = edge!;
     // wx+2 落在隔壁区块；该列(去角外的 dx=+2,dz=0)应当有树叶
     expect(worldToChunk(wx + 2)).not.toBe(worldToChunk(wx));
     let spill = 0;
-    for (let y = 0; y < 64; y++) {
+    for (let y = g; y < g + 10; y++) {
       if (world.getBlock(wx + 2, y, wz) === OAK_LEAVES) spill++;
     }
     expect(spill, '隔壁区块里应有该树探入的枝叶').toBeGreaterThan(0);

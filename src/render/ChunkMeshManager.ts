@@ -126,7 +126,8 @@ export class ChunkMeshManager {
       cutout: this.addMesh(cutout, this.cutoutMat, cx, cz),
       water: this.addMesh(water, this.waterMat, cx, cz),
     });
-    this.world.getChunk(cx, cz).dirty = false;
+    const built = this.world.peek(cx, cz);
+    if (built) built.dirty = false;
   }
 
   /** 确保中心 radius 内区块已网格化；远处卸载。每次最多(重)建 budget 个，分摊到多帧。 */
@@ -140,8 +141,10 @@ export class ChunkMeshManager {
       for (let dx = -radius; dx <= radius; dx++) {
         const cx = centerCx + dx;
         const cz = centerCz + dz;
-        const needs = !this.meshes.has(this.key(cx, cz)) || this.world.getChunk(cx, cz).dirty;
-        if (needs) todo.push({ cx, cz, d: dx * dx + dz * dz });
+        this.world.request(cx, cz); // 异步请求后台生成(不卡主线程)
+        const c = this.world.peek(cx, cz);
+        if (!c) continue; // 还没生成好 → 跳过，下次 update 再看
+        if (!this.meshes.has(this.key(cx, cz)) || c.dirty) todo.push({ cx, cz, d: dx * dx + dz * dz });
       }
     }
     todo.sort((a, b) => a.d - b.d);
@@ -152,7 +155,7 @@ export class ChunkMeshManager {
   remeshDirty(): void {
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
-      if (this.world.getChunk(cx, cz).dirty) this.rebuild(cx, cz);
+      if (this.world.peek(cx, cz)?.dirty) this.rebuild(cx, cz);
     }
   }
 }

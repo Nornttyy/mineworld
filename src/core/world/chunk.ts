@@ -1,6 +1,6 @@
 // 一个区块"列"：16×H×16 的体素，存一个数组。无限世界以 (cx,cz) 为键管理这些列。
 export const CHUNK_W = 16;
-export const CHUNK_H = 64;
+export const CHUNK_H = 320; // 世界高度：地表抬到~256，地下留~250+格深供挖矿
 
 export class Chunk {
   readonly blocks = new Uint16Array(CHUNK_W * CHUNK_H * CHUNK_W);
@@ -35,6 +35,14 @@ export class Chunk {
   setFluid(lx: number, ly: number, lz: number, v: number): void {
     if (!this.inBounds(lx, ly, lz)) return;
     this.fluid[this.idx(lx, ly, lz)] = v;
+  }
+
+  // 从 Worker 传回的 buffer 重建区块（区块在后台线程生成、零拷贝传回主线程后用）。
+  static fromBuffers(blocks: ArrayBuffer, fluid: ArrayBuffer): Chunk {
+    const c = new Chunk();
+    c.blocks.set(new Uint16Array(blocks));
+    c.fluid.set(new Uint8Array(fluid));
+    return c;
   }
 }
 

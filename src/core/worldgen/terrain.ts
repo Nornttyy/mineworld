@@ -1,7 +1,7 @@
 import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
-import { fbm2, hash2, fbm3, valueNoise3 } from '../math/noise';
+import { fbm2, hash2, valueNoise3 } from '../math/noise';
 import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
 
 // 方块 id（见 core/blocks/registry）
@@ -11,7 +11,7 @@ const GRASS = 3;
 const SAND = 5;
 const COAL_ORE = 8;
 const IRON_ORE = 12;
-export const SEA_LEVEL = 18; // 海平面：低于此的地表注水、岸边铺沙
+export const SEA_LEVEL = 250; // 海平面（地表抬高到~256 后相应抬升）：低于此的地表注水、岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
 // 地形是否平坦：四向各 5 格内地表高度差都 ≤3。峡谷只在平坦处刷，免把山体切碎成条纹。
@@ -27,17 +27,30 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 
 // 多种洞穴类型叠加，判断某格是否为空腔。调用方限制 y<height-3(洞穴只在地表下≥4格)，
 // 故洞穴不碰土层/草顶 → 山坡再陡也不会露出方块条纹。返回 true=挖空。
-function caveAt(wx: number, wy: number, wz: number, seed: number): boolean {
-  // 主隧道：fbm3 宽等值面带 → 2~3 格高、玩家能直接走的蜿蜒大隧道。
-  const a = fbm3(wx / 30, wy / 22, wz / 30, seed + 222);
-  if (Math.abs(a - 0.5) < 0.04) return true;
-  // 大矿洞：低频谷底 → 偶发大空腔洞室(玩家能站直)
-  const room = fbm3(wx / 32, wy / 24, wz / 32, seed + 700);
-  if (room < 0.05) return true;
-  // 峡谷：2D 蜿蜒缝 + 竖直深切，但只在平坦地形(山里不刷，免切碎山体)。
+// 矿洞(按深度分层)：浅层小矿洞为主+少量中、中层中矿洞+一些大、深层大矿洞。
+// depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
+function caveAt(wx: number, wy: number, wz: number, height: number, seed: number): boolean {
+  const depth = height - wy;
+  if (depth < 3) return false;
+  if (depth < 90) {
+    // 浅层：小矿洞为主 + 一点中矿洞
+    if (Math.abs(valueNoise3(wx / 13, wy / 9, wz / 13, seed + 222) - 0.5) < 0.06) return true;
+    return Math.abs(valueNoise3(wx / 17, wy / 12, wz / 17, seed + 333) - 0.5) < 0.03;
+  }
+  if (depth < 200) {
+    // 中层：中矿洞为主 + 一些大矿洞
+    if (Math.abs(valueNoise3(wx / 17, wy / 13, wz / 17, seed + 333) - 0.5) < 0.08) return true;
+    return valueNoise3(wx / 22, wy / 16, wz / 22, seed + 700) < 0.1;
+  }
+  // 深层：大矿洞为主 + 连通中隧道
+  if (valueNoise3(wx / 26, wy / 18, wz / 26, seed + 700) < 0.2) return true;
+  return Math.abs(valueNoise3(wx / 17, wy / 13, wz / 17, seed + 333) - 0.5) < 0.05;
+}
+
+// 峡谷(独立，不算矿洞)：平坦地形的竖直深裂缝，从近地表一直切到很深。
+function ravineAt(wx: number, wy: number, wz: number, seed: number): boolean {
   const rv = fbm2(wx / 145, wz / 145, seed + 888);
-  if (Math.abs(rv - 0.5) < 0.02 && wy >= 2 && isFlat(wx, wz, seed)) return true;
-  return false;
+  return Math.abs(rv - 0.5) < 0.02 && wy >= 2 && isFlat(wx, wz, seed);
 }
 
 // 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
@@ -54,7 +67,7 @@ function oreAt(wx: number, wy: number, wz: number, height: number, seed: number)
 export function columnHeight(wx: number, wz: number, seed: number): number {
   const continent = fbm2(wx / 220, wz / 220, seed, 4); // 大尺度：海(低) vs 陆(高)
   const hills = fbm2(wx / 42, wz / 42, seed + 17, 4); // 中尺度：丘陵/小池
-  let h = 2 + continent * 46 + (hills - 0.5) * 12;
+  let h = 256 + continent * 46 + (hills - 0.5) * 12; // 地表抬到~250-308，地下留~250+格深
 
   // 河流：一条横贯地图的蜿蜒河谷。沿河心把地形平滑压到水下，两岸用 smoothstep
   // 渐变成谷(不是突兀的峭壁)，因此平原、丘陵都能被一条河穿过、与海/湖相连。
@@ -157,7 +170,7 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
       for (let y = 0; y <= height; y++) {
         // 洞穴优先：底2层除外、草顶(y==height)保留；可挖穿土层 → 露天，海床下 → 水底矿洞
-        if (y > 1 && y < height - 3 && caveAt(wx, y, wz, seed)) continue; // 地表下≥4格才挖洞→不破表层(消除山坡条纹)
+        if (y > 1 && y < height - 3 && (caveAt(wx, y, wz, height, seed) || ravineAt(wx, y, wz, seed))) continue; // 矿洞(分层)或峡谷；地表下≥4格才挖→不破表层
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;

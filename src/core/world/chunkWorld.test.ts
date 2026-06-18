@@ -55,7 +55,7 @@ describe('meshChunk', () => {
 
   it('上方有实心方块的水 → 渲染灌满到顶(不在方块下露空洞)', () => {
     const w = new ChunkWorld(5);
-    const Y = 30; // 地形之上
+    const Y = 295; // 地形之上(地表抬到~256后)
     w.setBlock(5, Y - 1, 5, 1); // 地板
     w.setWater(5, Y, 5, 4, false, false); // 浅水(量4≈高度0.44)
     w.setBlock(5, Y + 1, 5, 1); // 头顶盖实心方块
@@ -69,7 +69,7 @@ describe('meshChunk', () => {
 
   it('culls faces at chunk borders against the neighbour chunk (no internal wall)', () => {
     const w = new ChunkWorld(123);
-    const h = 45; // 高于地形，干净的浮空块便于对比
+    const h = 295; // 高于地形(地表~256)，干净的浮空块便于对比
     w.setBlock(15, h, 0, 1); // 区块(0,0)的 +X 边界
     const before = meshChunk(w, 0, 0).opaque.indices.length;
     w.setBlock(16, h, 0, 1); // 区块(1,0)里紧邻其 +X 的方块
