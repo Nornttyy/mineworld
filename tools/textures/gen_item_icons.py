@@ -247,25 +247,51 @@ def make_coal():
     return im
 
 
-# 石质工具 = 用户手绘的木质工具**换色**(木色→石灰)，形状完全沿用用户的；柄也一并变灰。
+# 石/铁工具 = 用户手绘木质工具整体**换色**(用户要求整把换、不留木柄)，形状沿用用户的。
 WOOD_TO_STONE = {
-    (79, 60, 32): (43, 43, 43),      # 4f3c20 描边/暗 → 深灰
-    (110, 85, 48): (94, 94, 94),     # 6e5530 深木
-    (139, 111, 66): (128, 128, 128),  # 8b6f42 深木高光
-    (164, 127, 69): (154, 154, 154),  # a47f45 主木 → 石
-    (198, 160, 100): (190, 190, 190),  # c6a064 木高光 → 亮石
+    (35, 25, 16): (39, 39, 39),       # OUTLINE 木描边 → 石描边(脚本生成的锄用它)
+    (79, 60, 32): (43, 43, 43),
+    (110, 85, 48): (94, 94, 94),
+    (139, 111, 66): (128, 128, 128),
+    (164, 127, 69): (154, 154, 154),
+    (198, 160, 100): (190, 190, 190),
+}
+WOOD_TO_IRON = {
+    (35, 25, 16): (48, 48, 54),        # OUTLINE 木描边 → 铁描边
+    (79, 60, 32): (74, 74, 82),        # 描边/暗 → 铁深
+    (110, 85, 48): (150, 150, 158),
+    (139, 111, 66): (178, 178, 186),
+    (164, 127, 69): (205, 205, 212),   # 主 → 银
+    (198, 160, 100): (230, 230, 236),  # 高光 → 亮银
 }
 
 
-def make_stone_from_wood(wood_name):
-    """石质=木质换色：头部(右上 y<=x)木色→石灰；柄(左下斜线 y>x)保留木色(仿 MC 石工具)。"""
+def recolor(wood_name, table):
+    """从木质工具整体换色(石/铁)：每个木色像素按 table 映射，形状沿用用户手绘。"""
     im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
     px = im.load()
     for y in range(S):
         for x in range(S):
             r, g, b, a = px[x, y]
-            if a > 0 and y <= x:  # 右上=头→石灰；左下=柄保留木色
-                px[x, y] = (*WOOD_TO_STONE.get((r, g, b), (r, g, b)), 255)
+            if a > 0:
+                px[x, y] = (*table.get((r, g, b), (r, g, b)), 255)
+    return im
+
+
+def make_ingot(table):
+    """锭图标(铁锭)：居中梯形金属块 + 顶高光底暗，颜色取换色板。"""
+    im, px = blank()
+    base = (*table[(164, 127, 69)], 255)
+    hi = (*table[(198, 160, 100)], 255)
+    lo = (*table[(110, 85, 48)], 255)
+    for y, (x0, x1) in zip(range(6, 11), [(5, 10), (4, 11), (4, 11), (4, 11), (5, 10)]):
+        for x in range(x0, x1 + 1):
+            px[x, y] = base
+    for x in range(5, 11):
+        px[x, 6] = hi
+    for x in range(5, 10):
+        px[x, 10] = lo
+    add_outline(px, OUTLINE_STONE)
     return im
 
 
@@ -289,21 +315,27 @@ def main():
     # 先把用户手绘工具图案居中（石质换色、手持、物品栏都基于居中后的图标）
     for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel"]:
         center_png(n)
+    # 基础(脚本生成的)先存盘，供下面 recolor 读取
+    base = {"stick": make_stick(), "coal": make_coal(), "wooden_hoe": make_hoe(False)}
+    for name, im in base.items():
+        im.save(os.path.join(ICON, f"{name}.png"))
+    # 石质=整体换石、铁质=整体换银(都从木质换色)，加铁锭
     out = {
-        "stick": make_stick(),
-        "coal": make_coal(),
-        # wooden_pickaxe / wooden_axe / wooden_shovel / wooden_sword 由用户手绘(paint.html)，不在此生成
-        "wooden_hoe": make_hoe(False),
-        # 石质 = 用户木质换色(石锄暂用生成版，待用户画木锄)
-        "stone_pickaxe": make_stone_from_wood("wooden_pickaxe"),
-        "stone_axe": make_stone_from_wood("wooden_axe"),
-        "stone_shovel": make_stone_from_wood("wooden_shovel"),
-        "stone_sword": make_stone_from_wood("wooden_sword"),
-        "stone_hoe": make_hoe(True),
+        "stone_pickaxe": recolor("wooden_pickaxe", WOOD_TO_STONE),
+        "stone_axe": recolor("wooden_axe", WOOD_TO_STONE),
+        "stone_shovel": recolor("wooden_shovel", WOOD_TO_STONE),
+        "stone_sword": recolor("wooden_sword", WOOD_TO_STONE),
+        "stone_hoe": recolor("wooden_hoe", WOOD_TO_STONE),
+        "iron_pickaxe": recolor("wooden_pickaxe", WOOD_TO_IRON),
+        "iron_axe": recolor("wooden_axe", WOOD_TO_IRON),
+        "iron_shovel": recolor("wooden_shovel", WOOD_TO_IRON),
+        "iron_sword": recolor("wooden_sword", WOOD_TO_IRON),
+        "iron_hoe": recolor("wooden_hoe", WOOD_TO_IRON),
+        "iron_ingot": make_ingot(WOOD_TO_IRON),
     }
     for name, im in out.items():
         im.save(os.path.join(ICON, f"{name}.png"))
-    print(f"wrote {len(out)} item icons -> {os.path.normpath(ICON)}")
+    print(f"wrote {len(base) + len(out)} item icons (石/铁工具+铁锭)")
 
 
 if __name__ == "__main__":
