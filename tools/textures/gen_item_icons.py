@@ -258,12 +258,13 @@ WOOD_TO_STONE = {
 
 
 def make_stone_from_wood(wood_name):
+    """石质=木质换色：头部(右上 y<=x)木色→石灰；柄(左下斜线 y>x)保留木色(仿 MC 石工具)。"""
     im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
     px = im.load()
     for y in range(S):
         for x in range(S):
             r, g, b, a = px[x, y]
-            if a > 0:
+            if a > 0 and y <= x:  # 右上=头→石灰；左下=柄保留木色
                 px[x, y] = (*WOOD_TO_STONE.get((r, g, b), (r, g, b)), 255)
     return im
 
