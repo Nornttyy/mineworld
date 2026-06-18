@@ -27,6 +27,7 @@ import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/it
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
 import { updateHostile } from '../core/entity/hostileAi';
 import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
+import { serializeMob, deserializeMob } from '../core/entity/mobSave';
 import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
@@ -235,9 +236,13 @@ export class Game {
     this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
     this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
-    // 出生周边撒几群动物（让玩家一进世界就能看到；近环带 6–26 格）
-    for (let i = 0; i < 4; i++) {
-      this.mobs.push(...spawnRingGroup(MOB_KINDS[i % 4], spawn.x, spawn.z, this.mobRng, this.spawnWorld, this.surfaceY, 6, 26));
+    // 生物：有存档就还原玩家上次离开时附近的（动物/敌对）；否则（新世界/旧档）出生周边撒几群
+    if (save.mobs && save.mobs.length) {
+      for (const sm of save.mobs) this.mobs.push(deserializeMob(sm));
+    } else {
+      for (let i = 0; i < 4; i++) {
+        this.mobs.push(...spawnRingGroup(MOB_KINDS[i % 4], spawn.x, spawn.z, this.mobRng, this.spawnWorld, this.surfaceY, 6, 26));
+      }
     }
 
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
@@ -327,6 +332,7 @@ export class Game {
       exhaustion: sv.exhaustion,
     };
     this.save.worldTime = this.worldTime; // 昼夜：存当前时刻，下次续上
+    this.save.mobs = this.mobs.map(serializeMob); // 附近生物（动物/敌对）随档保存
     this.save.lastPlayed = Date.now();
     return this.save;
   }

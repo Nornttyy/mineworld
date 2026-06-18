@@ -1,5 +1,7 @@
-// 世界存档：localStorage 持久化。只存"种子 + 玩家改过的方块(delta) + 玩家状态"，
+// 世界存档：localStorage 持久化。只存"种子 + 玩家改过的方块(delta) + 玩家状态 + 附近生物"，
 // 未改动的地形由种子重新生成，省空间。
+
+import type { SerializedMob } from '../core/entity/mobSave';
 
 export interface WorldSave {
   id: string;
@@ -11,6 +13,7 @@ export interface WorldSave {
   inv?: ({ id: number; count: number; dur?: number } | null)[]; // 背包；dur=工具剩余耐久
   survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
   worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
+  mobs?: SerializedMob[]; // 玩家附近的生物（动物/敌对）；不存则新世界/旧档进场时撒新群
 }
 
 const KEY = 'mineworld.saves';
