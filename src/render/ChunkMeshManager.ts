@@ -90,7 +90,7 @@ export class ChunkMeshManager {
 
     // 太阳光(投影阴影)：castShadow 让 three.js 每帧把 castShadow 物体渲进 shadow map(深度)；
     // 材质用 RGBA 打包深度，方块 shader 自己采样。正交相机只覆盖玩家附近 ±SHADOW_HALF。
-    this.sun.castShadow = true;
+    this.sun.castShadow = false; // 默认关；由 setShaders(「光影」开关)控制，避免默认就吃每帧 shadow pass
     this.sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     const sc = this.sun.shadow.camera;
     sc.left = -SHADOW_HALF;
@@ -273,6 +273,9 @@ export class ChunkMeshManager {
   /** 光影总开关：开 → 水面波动 + 菲涅尔反射 + 太阳高光；关 → 平静水面(省性能)。 */
   setShaders(on: boolean): void {
     this.uShaders.value = on ? 1 : 0;
+    // 阴影(shadow map)开销大 → 也归「光影」开关管：关时不渲 shadow pass(每帧省一整遍场景深度渲染)、shader 跳 PCF
+    this.sun.castShadow = on;
+    if (!on) this.uShadowOn.value = 0;
   }
 
   /** 水面反射的天空色：地平线色(掠角) + 天顶色(俯角) → 反射出天空渐变(更真实)。 */
