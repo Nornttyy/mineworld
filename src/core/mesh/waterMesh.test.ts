@@ -31,4 +31,13 @@ describe('水面高度·头顶有方块', () => {
     w.setWater(5, Y, 5, 8, true, false); // 源头(满)
     expect(maxWaterY(w)).toBeGreaterThan(Y + 0.9);
   });
+
+  it('较满的流动水(量7,灌进来的)头顶有方块 → 也灌满贴住，不显得"没填满/流不进"', () => {
+    const w = new ChunkWorld(99);
+    w.setBlock(5, Y - 1, 5, STONE);
+    w.setBlock(5, Y + 1, 5, STONE);
+    for (const [x, z] of [[6, 5], [4, 5], [5, 6], [5, 4]]) w.setBlock(x, Y, z, 0);
+    w.setWater(5, Y, 5, 7, false, false); // 流动但较满(非源头)
+    expect(maxWaterY(w)).toBeGreaterThan(Y + 0.9);
+  });
 });
