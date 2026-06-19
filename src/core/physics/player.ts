@@ -21,6 +21,8 @@ export interface MoveIntent {
   jump: boolean; // 起跳（边沿，一次按键一次）
   sprint?: boolean; // 疾跑（双击 W）
   swimUp?: boolean; // 水中上浮（空格按住）
+  crouch?: boolean; // 下蹲（Shift/C）：碰撞变矮 + 减速 + 贴地时不走下方块边缘
+  slow?: boolean; // 减速（吃东西/用物品时，同 MC 速度降到约 20%）
 }
 
 export interface VoxelWorld {
@@ -32,6 +34,10 @@ export interface VoxelWorld {
 export const WIDTH = 0.6;
 export const HEIGHT = 1.8;
 export const EYE = 1.62;
+export const CROUCH_HEIGHT = 1.25; // 下蹲时碰撞箱高度
+export const CROUCH_EYE = 1.1; // 下蹲时视点高度（相机下沉）
+export const CROUCH_SPEED_MULT = 0.3; // 下蹲移动倍率（同 MC sneak ≈0.3）
+export const SLOW_SPEED_MULT = 0.2; // 用物品(吃东西)移动倍率（同 MC ≈0.2）
 export const GRAVITY = 0.08;
 export const VDRAG = 0.98;
 export const JUMP = 0.42;

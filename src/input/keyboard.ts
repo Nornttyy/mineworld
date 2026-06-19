@@ -24,6 +24,7 @@ export interface MoveKeys {
   right: number;
   sprint: boolean;
   jumpHeld: boolean; // 空格按住（水中持续上浮用）
+  crouch: boolean; // 下蹲（Shift 或 C 按住）
 }
 
 export function readMove(): MoveKeys {
@@ -33,7 +34,8 @@ export function readMove(): MoveKeys {
   if (keys.has('KeyS')) forward -= 1;
   if (keys.has('KeyD')) right += 1;
   if (keys.has('KeyA')) right -= 1;
-  return { forward, right, sprint: sprinting && forward > 0, jumpHeld: keys.has('Space') };
+  const crouch = keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyC');
+  return { forward, right, sprint: sprinting && forward > 0 && !crouch, jumpHeld: keys.has('Space'), crouch };
 }
 
 // 取出一次"起跳"（边沿触发，每次按键仅一次）

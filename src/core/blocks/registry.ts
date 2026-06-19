@@ -26,6 +26,7 @@ const T = {
   crafting_table_side: 13,
   iron_ore: 14,
   furnace_front: 15,
+  gravel: 16, // 图集第 5 行（4×4 扩成 4×5；同步 mesher/DropRenderer 的 ATLAS_ROWS=5）
 } as const;
 
 export interface BlockDef {
@@ -189,13 +190,12 @@ export const BLOCKS: BlockDef[] = [
     light: 14,
   },
   // 砂砾：地下成团生成，锹更快；挖掉默认掉自身，小概率(见 Game)改掉燧石。
-  // 贴图暂借圆石(T.cobblestone)占位——避免改并发中的 atlas.png，待美术补砂砾贴图。
   {
     id: 15,
     name: 'gravel',
     solid: true,
     transparent: false,
-    faces: all(T.cobblestone),
+    faces: all(T.gravel),
     hardness: 0.6, // MC 砂砾 0.6
     drop: 15, // 默认掉自身
     needsTool: false,

@@ -23,7 +23,7 @@ import { CrackOverlay } from '../render/CrackOverlay';
 import { DropRenderer } from '../render/DropRenderer';
 import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
-import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
+import { EYE, CROUCH_EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
 import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
@@ -201,6 +201,9 @@ export class Game {
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
+  private crouching = false; // 当前是否下蹲（驱动相机下沉）
+  private camEye = EYE; // 平滑后的视点高度（下蹲时降向 CROUCH_EYE）
+  private decayQueue: { x: number; y: number; z: number; t: number }[] = []; // 待腐烂的树叶 + 倒计时(tick)
   private texturePack: TexturePack; // 当前材质风格（卡通/经典）
   private renderDistance: number; // 区块加载半径（设置项；小=雾近更流畅）
 
@@ -501,6 +504,7 @@ export class Game {
       while (playing && this.acc >= TICK_MS) {
         this.prev = this.player;
         const m = readMove();
+        this.crouching = m.crouch;
         const jumped = consumeJump();
         this.player = step(
           this.player,
@@ -511,6 +515,8 @@ export class Game {
             jump: jumped,
             swimUp: m.jumpHeld,
             sprint: m.sprint,
+            crouch: m.crouch, // 下蹲：减速 + 不走下边缘 + 矮碰撞
+            slow: this.eating, // 吃东西减速（同 MC 用物品 ≈20% 速度）
           },
           this.physWorld,
         );
@@ -538,8 +544,9 @@ export class Game {
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
         this.renderDistance,
-        1, // 每帧最多建 1 个区块网格(深世界 mesh 重，降到 1 避免移动间隔卡)
+        2, // 每帧最多【派发】2 个区块给 worker 网格化(后台算，不卡主线程)
       );
+      this.chunks.flushMesh(2); // 每帧最多【上屏】2 个 worker 算好的网格(buildGeo 限量 → 稳帧)
       const wantFov = playing && readMove().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
@@ -1238,11 +1245,14 @@ export class Game {
     const y = a.y + (b.y - a.y) * alpha;
     const z = a.z + (b.z - a.z) * alpha;
     const cam = this.renderer.camera;
-    cam.position.set(x, y + EYE, z);
+    // 视点高度向目标(下蹲=CROUCH_EYE)平滑过渡，下蹲时相机下沉
+    this.camEye += ((this.crouching ? CROUCH_EYE : EYE) - this.camEye) * 0.3;
+    const eye = this.camEye;
+    cam.position.set(x, y + eye, z);
     const cy = Math.cos(this.look.yaw);
     const sy = Math.sin(this.look.yaw);
     const cp = Math.cos(this.look.pitch);
     const sp = Math.sin(this.look.pitch);
-    cam.lookAt(x + cy * cp, y + EYE + sp, z + sy * cp);
+    cam.lookAt(x + cy * cp, y + eye + sp, z + sy * cp);
   }
 }

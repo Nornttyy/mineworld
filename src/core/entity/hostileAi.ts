@@ -20,6 +20,10 @@ const SHOOT_RANGE = 15; // 射程（水平格）
 const RANGED_MIN = 5; // 比这近 → 后退
 const RANGED_PREF = 10; // 比这远 → 靠近；之间 → 站住射
 const SHOOT_CD = 35; // 射击冷却（tick，≈1.75s）
+// 水中浮力（与被动 mob.ts 一致）：浮到水面漂着、不沉底，和玩家一样一沉一浮。
+const WATER_BUOY = 0.06; // 上浮加速度
+const WATER_DRAG = 0.85; // 水阻尼
+const WATER_RISE_MAX = 0.12; // 上浮限速（防冲出水面）
 
 // 视线：从 a 到 b 沿线采样，中间遇到实心方块即被挡（两端各自的格不算）。
 function hasLineOfSight(world: VoxelWorld, a: Vec3, b: Vec3): boolean {
@@ -165,11 +169,20 @@ export function updateHostile(
     if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) wantJump = true;
   }
 
-  // —— 速度 + 重力 + 起跳 ——
+  // —— 速度 + 重力/浮力 + 起跳 ——
   mob.vel.x = wishX * speed;
   mob.vel.z = wishZ * speed;
-  mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
-  if (wantJump) mob.vel.y = JUMP;
+  // 在水里像玩家一样有浮力 → 浮到水面漂着（不沉底）；否则重力 + 起跳。
+  const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
+  if (inWater) {
+    const deeper = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y) + 1, Math.floor(mob.pos.z)) ?? false;
+    mob.vel.y = deeper
+      ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
+      : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着
+  } else {
+    mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
+    if (wantJump) mob.vel.y = JUMP;
+  }
 
   const sw = sweepAabb(mob.pos, def.width, def.height, mob.vel, world);
   mob.pos = sw.pos;

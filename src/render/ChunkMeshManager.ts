@@ -60,6 +60,7 @@ export class ChunkMeshManager {
   private readonly meshWorkers: Worker[] = [];
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
+  private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
 
   constructor(
@@ -121,7 +122,7 @@ export class ChunkMeshManager {
         w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
           const { cx, cz, mesh } = e.data;
           this.meshPending.delete(this.key(cx, cz));
-          if (this.world.peek(cx, cz)) this.applyMesh(cx, cz, mesh); // 区块还在(没被卸载)才上屏
+          if (this.world.peek(cx, cz)) this.meshQueue.push({ cx, cz, mesh }); // 入队，每帧 flushMesh 限量上屏(防卡)
         };
         this.meshWorkers.push(w);
       }
@@ -376,6 +377,14 @@ export class ChunkMeshManager {
   }
 
   // 把网格数据上屏(buildGeo + 入场景 + 阴影标记)。worker 回调与同步回退共用。
+  /** 每帧把 worker 网格化结果【限量】上屏(buildGeo + GPU 上传)：防同帧多个 worker 一起上传导致掉帧。 */
+  flushMesh(budget: number): void {
+    for (let i = 0; i < budget && this.meshQueue.length > 0; i++) {
+      const item = this.meshQueue.shift();
+      if (item && this.world.peek(item.cx, item.cz)) this.applyMesh(item.cx, item.cz, item.mesh);
+    }
+  }
+
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();

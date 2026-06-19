@@ -18,7 +18,7 @@ const ICON: Record<number, string> = {
   12: 'iron_ore',
   13: 'furnace',
   14: 'torch',
-  15: 'cobblestone', // 砂砾：暂借圆石图标（与其方块占位贴图一致），待美术补砂砾贴图
+  15: 'gravel',
   [APPLE]: 'apple',
   257: 'stick',
   258: 'coal',
