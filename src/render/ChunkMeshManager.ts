@@ -121,7 +121,9 @@ export class ChunkMeshManager {
         const w = new MeshGenWorker();
         w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
           const { cx, cz, mesh } = e.data;
-          this.meshPending.delete(this.key(cx, cz));
+          const k = this.key(cx, cz);
+          if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
+          this.meshPending.delete(k);
           if (this.world.peek(cx, cz)) this.meshQueue.push({ cx, cz, mesh }); // 入队，每帧 flushMesh 限量上屏(防卡)
         };
         this.meshWorkers.push(w);
@@ -204,7 +206,8 @@ export class ChunkMeshManager {
     this.sun.updateMatrixWorld();
     this.uSunUp.value = Math.max(0, Math.min(1, (ny - 0.02) / 0.2)); // 太阳高度>~1°才投影
     const map = this.sun.shadow.map;
-    if (map && map.texture && this.uSunUp.value > 0.001) {
+    // 必须检查 castShadow：关「光影」后 three.js 不再渲/释放 shadow map(它残留)，不加这个判断会重新采样冻结的旧影
+    if (this.sun.castShadow && map && map.texture && this.uSunUp.value > 0.001) {
       this.uShadowMap.value = map.texture;
       this.uShadowMatrix.value = this.sun.shadow.matrix; // 引用 three.js 每帧在 shadow pass 更新的矩阵
       this.uShadowOn.value = 1;
@@ -411,6 +414,11 @@ export class ChunkMeshManager {
 
   // 同步网格化(主线程跑 meshChunk)：挖/放即时重建、无 Worker 回退、邻区没齐时兜底。
   private rebuildSync(cx: number, cz: number): void {
+    const k = this.key(cx, cz);
+    // 作废这个区块在途/待上屏的 worker 结果——下面同步上屏的才是最新；否则旧 worker 结果回来会把挖/放盖回去
+    this.meshPending.delete(k);
+    const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
+    if (qi >= 0) this.meshQueue.splice(qi, 1);
     this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
   }
 

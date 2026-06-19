@@ -322,6 +322,17 @@ def furnace_front(rng):
     return im
 
 
+def gravel(rng):
+    # 经典砂砾：中性灰褐底 + 大量冷暖灰小石子，比 stone 更碎更杂
+    im = new()
+    fill(im, "#807a73")
+    speck(im, ["#6f6a64", "#928c84", "#5f5a55"], 0.16, rng)
+    for _ in range(9):
+        tone = rng.choice([("#8a847c", "#9a948b", "#726c65"), ("#7a736b", "#8a837a", "#645e57")])
+        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2, 2]), tone[0], tone[1], tone[2], rng)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -339,6 +350,7 @@ BLOCKS = [
     ("crafting_table_side", crafting_table_side),
     ("iron_ore", iron_ore),
     ("furnace_front", furnace_front),
+    ("gravel", gravel),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -405,12 +417,15 @@ def main():
     tex = {}
     for i, (name, fn) in enumerate(BLOCKS):
         tex[name] = fn(random.Random(BASE_SEED + i * 1000))
+    # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。tile 16=gravel 占第 5 行(图集 4×4→4×5)。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
-                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front']
-    atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
+                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
+                   'gravel']
+    COLS, ROWS = 4, 5
+    atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
+        atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))
     out = os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'textures', 'atlas_classic.png')
     atlas.save(out)
     print('wrote', out, atlas.size)

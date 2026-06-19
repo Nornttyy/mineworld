@@ -2,6 +2,7 @@
 // 未改动的地形由种子重新生成，省空间。
 
 import type { SerializedMob } from '../core/entity/mobSave';
+import type { FurnaceState } from '../core/crafting/smelting';
 
 export interface WorldSave {
   id: string;
@@ -14,6 +15,7 @@ export interface WorldSave {
   survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
   worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
   mobs?: SerializedMob[]; // 玩家附近的生物（动物/敌对）；不存则新世界/旧档进场时撒新群
+  furnaces?: Record<string, FurnaceState>; // 熔炉状态("x,y,z"→炉内料/燃料/进度)，否则重开炉内物+进度全丢失
 }
 
 const KEY = 'mineworld.saves';
@@ -28,7 +30,12 @@ function readAll(): WorldSave[] {
 }
 
 function writeAll(list: WorldSave[]): void {
-  localStorage.setItem(KEY, JSON.stringify(list));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(list));
+  } catch (e) {
+    // 配额溢出 / 隐私模式下 setItem 会抛——吞掉，别让自动存盘/退出流程崩(宁可这次没存上)
+    console.warn('[mineworld] 存档写入失败(localStorage 配额满或不可用):', e);
+  }
 }
 
 // 按最近游玩降序

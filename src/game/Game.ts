@@ -70,7 +70,7 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf } from '../core/items/items';
+import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
@@ -200,6 +200,7 @@ export class Game {
   private readonly worldSpawn: { x: number; y: number; z: number };
   private dead = false;
   private fallDistance = 0; // 当前连续下落格数
+  private hurtCd = 0; // 受伤无敌帧剩余刻(同 MC：受伤后 0.5s=10 刻无敌，防多怪/多箭同刻叠加爆伤)
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
@@ -283,6 +284,8 @@ export class Game {
         this.mobs.push(...spawnRingGroup(MOB_KINDS[i % 4], spawn.x, spawn.z, this.mobRng, this.spawnWorld, this.surfaceY, 6, 26));
       }
     }
+    // 熔炉：还原存档里的炉内料/燃料/冶炼进度（否则重开熔炉炉内物品全丢失）
+    if (save.furnaces) for (const [k, v] of Object.entries(save.furnaces)) this.furnaces.set(k, v);
 
     const box = new THREE.BoxGeometry(1.001, 1.001, 1.001);
     this.highlight = new THREE.LineSegments(
@@ -377,6 +380,7 @@ export class Game {
     };
     this.save.worldTime = this.worldTime; // 昼夜：存当前时刻，下次续上
     this.save.mobs = this.mobs.map(serializeMob); // 附近生物（动物/敌对）随档保存
+    this.save.furnaces = Object.fromEntries(this.furnaces); // 熔炉状态(炉内料/燃料/进度)随档保存，否则重开就丢
     this.save.lastPlayed = Date.now();
     return this.save;
   }
@@ -409,7 +413,7 @@ export class Game {
             clear(x, z + 1) &&
             clear(x, z - 1)
           )
-            return { x: x + 0.5, y: h + 2, z: z + 0.5 };
+            return { x: x + 0.5, y: h + 1, z: z + 0.5 }; // 脚站草顶(h)之上 = h+1；之前 h+2 高一格、每次落地都掉一下(还可能头卡进树叶)
         }
       }
     }
@@ -598,6 +602,7 @@ export class Game {
 
   // 每模拟刻推进生命/饥饿：累积疲劳(疾跑/跳)、结算摔落、回血/掉血、判定死亡。
   private stepSurvival(sprint: boolean, jumped: boolean): void {
+    if (this.hurtCd > 0) this.hurtCd--; // 受伤无敌帧倒计时
     const dx = this.player.pos.x - this.prev.pos.x;
     const dz = this.player.pos.z - this.prev.pos.z;
     const dy = this.player.pos.y - this.prev.pos.y;
@@ -634,6 +639,8 @@ export class Game {
 
   // 玩家被攻击：扣血 + 红屏/手抖 + 沿来源→玩家方向被击退（近战传攻击者坐标，箭传飞行方向）。
   private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number): void {
+    if (this.hurtCd > 0) return; // 无敌帧内：免疫(同 MC hurtResistantTime，防同刻多源爆伤)
+    this.hurtCd = 10; // 0.5s 无敌
     applyDamage(this.survival, damage);
     this.flashHurt();
     const d = Math.hypot(knockDirX, knockDirZ) || 1;
@@ -967,7 +974,7 @@ export class Game {
         continue;
       }
       if (canPickup(d, px, py, pz)) {
-        const leftover = addItem(this.inv, d.id, 1);
+        const leftover = addItem(this.inv, d.id, 1, itemMaxStack(d.id)); // 用物品真实上限(鸡蛋=16)，不能默认 64 超叠
         if (leftover === 0) {
           this.drops.splice(i, 1);
           this.hotbar.render(this.inv);
