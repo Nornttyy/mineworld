@@ -28,7 +28,7 @@ import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/it
 import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
-import { updateHostile } from '../core/entity/hostileAi';
+import { updateHostile, SKELETON_ARROW_SPEED } from '../core/entity/hostileAi';
 import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
 import { serializeMob, deserializeMob } from '../core/entity/mobSave';
 import { isMobSunlit } from '../core/entity/mobSun';
@@ -105,7 +105,7 @@ const BOW_MAX_CHARGE = 1.0; // 满蓄力（秒，同 MC）
 const BOW_MIN_SPEED = 0.6; // 最弱射速（格/tick）
 const BOW_MAX_SPEED = 2.4; // 满蓄力射速（格/tick）
 const BOW_DAMAGE = 6; // 满蓄力伤害（MC 弓 6~10，这里取中）
-const SKELETON_ARROW_SPEED = 1.3; // 骷髅箭速
+// 骷髅箭速从 hostileAi 导入（与那边的下坠瞄准补偿同一值）
 const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
 const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
 
@@ -241,10 +241,10 @@ export class Game {
     }
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
     this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
-    this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.chunks.setShaders(loadSettings().shaders); // 光影开关初值(真实水面波动/反射)
+    this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
@@ -1045,6 +1045,7 @@ export class Game {
         continue;
       }
       if (a.stuck) {
+        a.age++; // 插地的箭也计龄（不再走 stepArrow），否则 age 冻结 → 永不到 TTL → 无限堆积
         // 插地：靠近玩家且过了拾取延迟 → 捡回 1 支箭（玩家/骷髅的都能捡，方便补给）
         if (a.age > ARROW_PICKUP_DELAY) {
           const dx = a.x - this.player.pos.x;

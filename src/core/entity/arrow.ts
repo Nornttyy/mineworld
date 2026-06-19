@@ -16,7 +16,7 @@ export interface Arrow {
   damage: number; // 命中伤害
 }
 
-const GRAVITY = 0.05; // 格/tick²（≈MC 箭）
+export const ARROW_GRAVITY = 0.05; // 格/tick²（≈MC 箭）；导出供 AI 做下坠瞄准补偿
 const DRAG = 0.99; // 每 tick 空气阻力
 const SUBSTEP = 0.25; // 子步进上限(格)：高速箭也不穿薄墙
 
@@ -52,7 +52,7 @@ export function stepArrow(a: Arrow, world: VoxelWorld): Arrow {
   a.age++;
   if (a.stuck) return a;
 
-  a.vy -= GRAVITY;
+  a.vy -= ARROW_GRAVITY;
   a.vx *= DRAG;
   a.vy *= DRAG;
   a.vz *= DRAG;

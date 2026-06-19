@@ -1,6 +1,10 @@
 import { type Vec3, type VoxelWorld, GRAVITY, VDRAG, JUMP } from '../physics/player';
 import { sweepAabb } from '../physics/aabbSweep';
 import { MOB_DEFS, rollDrops, type Mob, type MobUpdate, type MobEvent } from './mob';
+import { ARROW_GRAVITY } from './arrow';
+
+// 骷髅射出的箭速（格/tick）。导出供 game 层生成箭实体时用同一值（否则下坠补偿对不上）。
+export const SKELETON_ARROW_SPEED = 1.9;
 
 // 敌对生物（僵尸/骷髅）AI：察觉范围内追玩家、贴近接触攻击、白天暴晒(sunlit)受损。
 // 与被动 updateMob 分文件（并发隔离）：物理/防掉崖/上台阶逻辑刻意与之保持一致，只是"意图"换成追击。
@@ -116,21 +120,22 @@ export function updateHostile(
   if (def.ranged) {
     // 射程内 + 冷却就绪 + 视线通畅 → 朝玩家胸口射一箭（from=骷髅眼高，target 为玩家脚部 +1）
     const from: Vec3 = { x: mob.pos.x, y: mob.pos.y + def.height * 0.85, z: mob.pos.z };
-    if (target && pdist <= SHOOT_RANGE && mob.atkCd <= 0) {
-      const aim: Vec3 = { x: target.x, y: target.y + 1.0, z: target.z };
-      if (hasLineOfSight(world, from, aim)) {
-        const dx = aim.x - from.x;
-        const dy = aim.y - from.y;
-        const dz = aim.z - from.z;
-        const len = Math.hypot(dx, dy, dz) || 1;
-        events.push({
-          kind: 'shootArrow',
-          from,
-          dir: { x: dx / len, y: dy / len, z: dz / len },
-          damage: def.attack ?? 2,
-        });
-        mob.atkCd = SHOOT_CD;
-      }
+    const chest: Vec3 | null = target ? { x: target.x, y: target.y + 1.0, z: target.z } : null; // 瞄玩家胸口
+    if (chest && pdist <= SHOOT_RANGE && mob.atkCd <= 0 && hasLineOfSight(world, from, chest)) {
+      // 下坠补偿：箭飞 pdist 用时 ≈ pdist/速度，期间重力下坠 0.5·g·t²；抬高瞄点抵消（×1.15 容差阻力/夹角）。
+      const t = pdist / SKELETON_ARROW_SPEED;
+      const drop = 0.5 * ARROW_GRAVITY * t * t * 1.15;
+      const dx = chest.x - from.x;
+      const dy = chest.y + drop - from.y;
+      const dz = chest.z - from.z;
+      const len = Math.hypot(dx, dy, dz) || 1;
+      events.push({
+        kind: 'shootArrow',
+        from,
+        dir: { x: dx / len, y: dy / len, z: dz / len },
+        damage: def.attack ?? 2,
+      });
+      mob.atkCd = SHOOT_CD;
     }
   } else if (target && pdist <= ATTACK_RANGE && mob.atkCd <= 0) {
     events.push({ kind: 'attackPlayer', damage: def.attack ?? 2 });
