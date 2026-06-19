@@ -92,6 +92,7 @@ const settingsMenu = new SettingsMenu($('settings'));
 settingsMenu.onChange = (s): void => {
   game?.setTexturePack(s.texturePack);
   game?.setShaders(s.shaders); // 光影：真实水面(波动/反射/高光)，即时套用
+  game?.setRenderDistance(s.renderDistance); // 渲染距离：即时改区块加载半径 + 雾距
   // 音量：已存进设置，音频接入后会读取（本次先存）。
 };
 $('settings-btn').addEventListener('click', () => settingsMenu.show());

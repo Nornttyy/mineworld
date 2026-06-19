@@ -106,6 +106,8 @@ const BOW_MIN_SPEED = 0.6; // 最弱射速（格/tick）
 const BOW_MAX_SPEED = 2.4; // 满蓄力射速（格/tick）
 const BOW_DAMAGE = 6; // 满蓄力伤害（MC 弓 6~10，这里取中）
 const SKELETON_ARROW_SPEED = 1.3; // 骷髅箭速
+const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
+const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
 
 // 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6（非剑按拳算）。
 function mobDamage(heldId: number | null): number {
@@ -200,6 +202,7 @@ export class Game {
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
   private texturePack: TexturePack; // 当前材质风格（卡通/经典）
+  private renderDistance: number; // 区块加载半径（设置项；小=雾近更流畅）
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -237,6 +240,8 @@ export class Game {
       this.fluidSim.activate(x, y, z);
     }
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
+    this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
+    this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.chunks.setShaders(loadSettings().shaders); // 光影开关初值(真实水面波动/反射)
@@ -532,7 +537,7 @@ export class Game {
       this.chunks.update(
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
-        RENDER_RADIUS,
+        this.renderDistance,
         1, // 每帧最多建 1 个区块网格(深世界 mesh 重，降到 1 避免移动间隔卡)
       );
       const wantFov = playing && readMove().sprint ? 80 : 70;
@@ -607,13 +612,25 @@ export class Game {
     if (survivalIsDead(this.survival) && !this.dead) this.die();
   }
 
-  // 受伤红屏反馈：触发一次 CSS 闪动（先移除再加 class 以重启动画）。
+  // 受伤红屏反馈：触发一次 CSS 闪动（先移除再加 class 以重启动画）+ 手快速抖一下。
   private flashHurt(): void {
+    this.hand.hurtShake();
     const el = document.getElementById('hurt');
     if (!el) return;
     el.classList.remove('flash');
     void el.offsetWidth;
     el.classList.add('flash');
+  }
+
+  // 玩家被攻击：扣血 + 红屏/手抖 + 沿来源→玩家方向被击退（近战传攻击者坐标，箭传飞行方向）。
+  private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number): void {
+    applyDamage(this.survival, damage);
+    this.flashHurt();
+    const d = Math.hypot(knockDirX, knockDirZ) || 1;
+    this.player.kbx = (knockDirX / d) * PLAYER_KNOCK_H;
+    this.player.kbz = (knockDirZ / d) * PLAYER_KNOCK_H;
+    this.player.vel.y = PLAYER_KNOCK_UP; // 上抛（step 保留 vel.y）
+    if (survivalIsDead(this.survival) && !this.dead) this.die();
   }
 
   private die(): void {
@@ -640,6 +657,17 @@ export class Game {
   // 光影开关（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光，无需重建网格。
   setShaders(on: boolean): void {
     this.chunks.setShaders(on);
+  }
+
+  // 渲染距离（设置项）：改区块加载半径 + 雾距(far=rd×16 格) + 雾剔除距离。小=雾近、区块少、更流畅。
+  setRenderDistance(rd: number): void {
+    this.renderDistance = rd;
+    const far = rd * 16;
+    if (this.normalFog instanceof THREE.Fog) {
+      this.normalFog.near = far * 0.5;
+      this.normalFog.far = far;
+    }
+    this.chunks.setFogFar(far);
   }
 
   // 重生：满状态 + 回到世界出生点。
@@ -951,8 +979,8 @@ export class Game {
         if (ev.kind === 'layEgg') {
           this.drops.push(spawnDrop(EGG, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
         } else if (ev.kind === 'attackPlayer') {
-          applyDamage(this.survival, ev.damage);
-          if (survivalIsDead(this.survival) && !this.dead) this.die();
+          // 近战命中：扣血 + 闪红/抖手 + 把玩家从怪物方向推开
+          this.hurtPlayer(ev.damage, px - mob.pos.x, pz - mob.pos.z);
         } else if (ev.kind === 'shootArrow') {
           // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
           this.arrows.push(
@@ -1022,7 +1050,8 @@ export class Game {
           const dx = a.x - this.player.pos.x;
           const dy = a.y - (this.player.pos.y + 0.9);
           const dz = a.z - this.player.pos.z;
-          if (dx * dx + dy * dy + dz * dz < 1.4 * 1.4 && addItem(this.inv, ARROW, 1)) {
+          // addItem 返回「放不下的剩余数」：0=已全部收入 → 才移除地上的箭（背包满时 leftover>0，箭留地上）
+          if (dx * dx + dy * dy + dz * dz < 1.4 * 1.4 && addItem(this.inv, ARROW, 1) === 0) {
             this.hotbar.render(this.inv);
             this.arrows.splice(i, 1);
           }
@@ -1054,8 +1083,8 @@ export class Game {
             }
           }
         } else if (inAabb(x, y, z, this.player.pos.x, this.player.pos.z, this.player.pos.y, WIDTH / 2, HEIGHT)) {
-          applyDamage(this.survival, a.damage);
-          if (survivalIsDead(this.survival) && !this.dead) this.die();
+          // 中箭：扣血 + 闪红/抖手 + 沿箭飞行方向被击退
+          this.hurtPlayer(a.damage, a.vx, a.vz);
           consumed = true;
         }
       }

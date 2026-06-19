@@ -8,7 +8,11 @@ export interface Player {
   pos: Vec3; // 脚部中心（AABB 底面中心）
   vel: Vec3; // 方块 / tick
   onGround: boolean;
+  kbx?: number; // 被击退的水平速度(格/tick)，叠加到移动上并逐刻衰减；缺省=0(无击退)
+  kbz?: number;
 }
+
+export const KB_DECAY = 0.6; // 击退每 tick 衰减系数(约 4~5 tick 退完)
 
 export interface MoveIntent {
   forward: number; // -1..1

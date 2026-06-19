@@ -106,6 +106,7 @@ export class FirstPersonHand {
   private bobPhase = 0;
   private eating = false; // 是否在吃东西（手持食物送嘴边抖动）
   private eatT = 0; // 吃东西计时（驱动抖动）
+  private hurtT = 0; // 受击抖动余量 1→0（被攻击时置 1，逐帧衰减；驱动手快速抖一下）
 
   constructor(atlas: THREE.Texture) {
     this.atlas = atlas;
@@ -179,6 +180,11 @@ export class FirstPersonHand {
     this.wantSwing = true;
   }
 
+  // 触发受击抖动（玩家被攻击时调用）：手在视野里快速抖一下，与闪红光同步。
+  hurtShake(): void {
+    this.hurtT = 1;
+  }
+
   // 切换方块图集（材质风格切换）：换图集并重建当前手持(若是方块)以套用。
   setAtlas(tex: THREE.Texture): void {
     this.atlas = tex;
@@ -224,6 +230,16 @@ export class FirstPersonHand {
       this.root.position.z += 0.18; // 凑近脸
       this.root.rotateX(0.4 + j * 0.12); // 前倾 + 抖
       this.root.rotateZ(-0.25);
+    }
+
+    // 受击抖动：高频快速抖一下，幅度随余量平方衰减（约 0.25s 抖完），叠加在最终姿态上。
+    if (this.hurtT > 0) {
+      this.hurtT = Math.max(0, this.hurtT - dt * 4);
+      const k = this.hurtT * this.hurtT;
+      const h = Math.sin(this.hurtT * 45);
+      this.root.position.x += h * 0.05 * k;
+      this.root.position.y += -0.06 * k; // 手往下一缩
+      this.root.rotateZ(h * 0.35 * k);
     }
   }
 }

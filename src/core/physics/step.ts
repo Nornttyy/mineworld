@@ -10,6 +10,7 @@ import {
   JUMP,
   WALK_PER_TICK,
   SPRINT_PER_TICK,
+  KB_DECAY,
 } from './player';
 
 const HW = WIDTH / 2;
@@ -96,8 +97,11 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const wish = wishDir(intent);
   const groundSpeed = intent.sprint ? SPRINT_PER_TICK : WALK_PER_TICK; // 疾跑更快
   const speed = inWater ? WALK_PER_TICK * 0.7 : groundSpeed; // 水中略慢
-  vel.x = wish.x * speed;
-  vel.z = wish.z * speed;
+  // 击退速度叠加到移动意图上（被怪打中时由 Game 设置），逐刻衰减，碰墙归零靠下面的扫掠
+  const kbx = player.kbx ?? 0;
+  const kbz = player.kbz ?? 0;
+  vel.x = wish.x * speed + kbx;
+  vel.z = wish.z * speed + kbz;
 
   // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
   if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
@@ -119,5 +123,8 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
     vel.y = (vel.y - GRAVITY) * VDRAG;
   }
 
-  return { pos, vel, onGround };
+  // 击退衰减；撞墙(vel 那一轴被归零)则击退也清掉，免得贴墙抖
+  const nkbx = vel.x === 0 ? 0 : kbx * KB_DECAY;
+  const nkbz = vel.z === 0 ? 0 : kbz * KB_DECAY;
+  return { pos, vel, onGround, kbx: Math.abs(nkbx) < 0.005 ? 0 : nkbx, kbz: Math.abs(nkbz) < 0.005 ? 0 : nkbz };
 }

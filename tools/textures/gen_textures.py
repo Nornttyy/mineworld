@@ -220,6 +220,23 @@ def iron_ore(rng):
     return im
 
 
+def furnace_front(rng):
+    """熔炉正面：圆石底 + 中间炉膛(深凹) + 底部炭火。仿 MC 熔炉炉口。"""
+    im = cobblestone(rng)
+    px = im.load()
+    dk, md, em = hx("#1a1a1e"), hx("#2e2e34"), hx("#3a3a42")
+    for x in range(4, 12):  # 炉膛矩形(壁 + 深处)
+        for y in range(5, 13):
+            px[x, y] = dk if (5 < x < 11 and 5 < y < 12) else md
+    for x in range(3, 13):  # 炉口上沿亮框
+        px[x, 4] = em
+    for x in range(5, 11):  # 底部炭火橙红
+        px[x, 11] = hx("#c0531f") if x % 2 == 0 else hx("#8a3010")
+    px[6, 12] = hx("#e08020")
+    px[9, 12] = hx("#e08020")
+    return im
+
+
 def water(rng):
     im = new()
     fill(im, "#2f86e0")  # 鲜艳卡通蓝（单帧静态，不做动画）
@@ -374,6 +391,7 @@ BLOCKS = [
     ("oak_log_top", oak_log_top),
     ("coal_ore", coal_ore),
     ("iron_ore", iron_ore),
+    ("furnace_front", furnace_front),
     ("water", water),
     ("oak_leaves", oak_leaves),
     ("crafting_table_top", crafting_table_top),
@@ -454,7 +472,7 @@ def main():
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
-                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore']
+                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front']
     atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
@@ -472,6 +490,7 @@ def main():
         'oak_planks': ('oak_planks', 'oak_planks'),
         'coal_ore': ('coal_ore', 'coal_ore'),
         'iron_ore': ('iron_ore', 'iron_ore'),
+        'furnace': ('cobblestone', 'furnace_front'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
     }

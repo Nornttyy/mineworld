@@ -55,6 +55,12 @@ export class SettingsMenu {
           <button id="set-tex-cartoon" class="btn" type="button">卡通</button>
           <button id="set-tex-classic" class="btn" type="button">经典</button>
         </div>
+        <label style="display:flex;align-items:center;gap:12px;">
+          <span style="width:108px;">渲染距离</span>
+          <input id="set-rd" type="range" min="3" max="12" style="flex:1;" />
+          <span id="set-rd-val" style="width:46px;text-align:right;"></span>
+        </label>
+        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">小=白雾更近、更流畅；大=看得远、更吃性能</div>
         <button id="set-close" class="btn btn-wide" type="button" style="margin-top:6px;">返回</button>
       </div>`;
 
@@ -93,6 +99,16 @@ export class SettingsMenu {
     });
     texCartoon.addEventListener('click', () => setTex('cartoon'));
     texClassic.addEventListener('click', () => setTex('classic'));
+    const rd = root.querySelector('#set-rd') as HTMLInputElement;
+    const rdVal = root.querySelector('#set-rd-val') as HTMLElement;
+    const setRdFill = (): void =>
+      rd.style.setProperty('--fill', `${((this.settings.renderDistance - 3) / 9) * 100}%`);
+    rd.addEventListener('input', () => {
+      this.settings = { ...this.settings, renderDistance: Number(rd.value) };
+      rdVal.textContent = String(this.settings.renderDistance);
+      setRdFill();
+      apply();
+    });
     (root.querySelector('#set-close') as HTMLElement).addEventListener('click', () => this.hide());
 
     // 初值
@@ -100,6 +116,9 @@ export class SettingsMenu {
     volVal.textContent = `${this.settings.volume}%`;
     setFill();
     shaders.checked = this.settings.shaders;
+    rd.value = String(this.settings.renderDistance);
+    rdVal.textContent = String(this.settings.renderDistance);
+    setRdFill();
     syncTexButtons();
   }
 
