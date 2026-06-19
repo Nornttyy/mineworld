@@ -947,7 +947,7 @@ export class Game {
     this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
     this.chunks.setSkyMul(Math.pow(mx, 4));
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
-    this.chunks.setSkyReflection(s.skyHorizon);
+    this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光
     this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.35);
   }

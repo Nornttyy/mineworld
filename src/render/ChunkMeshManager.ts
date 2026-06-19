@@ -42,7 +42,8 @@ export class ChunkMeshManager {
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
   private readonly uTime = { value: 0 };
-  private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) };
+  private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) }; // 地平线色(掠角反射)
+  private readonly uSkyTop = { value: new THREE.Color(0.35, 0.55, 0.85) }; // 天顶色(俯角反射)
   private readonly uSunDir = { value: new THREE.Vector3(0.4, 0.85, 0.3) };
 
   constructor(
@@ -109,6 +110,7 @@ export class ChunkMeshManager {
       shader.uniforms.uShaders = this.uShaders;
       shader.uniforms.uTime = this.uTime;
       shader.uniforms.uSkyRefl = this.uSkyRefl;
+      shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
       // 顶点：只烤天光 + 传世界坐标；水面不位移(平静不漂)。
       shader.vertexShader = shader.vertexShader
@@ -126,7 +128,7 @@ export class ChunkMeshManager {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
             'vec2 ripple(vec2 p, float t){\n' +
             '  vec2 n = vec2(0.0);\n' +
             '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + sin(t * 0.8) * 1.6);\n' +
@@ -140,15 +142,19 @@ export class ChunkMeshManager {
           '#include <color_fragment>',
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
+            // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
             '  vec2 n2 = ripple(vWPos.xz, uTime);\n' +
-            '  vec3 N = normalize(vec3(n2.x * 0.11, 1.0, n2.y * 0.11));\n' + // 波纹法线(陡度 0.11)
+            '  vec3 N = normalize(vec3(n2.x * 0.085, 1.0, n2.y * 0.085));\n' + // 平滑波纹法线
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
-            '  float fres = pow(1.0 - max(dot(V, N), 0.0), 4.0);\n' + // 掠角→强反射，随波纹起伏
-            '  diffuseColor.rgb = mix(diffuseColor.rgb, uSkyRefl, clamp(fres, 0.0, 1.0) * 0.5);\n' +
-            '  vec3 R = reflect(-normalize(uSunDir), N);\n' +
-            '  float spec = pow(max(dot(R, V), 0.0), 120.0);\n' + // 波纹上跳动的粼粼高光
-            '  diffuseColor.rgb += spec * uSkyMul * vec3(1.0, 0.97, 0.88);\n' +
-            '  diffuseColor.rgb += (n2.x + n2.y) * 0.022 * uSkyMul;\n' + // 波纹本身的明暗带(让"有波纹"看得见)
+            '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
+            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.9;\n' + // 略压暗,不刺白
+            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.82);\n' + // Schlick,封顶留水色
+            '  vec3 base = vec3(0.05, 0.26, 0.40) * vLF * vTint;\n' + // 清澈水色(深蓝绿,被天光照)
+            '  vec3 col = mix(base, skyR, fres);\n' + // 掠角→大幅反天空、但仍透出水蓝
+            '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
+            '  col += pow(max(dot(Rs, V), 0.0), 200.0) * uSkyMul * vec3(1.0, 0.95, 0.82) * 1.6;\n' + // 太阳粼光
+            '  diffuseColor.rgb = col;\n' +
+            '  diffuseColor.a = mix(0.62, 0.96, fres);\n' + // 俯看清澈见底、掠角反光不透(菲涅尔透明度)
             '}',
         );
     };
@@ -173,9 +179,10 @@ export class ChunkMeshManager {
     this.uShaders.value = on ? 1 : 0;
   }
 
-  /** 水面反射的天空色(取地平线色，黄昏偏橙/夜里偏暗 → 水面反光随之变)。 */
-  setSkyReflection(c: [number, number, number]): void {
-    this.uSkyRefl.value.setRGB(c[0], c[1], c[2]);
+  /** 水面反射的天空色：地平线色(掠角) + 天顶色(俯角) → 反射出天空渐变(更真实)。 */
+  setSkyReflection(horizon: [number, number, number], top?: [number, number, number]): void {
+    this.uSkyRefl.value.setRGB(horizon[0], horizon[1], horizon[2]);
+    if (top) this.uSkyTop.value.setRGB(top[0], top[1], top[2]);
   }
 
   /** 太阳方向(世界系，驱动水面镜面高光)。 */
