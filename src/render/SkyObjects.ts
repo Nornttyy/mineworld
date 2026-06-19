@@ -100,7 +100,7 @@ export class SkyObjects {
     this.moon.position.copy(camPos).addScaledVector(this.dir, -R); // 月亮在太阳对侧
     this.moon.lookAt(camPos);
     // 云层：高空跟随玩家 xz，UV 缓慢平移 = 随风飘
-    this.clouds.position.set(camPos.x, camPos.y + 88, camPos.z);
+    this.clouds.position.set(camPos.x, camPos.y + 160, camPos.z); // 抬高→视野里云少、半透 overdraw 轻
     if (this.cloudMat.map) this.cloudMat.map.offset.x = (worldTime * 0.00003) % 1;
   }
 }
