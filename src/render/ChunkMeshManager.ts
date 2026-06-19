@@ -100,9 +100,9 @@ export class ChunkMeshManager {
   }
 
   // 水面专用：天光烤进顶点(同 installLight) + "光影"(uShaders 开时)。
-  // 关键：水面【几何不动】(平静、不漂)。波纹是【片元里的程序法线】——几层细正弦，
-  //   相位用 sin(t) 来回摆(驻波/原地荡漾，绝不向某方向流走)；用它扰动 菲涅尔反射 + 太阳高光 +
-  //   明暗带，得到"真实有波纹、会粼粼闪、但不飘"的水面。
+  // 波纹是【片元里的程序法线】——几层细正弦，相位 ±t 多向缓流(真实飘动；各层方向/速度不同→
+  //   组合成自然流动、无单一传送带感)；用它扰动 菲涅尔反射 + 太阳高光 → 真实会流动的水面。
+  //   水面几何不位移(平静不浮)，"飘动"是波纹/反光在面上流过。
   private installWaterShader(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
@@ -124,17 +124,17 @@ export class ChunkMeshManager {
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
-      // 片元：程序波纹法线 → 扰动反射/高光/明暗带。相位 sin(t) 摆动=原地荡漾、不漂。
+      // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
           '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
             'vec2 ripple(vec2 p, float t){\n' +
             '  vec2 n = vec2(0.0);\n' +
-            '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + sin(t * 0.8) * 1.6);\n' +
-            '  n += vec2(-0.40, 1.0) * cos(dot(p, vec2(-0.45, 1.00)) * 2.3 + sin(t * 1.0 + 1.7) * 1.6);\n' +
-            '  n += vec2(0.70, -0.60) * cos(dot(p, vec2(0.75, -0.60)) * 3.2 + sin(t * 0.6 + 3.1) * 1.5);\n' +
-            '  n += vec2(-0.70, -0.50) * cos(dot(p, vec2(-0.70, -0.55)) * 4.6 + sin(t * 1.1 + 0.5) * 1.4);\n' +
+            '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + t * 0.85);\n' +
+            '  n += vec2(-0.40, 1.0) * cos(dot(p, vec2(-0.45, 1.00)) * 2.3 - t * 1.05 + 1.7);\n' +
+            '  n += vec2(0.70, -0.60) * cos(dot(p, vec2(0.75, -0.60)) * 3.2 + t * 0.80 + 3.1);\n' +
+            '  n += vec2(-0.70, -0.50) * cos(dot(p, vec2(-0.70, -0.55)) * 4.6 - t * 1.25 + 0.5);\n' +
             '  return n;\n' +
             '}',
         )
