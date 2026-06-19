@@ -200,7 +200,12 @@ export interface ChunkMesh {
 
 // 网格化无限世界中的一个区块 (cx,cz)，分别产出"不透明"和"水"两套网格。
 // 位置用区块局部坐标；邻居按世界坐标采样（含相邻区块），故接缝正确剔除、无内墙。
-export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh {
+export function meshChunkData(
+  cx: number,
+  cz: number,
+  getBlock: (wx: number, wy: number, wz: number) => number,
+  waterAmount: (wx: number, wy: number, wz: number) => number,
+): ChunkMesh {
   const ox = cx * CHUNK_W;
   const oz = cz * CHUNK_W;
   const op = emptyArrays();
@@ -211,7 +216,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const du = 1 / ATLAS_COLS - 2 * eps;
   const dv = 1 / ATLAS_ROWS - 2 * eps;
 
-  const occ = (x: number, y: number, z: number): boolean => isOpaque(world.getBlock(x, y, z));
+  const occ = (x: number, y: number, z: number): boolean => isOpaque(getBlock(x, y, z));
 
   // 光照：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 + 方块光，各 0..15。
   // 顶点存"该面朝向格"的 (天光, 方块光)，交给材质 shader 合成亮度——昼夜只缩放天光，火把光恒定。
@@ -220,7 +225,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   const blkLight = computeBlockLight(
     LW,
     CHUNK_H,
-    (hx, hy, hz) => blockLight(world.getBlock(ox + hx - 1, hy, oz + hz - 1)),
+    (hx, hy, hz) => blockLight(getBlock(ox + hx - 1, hy, oz + hz - 1)),
     (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1),
   );
   const skyAt = (lx: number, ly: number, lz: number): number => {
@@ -324,11 +329,11 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     let total = 0;
     let count = 0;
     for (const [cx, cz] of cells) {
-      const a = world.waterAmount(cx, wy, cz);
-      if (world.waterAmount(cx, wy + 1, cz) > 0) return 1; // 上方有水(柱内) → 满
+      const a = waterAmount(cx, wy, cz);
+      if (waterAmount(cx, wy + 1, cz) > 0) return 1; // 上方有水(柱内) → 满
       // 头顶有方块：较满的水(量≥6,含源头/灌进来的水)灌满贴住方块——免得看着"没填满/流不进"；
       //   只有很浅的水(量<6,薄薄一层)才保持自身矮高度——免得浅水被画成整块。
-      if (a >= 6 && isOpaque(world.getBlock(cx, wy + 1, cz))) return 1;
+      if (a >= 6 && isOpaque(getBlock(cx, wy + 1, cz))) return 1;
       if (a > 0) {
         const h = a / 9;
         if (h >= 0.8) {
@@ -338,7 +343,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
           total += h;
           count += 1;
         }
-      } else if (!isSolidId(world.getBlock(cx, wy, cz))) {
+      } else if (!isSolidId(getBlock(cx, wy, cz))) {
         count += 1; // 空气：贡献 0 高度，把该角往下拉成斜坡
       }
     }
@@ -348,19 +353,19 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   for (let ly = 0; ly < CHUNK_H; ly++) {
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
-        const id = world.getBlock(ox + lx, ly, oz + lz);
+        const id = getBlock(ox + lx, ly, oz + lz);
         if (isOpaque(id)) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             // 不透明面：邻格也不透明才剔除（露给空气/水都要画）
-            if (isOpaque(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
             emit(op, lx, ly, lz, id, f);
           }
         } else if (isCutoutId(id)) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             // 镂空(树叶)：露给非实心(空气/水)的面才画；叶-叶、叶-实心剔除
-            if (isSolidId(world.getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            if (isSolidId(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
             emit(cut, lx, ly, lz, id, f);
           }
         } else if (isWaterId(id)) {
@@ -372,16 +377,16 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
           const h11 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz + 1], [wx + 1, wz + 1]]);
           const h10 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz - 1], [wx + 1, wz - 1]]);
           // 顶面（上方非水且非不透明）：斜水面
-          if (world.waterAmount(wx, ly + 1, wz) === 0 && !isOpaque(world.getBlock(wx, ly + 1, wz))) {
+          if (waterAmount(wx, ly + 1, wz) === 0 && !isOpaque(getBlock(wx, ly + 1, wz))) {
             emitWaterFace(lx, ly, lz, Face.PosY, [h00, h01, h11, h10]);
           }
           // 底面：下方是空气才画
-          if (world.getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, [0, 0, 0, 0]);
+          if (getBlock(wx, ly - 1, wz) === 0) emitWaterFace(lx, ly, lz, Face.NegY, [0, 0, 0, 0]);
           // 侧面：只对【空气邻】画整段水墙。
           //  较低的"水邻"不再单独画侧面——相邻水格顶面用 cornerH 已是连续的(共享角等高，
           //  高度差表现为斜坡)，若再用 ownH(amount/9) 当侧面底边会和邻格真实顶面对不上，露竖缝(BUG)。
           const side = (f: number, dx: number, dz: number, yTop: number[]): void => {
-            const nb = world.getBlock(wx + dx, ly, wz + dz);
+            const nb = getBlock(wx + dx, ly, wz + dz);
             if (nb === 0) emitWaterFace(lx, ly, lz, f, yTop); // 仅空气邻
           };
           side(Face.PosX, 1, 0, [0, h10, h11, 0]);
@@ -396,4 +401,14 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
   }
 
   return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa), torch: toMeshData(to) };
+}
+
+// 主线程入口(同步；用于 remeshDirty 即时重建、无 Worker 测试回退)：包一层 ChunkWorld 的访问器。
+export function meshChunk(w: ChunkWorld, cx: number, cz: number): ChunkMesh {
+  return meshChunkData(
+    cx,
+    cz,
+    (wx, wy, wz) => w.getBlock(wx, wy, wz),
+    (wx, wy, wz) => w.waterAmount(wx, wy, wz),
+  );
 }

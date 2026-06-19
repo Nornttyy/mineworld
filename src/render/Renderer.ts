@@ -18,7 +18,7 @@ export class Renderer {
     // 真实投影阴影：开启 shadow map（太阳 DirectionalLight 投影到地面，见 ChunkMeshManager）
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.gl.shadowMap.autoUpdate = true;
+    this.gl.shadowMap.autoUpdate = false; // 不每帧重渲 shadow(开销大)；由 markShadowDirty 节流触发(昼夜慢 + 玩家移动时)
     this.skyCanvas.width = 2;
     this.skyCanvas.height = 256;
     this.skyCtx = this.skyCanvas.getContext('2d');
@@ -47,6 +47,11 @@ export class Renderer {
     this.gl.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** 节流重渲一次 shadow map（autoUpdate 关、靠这个触发；昼夜/玩家移动时由 Game 调）。 */
+  markShadowDirty(): void {
+    this.gl.shadowMap.needsUpdate = true;
   }
 
   render(): void {

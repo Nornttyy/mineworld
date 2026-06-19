@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
-import { meshChunk, type MeshData } from '../core/mesh/mesher';
+import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
+import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames } from './atlas';
 import { DAY_LENGTH } from '../core/world/dayNight';
 
@@ -56,6 +57,10 @@ export class ChunkMeshManager {
   private readonly uShadowOn = { value: 0 }; // shadow map 就绪前为 0
   private readonly uSunUp = { value: 0 }; // 白昼系数(太阳高度)：夜里/地平线 0 → 不投影，白天 1
   private leafDepthMat: THREE.MeshDepthMaterial | null = null; // 树叶投影用：带 alphaTest 的深度材质 → 镂空叶影
+  // 网格化 Worker 池：把 ~81ms/区块的 meshChunk(光照BFS+greedy)挪后台，主线程只剩 buildGeo 上传。
+  private readonly meshWorkers: Worker[] = [];
+  private meshRr = 0; // round-robin 派发
+  private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -90,7 +95,7 @@ export class ChunkMeshManager {
 
     // 太阳光(投影阴影)：castShadow 让 three.js 每帧把 castShadow 物体渲进 shadow map(深度)；
     // 材质用 RGBA 打包深度，方块 shader 自己采样。正交相机只覆盖玩家附近 ±SHADOW_HALF。
-    this.sun.castShadow = false; // 默认关；由 setShaders(「光影」开关)控制，避免默认就吃每帧 shadow pass
+    this.sun.castShadow = true; // 默认开(用户要"没光影也要阴影")；开销靠 Renderer shadowMap.autoUpdate=false + Game 节流 markShadowDirty 压住
     this.sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     const sc = this.sun.shadow.camera;
     sc.left = -SHADOW_HALF;
@@ -107,6 +112,20 @@ export class ChunkMeshManager {
       map: atlas,
       alphaTest: 0.5,
     });
+    // 网格化 worker 池(按核数，上限4)；无 Worker(测试/node)→ 留空，rebuild 同步回退。
+    if (typeof Worker !== 'undefined') {
+      const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+      const n = Math.max(1, Math.min(4, cores - 1));
+      for (let i = 0; i < n; i++) {
+        const w = new MeshGenWorker();
+        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
+          const { cx, cz, mesh } = e.data;
+          this.meshPending.delete(this.key(cx, cz));
+          if (this.world.peek(cx, cz)) this.applyMesh(cx, cz, mesh); // 区块还在(没被卸载)才上屏
+        };
+        this.meshWorkers.push(w);
+      }
+    }
   }
 
   // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
@@ -272,10 +291,7 @@ export class ChunkMeshManager {
 
   /** 光影总开关：开 → 水面波动 + 菲涅尔反射 + 太阳高光；关 → 平静水面(省性能)。 */
   setShaders(on: boolean): void {
-    this.uShaders.value = on ? 1 : 0;
-    // 阴影(shadow map)开销大 → 也归「光影」开关管：关时不渲 shadow pass(每帧省一整遍场景深度渲染)、shader 跳 PCF
-    this.sun.castShadow = on;
-    if (!on) this.uShadowOn.value = 0;
+    this.uShaders.value = on ? 1 : 0; // 只管水面光影；阴影默认常开(见构造 sun.castShadow)，不再绑这个开关
   }
 
   /** 水面反射的天空色：地平线色(掠角) + 天顶色(俯角) → 反射出天空渐变(更真实)。 */
@@ -351,13 +367,13 @@ export class ChunkMeshManager {
     return mesh;
   }
 
-  private rebuild(cx: number, cz: number): void {
+  // 把网格数据上屏(buildGeo + 入场景 + 阴影标记)。worker 回调与同步回退共用。
+  private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
-    const { opaque, cutout, water, torch } = meshChunk(this.world, cx, cz);
-    const om = this.addMesh(opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
-    const cm = this.addMesh(cutout, this.cutoutMat, cx, cz);
-    const wm = this.addMesh(water, this.waterMat, cx, cz);
-    const tm = this.addMesh(torch, this.torchMat, cx, cz);
+    const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
+    const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
+    const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
     // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
     om.castShadow = true;
     om.receiveShadow = true;
@@ -369,6 +385,47 @@ export class ChunkMeshManager {
     this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
     const built = this.world.peek(cx, cz);
     if (built) built.dirty = false;
+  }
+
+  // 同步网格化(主线程跑 meshChunk)：挖/放即时重建、无 Worker 回退、邻区没齐时兜底。
+  private rebuildSync(cx: number, cz: number): void {
+    this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
+  }
+
+  // 收集本+8邻区的 blocks/fluid 副本(worker 网格化时采光晕/face/AO)。任一邻区还没生成→null(这次不派)。
+  private collectNeighbors(cx: number, cz: number): { blocks: Uint16Array[]; fluid: Uint8Array[] } | null {
+    const blocks: Uint16Array[] = [];
+    const fluid: Uint8Array[] = [];
+    for (let dcx = -1; dcx <= 1; dcx++) {
+      for (let dcz = -1; dcz <= 1; dcz++) {
+        const c = this.world.peek(cx + dcx, cz + dcz);
+        if (!c) return null;
+        blocks.push(c.blocks.slice()); // 副本：原 buffer 属于 chunk，不能 transfer 走
+        fluid.push(c.fluid.slice());
+      }
+    }
+    return { blocks, fluid };
+  }
+
+  // 异步网格化(派 worker，主线程不阻塞)；无 worker / 邻区没齐 → 同步回退。
+  private rebuild(cx: number, cz: number): void {
+    if (this.meshWorkers.length === 0) {
+      this.rebuildSync(cx, cz);
+      return;
+    }
+    const k = this.key(cx, cz);
+    if (this.meshPending.has(k)) return; // 已在排队
+    const nb = this.collectNeighbors(cx, cz);
+    if (!nb) {
+      this.rebuildSync(cx, cz); // 边界邻区罕见没齐：同步出一版避免空洞
+      return;
+    }
+    this.meshPending.add(k);
+    const transfer = [...nb.blocks.map((b) => b.buffer), ...nb.fluid.map((f) => f.buffer)];
+    this.meshWorkers[this.meshRr].postMessage({ cx, cz, blocks: nb.blocks, fluid: nb.fluid }, transfer);
+    this.meshRr = (this.meshRr + 1) % this.meshWorkers.length;
+    const built = this.world.peek(cx, cz);
+    if (built) built.dirty = false; // 标记已派(清 dirty 防 update 反复派)；worker 回来才真正上屏
   }
 
   /** 确保中心 radius 内区块已网格化；远处卸载。每次最多(重)建 budget 个，分摊到多帧。 */
@@ -403,7 +460,7 @@ export class ChunkMeshManager {
   remeshDirty(): void {
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
-      if (this.world.peek(cx, cz)?.dirty) this.rebuild(cx, cz);
+      if (this.world.peek(cx, cz)?.dirty) this.rebuildSync(cx, cz); // 挖/放要即时反馈→同步
     }
   }
 }

@@ -12,6 +12,7 @@ import {
   OAK_LEAVES,
   CRAFTING_TABLE,
   FURNACE,
+  GRAVEL,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -24,6 +25,8 @@ import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import { EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
 import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
+import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
+import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
 import { updateHostile } from '../core/entity/hostileAi';
 import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
@@ -40,6 +43,8 @@ import {
   addItem,
   takeOne,
   damageTool,
+  countItem,
+  removeItems,
   serializeInventory,
   deserializeInventory,
   type Inventory,
@@ -63,7 +68,7 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, EGG, isFood, foodValue, toolOf } from '../core/items/items';
+import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
@@ -92,6 +97,15 @@ const HOSTILE_NEAR_TARGET = 4; // 夜里身边维持的敌对生物数（僵尸/
 const HOSTILE_CAP = 8; // 敌对生物硬上限（玩家周围最多这么多僵尸/骷髅，防夜里越积越多）
 const MOB_SPAWN_EVERY = 25; // 每多少刻尝试一次补刷（~1.25s）
 const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
+// 弓箭
+const ARROW_TTL = 1200; // 箭存活上限（tick，60s）后消失
+const ARROW_PICKUP_DELAY = 10; // 插地后多少 tick 才可拾取（防刚射出就吸回）
+const BOW_MIN_CHARGE = 0.25; // 最短蓄力（秒）：不到不发射（取消）
+const BOW_MAX_CHARGE = 1.0; // 满蓄力（秒，同 MC）
+const BOW_MIN_SPEED = 0.6; // 最弱射速（格/tick）
+const BOW_MAX_SPEED = 2.4; // 满蓄力射速（格/tick）
+const BOW_DAMAGE = 6; // 满蓄力伤害（MC 弓 6~10，这里取中）
+const SKELETON_ARROW_SPEED = 1.3; // 骷髅箭速
 
 // 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6（非剑按拳算）。
 function mobDamage(heldId: number | null): number {
@@ -155,6 +169,10 @@ export class Game {
   private readonly furnaces = new Map<string, FurnaceState>(); // 坐标"x,y,z"→熔炉状态
   private furnaceKey: string | null = null; // 当前打开的熔炉坐标(null=没开)
   private readonly drops: ItemDrop[] = [];
+  private readonly arrows: Arrow[] = []; // 飞行/插地的箭（玩家弓射 + 骷髅射）
+  private readonly arrowRenderer: ArrowRenderer;
+  private drawingBow = false; // 是否在拉弓蓄力
+  private bowCharge = 0; // 拉弓已蓄时间（秒）
   private readonly mobs: Mob[] = []; // 世界里的被动动物
   private readonly mobRenderer: MobRenderer;
   private readonly mobRng: () => number;
@@ -170,6 +188,7 @@ export class Game {
   private readonly wateredChunks = new Set<string>(); // 已增量激活过「能流动的水」的区块，避免重复扫描
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   private fov = 70;
+  private shadowTick = 99; // 阴影节流计数；首帧即更新一次 shadow map
   private last = 0;
   private acc = 0;
   private survival: Survival;
@@ -223,6 +242,7 @@ export class Game {
     this.chunks.setShaders(loadSettings().shaders); // 光影开关初值(真实水面波动/反射)
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
+    this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
     this.mobRenderer = new MobRenderer(this.renderer.scene);
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
     this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
@@ -287,11 +307,16 @@ export class Game {
     };
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) stopDig();
-      else if (e.button === 2) this.stopEating();
+      else if (e.button === 2) {
+        this.releaseBow(); // 松开右键：弓发射
+        this.stopEating();
+      }
     });
     document.addEventListener('pointerlockchange', () => {
       if (document.pointerLockElement !== canvas) {
         stopDig(); // 松开锁定即停挖
+        this.drawingBow = false; // 失焦取消拉弓
+        this.bowCharge = 0;
         this.stopEating();
       }
     });
@@ -499,6 +524,7 @@ export class Game {
         }
         if (this.furnaceKey) this.furnaceUI.render();
         this.tickMobs(); // 生物 AI/物理/掉蛋/周期刷新（每刻）
+        this.tickArrows(); // 飞行的箭：推进 + 命中判定 + 拾取
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -517,6 +543,7 @@ export class Game {
         this.updateMining(dt);
         this.updateDrops(dt);
         this.updateEating(dt);
+        this.updateBow(dt);
         this.statusBar.render(this.survival);
         if (this.digging) this.hand.swing(); // 按住挖时连续摆臂
       } else {
@@ -525,7 +552,12 @@ export class Game {
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
       this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
-      this.chunks.updateSun(this.worldTime, this.player.pos.x, this.player.pos.y, this.player.pos.z); // 太阳投影阴影：光摆位 + 阴影相机跟随玩家
+      // 太阳投影阴影：节流——shadow pass 开销大、太阳走得慢，每 6 帧才摆光 + 重渲一次 shadow map(阴影默认常开，不靠光影开关)
+      if (++this.shadowTick >= 6) {
+        this.shadowTick = 0;
+        this.chunks.updateSun(this.worldTime, this.player.pos.x, this.player.pos.y, this.player.pos.z);
+        this.renderer.markShadowDirty();
+      }
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
@@ -533,6 +565,7 @@ export class Game {
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
       this.mobRenderer.sync(this.mobs, dt); // 生物模型跟随/动画
+      this.arrowRenderer.sync(this.arrows); // 箭模型跟随
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
@@ -634,6 +667,12 @@ export class Game {
       return;
     }
     const stack = this.inv[this.hotbar.index];
+    // 手持弓且有箭 → 拉弓蓄力（松开右键时发射）
+    if (stack && stack.id === BOW && countItem(this.inv, ARROW) > 0) {
+      this.drawingBow = true;
+      this.bowCharge = 0;
+      return;
+    }
     // 手持食物且饱食度未满 → 开吃；饱食度满时不能吃（同 MC，普通食物吃不下）。
     if (stack && stack.count > 0 && isFood(stack.id) && this.survival.food < MAX_FOOD) {
       this.eating = true;
@@ -641,6 +680,43 @@ export class Game {
     } else {
       this.placeBlock();
     }
+  }
+
+  // 拉弓蓄力（每帧）：累加蓄力时间，封顶满蓄力。
+  private updateBow(dt: number): void {
+    if (!this.drawingBow) return;
+    const stack = this.inv[this.hotbar.index];
+    if (!stack || stack.id !== BOW) {
+      this.drawingBow = false; // 切走了手持弓 → 取消
+      this.bowCharge = 0;
+      return;
+    }
+    this.bowCharge = Math.min(this.bowCharge + dt, BOW_MAX_CHARGE);
+  }
+
+  // 松开右键发射：蓄力达标则按比例射速射一箭、扣 1 箭；不够则取消。
+  private releaseBow(): void {
+    if (!this.drawingBow) return;
+    this.drawingBow = false;
+    const charge = this.bowCharge;
+    this.bowCharge = 0;
+    const stack = this.inv[this.hotbar.index];
+    if (!stack || stack.id !== BOW) return;
+    if (charge < BOW_MIN_CHARGE) return; // 没拉够 → 不发射
+    if (removeItems(this.inv, ARROW, 1) < 1) return; // 没箭
+    this.hotbar.render(this.inv);
+    const t = (charge - BOW_MIN_CHARGE) / (BOW_MAX_CHARGE - BOW_MIN_CHARGE); // 0..1
+    const speed = BOW_MIN_SPEED + t * (BOW_MAX_SPEED - BOW_MIN_SPEED);
+    const damage = Math.max(1, Math.round(2 + t * (BOW_DAMAGE - 2))); // 蓄力越满越疼
+    const cy = Math.cos(this.look.yaw);
+    const sy = Math.sin(this.look.yaw);
+    const cp = Math.cos(this.look.pitch);
+    const sp = Math.sin(this.look.pitch);
+    const ox = this.player.pos.x;
+    const oy = this.player.pos.y + EYE;
+    const oz = this.player.pos.z;
+    this.arrows.push(spawnArrow(ox + cy * cp * 0.4, oy + sp * 0.4, oz + sy * cp * 0.4, cy * cp, sp, sy * cp, speed, true, damage));
+    this.hand.swing();
   }
 
   // —— 合成界面 ——
@@ -783,7 +859,8 @@ export class Game {
 
   // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
-    const drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
+    let drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
+    if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     this.edit(x, y, z, AIR);
     this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
@@ -876,6 +953,11 @@ export class Game {
         } else if (ev.kind === 'attackPlayer') {
           applyDamage(this.survival, ev.damage);
           if (survivalIsDead(this.survival) && !this.dead) this.die();
+        } else if (ev.kind === 'shootArrow') {
+          // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
+          this.arrows.push(
+            spawnArrow(ev.from.x, ev.from.y, ev.from.z, ev.dir.x, ev.dir.y, ev.dir.z, SKELETON_ARROW_SPEED, false, ev.damage),
+          );
         } else if (ev.kind === 'drops') {
           for (const stack of ev.items)
             for (let k = 0; k < stack.count; k++)
@@ -922,6 +1004,79 @@ export class Game {
   // 怪物是否被日晒（→ 白天燃烧）：夜里/在水里/头顶有方块或水遮挡 → 不烧（同 MC）。
   private isSunlit(mob: Mob): boolean {
     return isMobSunlit(mob, this.world, skyStateAt(this.worldTime).isNight);
+  }
+
+  // 飞行的箭：每刻推进 + 沿移动段采样命中（玩家箭伤生物 / 骷髅箭伤玩家）+ 插地后可拾取。
+  private tickArrows(): void {
+    const inAabb = (x: number, y: number, z: number, cx: number, cz: number, minY: number, hw: number, h: number): boolean =>
+      x >= cx - hw && x <= cx + hw && y >= minY && y <= minY + h && z >= cz - hw && z <= cz + hw;
+    for (let i = this.arrows.length - 1; i >= 0; i--) {
+      const a = this.arrows[i];
+      if (a.age > ARROW_TTL) {
+        this.arrows.splice(i, 1);
+        continue;
+      }
+      if (a.stuck) {
+        // 插地：靠近玩家且过了拾取延迟 → 捡回 1 支箭（玩家/骷髅的都能捡，方便补给）
+        if (a.age > ARROW_PICKUP_DELAY) {
+          const dx = a.x - this.player.pos.x;
+          const dy = a.y - (this.player.pos.y + 0.9);
+          const dz = a.z - this.player.pos.z;
+          if (dx * dx + dy * dy + dz * dz < 1.4 * 1.4 && addItem(this.inv, ARROW, 1)) {
+            this.hotbar.render(this.inv);
+            this.arrows.splice(i, 1);
+          }
+        }
+        continue;
+      }
+      const ox = a.x;
+      const oy = a.y;
+      const oz = a.z;
+      stepArrow(a, this.physWorld);
+      // 沿本刻移动段采样做命中，防快箭穿过薄目标
+      const dx = a.x - ox;
+      const dy = a.y - oy;
+      const dz = a.z - oz;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy, dz) / 0.2));
+      let consumed = false;
+      for (let s = 1; s <= steps && !consumed; s++) {
+        const t = s / steps;
+        const x = ox + dx * t;
+        const y = oy + dy * t;
+        const z = oz + dz * t;
+        if (a.fromPlayer) {
+          for (const mob of this.mobs) {
+            const def = MOB_DEFS[mob.kind];
+            if (inAabb(x, y, z, mob.pos.x, mob.pos.z, mob.pos.y, def.width / 2, def.height)) {
+              this.damageMobWithArrow(mob, a);
+              consumed = true;
+              break;
+            }
+          }
+        } else if (inAabb(x, y, z, this.player.pos.x, this.player.pos.z, this.player.pos.y, WIDTH / 2, HEIGHT)) {
+          applyDamage(this.survival, a.damage);
+          if (survivalIsDead(this.survival) && !this.dead) this.die();
+          consumed = true;
+        }
+      }
+      if (consumed) this.arrows.splice(i, 1);
+    }
+  }
+
+  // 箭命中生物：按箭伤 + 沿箭飞行方向击退，处理掉落/死亡（与近战 attackMob 同套事件处理）。
+  private damageMobWithArrow(mob: Mob, a: Arrow): void {
+    const res = hurtMob(mob, a.damage, { x: a.vx, z: a.vz }, this.mobRng);
+    Object.assign(mob, res.mob);
+    for (const ev of res.events) {
+      if (ev.kind === 'drops') {
+        for (const stack of ev.items)
+          for (let k = 0; k < stack.count; k++)
+            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+      } else if (ev.kind === 'death') {
+        const idx = this.mobs.indexOf(mob);
+        if (idx >= 0) this.mobs.splice(idx, 1);
+      }
+    }
   }
 
   // 准星(视线)对准的最近生物（攻击距离内），无则 null。
