@@ -45,6 +45,7 @@ export class ChunkMeshManager {
   private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) }; // 地平线色(掠角反射)
   private readonly uSkyTop = { value: new THREE.Color(0.35, 0.55, 0.85) }; // 天顶色(俯角反射)
   private readonly uSunDir = { value: new THREE.Vector3(0.4, 0.85, 0.3) };
+  private readonly uSunLight = { value: 1 }; // 方块太阳方向光强度(0=关/纯平面阴影，1=全)：朝阳面亮、背阴面暗，随昼夜
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -83,19 +84,32 @@ export class ChunkMeshManager {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
       shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.uniforms.uSunDir = this.uSunDir;
+      shader.uniforms.uSunLight = this.uSunLight;
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vLP;',
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
+          '#include <begin_vertex>\nvLP = position;\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }',
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vLF;\nvarying vec3 vTint;')
-        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;');
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vLP;\nuniform vec3 uSunDir;\nuniform float uSunLight;',
+        )
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\n' +
+            '// 太阳方向光：片元用屏幕导数算面法线(体素面平→每面常量法线)，朝阳面亮、背阴面暗，随昼夜\n' +
+            'vec3 nrm = normalize(cross(dFdx(vLP), dFdy(vLP)));\n' +
+            'float ndl = max(0.0, dot(nrm, normalize(uSunDir)));\n' +
+            'float sun = mix(1.0, 0.66 + 0.34 * ndl, uSunLight);\n' +
+            'diffuseColor.rgb *= vLF * vTint * sun;',
+        );
     };
   }
 
@@ -112,23 +126,30 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：只烤天光 + 传世界坐标；水面不位移(平静不漂)。
+      // 顶点：烤天光 + 大涌浪【真位移】(水面顶点 aTop=1 才抬降，侧壁底不动) + 传梯度供片元算斜面光。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying vec2 vGrad;',
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
+            // 大涌浪：两层低频行波,真抬降水面顶点(±0.17格)；解析梯度 vGrad 供片元算波面明暗。
+            'vec3 wp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
+            'float a1 = dot(wp0.xz, vec2(0.80, 0.30)) * 0.45 + uTime * 0.9;\n' +
+            'float a2 = dot(wp0.xz, vec2(-0.35, 0.85)) * 0.62 - uTime * 1.15;\n' +
+            'float swH = sin(a1) * 0.072 + sin(a2) * 0.05;\n' + // 涌浪振幅≈0.12格(够看见起伏,又不太"阶梯")
+            'vGrad = vec2(0.0259 * cos(a1) - 0.0109 * cos(a2), 0.0097 * cos(a1) + 0.0264 * cos(a2));\n' +
+            'transformed.y += uShaders * aTop * swH;\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying vec2 vGrad;\n' +
             'vec2 ripple(vec2 p, float t){\n' +
             '  vec2 n = vec2(0.0);\n' +
             '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + t * 0.85);\n' +
@@ -144,7 +165,8 @@ export class ChunkMeshManager {
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
             '  vec2 n2 = ripple(vWPos.xz, uTime);\n' +
-            '  vec3 N = normalize(vec3(n2.x * 0.085, 1.0, n2.y * 0.085));\n' + // 平滑波纹法线
+            '  vec3 N = normalize(vec3(-vGrad.x * 2.5 + n2.x * 0.085, 1.0, -vGrad.y * 2.5 + n2.y * 0.085));\n' + // 大涌浪斜面 + 细波纹
+
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.9;\n' + // 略压暗,不刺白
@@ -226,6 +248,7 @@ export class ChunkMeshManager {
     g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
+    if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
   }
