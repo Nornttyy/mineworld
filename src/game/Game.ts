@@ -401,7 +401,7 @@ export class Game {
     // 开局预流动：① 激活出生区「能流动」的水——世界生成的水都是静止源头、从不被激活，所以海/湖边的
     //   瀑布口、洞穴破口等本来永远不流；这里把它们(挨着空气的水 front)激活。② 连同读档激活的水(见构造)
     //   一起 presettle 跑到位，玩家进场即见已流完的水，而非进游戏后在眼前慢慢流。
-    const span = 32; // 出生区激活半径(格)，限本区以免大世界扫描卡加载
+    const span = (radius + 1) * CHUNK_W; // 覆盖出生时已网格化的整片(±radius 区块)，进场即见水流完；再大也无意义(没网格化看不见)
     const px = Math.floor(this.player.pos.x);
     const pz = Math.floor(this.player.pos.z);
     activateFlowableWater(
@@ -420,9 +420,9 @@ export class Game {
       },
     );
     presettleWater(this.fluidSim, this.fluidGrid, 1200); // 提高上限：尽量把能流的一次流完
-    // 出生核心区(span=32≈±2 区块)已激活+presettle，标记为已灌水，免得探索期增量灌水重复扫描这片
-    for (let dz = -2; dz <= 2; dz++)
-      for (let dx = -2; dx <= 2; dx++) this.wateredChunks.add(`${cx + dx},${cz + dz}`);
+    // 出生区(±radius 区块)已激活+presettle，标记为已灌水，免得探索期增量灌水重复扫描这片
+    for (let dz = -radius; dz <= radius; dz++)
+      for (let dx = -radius; dx <= radius; dx++) this.wateredChunks.add(`${cx + dx},${cz + dz}`);
     // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
     for (let i = 0; i < rounds; i++) {
