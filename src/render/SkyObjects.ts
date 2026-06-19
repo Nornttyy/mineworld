@@ -81,6 +81,8 @@ export class SkyObjects {
       transparent: true,
       depthWrite: false,
       opacity: 0.82,
+      side: THREE.DoubleSide, // 云平面正面朝上，玩家从下方抬头看是背面——必须双面才可见
+      fog: false, // 不被雾吃掉(否则头顶云距 88 格、被 fog 30-110 雾化大半看不清)
     });
     this.clouds = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), this.cloudMat);
     this.clouds.rotation.x = -Math.PI / 2; // 平铺成水平云层
