@@ -65,6 +65,7 @@ import {
 import { APPLE, EGG, isFood, foodValue, toolOf } from '../core/items/items';
 import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
+import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
 import type { WorldSave } from '../save/worldStore';
 
@@ -144,6 +145,7 @@ export class Game {
   private readonly dropRenderer: DropRenderer;
   private readonly hand: FirstPersonHand;
   private readonly particleFx: ParticleRenderer;
+  private readonly skyObjects: SkyObjects;
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -224,6 +226,7 @@ export class Game {
     this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
+    this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.furnaceUI.onChange = (): void => this.hotbar.render(this.inv);
@@ -351,8 +354,18 @@ export class Game {
           [r, i],
         ] as [number, number][]) {
           const h = columnHeight(x, z, seed);
-          // 该列须是海岸平地，且地面上方是空气(没长树)，否则会出生卡在树干里
-          if (h > SEA_LEVEL && h <= SEA_LEVEL + 4 && this.world.getBlock(x, h + 1, z) === 0)
+          // 该列须是海岸平地；玩家占的 2 格 + 周围 4 邻格头顶都得空(不被树干/邻树夹住)，否则出生卡树里看不到天
+          const clear = (xx: number, zz: number): boolean =>
+            this.world.getBlock(xx, h + 1, zz) === 0 && this.world.getBlock(xx, h + 2, zz) === 0;
+          if (
+            h > SEA_LEVEL &&
+            h <= SEA_LEVEL + 4 &&
+            clear(x, z) &&
+            clear(x + 1, z) &&
+            clear(x - 1, z) &&
+            clear(x, z + 1) &&
+            clear(x, z - 1)
+          )
             return { x: x + 0.5, y: h + 2, z: z + 0.5 };
         }
       }
@@ -471,6 +484,7 @@ export class Game {
       }
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
+      this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
