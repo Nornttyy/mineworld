@@ -385,6 +385,11 @@ export class ChunkMeshManager {
     }
   }
 
+  /** 还有 worker 网格化在途，或结果待上屏（供主菜单预加载等待铺满后再显示）。 */
+  meshBusy(): boolean {
+    return this.meshQueue.length > 0 || this.meshPending.size > 0;
+  }
+
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();

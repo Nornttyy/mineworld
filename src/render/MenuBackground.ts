@@ -80,9 +80,11 @@ export class MenuBackground {
       };
       check();
     });
-    const rounds = Math.ceil((radius * 2 + 1) ** 2 / 6) + 1;
-    for (let i = 0; i < rounds; i++) {
-      this.chunks.update(cx, cz, radius, 6);
+    // 网格化已移到 Web Worker：派活后必须每帧 flushMesh 把算好的网格【上屏】，否则背景空着(只剩天空)。
+    // 轮询直到全部网格化结果都上屏(meshBusy 转 false)，主菜单一显示就铺满；600 帧封顶兜底防卡死。
+    for (let i = 0; i < 600 && (i < 3 || this.chunks.meshBusy()); i++) {
+      this.chunks.update(cx, cz, radius, 999);
+      this.chunks.flushMesh(999);
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
     }
   }
@@ -93,16 +95,15 @@ export class MenuBackground {
     const loop = (): void => {
       if (!this.running) return;
       requestAnimationFrame(loop);
-      this.heading += 0.00022; // 缓慢转向
-      this.x += Math.cos(this.heading) * 0.022; // 缓缓前飞
-      this.z += Math.sin(this.heading) * 0.022;
+      // 不再前飞：相机定在原地，只缓慢旋转(原地转头看一圈)，像 MC 主菜单的旋转全景。
+      this.heading += 0.0006; // 缓慢旋转(~全圈 3 分钟)
       this.camera.position.set(this.x, this.y, this.z);
       this.camera.lookAt(
         this.x + Math.cos(this.heading) * 26,
         this.y - 17, // 略俯视
         this.z + Math.sin(this.heading) * 26,
       );
-      this.chunks.update(worldToChunk(Math.floor(this.x)), worldToChunk(Math.floor(this.z)), RADIUS, 3);
+      this.chunks.flushMesh(2); // 把 worker 算好的网格上屏(预加载没铺完的兜底)
       this.gl.render(this.scene, this.camera);
     };
     requestAnimationFrame(loop);
