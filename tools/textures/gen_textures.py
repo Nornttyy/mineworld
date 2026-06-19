@@ -379,6 +379,22 @@ def crafting_table_top(rng):
     return im
 
 
+def gravel(rng):
+    # 松散砾石：暖灰底 + 密铺小石砾(深浅灰/微棕)。比圆石碎、比石头杂，颗粒堆叠感强。
+    im = new()
+    fill(im, "#84827d")  # 暖灰底
+    speck(im, ["#76746f", "#94928c"], 0.08, rng)  # 细砾噪点(比石头略多)
+    pal = [
+        ("#9a988f", "#b6b4ab", "#7c7a72"),  # 亮灰砾
+        ("#7d7b74", "#999790", "#615f59"),  # 暗灰砾
+        ("#8f857a", "#a89c8e", "#6f665d"),  # 微棕砾
+    ]
+    for _ in range(16):  # 密铺小颗粒铺满整格 → 碎石堆质感(% S 包裹保持无缝)
+        b, h, l = rng.choice(pal)
+        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 1, 2]), b, h, l, rng, 0.35)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -396,6 +412,7 @@ BLOCKS = [
     ("oak_leaves", oak_leaves),
     ("crafting_table_top", crafting_table_top),
     ("crafting_table_side", crafting_table_side),
+    ("gravel", gravel),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -468,16 +485,19 @@ def main():
         tex[name] = im
         print(f"wrote {name}.png")
 
-    # Pack block tiles into one atlas (4x4 grid, 16px each) for single-material rendering.
-    # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
+    # Pack block tiles into one atlas (4 cols × 5 rows = 20 slots, 16px each) for single-material rendering.
+    # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。tile 16=gravel 占用第 5 行（图集由 4×4 扩成 4×5）。
+    # 改行数时务必同步 mesher.ts / DropRenderer.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
-                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front']
-    atlas = Image.new('RGBA', (S * 4, S * 4), (0, 0, 0, 0))
+                   'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
+                   'gravel']
+    ATLAS_COLS, ATLAS_ROWS = 4, 5
+    atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm].convert('RGBA'), ((i % 4) * S, (i // 4) * S))
+        atlas.paste(tex[nm].convert('RGBA'), ((i % ATLAS_COLS) * S, (i // ATLAS_COLS) * S))
     atlas.save(os.path.join(OUT, '..', 'atlas.png'))
-    print(f'wrote atlas.png ({S * 4}x{S * 4}, {len(ATLAS_ORDER)} tiles)')
+    print(f'wrote atlas.png ({S * ATLAS_COLS}x{S * ATLAS_ROWS}, {len(ATLAS_ORDER)} tiles)')
 
     # 快捷栏用的等距方块图标（顶面, 侧面）
     ICON_FACES = {
@@ -493,6 +513,7 @@ def main():
         'furnace': ('cobblestone', 'furnace_front'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
+        'gravel': ('gravel', 'gravel'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
