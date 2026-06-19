@@ -73,6 +73,9 @@ const HURT_INVULN = 10; // tick（≈0.5s，同 MC）
 const KNOCK_H = 0.4; // 水平击退
 const KNOCK_UP = 0.36; // 向上击退
 const CHICKEN_FALL_CLAMP = -0.05; // 鸡下落速度下限（缓降）
+const WATER_BUOY = 0.06; // 水中上浮加速度（浮力）
+const WATER_DRAG = 0.85; // 水阻尼
+const WATER_RISE_MAX = 0.12; // 上浮限速（防止冲出水面）
 
 export function spawnMob(kind: MobKind, x: number, y: number, z: number): Mob {
   return {
@@ -180,9 +183,18 @@ export function updateMob(m: Mob, world: VoxelWorld, rng: () => number): MobUpda
   // —— 速度：水平意图 + 重力（鸡缓降钳速）；起跳覆盖本帧重力，才能跳满 1 格（同玩家：满速起跳）——
   mob.vel.x = wishX * speed;
   mob.vel.z = wishZ * speed;
-  mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
-  if (wantJump) mob.vel.y = JUMP;
-  if (def.fallImmune && mob.vel.y < CHICKEN_FALL_CLAMP) mob.vel.y = CHICKEN_FALL_CLAMP;
+  // 竖直：在水里像玩家一样有浮力 → 浮到水面漂着（不沉底）；否则重力（鸡缓降 / 起跳）。
+  const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
+  if (inWater) {
+    const deeper = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y) + 1, Math.floor(mob.pos.z)) ?? false;
+    mob.vel.y = deeper
+      ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
+      : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着（不冲出水面）
+  } else {
+    mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
+    if (wantJump) mob.vel.y = JUMP;
+    if (def.fallImmune && mob.vel.y < CHICKEN_FALL_CLAMP) mob.vel.y = CHICKEN_FALL_CLAMP;
+  }
 
   // —— 物理扫掠 ——
   const sw = sweepAabb(mob.pos, def.width, def.height, mob.vel, world);
