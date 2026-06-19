@@ -15,6 +15,10 @@ export class Renderer {
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 真实投影阴影：开启 shadow map（太阳 DirectionalLight 投影到地面，见 ChunkMeshManager）
+    this.gl.shadowMap.enabled = true;
+    this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.gl.shadowMap.autoUpdate = true;
     this.skyCanvas.width = 2;
     this.skyCanvas.height = 256;
     this.skyCtx = this.skyCanvas.getContext('2d');

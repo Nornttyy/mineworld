@@ -3,8 +3,11 @@ import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type MeshData } from '../core/mesh/mesher';
 import { loadWaterFrames } from './atlas';
+import { DAY_LENGTH } from '../core/world/dayNight';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
+const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
+const SHADOW_HALF = 48; // 阴影正交相机半宽（格）——只覆盖玩家附近
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
 // 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
@@ -45,7 +48,14 @@ export class ChunkMeshManager {
   private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) }; // 地平线色(掠角反射)
   private readonly uSkyTop = { value: new THREE.Color(0.35, 0.55, 0.85) }; // 天顶色(俯角反射)
   private readonly uSunDir = { value: new THREE.Vector3(0.4, 0.85, 0.3) };
-  private readonly uSunLight = { value: 1 }; // 方块太阳方向光强度(0=关/纯平面阴影，1=全)：朝阳面亮、背阴面暗，随昼夜
+  // 真实投影阴影：太阳 DirectionalLight 自动渲出 shadow map，方块 shader 手动采样它(自带 uniform 名，不依赖 three.js 给 Basic 材质填灯光 uniform)。
+  private readonly sun = new THREE.DirectionalLight(0xffffff, 0); // 强度 0：只用它的 shadow map，不给材质打光(方块走自有天光 shader)
+  private readonly uShadowMap: { value: THREE.Texture | null } = { value: null };
+  private readonly uShadowMatrix = { value: new THREE.Matrix4() };
+  private readonly uShadowTexel = { value: new THREE.Vector2(1 / SHADOW_MAP_SIZE, 1 / SHADOW_MAP_SIZE) };
+  private readonly uShadowOn = { value: 0 }; // shadow map 就绪前为 0
+  private readonly uSunUp = { value: 0 }; // 白昼系数(太阳高度)：夜里/地平线 0 → 不投影，白天 1
+  private leafDepthMat: THREE.MeshDepthMaterial | null = null; // 树叶投影用：带 alphaTest 的深度材质 → 镂空叶影
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -77,6 +87,26 @@ export class ChunkMeshManager {
     this.installWaterShader(this.waterMat);
     // 火把：自发光暖色十字，不参与天光(始终全亮)，双面可见
     this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+
+    // 太阳光(投影阴影)：castShadow 让 three.js 每帧把 castShadow 物体渲进 shadow map(深度)；
+    // 材质用 RGBA 打包深度，方块 shader 自己采样。正交相机只覆盖玩家附近 ±SHADOW_HALF。
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    const sc = this.sun.shadow.camera;
+    sc.left = -SHADOW_HALF;
+    sc.right = SHADOW_HALF;
+    sc.top = SHADOW_HALF;
+    sc.bottom = -SHADOW_HALF;
+    sc.near = 1;
+    sc.far = 260;
+    this.scene.add(this.sun);
+    this.scene.add(this.sun.target); // 光指向 target（每帧设为玩家脚下）
+    // 树叶投影：带图集 + alphaTest 的深度材质 → 叶影是镂空的，而非实心方块大黑块
+    this.leafDepthMat = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      map: atlas,
+      alphaTest: 0.5,
+    });
   }
 
   // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
@@ -84,33 +114,83 @@ export class ChunkMeshManager {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
       shader.uniforms.uSkyTint = this.uSkyTint;
-      shader.uniforms.uSunDir = this.uSunDir;
-      shader.uniforms.uSunLight = this.uSunLight;
+      // 投影阴影 uniform（自己绑，不靠 three.js 给 Basic 材质填灯光 uniform）
+      shader.uniforms.uShadowMap = this.uShadowMap;
+      shader.uniforms.uShadowMatrix = this.uShadowMatrix;
+      shader.uniforms.uShadowTexel = this.uShadowTexel;
+      shader.uniforms.uShadowOn = this.uShadowOn;
+      shader.uniforms.uSunUp = this.uSunUp;
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vLP;',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform mat4 uShadowMatrix;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;',
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\nvLP = position;\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
-            ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }',
+          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
+            ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
+            'vSky = aLight.x;\n' +
+            'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vLP;\nuniform vec3 uSunDir;\nuniform float uSunLight;',
+          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' +
+            'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uSunUp;\n' +
+            'float mwUnpackDepth(vec4 v){ const vec4 f = (255.0/256.0)/vec4(16777216.0,65536.0,256.0,256.0); return dot(v,f); }\n' +
+            'float mwShadow(vec4 sc){\n' +
+            '  vec3 c = sc.xyz / sc.w;\n' +
+            '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
+            '  float bias = 0.0018;\n' +
+            '  float s = 0.0;\n' +
+            '  for (int x=-1;x<=1;x++){ for (int y=-1;y<=1;y++){\n' +
+            '    float d = mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(float(x),float(y))*uShadowTexel));\n' +
+            '    s += (c.z - bias <= d) ? 1.0 : 0.0;\n' +
+            '  }}\n' +
+            '  return s / 9.0;\n' +
+            '}',
         )
         .replace(
           '#include <color_fragment>',
           '#include <color_fragment>\n' +
-            '// 太阳方向光：片元用屏幕导数算面法线(体素面平→每面常量法线)，朝阳面亮、背阴面暗，随昼夜\n' +
-            'vec3 nrm = normalize(cross(dFdx(vLP), dFdy(vLP)));\n' +
-            'float ndl = max(0.0, dot(nrm, normalize(uSunDir)));\n' +
-            'float sun = mix(1.0, 0.66 + 0.34 * ndl, uSunLight);\n' +
-            'diffuseColor.rgb *= vLF * vTint * sun;',
+            'float vis = 1.0;\n' +
+            'if (uShadowOn > 0.5) {\n' +
+            '  float sh = mwShadow(vShadowCoord);\n' +
+            '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
+            '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%
+            '}\n' +
+            'diffuseColor.rgb *= vLF * vTint * vis;',
         );
     };
+  }
+
+  /** 每帧：太阳 DirectionalLight 摆到天球方位(随昼夜)、阴影相机跟随玩家，绑 shadow map 给方块 shader 采样。 */
+  updateSun(worldTime: number, px: number, py: number, pz: number): void {
+    const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 同 SkyObjects：0=日出
+    let nx = Math.cos(th);
+    let ny = Math.sin(th);
+    let nz = 0.28;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len;
+    ny /= len;
+    nz /= len;
+    // 焦点=玩家(按格吸附减少阴影抖动)；光在焦点沿太阳方向 120 格外、指向焦点
+    const fx = Math.round(px);
+    const fy = Math.round(py);
+    const fz = Math.round(pz);
+    this.sun.target.position.set(fx, fy, fz);
+    this.sun.position.set(fx + nx * 120, fy + ny * 120, fz + nz * 120);
+    this.sun.target.updateMatrixWorld();
+    this.sun.updateMatrixWorld();
+    this.uSunUp.value = Math.max(0, Math.min(1, (ny - 0.02) / 0.2)); // 太阳高度>~1°才投影
+    const map = this.sun.shadow.map;
+    if (map && map.texture && this.uSunUp.value > 0.001) {
+      this.uShadowMap.value = map.texture;
+      this.uShadowMatrix.value = this.sun.shadow.matrix; // 引用 three.js 每帧在 shadow pass 更新的矩阵
+      this.uShadowOn.value = 1;
+    } else {
+      this.uShadowOn.value = 0;
+    }
   }
 
   // 水面专用：天光烤进顶点 + "光影"(uShaders 开时)。
@@ -271,12 +351,19 @@ export class ChunkMeshManager {
   private rebuild(cx: number, cz: number): void {
     this.unload(this.key(cx, cz));
     const { opaque, cutout, water, torch } = meshChunk(this.world, cx, cz);
-    this.meshes.set(this.key(cx, cz), {
-      opaque: this.addMesh(opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh(),
-      cutout: this.addMesh(cutout, this.cutoutMat, cx, cz),
-      water: this.addMesh(water, this.waterMat, cx, cz),
-      torch: this.addMesh(torch, this.torchMat, cx, cz),
-    });
+    const om = this.addMesh(opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const cm = this.addMesh(cutout, this.cutoutMat, cx, cz);
+    const wm = this.addMesh(water, this.waterMat, cx, cz);
+    const tm = this.addMesh(torch, this.torchMat, cx, cz);
+    // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
+    om.castShadow = true;
+    om.receiveShadow = true;
+    if (cm) {
+      cm.castShadow = true;
+      cm.receiveShadow = true;
+      if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
+    }
+    this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
     const built = this.world.peek(cx, cz);
     if (built) built.dirty = false;
   }

@@ -359,9 +359,15 @@ export class Game {
           // 该列须是海岸平地；玩家占的 2 格 + 周围 4 邻格头顶都得空(不被树干/邻树夹住)，否则出生卡树里看不到天
           const clear = (xx: number, zz: number): boolean =>
             this.world.getBlock(xx, h + 1, zz) === 0 && this.world.getBlock(xx, h + 2, zz) === 0;
+          // 脚下草顶 + 下两格须实心，否则是峡谷/竖井/悬空 → 出生会直接掉下去
+          const solidGround =
+            this.world.getBlock(x, h, z) !== 0 &&
+            this.world.getBlock(x, h - 1, z) !== 0 &&
+            this.world.getBlock(x, h - 2, z) !== 0;
           if (
             h > SEA_LEVEL &&
             h <= SEA_LEVEL + 4 &&
+            solidGround &&
             clear(x, z) &&
             clear(x + 1, z) &&
             clear(x - 1, z) &&
@@ -519,6 +525,7 @@ export class Game {
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
       this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
+      this.chunks.updateSun(this.worldTime, this.player.pos.x, this.player.pos.y, this.player.pos.z); // 太阳投影阴影：光摆位 + 阴影相机跟随玩家
       this.updateWater();
       this.updateHighlight();
       this.updateCamera(this.acc / TICK_MS);
