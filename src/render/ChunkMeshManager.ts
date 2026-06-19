@@ -138,10 +138,10 @@ export class ChunkMeshManager {
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
             // 大涌浪：两层低频行波,真抬降水面顶点(±0.17格)；解析梯度 vGrad 供片元算波面明暗。
             'vec3 wp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'float a1 = dot(wp0.xz, vec2(0.80, 0.30)) * 0.45 + uTime * 0.9;\n' +
-            'float a2 = dot(wp0.xz, vec2(-0.35, 0.85)) * 0.62 - uTime * 1.15;\n' +
-            'float swH = sin(a1) * 0.072 + sin(a2) * 0.05;\n' + // 涌浪振幅≈0.12格(够看见起伏,又不太"阶梯")
-            'vGrad = vec2(0.0259 * cos(a1) - 0.0109 * cos(a2), 0.0097 * cos(a1) + 0.0264 * cos(a2));\n' +
+            'float a1 = dot(wp0.xz, vec2(0.80, 0.30)) * 0.22 + uTime * 0.32;\n' + // 低频=长波长大涌浪
+            'float a2 = dot(wp0.xz, vec2(-0.35, 0.85)) * 0.30 - uTime * 0.45;\n' +
+            'float swH = sin(a1) * 0.18 + sin(a2) * 0.12;\n' + // 涌浪振幅≈0.30格(明显大浪);长波长→阶梯不至更糟
+            'vGrad = vec2(0.0317 * cos(a1) - 0.0126 * cos(a2), 0.0119 * cos(a1) + 0.0306 * cos(a2));\n' +
             'transformed.y += uShaders * aTop * swH;\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
