@@ -98,8 +98,10 @@ export class ChunkMeshManager {
     };
   }
 
-  // 水面专用：先按 installLight 同样烤天光/方块光，再叠"光影"(uShaders 开时)——
-  // 顶点正弦波动起伏、片元菲涅尔反射天空色(侧看反光、俯看见水)、太阳方向镜面高光(粼粼反光)。
+  // 水面专用：天光烤进顶点(同 installLight) + "光影"(uShaders 开时)。
+  // 关键：水面【几何不动】(平静、不漂)。波纹是【片元里的程序法线】——几层细正弦，
+  //   相位用 sin(t) 来回摆(驻波/原地荡漾，绝不向某方向流走)；用它扰动 菲涅尔反射 + 太阳高光 +
+  //   明暗带，得到"真实有波纹、会粼粼闪、但不飘"的水面。
   private installWaterShader(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
@@ -108,35 +110,45 @@ export class ChunkMeshManager {
       shader.uniforms.uTime = this.uTime;
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSunDir = this.uSunDir;
+      // 顶点：只烤天光 + 传世界坐标；水面不位移(平静不漂)。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
-            'float wwave(vec2 p, float t){ return sin(p.x*0.55 + t*1.2)*0.04 + sin(p.y*0.5 - t*0.9)*0.035 + sin((p.x+p.y)*0.32 + t*0.7)*0.025; }',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
-            'vec3 wp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'transformed.y += uShaders * wwave(wp0.xz, uTime);\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
+      // 片元：程序波纹法线 → 扰动反射/高光/明暗带。相位 sin(t) 摆动=原地荡漾、不漂。
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform vec3 uSkyRefl;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+            'vec2 ripple(vec2 p, float t){\n' +
+            '  vec2 n = vec2(0.0);\n' +
+            '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + sin(t * 0.8) * 1.6);\n' +
+            '  n += vec2(-0.40, 1.0) * cos(dot(p, vec2(-0.45, 1.00)) * 2.3 + sin(t * 1.0 + 1.7) * 1.6);\n' +
+            '  n += vec2(0.70, -0.60) * cos(dot(p, vec2(0.75, -0.60)) * 3.2 + sin(t * 0.6 + 3.1) * 1.5);\n' +
+            '  n += vec2(-0.70, -0.50) * cos(dot(p, vec2(-0.70, -0.55)) * 4.6 + sin(t * 1.1 + 0.5) * 1.4);\n' +
+            '  return n;\n' +
+            '}',
         )
         .replace(
           '#include <color_fragment>',
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
+            '  vec2 n2 = ripple(vWPos.xz, uTime);\n' +
+            '  vec3 N = normalize(vec3(n2.x * 0.11, 1.0, n2.y * 0.11));\n' + // 波纹法线(陡度 0.11)
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
-            '  float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);\n' + // 侧看(V.y小)→反射强
-            '  diffuseColor.rgb = mix(diffuseColor.rgb, uSkyRefl, fres * 0.55);\n' +
-            '  vec3 R = reflect(-normalize(uSunDir), vec3(0.0, 1.0, 0.0));\n' +
-            '  float spec = pow(max(dot(R, V), 0.0), 80.0);\n' + // 太阳镜面高光
-            '  diffuseColor.rgb += spec * uSkyMul * vec3(1.0, 0.96, 0.85);\n' +
+            '  float fres = pow(1.0 - max(dot(V, N), 0.0), 4.0);\n' + // 掠角→强反射，随波纹起伏
+            '  diffuseColor.rgb = mix(diffuseColor.rgb, uSkyRefl, clamp(fres, 0.0, 1.0) * 0.5);\n' +
+            '  vec3 R = reflect(-normalize(uSunDir), N);\n' +
+            '  float spec = pow(max(dot(R, V), 0.0), 120.0);\n' + // 波纹上跳动的粼粼高光
+            '  diffuseColor.rgb += spec * uSkyMul * vec3(1.0, 0.97, 0.88);\n' +
+            '  diffuseColor.rgb += (n2.x + n2.y) * 0.022 * uSkyMul;\n' + // 波纹本身的明暗带(让"有波纹"看得见)
             '}',
         );
     };
