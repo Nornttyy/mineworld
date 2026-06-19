@@ -53,18 +53,18 @@ describe('meshChunk', () => {
     expect(m.positions.length).toBe((m.indices.length / 6) * 12);
   });
 
-  it('上方有实心方块的水 → 渲染灌满到顶(不在方块下露空洞)', () => {
+  it('上方有实心方块的浅水(流动) → 保持矮高度，不被画成整块', () => {
     const w = new ChunkWorld(5);
     const Y = 170; // 地形之上(地表~99-151，CHUNK_H 192)
     w.setBlock(5, Y - 1, 5, 1); // 地板
-    w.setWater(5, Y, 5, 4, false, false); // 浅水(量4≈高度0.44)
+    w.setWater(5, Y, 5, 4, false, false); // 浅的流动水(量4≈高度0.44,非源头)
     w.setBlock(5, Y + 1, 5, 1); // 头顶盖实心方块
     // (6,Y,5) 保持空气 → 会出一个朝空气的侧面，其顶边高度能验证
     const water = meshChunk(w, 0, 0).water;
     let maxY = 0;
     for (let i = 1; i < water.positions.length; i += 3) maxY = Math.max(maxY, water.positions[i]);
-    // 被方块盖住 → 水面应灌到 ~Y+1（满），而不是 Y+4/9≈Y+0.44
-    expect(maxY).toBeGreaterThan(Y + 0.9);
+    // 修复后：头顶有方块的浅水保持自身矮高度(不再被灌成满格)；只有源头才贴方块(见 waterMesh.test)
+    expect(maxY).toBeLessThan(Y + 0.6);
   });
 
   it('culls faces at chunk borders against the neighbour chunk (no internal wall)', () => {

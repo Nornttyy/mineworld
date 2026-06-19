@@ -326,7 +326,9 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     for (const [cx, cz] of cells) {
       const a = world.waterAmount(cx, wy, cz);
       if (world.waterAmount(cx, wy + 1, cz) > 0) return 1; // 上方有水(柱内) → 满
-      if (a > 0 && isOpaque(world.getBlock(cx, wy + 1, cz))) return 1; // 头顶是实心方块的水 → 灌满到顶
+      // 头顶有方块：只有【源头(本就满)】才灌满贴住方块；流动的浅水保持自身高度，
+      //   否则一放方块在浅水上、浅水就被画成整块(BUG)。
+      if (a > 0 && isOpaque(world.getBlock(cx, wy + 1, cz)) && world.isWaterSource(cx, wy, cz)) return 1;
       if (a > 0) {
         const h = a / 9;
         if (h >= 0.8) {
