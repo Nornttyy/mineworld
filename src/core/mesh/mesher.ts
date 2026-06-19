@@ -88,6 +88,7 @@ export interface MeshData {
   colors: Float32Array;
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
+  top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
 }
 
 interface BlockGrid {
@@ -174,8 +175,9 @@ interface FaceArrays {
   C: number[];
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
+  T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -185,6 +187,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     // 顶点数没超 Uint16 上限就用 Uint16(绝大多数区块如此)，否则退回 Uint32
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
+    top: a.T.length ? new Float32Array(a.T) : undefined,
   };
 };
 
@@ -298,6 +301,7 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
     const sky = skyAt(lx + d.o[0], ly + d.o[1], lz + d.o[2]) / 15; // 该面朝向格的光，交 shader 合成
     const blk = blkAt(lx + d.o[0], ly + d.o[1], lz + d.o[2]) / 15;
     const base = wa.P.length / 3;
+    const topFace = f === 2; // Face.PosY=水面
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
       const py = ly + yArr[k];
@@ -309,6 +313,8 @@ export function meshChunk(world: ChunkWorld, cx: number, cz: number): ChunkMesh 
       else wa.U.push(wx, py); // ±Z 侧
       wa.C.push(shade, shade, shade);
       wa.L.push(sky, blk);
+      // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)=1 → 光影里随涌浪起伏；侧壁底沿/底面=0 不动(免穿帮露缝)
+      wa.T.push(topFace || yArr[k] > 0.01 ? 1 : 0);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
