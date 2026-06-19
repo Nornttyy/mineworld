@@ -113,10 +113,9 @@ export class ChunkMeshManager {
     };
   }
 
-  // 水面专用：天光烤进顶点(同 installLight) + "光影"(uShaders 开时)。
-  // 波纹是【片元里的程序法线】——几层细正弦，相位 ±t 多向缓流(真实飘动；各层方向/速度不同→
-  //   组合成自然流动、无单一传送带感)；用它扰动 菲涅尔反射 + 太阳高光 → 真实会流动的水面。
-  //   水面几何不位移(平静不浮)，"飘动"是波纹/反光在面上流过。
+  // 水面专用：天光烤进顶点 + "光影"(uShaders 开时)。
+  // 水面【几何平静不动】(不抬降、不穿帮)；"会动"的是【波纹本身】——片元里的程序波纹(高度+坡度)，
+  //   相位 ±t 多向行波 → 波纹明暗带 + 鳞光反射在水面上【看得见地流动】(波纹飘动，不是整片水起伏)。
   private installWaterShader(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
@@ -126,37 +125,31 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：烤天光 + 大涌浪【真位移】(水面顶点 aTop=1 才抬降，侧壁底不动) + 传梯度供片元算斜面光。
+      // 顶点：只烤天光 + 传世界坐标；水面【不位移】(平静)。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying vec2 vGrad;',
+          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
             ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
-            // 大涌浪：两层低频行波,真抬降水面顶点(±0.17格)；解析梯度 vGrad 供片元算波面明暗。
-            'vec3 wp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'float a1 = dot(wp0.xz, vec2(0.80, 0.30)) * 0.22 + uTime * 0.32;\n' + // 低频=长波长大涌浪
-            'float a2 = dot(wp0.xz, vec2(-0.35, 0.85)) * 0.30 - uTime * 0.45;\n' +
-            'float swH = sin(a1) * 0.18 + sin(a2) * 0.12;\n' + // 涌浪振幅≈0.30格(明显大浪);长波长→阶梯不至更糟
-            'vGrad = vec2(0.0317 * cos(a1) - 0.0126 * cos(a2), 0.0119 * cos(a1) + 0.0306 * cos(a2));\n' +
-            'transformed.y += uShaders * aTop * swH;\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying vec2 vGrad;\n' +
-            'vec2 ripple(vec2 p, float t){\n' +
-            '  vec2 n = vec2(0.0);\n' +
-            '  n += vec2(1.0, 0.30) * cos(dot(p, vec2(1.00, 0.35)) * 1.6 + t * 0.85);\n' +
-            '  n += vec2(-0.40, 1.0) * cos(dot(p, vec2(-0.45, 1.00)) * 2.3 - t * 1.05 + 1.7);\n' +
-            '  n += vec2(0.70, -0.60) * cos(dot(p, vec2(0.75, -0.60)) * 3.2 + t * 0.80 + 3.1);\n' +
-            '  n += vec2(-0.70, -0.50) * cos(dot(p, vec2(-0.70, -0.55)) * 4.6 - t * 1.25 + 0.5);\n' +
-            '  return n;\n' +
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+            // 程序波纹：返回 vec3(高度, 坡度x, 坡度z)。4 层行波(波长2~5格)、相位 ±t 多向 → 波纹在水面流动。
+            'vec3 rip(vec2 p, float t){\n' +
+            '  vec3 r = vec3(0.0); float a;\n' +
+            '  a = dot(p, vec2(1.00, 0.30)) * 1.3 + t * 0.9;  r += vec3(sin(a), 1.3 * 1.00 * cos(a), 1.3 * 0.30 * cos(a));\n' +
+            '  a = dot(p, vec2(-0.40, 1.00)) * 1.8 - t * 1.1; r += vec3(sin(a), 1.8 * -0.40 * cos(a), 1.8 * 1.00 * cos(a));\n' +
+            '  a = dot(p, vec2(0.70, -0.60)) * 2.5 + t * 0.8; r += vec3(sin(a), 2.5 * 0.70 * cos(a), 2.5 * -0.60 * cos(a));\n' +
+            '  a = dot(p, vec2(-0.70, -0.55)) * 3.5 - t * 1.0; r += vec3(sin(a), 3.5 * -0.70 * cos(a), 3.5 * -0.55 * cos(a));\n' +
+            '  return r;\n' +
             '}',
         )
         .replace(
@@ -164,8 +157,8 @@ export class ChunkMeshManager {
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
-            '  vec2 n2 = ripple(vWPos.xz, uTime);\n' +
-            '  vec3 N = normalize(vec3(-vGrad.x * 2.5 + n2.x * 0.085, 1.0, -vGrad.y * 2.5 + n2.y * 0.085));\n' + // 大涌浪斜面 + 细波纹
+            '  vec3 r = rip(vWPos.xz, uTime);\n' + // r.x=波纹高度(明暗带), r.yz=坡度(法线)
+            '  vec3 N = normalize(vec3(-r.y * 0.06, 1.0, -r.z * 0.06));\n' + // 波纹法线(随 ±t 流动)
 
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
@@ -175,6 +168,7 @@ export class ChunkMeshManager {
             '  vec3 col = mix(base, skyR, fres);\n' + // 掠角→大幅反天空、但仍透出水蓝
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 200.0) * uSkyMul * vec3(1.0, 0.95, 0.82) * 1.6;\n' + // 太阳粼光
+            '  col += r.x * 0.03 * vLF;\n' + // 【可见波纹明暗带】随 ±t 流动 → 一眼看见波纹在水面飘过
             '  diffuseColor.rgb = col;\n' +
             '  diffuseColor.a = mix(0.62, 0.96, fres);\n' + // 俯看清澈见底、掠角反光不透(菲涅尔透明度)
             '}',
