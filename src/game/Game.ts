@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
-import { CHUNK_H } from '../core/world/chunk';
+import { CHUNK_H, CHUNK_W } from '../core/world/chunk';
 import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
 import { worldToChunk } from '../core/world/coords';
 import {
@@ -34,6 +34,7 @@ import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
 import { presettleWater } from '../core/fluid/presettle';
 import { activateFlowableWater } from '../core/fluid/activateWater';
+import { chunksNeedingWater } from '../core/fluid/waterChunks';
 import {
   emptyInventory,
   addItem,
@@ -166,6 +167,7 @@ export class Game {
   private readonly fluidSim = new FluidSim();
   private readonly fluidGrid: FluidGrid;
   private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
+  private readonly wateredChunks = new Set<string>(); // 已增量激活过「能流动的水」的区块，避免重复扫描
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   private fov = 70;
   private last = 0;
@@ -412,11 +414,42 @@ export class Game {
       },
     );
     presettleWater(this.fluidSim, this.fluidGrid, 1200); // 提高上限：尽量把能流的一次流完
+    // 出生核心区(span=32≈±2 区块)已激活+presettle，标记为已灌水，免得探索期增量灌水重复扫描这片
+    for (let dz = -2; dz <= 2; dz++)
+      for (let dx = -2; dx <= 2; dx++) this.wateredChunks.add(`${cx + dx},${cz + dz}`);
     // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
     for (let i = 0; i < rounds; i++) {
       this.chunks.update(cx, cz, radius, 4);
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    }
+  }
+
+  // 探索期增量灌水：玩家走到哪，就把附近新载入区块里「能流动的水」(海/湖边、洞穴破口的 front)激活，
+  //   交给常驻水模拟流进相连的洞/坑——否则远离出生点的连通水永远是静止源头、不破方块就不流。
+  //   每区块只激活一次(wateredChunks 去重)；未载入的区块跳过且不标记，待其载入后下次再试。
+  private activateNearbyWater(): void {
+    const ACTIVATE_RADIUS = 4; // 区块；约 64 格，覆盖玩家近场
+    const PER_TICK_CAP = 3; // 每次最多处理几个新区块，摊平移动跨界时的扫描开销
+    const pcx = worldToChunk(Math.floor(this.player.pos.x));
+    const pcz = worldToChunk(Math.floor(this.player.pos.z));
+    const minY = Math.max(1, SEA_LEVEL - 48);
+    const maxY = Math.min(CHUNK_H - 1, SEA_LEVEL + 2);
+    let done = 0;
+    for (const key of chunksNeedingWater(pcx, pcz, ACTIVATE_RADIUS, this.wateredChunks)) {
+      if (done >= PER_TICK_CAP) break;
+      const [cx, cz] = key.split(',').map(Number);
+      if (!this.world.peek(cx, cz)) continue; // 未载入：先不标记，载入后再处理
+      activateFlowableWater(
+        this.fluidSim,
+        {
+          isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
+          isAir: (x, y, z) => this.world.getBlock(x, y, z) === AIR,
+        },
+        { minX: cx * CHUNK_W, maxX: cx * CHUNK_W + CHUNK_W - 1, minZ: cz * CHUNK_W, maxZ: cz * CHUNK_W + CHUNK_W - 1, minY, maxY },
+      );
+      this.wateredChunks.add(key);
+      done++;
     }
   }
 
@@ -450,6 +483,7 @@ export class Game {
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
         if (++this.fluidTick >= 5) {
           this.fluidTick = 0;
+          this.activateNearbyWater(); // 先激活探索到的新水 front，再跑模拟让其流动
           this.fluidSim.tick(this.fluidGrid);
           this.chunks.remeshDirty();
         }

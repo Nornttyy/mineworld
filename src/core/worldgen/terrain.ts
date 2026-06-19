@@ -192,7 +192,15 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
         // 露天竖井：平坦地形的稀疏大竖井，【连草顶一起挖穿】→ 地面可见的露天矿洞口(否则草顶封住、地面看不到洞)
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
         // 竖井破到地表(y<=height)；其余矿洞/峡谷只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
-        if (y > 1 && (shaft || (y < height && (caveAt(wx, y, wz, hmin, seed) || ravineAt(wx, y, wz, flat, seed))))) continue;
+        if (y > 1 && (shaft || (y < height && (caveAt(wx, y, wz, hmin, seed) || ravineAt(wx, y, wz, flat, seed))))) {
+          // 这列在水下(地表低于海平面 → 上方注了水)时，把挖空的洞/竖井灌满水 → 水下矿洞不再是干的隔绝空腔；
+          //   陆地上的干洞仍留空气。
+          if (height < SEA_LEVEL) {
+            c.set(lx, y, lz, WATER);
+            c.setFluid(lx, y, lz, SEA_FLUID);
+          }
+          continue;
+        }
         let id = STONE;
         if (y === height) id = beach ? SAND : GRASS;
         else if (y >= height - 3) id = beach ? SAND : DIRT;
