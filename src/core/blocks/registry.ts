@@ -188,6 +188,19 @@ export const BLOCKS: BlockDef[] = [
     tool: null,
     light: 14,
   },
+  // 砂砾：地下成团生成，锹更快；挖掉默认掉自身，小概率(见 Game)改掉燧石。
+  // 贴图暂借圆石(T.cobblestone)占位——避免改并发中的 atlas.png，待美术补砂砾贴图。
+  {
+    id: 15,
+    name: 'gravel',
+    solid: true,
+    transparent: false,
+    faces: all(T.cobblestone),
+    hardness: 0.6, // MC 砂砾 0.6
+    drop: 15, // 默认掉自身
+    needsTool: false,
+    tool: 'shovel',
+  },
 ];
 
 export const GRASS = 3;
@@ -201,6 +214,7 @@ export const IRON_ORE = 12;
 export const COAL_ORE = 8;
 export const FURNACE = 13;
 export const TORCH = 14;
+export const GRAVEL = 15;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;

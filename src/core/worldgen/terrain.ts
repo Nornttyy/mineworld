@@ -11,6 +11,7 @@ const GRASS = 3;
 const SAND = 5;
 const COAL_ORE = 8;
 const IRON_ORE = 12;
+const GRAVEL = 15;
 export const SEA_LEVEL = 116; // 海平面(地表~99-151 偏下段→陆多海少~45%)：低于此注水成海/湖，岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
@@ -64,6 +65,8 @@ function oreAt(wx: number, wy: number, wz: number, height: number, seed: number)
   if (coal > 0.84) return COAL_ORE;
   const iron = valueNoise3(wx / 4, wy / 4, wz / 4, seed + 202);
   if (iron > 0.83 && wy <= height * 0.6) return IRON_ORE;
+  const gravel = valueNoise3(wx / 5, wy / 5, wz / 5, seed + 303);
+  if (gravel > 0.82) return GRAVEL; // 砂砾团（挖掉小概率出燧石）
   return STONE;
 }
 

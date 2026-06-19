@@ -117,7 +117,53 @@ def bone_icon():
     return shade(im)
 
 
+def flint():
+    im = new()
+    d = ImageDraw.Draw(im)
+    # 深灰角砾：不规则多边形 + 一个亮切面 + 一个暗面
+    d.polygon([(4, 9), (6, 4), (10, 3), (13, 7), (12, 12), (7, 13)], fill=(72, 72, 80, 255))
+    d.polygon([(6, 4), (10, 3), (11, 6), (7, 8)], fill=(98, 98, 106, 255))  # 上切面亮
+    d.polygon([(7, 8), (12, 7), (12, 12), (8, 13)], fill=(56, 56, 64, 255))  # 下面暗
+    return shade(im)
+
+
+def string_icon():
+    im = new()
+    d = ImageDraw.Draw(im)
+    col = (236, 236, 240, 255)
+    d.ellipse([4, 2, 12, 10], outline=col, width=2)  # 缠成一团的线
+    d.ellipse([6, 5, 11, 11], outline=col, width=1)
+    d.line([7, 10, 5, 15], fill=col, width=1)  # 垂下两段
+    d.line([10, 10, 12, 15], fill=col, width=1)
+    return shade(im)
+
+
+def arrow_icon():
+    im = new()
+    d = ImageDraw.Draw(im)
+    d.line([3, 13, 12, 4], fill=(139, 105, 68, 255), width=2)  # 杆(左下→右上)
+    d.polygon([(10, 1), (15, 4), (9, 7)], fill=(156, 156, 164, 255))  # 箭头(右上, 灰)
+    d.polygon([(12, 3), (15, 4), (11, 6)], fill=(120, 120, 128, 255))
+    d.polygon([(1, 15), (5, 10), (7, 13), (3, 16)], fill=(240, 240, 244, 255))  # 尾羽(左下, 白)
+    return shade(im)
+
+
+def bow_icon():
+    im = new()
+    d = ImageDraw.Draw(im)
+    wood = (140, 94, 52, 255)
+    d.arc([0, 1, 15, 15], start=300, end=60, fill=wood, width=2)  # 弓臂(右弯弧)
+    d.line([12, 3, 12, 13], fill=(234, 234, 238, 255), width=1)  # 弓弦(连两端)
+    d.line([4, 8, 12, 8], fill=(120, 84, 48, 255), width=1)  # 搭一支箭(指左)
+    d.polygon([(2, 8), (6, 6), (6, 10)], fill=(156, 156, 164, 255))  # 箭头
+    return shade(im)
+
+
 ICONS = {
+    "flint": flint(),
+    "string": string_icon(),
+    "arrow": arrow_icon(),
+    "bow": bow_icon(),
     "raw_porkchop": meat((224, 132, 132, 255)),
     "cooked_porkchop": meat((176, 112, 64, 255)),
     "raw_beef": meat((201, 74, 74, 255)),

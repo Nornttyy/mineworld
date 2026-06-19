@@ -36,6 +36,10 @@ export const FEATHER = 285;
 export const EGG = 286;
 export const ROTTEN_FLESH = 287; // 僵尸掉落，可吃(MC 有饥饿debuff，这里先只给营养)
 export const BONE = 288; // 骷髅掉落
+export const FLINT = 289; // 挖砂砾小概率掉；合成箭
+export const STRING = 290; // 骷髅掉（无蜘蛛，用骷髅替代来源）；合成弓
+export const ARROW = 291; // 燧石+羽毛+木棍 合成；弓射出；落地可捡
+export const BOW = 292; // 3 线+3 棍 合成；蓄力射箭（在 Game 里特判，不是挖掘工具）
 
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
@@ -94,6 +98,10 @@ const ITEMS: Record<number, ItemDef> = {
   [EGG]: { name: 'egg', maxStack: 16, food: null, tool: null },
   [ROTTEN_FLESH]: { name: 'rotten_flesh', maxStack: 64, food: { nutrition: 4, saturationModifier: 0.1 }, tool: null },
   [BONE]: { name: 'bone', maxStack: 64, food: null, tool: null },
+  [FLINT]: { name: 'flint', maxStack: 64, food: null, tool: null },
+  [STRING]: { name: 'string', maxStack: 64, food: null, tool: null },
+  [ARROW]: { name: 'arrow', maxStack: 64, food: null, tool: null },
+  [BOW]: { name: 'bow', maxStack: 1, food: null, tool: null }, // 武器，但非挖掘 ToolDef
 };
 
 export const ITEM_IDS: number[] = Object.keys(ITEMS).map(Number);

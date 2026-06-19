@@ -49,6 +49,20 @@ export const RECIPES: Recipe[] = [
     key: { C: 'coal', S: 'stick' },
     result: { item: 'torch', count: 4 },
   },
+  // 箭：燧石(上) + 木棍(中) + 羽毛(下) 竖排 → 4 支（MC）
+  {
+    type: 'shaped',
+    pattern: ['F', 'S', 'E'],
+    key: { F: 'flint', S: 'stick', E: 'feather' },
+    result: { item: 'arrow', count: 4 },
+  },
+  // 弓：3 线 + 3 木棍（MC 弓形：木棍成弧、线在一侧）→ 1 把
+  {
+    type: 'shaped',
+    pattern: [' TS', 'T S', ' TS'],
+    key: { T: 'stick', S: 'string' },
+    result: { item: 'bow', count: 1 },
+  },
   toolRecipe(PICKAXE, 'oak_planks', 'wooden_pickaxe'),
   toolRecipe(AXE, 'oak_planks', 'wooden_axe'),
   toolRecipe(SHOVEL, 'oak_planks', 'wooden_shovel'),

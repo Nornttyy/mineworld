@@ -11,6 +11,26 @@ const ATTACK_RANGE = 1.7; // 接触攻击水平距离（格）
 const ATTACK_CD = 18; // 攻击冷却（tick，≈0.9s）
 const SUN_DPS = 0.18; // 日晒每 tick 掉血（20 血约 6 秒烧死 → 天亮自然清场）
 const WANDER_SPEED_MULT = 0.6; // 没目标时慢悠悠晃
+// 远程（骷髅）：拉开距离站桩射击
+const SHOOT_RANGE = 15; // 射程（水平格）
+const RANGED_MIN = 5; // 比这近 → 后退
+const RANGED_PREF = 10; // 比这远 → 靠近；之间 → 站住射
+const SHOOT_CD = 35; // 射击冷却（tick，≈1.75s）
+
+// 视线：从 a 到 b 沿线采样，中间遇到实心方块即被挡（两端各自的格不算）。
+function hasLineOfSight(world: VoxelWorld, a: Vec3, b: Vec3): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  const steps = Math.ceil(Math.hypot(dx, dy, dz) / 0.5);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (world.isSolid(Math.floor(a.x + dx * t), Math.floor(a.y + dy * t), Math.floor(a.z + dz * t))) {
+      return false;
+    }
+  }
+  return true;
+}
 
 function clone(m: Mob): Mob {
   return {
@@ -40,15 +60,29 @@ export function updateHostile(
   let speed = def.moveSpeed;
   const sense = def.sense ?? 16;
   let pdist = Infinity;
+  let faceTarget: Vec3 | null = null; // 远程：站桩/后退时也面朝玩家
   if (target) {
     const dx = target.x - mob.pos.x;
     const dz = target.z - mob.pos.z;
     pdist = Math.hypot(dx, dz);
     if (pdist <= sense && pdist > 1e-3) {
-      wishX = dx / pdist;
-      wishZ = dz / pdist;
       mob.ai.state = 'chase';
       mob.ai.target = { ...target };
+      const ux = dx / pdist;
+      const uz = dz / pdist;
+      if (def.ranged) {
+        faceTarget = target;
+        if (pdist < RANGED_MIN) {
+          wishX = -ux; // 太近 → 后退拉开
+          wishZ = -uz;
+        } else if (pdist > RANGED_PREF) {
+          wishX = ux; // 太远 → 靠近到射程甜区
+          wishZ = uz;
+        } // 甜区内 → 站住不动，专心射
+      } else {
+        wishX = ux; // 近战 → 直奔玩家
+        wishZ = uz;
+      }
     }
   }
   if (wishX === 0 && wishZ === 0) {
@@ -78,8 +112,27 @@ export function updateHostile(
     }
   }
 
-  // —— 接触攻击：在攻击距离内 + 冷却就绪 → 对玩家施伤 ——
-  if (target && pdist <= ATTACK_RANGE && mob.atkCd <= 0) {
+  // —— 攻击：远程(骷髅)射箭，近战(僵尸)接触施伤 ——
+  if (def.ranged) {
+    // 射程内 + 冷却就绪 + 视线通畅 → 朝玩家胸口射一箭（from=骷髅眼高，target 为玩家脚部 +1）
+    const from: Vec3 = { x: mob.pos.x, y: mob.pos.y + def.height * 0.85, z: mob.pos.z };
+    if (target && pdist <= SHOOT_RANGE && mob.atkCd <= 0) {
+      const aim: Vec3 = { x: target.x, y: target.y + 1.0, z: target.z };
+      if (hasLineOfSight(world, from, aim)) {
+        const dx = aim.x - from.x;
+        const dy = aim.y - from.y;
+        const dz = aim.z - from.z;
+        const len = Math.hypot(dx, dy, dz) || 1;
+        events.push({
+          kind: 'shootArrow',
+          from,
+          dir: { x: dx / len, y: dy / len, z: dz / len },
+          damage: def.attack ?? 2,
+        });
+        mob.atkCd = SHOOT_CD;
+      }
+    }
+  } else if (target && pdist <= ATTACK_RANGE && mob.atkCd <= 0) {
     events.push({ kind: 'attackPlayer', damage: def.attack ?? 2 });
     mob.atkCd = ATTACK_CD;
   }
@@ -121,6 +174,9 @@ export function updateHostile(
 
   if (Math.abs(mob.vel.x) > 1e-4 || Math.abs(mob.vel.z) > 1e-4) {
     mob.yaw = Math.atan2(mob.vel.z, mob.vel.x);
+  }
+  if (faceTarget) {
+    mob.yaw = Math.atan2(faceTarget.z - mob.pos.z, faceTarget.x - mob.pos.x); // 远程：始终面朝玩家
   }
 
   // —— 日晒受损：白天被太阳直射 → 持续掉血，烧死即清场（天亮自然消除夜怪）——
