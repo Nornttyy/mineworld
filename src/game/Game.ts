@@ -10,12 +10,14 @@ import {
   breakTimeMs,
   dropFor,
   OAK_LEAVES,
+  OAK_LOG,
   CRAFTING_TABLE,
   FURNACE,
   GRAVEL,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
+import { findUnsupportedLeaves } from '../core/world/leafDecay';
 import { loadAtlas } from '../render/atlas';
 import { loadSettings, type TexturePack } from '../core/settings';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
@@ -536,6 +538,7 @@ export class Game {
         if (this.furnaceKey) this.furnaceUI.render();
         this.tickMobs(); // 生物 AI/物理/掉蛋/周期刷新（每刻）
         this.tickArrows(); // 飞行的箭：推进 + 命中判定 + 拾取
+        this.tickLeafDecay(); // 失去支撑的树叶慢慢腐烂
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -844,6 +847,28 @@ export class Game {
     this.chunks.remeshDirty();
   }
 
+  // 砍木后：把此处附近"失去原木支撑"的树叶排入腐烂队列（去重），给每片一个随机倒计时 → 慢慢腐烂。
+  private queueLeafDecay(x: number, y: number, z: number): void {
+    for (const c of findUnsupportedLeaves((bx, by, bz) => this.world.getBlock(bx, by, bz), x, y, z)) {
+      if (this.decayQueue.some((d) => d.x === c.x && d.y === c.y && d.z === c.z)) continue;
+      this.decayQueue.push({ x: c.x, y: c.y, z: c.z, t: 40 + Math.floor(Math.random() * 160) }); // 2~10s 内陆续掉
+    }
+  }
+
+  // 每刻推进树叶腐烂：到点的树叶移除（掉苹果概率同手挖）+ 碎屑；只处理仍是树叶的格(可能已被挖走)。
+  private tickLeafDecay(): void {
+    if (this.decayQueue.length === 0) return;
+    for (let i = this.decayQueue.length - 1; i >= 0; i--) {
+      const d = this.decayQueue[i];
+      if (--d.t > 0) continue;
+      this.decayQueue.splice(i, 1);
+      if (this.world.getBlock(d.x, d.y, d.z) !== OAK_LEAVES) continue; // 已被挖掉/已腐烂
+      this.edit(d.x, d.y, d.z, AIR);
+      this.particles.push(...spawnBurst(d.x + 0.5, d.y + 0.5, d.z + 0.5, particleColor(OAK_LEAVES), 8));
+      if (Math.random() < LEAF_APPLE_CHANCE) this.drops.push(spawnDrop(APPLE, d.x, d.y, d.z));
+    }
+  }
+
   // 持续挖掘：按住左键，按方块硬度累积进度并显示裂纹；满了就破坏、掉落。
   private updateMining(dt: number): void {
     if (!this.digging) {
@@ -902,6 +927,7 @@ export class Game {
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
     }
+    if (id === OAK_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木 → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
     if (id === FURNACE) {
       const st = this.furnaces.get(`${x},${y},${z}`);
