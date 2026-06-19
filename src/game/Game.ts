@@ -33,6 +33,7 @@ import { MobRenderer } from '../render/MobRenderer';
 import { makeRng } from '../core/math/rng';
 import { FluidSim, type FluidGrid } from '../core/fluid/fluidSim';
 import { presettleWater } from '../core/fluid/presettle';
+import { activateFlowableWater } from '../core/fluid/activateWater';
 import {
   emptyInventory,
   addItem,
@@ -376,9 +377,28 @@ export class Game {
       };
       check();
     });
-    // 开局预流动：读档会重放玩家改过的方块并激活其周围的水(见构造)，这些水本会在进场后头几秒慢慢流。
-    // 这里在加载阶段先把活跃水跑到稳态，再网格化——玩家进场即见已流好的水，而非眼前慢慢流(全新世界活跃集空=瞬返)。
-    presettleWater(this.fluidSim, this.fluidGrid);
+    // 开局预流动：① 激活出生区「能流动」的水——世界生成的水都是静止源头、从不被激活，所以海/湖边的
+    //   瀑布口、洞穴破口等本来永远不流；这里把它们(挨着空气的水 front)激活。② 连同读档激活的水(见构造)
+    //   一起 presettle 跑到位，玩家进场即见已流完的水，而非进游戏后在眼前慢慢流。
+    const span = 32; // 出生区激活半径(格)，限本区以免大世界扫描卡加载
+    const px = Math.floor(this.player.pos.x);
+    const pz = Math.floor(this.player.pos.z);
+    activateFlowableWater(
+      this.fluidSim,
+      {
+        isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
+        isAir: (x, y, z) => this.world.getBlock(x, y, z) === AIR,
+      },
+      {
+        minX: px - span,
+        maxX: px + span,
+        minZ: pz - span,
+        maxZ: pz + span,
+        minY: Math.max(1, SEA_LEVEL - 48),
+        maxY: Math.min(CHUNK_H - 1, SEA_LEVEL + 2),
+      },
+    );
+    presettleWater(this.fluidSim, this.fluidGrid, 1200); // 提高上限：尽量把能流的一次流完
     // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
     for (let i = 0; i < rounds; i++) {
