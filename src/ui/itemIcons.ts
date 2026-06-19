@@ -17,6 +17,8 @@ const ICON: Record<number, string> = {
   11: 'crafting_table',
   12: 'iron_ore',
   13: 'furnace',
+  14: 'torch',
+  15: 'cobblestone', // 砂砾：暂借圆石图标（与其方块占位贴图一致），待美术补砂砾贴图
   [APPLE]: 'apple',
   257: 'stick',
   258: 'coal',
@@ -50,6 +52,10 @@ const ICON: Record<number, string> = {
   286: 'egg',
   287: 'rotten_flesh',
   288: 'bone',
+  289: 'flint',
+  290: 'string',
+  291: 'arrow',
+  292: 'bow',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）
@@ -67,6 +73,7 @@ const ZH: Record<number, string> = {
   12: '铁矿',
   13: '熔炉',
   14: '火把',
+  15: '砂砾',
   256: '苹果',
   257: '木棍',
   258: '煤炭',
@@ -100,6 +107,10 @@ const ZH: Record<number, string> = {
   286: '鸡蛋',
   287: '腐肉',
   288: '骨头',
+  289: '燧石',
+  290: '线',
+  291: '箭',
+  292: '弓',
 };
 
 export const iconUrl = (id: number): string | null =>

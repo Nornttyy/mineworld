@@ -266,6 +266,27 @@ WOOD_TO_IRON = {
 }
 
 
+def make_torch():
+    """火把：竖木棍 + 顶端火焰团（橙黄火苗）。"""
+    im, px = blank()
+    hh, hl = hx(HANDLE_HI), hx(HANDLE_LO)
+    for y in range(8, 15):  # 竖棍 2px（左高光、右暗）
+        px[7, y] = hh
+        px[8, y] = hl
+    fo, fm, fc = hx("#cf3c0a"), hx("#ff8c1e"), hx("#ffe24a")  # 外橙 / 中橙 / 亮黄芯
+    flame = {
+        (6, 7): fo, (7, 7): fm, (8, 7): fm, (9, 7): fo,
+        (6, 6): fo, (7, 6): fc, (8, 6): fc, (9, 6): fo,
+        (7, 5): fc, (8, 5): fm,
+        (7, 4): fm, (8, 4): fo,
+        (7, 3): fo,  # 火苗尖
+    }
+    for (x, y), c in flame.items():
+        px[x, y] = c
+    add_outline(px, OUTLINE)
+    return im
+
+
 def recolor(wood_name, table):
     """从木质工具整体换色(石/铁)：每个木色像素按 table 映射，形状沿用用户手绘。"""
     im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
@@ -316,7 +337,7 @@ def main():
     for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel", "stick"]:
         center_png(n)
     # 基础(脚本生成的)先存盘，供下面 recolor 读取
-    base = {"coal": make_coal(), "wooden_hoe": make_hoe(False)}  # stick 由用户手绘，不在此生成
+    base = {"coal": make_coal(), "wooden_hoe": make_hoe(False), "torch": make_torch()}  # stick 由用户手绘，不在此生成
     for name, im in base.items():
         im.save(os.path.join(ICON, f"{name}.png"))
     # 石质=整体换石、铁质=整体换银(都从木质换色)，加铁锭
