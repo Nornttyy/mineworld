@@ -6,6 +6,7 @@ import type { VoxelWorld } from '../physics/player';
 export interface ItemDrop {
   id: number; // 方块 id
   count: number; // 堆叠数量；同类掉落物靠近会合并成一堆（同 MC item entity）
+  dur?: number; // 工具剩余耐久（仅死亡掉落的工具携带；undefined = 满/非工具）
   x: number;
   y: number;
   z: number;
@@ -27,10 +28,12 @@ export function spawnDrop(
   bz: number,
   rand: () => number = Math.random,
   count = 1,
+  dur?: number,
 ): ItemDrop {
   return {
     id,
     count,
+    dur,
     x: bx + 0.5,
     y: by + 0.5,
     z: bz + 0.5,
@@ -52,6 +55,7 @@ export function mergeDrops(drops: ItemDrop[], maxStack: (id: number) => number, 
     for (let j = drops.length - 1; j > i; j--) {
       const b = drops[j];
       if (b.id !== a.id) continue;
+      if (a.dur !== undefined || b.dur !== undefined) continue; // 带耐久的工具不合并，免得磨损值丢失
       const dx = a.x - b.x;
       const dy = a.y - b.y;
       const dz = a.z - b.z;

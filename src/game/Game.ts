@@ -43,6 +43,7 @@ import { chunksNeedingWater } from '../core/fluid/waterChunks';
 import {
   emptyInventory,
   addItem,
+  addTool,
   takeOne,
   damageTool,
   countItem,
@@ -660,7 +661,7 @@ export class Game {
     const bz = Math.floor(this.player.pos.z);
     for (let i = 0; i < this.inv.length; i++) {
       const s = this.inv[i];
-      if (s && s.count > 0) this.drops.push(spawnDrop(s.id, bx, by, bz, Math.random, s.count));
+      if (s && s.count > 0) this.drops.push(spawnDrop(s.id, bx, by, bz, Math.random, s.count, s.dur));
       this.inv[i] = null;
     }
     this.hotbar.render(this.inv);
@@ -986,10 +987,18 @@ export class Game {
         continue;
       }
       if (canPickup(d, px, py, pz)) {
-        const leftover = addItem(this.inv, d.id, d.count, itemMaxStack(d.id)); // 整堆收取；按物品真实上限(鸡蛋=16)
-        if (leftover < d.count) this.hotbar.render(this.inv); // 至少拿到一部分 → 刷新背包
-        if (leftover === 0) this.drops.splice(i, 1);
-        else d.count = leftover; // 背包装不下，剩余量留在地上
+        if (d.dur !== undefined) {
+          // 带磨损的工具：非堆叠，放进空格并保留耐久（死亡掉落捡回不再变满）
+          if (addTool(this.inv, d.id, d.dur)) {
+            this.drops.splice(i, 1);
+            this.hotbar.render(this.inv);
+          }
+        } else {
+          const leftover = addItem(this.inv, d.id, d.count, itemMaxStack(d.id)); // 整堆收取；按物品真实上限(鸡蛋=16)
+          if (leftover < d.count) this.hotbar.render(this.inv); // 至少拿到一部分 → 刷新背包
+          if (leftover === 0) this.drops.splice(i, 1);
+          else d.count = leftover; // 背包装不下，剩余量留在地上
+        }
       }
     }
     this.dropRenderer.sync(this.drops);

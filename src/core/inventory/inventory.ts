@@ -46,6 +46,18 @@ export function addItem(
   return count;
 }
 
+// 放入一件带耐久的非堆叠工具到第一个空格（保留磨损值，不与同类合并）。
+// 成功返回 true；背包已满返回 false（调用方决定让它留在地上）。
+export function addTool(inv: Inventory, id: number, dur: number): boolean {
+  for (let i = 0; i < inv.length; i++) {
+    if (!inv[i]) {
+      inv[i] = { id, count: 1, dur };
+      return true;
+    }
+  }
+  return false;
+}
+
 // 背包里某物品总数
 export function countItem(inv: Inventory, id: number): number {
   let n = 0;

@@ -27,6 +27,11 @@ describe('itemDrop', () => {
     expect(d.age).toBeCloseTo(0.5, 5);
   });
 
+  it('spawnDrop 携带耐久值（死亡掉落的工具），普通方块无耐久', () => {
+    expect(spawnDrop(259, 0, 10, 0, () => 0.5, 1, 30).dur).toBe(30);
+    expect(spawnDrop(2, 0, 10, 0, () => 0.5).dur).toBeUndefined();
+  });
+
   it('刚生成不能被拾取（拾取延迟）', () => {
     const d = spawnDrop(2, 0, 12, 0, () => 0.5);
     expect(canPickup(d, 0.5, 12.5, 0.5)).toBe(false); // age=0
@@ -60,6 +65,16 @@ describe('mergeDrops', () => {
     const drops = [spawnDrop(2, 0, 10, 0, () => 0.5), spawnDrop(2, 5, 10, 0, () => 0.5)];
     mergeDrops(drops, cap64);
     expect(drops.length).toBe(2);
+  });
+
+  it('带耐久的工具不合并（免得磨损值丢失）', () => {
+    const a = spawnDrop(259, 0, 10, 0, () => 0.5, 1, 30);
+    const b = spawnDrop(259, 0, 10, 0, () => 0.5, 1, 45);
+    const drops = [a, b];
+    mergeDrops(drops, () => 1); // 工具堆叠上限 1
+    expect(drops.length).toBe(2);
+    expect(drops[0].dur).toBe(30);
+    expect(drops[1].dur).toBe(45);
   });
 
   it('受堆叠上限约束：超出留作单独一堆', () => {

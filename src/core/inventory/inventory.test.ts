@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   emptyInventory,
   addItem,
+  addTool,
   takeOne,
   damageTool,
   serializeInventory,
@@ -84,5 +85,18 @@ describe('inventory', () => {
     inv[0] = { id: 259, count: 1, dur: 17 };
     const round = deserializeInventory(serializeInventory(inv));
     expect(round[0]?.dur).toBe(17);
+  });
+
+  it('addTool：带磨损的工具放进空格并保留耐久', () => {
+    const inv = emptyInventory();
+    inv[0] = { id: 1, count: 5 }; // 槽0 占用
+    expect(addTool(inv, 259, 30)).toBe(true);
+    expect(inv[1]).toEqual({ id: 259, count: 1, dur: 30 }); // 落到槽1，耐久保留
+  });
+
+  it('addTool：背包满时返回 false', () => {
+    const inv = emptyInventory();
+    for (let i = 0; i < INV_SIZE; i++) inv[i] = { id: 1, count: 1 };
+    expect(addTool(inv, 259, 10)).toBe(false);
   });
 });
