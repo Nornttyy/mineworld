@@ -464,11 +464,14 @@ export class Game {
     // 出生区(±radius 区块)已激活+presettle，标记为已灌水，免得探索期增量灌水重复扫描这片
     for (let dz = -radius; dz <= radius; dz++)
       for (let dx = -radius; dx <= radius; dx++) this.wateredChunks.add(`${cx + dx},${cz + dz}`);
-    // 分摊网格化:loading 期间逐帧建几个(深世界单区块 mesh 重，一次全建会卡死)
+    // 分摊网格化:loading 期间逐帧派发(后台 worker 算)+ 上屏(flushMesh)。等出生区基本铺完再进，
+    // 否则进游戏后还在大面积上屏 → 头几秒卡。网格化全在 worker(不再同步出版)，这里只是等它铺完。
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
-    for (let i = 0; i < rounds; i++) {
+    for (let guard = 0; guard < rounds + 240; guard++) {
       this.chunks.update(cx, cz, radius, 4);
+      this.chunks.flushMesh(8); // 预加载阶段多上屏些(loading 界面挡着，不影响手感)
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      if (guard >= rounds && !this.chunks.meshBusy()) break; // 已铺完(无在途/待上屏)→ 进游戏
     }
   }
 

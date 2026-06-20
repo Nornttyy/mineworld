@@ -483,10 +483,7 @@ export class ChunkMeshManager {
     const k = this.key(cx, cz);
     if (this.meshPending.has(k)) return; // 已在排队
     const nb = this.collectNeighbors(cx, cz);
-    if (!nb) {
-      this.rebuildSync(cx, cz); // 边界邻区罕见没齐：同步出一版避免空洞
-      return;
-    }
+    if (!nb) return; // 邻区还没生成好 → 这次不网格化(留着下次 update 重试)，绝不同步 meshChunk 卡主线程
     this.meshPending.add(k);
     const transfer = [...nb.blocks.map((b) => b.buffer), ...nb.fluid.map((f) => f.buffer)];
     this.meshWorkers[this.meshRr].postMessage({ cx, cz, blocks: nb.blocks, fluid: nb.fluid }, transfer);
@@ -501,13 +498,17 @@ export class ChunkMeshManager {
       const [cx, cz] = k.split(',').map(Number);
       if (Math.abs(cx - centerCx) > radius + 1 || Math.abs(cz - centerCz) > radius + 1) this.unload(k);
     }
+    // 多请求生成「radius+1」一圈邻区：让最外圈要网格化的区块也能凑齐 8 邻区、走异步 worker 网格化，
+    // 不必退回同步 meshChunk(~81ms/块，卡主线程→加载抖)。生成在 worker，多生成一圈不卡主线程。
+    for (let dz = -radius - 1; dz <= radius + 1; dz++) {
+      for (let dx = -radius - 1; dx <= radius + 1; dx++) this.world.request(centerCx + dx, centerCz + dz);
+    }
     const todo: { cx: number; cz: number; d: number }[] = [];
     for (let dz = -radius; dz <= radius; dz++) {
       for (let dx = -radius; dx <= radius; dx++) {
-        if (chunkFogged(dx, dz, this.fogCullR2)) continue; // 完全在雾里的角块：不生成、不网格化(看不见)
+        if (chunkFogged(dx, dz, this.fogCullR2)) continue; // 完全在雾里的角块：不网格化(看不见)
         const cx = centerCx + dx;
         const cz = centerCz + dz;
-        this.world.request(cx, cz); // 异步请求后台生成(不卡主线程)
         const c = this.world.peek(cx, cz);
         if (!c) continue; // 还没生成好 → 跳过，下次 update 再看
         if (!this.meshes.has(this.key(cx, cz)) || c.dirty) todo.push({ cx, cz, d: dx * dx + dz * dz });
