@@ -174,26 +174,32 @@ export function updateMob(m: Mob, world: VoxelWorld, rng: () => number): MobUpda
     }
   }
 
-  // —— 上方块：贴地且正前方是「1 格实心台阶、其上为空」→ 标记起跳（2 格墙跳不上就不跳）——
-  let wantJump = false;
-  if ((wishX !== 0 || wishZ !== 0) && mob.onGround) {
+  // —— 正前方脚高是否有「1 格实心台阶、其上为空」(台阶/岸)：陆地用来起跳，水里用来爬出岸 ——
+  let stepAhead = false;
+  if (wishX !== 0 || wishZ !== 0) {
     const len = Math.hypot(wishX, wishZ) || 1;
     const ax = Math.floor(mob.pos.x + (wishX / len) * (def.width / 2 + 0.3));
     const az = Math.floor(mob.pos.z + (wishZ / len) * (def.width / 2 + 0.3));
     const fy = Math.floor(mob.pos.y);
-    if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) wantJump = true;
+    if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) stepAhead = true;
   }
+  const wantJump = stepAhead && mob.onGround; // 陆地起跳仍需贴地（2 格墙跳不上就不跳）
 
   // —— 速度：水平意图 + 重力（鸡缓降钳速）；起跳覆盖本帧重力，才能跳满 1 格（同玩家：满速起跳）——
   mob.vel.x = wishX * speed;
   mob.vel.z = wishZ * speed;
-  // 竖直：在水里像玩家一样有浮力 → 浮到水面漂着（不沉底）；否则重力（鸡缓降 / 起跳）。
+  // 竖直：在水里像玩家一样有浮力 → 浮到水面漂着；贴着岸(stepAhead)则像跳跃一样用力上浮，
+  // 配合水平意图爬出水面（否则牛/猪等掉进水里会一直困在水面、上不了地面）。
   const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
   if (inWater) {
     const deeper = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y) + 1, Math.floor(mob.pos.z)) ?? false;
-    mob.vel.y = deeper
-      ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
-      : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着（不冲出水面）
+    if (stepAhead) {
+      mob.vel.y = JUMP; // 贴岸 → 上浮 + 水平意图把它带上岸
+    } else {
+      mob.vel.y = deeper
+        ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
+        : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着（不冲出水面）
+    }
   } else {
     mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
     if (wantJump) mob.vel.y = JUMP;

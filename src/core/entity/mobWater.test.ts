@@ -34,6 +34,26 @@ describe('updateMob — 在水里像玩家一样漂（浮力，不沉底）', ()
     expect(maxY).toBeLessThan(71);
   });
 
+  it('掉进水里能爬上相邻的岸（不再困在水面上不去）', () => {
+    // x<2 是 2 格深的水池（水面≈y62）；x>=2 是岸（岸顶 y62，与水面齐平）。
+    // 牛浮在顶层水块里(脚≈y61)，要上岸得从脚高跨过 1 格台阶——正是它会卡住的地方。
+    const pool: VoxelWorld = {
+      isSolid: (x, y) => (x >= 2 ? y < 62 : y < 60),
+      isWater: (x, y) => x < 2 && y >= 60 && y < 62,
+    };
+    let m = spawnMob('cow', 0.5, 61, 0.5); // 泡在水里
+    const rng = makeRng(7);
+    for (let i = 0; i < 200; i++) {
+      m.ai.state = 'wander'; // 强制定向朝岸(+x)走，去掉随机游荡
+      m.ai.target = { x: 6, y: 61, z: 0.5 }; // y 不参与水平寻路，仅满足 Vec3 类型
+      m.ai.timer = 9999;
+      m = updateMob(m, pool, rng).mob;
+    }
+    expect(m.pos.x).toBeGreaterThan(2.5); // 爬上了岸（越过 x=2 水陆边界）
+    expect(m.pos.y).toBeGreaterThan(61.5); // 站到岸顶(≈62)，没困在水面(≈61)
+    expect(m.onGround).toBe(true);
+  });
+
   it('陆地（世界无 isWater）行为不变：照常受重力下落', () => {
     const land: VoxelWorld = { isSolid: (_x, y) => y < 10 };
     let m = spawnMob('cow', 0.5, 20, 0.5);

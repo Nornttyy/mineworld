@@ -159,26 +159,31 @@ export function updateHostile(
     }
   }
 
-  // —— 上 1 格台阶 ——
-  let wantJump = false;
-  if ((wishX !== 0 || wishZ !== 0) && mob.onGround) {
+  // —— 正前方脚高的 1 格台阶/岸（陆地起跳 & 水里爬出岸共用）——
+  let stepAhead = false;
+  if (wishX !== 0 || wishZ !== 0) {
     const len = Math.hypot(wishX, wishZ) || 1;
     const ax = Math.floor(mob.pos.x + (wishX / len) * (def.width / 2 + 0.3));
     const az = Math.floor(mob.pos.z + (wishZ / len) * (def.width / 2 + 0.3));
     const fy = Math.floor(mob.pos.y);
-    if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) wantJump = true;
+    if (world.isSolid(ax, fy, az) && !world.isSolid(ax, fy + 1, az)) stepAhead = true;
   }
+  const wantJump = stepAhead && mob.onGround;
 
   // —— 速度 + 重力/浮力 + 起跳 ——
   mob.vel.x = wishX * speed;
   mob.vel.z = wishZ * speed;
-  // 在水里像玩家一样有浮力 → 浮到水面漂着（不沉底）；否则重力 + 起跳。
+  // 在水里像玩家一样有浮力 → 浮到水面漂着；贴着岸(stepAhead)则像跳跃一样上浮爬出，否则会困在水里上不了岸。
   const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
   if (inWater) {
     const deeper = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y) + 1, Math.floor(mob.pos.z)) ?? false;
-    mob.vel.y = deeper
-      ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
-      : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着
+    if (stepAhead) {
+      mob.vel.y = JUMP; // 贴岸 → 上浮 + 水平意图把它带上岸
+    } else {
+      mob.vel.y = deeper
+        ? Math.min((mob.vel.y + WATER_BUOY) * WATER_DRAG, WATER_RISE_MAX) // 还在水下 → 上浮
+        : Math.min(mob.vel.y * WATER_DRAG, 0); // 到水面 → 阻尼停住，漂着
+    }
   } else {
     mob.vel.y = (mob.vel.y - GRAVITY) * VDRAG;
     if (wantJump) mob.vel.y = JUMP;
