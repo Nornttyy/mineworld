@@ -79,11 +79,19 @@ function showOnly(el: HTMLElement | null): void {
   else menubg.stop();
 }
 
+// 超时兜底：preload 等区块生成/网格化是无限轮询，万一某机器 worker 卡住会永远停在加载界面。
+// 用 Promise.race 给个上限，到点照样进——宁可地形没铺满，也不能卡死进不去。
+const timeout = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 // --- 主菜单 ---
 // 启动:先盖加载界面 + 预生成主菜单背景，就绪再显示主菜单(不渐显)。退出 reload 后也走这里。
 void (async () => {
   showLoading(true, '加载中…');
-  await menubg.preload();
+  try {
+    await Promise.race([menubg.preload(), timeout(8000)]); // 背景预载封顶 8s，超时也进菜单
+  } catch (e) {
+    console.error('[menubg] preload 失败:', e); // 背景挂了不该挡住菜单
+  }
   showOnly(menu);
   showLoading(false);
 })();
@@ -156,11 +164,18 @@ function startGame(world: WorldSave): void {
   // 双 rAF：先让浏览器把 spinner 画出来，再做阻塞的世界构建 + 初始区块生成。
   requestAnimationFrame(() =>
     requestAnimationFrame(async () => {
-      game = new Game(canvas, world);
-      await game.preloadSpawn(); // 等出生周围地形后台并行生成 + 网格化好，再进游戏(不渐显)
-      game.start();
-      showLoading(false);
-      void canvas.requestPointerLock();
+      try {
+        game = new Game(canvas, world);
+        await Promise.race([game.preloadSpawn(), timeout(12000)]); // 出生预载封顶 12s，超时也进游戏(地形会继续补)
+        game.start();
+        showLoading(false);
+        void canvas.requestPointerLock();
+      } catch (e) {
+        // 任何报错都显示到加载界面，别再静默卡死（方便定位"进不去"到底卡在哪）
+        console.error('[startGame] 进入游戏失败:', e);
+        const msg = e instanceof Error ? `${e.message}` : String(e);
+        showLoading(true, `进入失败：${msg}（已记录，请把这行字告诉开发）`);
+      }
     }),
   );
 }
