@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MINEWORLD</title>
+    <style>
+      /* Zpix 中文像素字体（子集：全 UI 用字 + GB2312 常用汉字 + ASCII，~285KB）。相对路径同时适配 dev 与 Pages 子路径 */
+      @font-face {
+        font-family: 'Zpix';
+        src: url('./fonts/zpix.woff2?v=2') format('woff2');
+        font-display: swap;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #87ceeb;
+      }
+      #app {
+        display: block;
+        cursor: pointer;
+      }
+      #app {
+        z-index: 0;
+      }
+      /* 独立的旋转全景背景画布（与游戏无关，仅装饰主菜单/存档） */
+      #menubg {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: block;
+        filter: blur(8px);
+        /* 放大一点：盖住 blur 在屏幕四边产生的透明描边 */
+        transform: scale(1.08);
+      }
+      #menu,
+      #worldlist,
+      #pause {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+      }
+      /* 主菜单/存档：透出后面旋转的全景，仅加暗角 */
+      #menu,
+      #worldlist {
+        background: linear-gradient(
+          rgba(0, 0, 0, 0.35),
+          rgba(0, 0, 0, 0.05) 30%,
+          rgba(0, 0, 0, 0.05) 70%,
+          rgba(0, 0, 0, 0.45)
+        );
+      }
+      /* 暂停：盖住冻结的游戏 */
+      #pause {
+        background:
+          linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+          url('./textures/blocks/dirt.png');
+        background-size:
+          cover,
+          46px 46px;
+        image-rendering: pixelated;
+      }
+      #worldlist,
+      #pause {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+      .screen-title {
+        margin: 0 0 8px;
+        font-size: 34px;
+        color: #fff;
+        text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+      }
+      .world-rows {
+        width: 460px;
+        max-height: 320px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .world-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 2px solid #000;
+        cursor: pointer;
+      }
+      .world-row:hover {
+        background: rgba(118, 150, 92, 0.4);
+        border-color: #fff;
+      }
+      .world-row .wname {
+        flex: 1;
+        color: #fff;
+        font-size: 16px;
+      }
+      .world-row .wmeta {
+        color: #aaa;
+        font-size: 12px;
+      }
+      .world-row .wdel {
+        color: #e57373;
+        font-size: 13px;
+        padding: 3px 8px;
+        border: 1px solid #000;
+        background: rgba(0, 0, 0, 0.4);
+      }
+      .world-empty {
+        color: #bbb;
+        font-size: 14px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .menu-main {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 15%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+      }
+      .logo {
+        position: relative;
+      }
+      .logo h1 {
+        margin: 0;
+        font-size: 72px;
+        letter-spacing: 6px;
+        color: #fff;
+        text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.6);
+      }
+      #splash {
+        position: absolute;
+        right: -18px;
+        bottom: -10px;
+        color: #ffec3d;
+        font-size: 17px;
+        white-space: nowrap;
+        text-shadow: 2px 2px 0 rgba(60, 45, 0, 0.75);
+        transform-origin: center;
+        animation: splashBounce 0.55s ease-in-out infinite alternate;
+      }
+      @keyframes splashBounce {
+        from {
+          transform: rotate(-16deg) scale(1);
+        }
+        to {
+          transform: rotate(-16deg) scale(1.09);
+        }
+      }
+      .btn {
+        font-family: inherit;
+        color: #fff;
+        font-size: 18px;
+        padding: 11px 18px;
+        background: #6c6c6c;
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.3),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+      }
+      .btn:hover {
+        background: #7a9b5c;
+      }
+      .btn-wide {
+        width: 360px;
+        font-size: 20px;
+      }
+      .btn-row {
+        display: flex;
+        gap: 14px;
+      }
+      .btn-row .btn {
+        width: 173px;
+      }
+      .footer-left,
+      .footer-right {
+        position: absolute;
+        bottom: 8px;
+        color: #e6e6e6;
+        font-size: 12px;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .footer-left {
+        left: 10px;
+      }
+      .footer-right {
+        right: 10px;
+      }
+      #about-panel {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 470px;
+        padding: 26px;
+        text-align: center;
+        color: #fff;
+        background: rgba(20, 20, 26, 0.93);
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.15),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+      }
+      #about-panel h2 {
+        margin: 0 0 14px;
+        font-size: 30px;
+      }
+      #about-panel p {
+        margin: 8px 0;
+        font-size: 14px;
+        color: #cfcfcf;
+        line-height: 1.7;
+      }
+      #about-panel .ctrl {
+        color: #9fd17a;
+      }
+      #about-panel .btn {
+        margin-top: 18px;
+      }
+      #underwater {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        background: rgba(28, 95, 150, 0.45);
+      }
+      #hotbar {
+        position: fixed;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        display: flex;
+        background: rgba(0, 0, 0, 0.45);
+        border: 2px solid rgba(255, 255, 255, 0.22);
+        outline: 2px solid rgba(0, 0, 0, 0.65);
+        user-select: none;
+      }
+      .hotbar-slot {
+        position: relative;
+        width: 50px;
+        height: 50px;
+        box-sizing: border-box;
+      }
+      .hotbar-slot + .hotbar-slot {
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .hotbar-icon {
+        position: absolute;
+        inset: 8px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+      }
+      /* 数量角标（MC 同款，右下角带描边） */
+      .hotbar-count {
+        position: absolute;
+        right: 3px;
+        bottom: 1px;
+        font-family: 'Zpix', monospace;
+        font-size: 15px;
+        color: #fff;
+        text-shadow:
+          1px 1px 0 #3f3f3f,
+          2px 2px 0 rgba(0, 0, 0, 0.6);
+        pointer-events: none;
+      }
+      /* 选中：外凸的浅色框（同 MC 选择光标） */
+      .hotbar-slot.selected::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border: 3px solid #eaeaea;
+        box-shadow:
+          0 0 0 1px #000,
+          inset 0 0 0 1px #000;
+        pointer-events: none;
+      }
+      #crosshair {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        pointer-events: none;
+        opacity: 0.65;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: '';
+        position: absolute;
+        background: #fff;
+        box-shadow: 0 0 1px #000;
+      }
+      #crosshair::before {
+        left: 8px;
+        top: 0;
+        width: 2px;
+        height: 18px;
+      }
+      #crosshair::after {
+        top: 8px;
+        left: 0;
+        height: 2px;
+        width: 18px;
+      }
+      /* 生命/饥饿条：快捷栏正上方，红心居左、饥饿居右（同 MC 布局） */
+      #status {
+        position: fixed;
+        left: 50%;
+        bottom: 64px;
+        transform: translateX(-50%);
+        width: 462px;
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        user-select: none;
+      }
+      #health,
+      #hunger {
+        display: flex;
+      }
+      #hunger {
+        flex-direction: row-reverse; /* 饥饿条靠右排布 */
+      }
+      .hud-icon {
+        width: 18px;
+        height: 18px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+      }
+      /* 死亡界面 */
+      #death {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: rgba(90, 0, 0, 0.5);
+        z-index: 20;
+      }
+      #death h2 {
+        color: #ffffff;
+        font-size: 40px;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+        margin: 0;
+      }
+      /* 合成界面 */
+      #crafting {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+      }
+      .craft-panel {
+        width: 460px;
+        max-height: 76vh;
+        background: rgba(28, 28, 34, 0.97);
+        border: 2px solid #000;
+        box-shadow:
+          inset 2px 2px 0 rgba(255, 255, 255, 0.12),
+          inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+        padding: 16px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .craft-title {
+        color: #fff;
+        font-size: 22px;
+        text-align: center;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+      }
+      .craft-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow-y: auto;
+      }
+      .craft-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 2px solid #000;
+        opacity: 0.4;
+      }
+      .craft-row.craftable {
+        opacity: 1;
+        cursor: pointer;
+      }
+      .craft-row.craftable:hover {
+        background: rgba(118, 150, 92, 0.45);
+        border-color: #fff;
+      }
+      .craft-arrow {
+        color: #9fd17a;
+        font-size: 16px;
+      }
+      .craft-ings {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .craft-chip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        height: 36px;
+      }
+      .craft-icon {
+        width: 34px;
+        height: 34px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+      }
+      .craft-txt {
+        color: #e6e6e6;
+        font-size: 14px;
+        padding: 0 4px;
+      }
+      .craft-n {
+        color: #fff;
+        font-size: 13px;
+        margin-left: 2px;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .craft-hint,
+      .craft-empty {
+        color: #aaa;
+        font-size: 12px;
+        text-align: center;
+      }
+      /* —— MC 背包 / 合成界面 —— */
+      #inventory,
+      #furnace {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+      }
+      .inv-panel {
+        background: #c6c6c6;
+        border: 4px solid #373737;
+        box-shadow:
+          inset 3px 3px 0 #fefefe,
+          inset -3px -3px 0 #8b8b8b;
+        padding: 14px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .inv-title {
+        color: #3f3f3f;
+        font-size: 18px;
+        text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      .inv-top {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 8px;
+      }
+      .inv-cgrid {
+        display: grid;
+        gap: 4px;
+      }
+      .inv-arrow {
+        color: #555;
+        font-size: 22px;
+      }
+      .inv-main,
+      .inv-hotbar {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 4px;
+      }
+      .inv-hotbar {
+        margin-top: 8px;
+      }
+      .inv-slot {
+        width: 44px;
+        height: 44px;
+        background: #8b8b8b;
+        box-shadow:
+          inset 2px 2px 0 #373737,
+          inset -2px -2px 0 rgba(255, 255, 255, 0.5);
+        position: relative;
+        cursor: pointer;
+      }
+      .inv-slot:hover {
+        background: #9a9a90;
+      }
+      .inv-slot.inv-drag-hi {
+        background: #c8b86a;
+        box-shadow:
+          inset 0 0 0 2px #fff8c0,
+          inset 2px 2px 0 #373737;
+      }
+      .inv-out {
+        width: 52px;
+        height: 52px;
+      }
+      .fur-top {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 6px 16px 10px;
+      }
+      .fur-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .fur-flame {
+        width: 24px;
+        height: 24px;
+        background: #555;
+        position: relative;
+        overflow: hidden;
+      }
+      .fur-flame-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 0;
+        background: linear-gradient(#ffd24a, #e0541f);
+      }
+      .fur-arrow {
+        width: 60px;
+        height: 14px;
+        background: #555;
+        position: relative;
+        overflow: hidden;
+      }
+      .fur-arrow-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 0;
+        background: #cfcfcf;
+      }
+      .fur-out {
+        width: 52px;
+        height: 52px;
+      }
+      .slot-icon {
+        position: absolute;
+        inset: 5px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        image-rendering: pixelated;
+        font-size: 10px;
+        color: #2a2a2a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.05;
+        word-break: break-all;
+      }
+      .slot-count {
+        position: absolute;
+        right: 2px;
+        bottom: 0;
+        color: #fff;
+        font-size: 14px;
+        text-shadow: 2px 2px 0 #000;
+      }
+      .inv-hint {
+        color: #5a5a5a;
+        font-size: 11px;
+        text-align: center;
+      }
+      .inv-cursor {
+        position: fixed;
+        width: 44px;
+        height: 44px;
+        margin: -22px 0 0 -22px;
+        pointer-events: none;
+        z-index: 30;
+      }
+      /* 氧气气泡条（饥饿条正上方，仅水下显示，靠右对齐饥饿条） */
+      #oxygen {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 462px;
+        bottom: 86px;
+        display: none;
+        flex-direction: row-reverse;
+        pointer-events: none;
+        user-select: none;
+      }
+      /* 低血 / 低饱食：对应条整体抖动 */
+      @keyframes hud-shake {
+        0%,
+        100% {
+          transform: translate(0, 0);
+        }
+        20% {
+          transform: translate(-1px, -2px);
+        }
+        60% {
+          transform: translate(1px, 1px);
+        }
+      }
+      #health.low .hud-icon,
+      #hunger.low .hud-icon {
+        animation: hud-shake 0.45s infinite;
+      }
+      /* 受伤红屏（边缘红色 vignette 闪一下） */
+      #hurt {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 25;
+        opacity: 0;
+        background: radial-gradient(ellipse at center, rgba(160, 0, 0, 0) 45%, rgba(160, 0, 0, 0.6) 100%);
+      }
+      #hurt.flash {
+        animation: hurt-flash 0.4s ease-out;
+      }
+      @keyframes hurt-flash {
+        0% {
+          opacity: 0;
+        }
+        18% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background:
+          radial-gradient(ellipse 80% 55% at 50% 116%, rgba(96, 168, 72, 0.3), transparent 70%),
+          linear-gradient(#52402c, #14100a);
+        font-family: 'Zpix', monospace;
+        -webkit-font-smoothing: none;
+        overflow: hidden;
+      }
+      #boot.hidden {
+        display: none;
+      }
+      /* 像素噪点纹理（泥土颗粒感） */
+      #boot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px),
+          repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
+      }
+      /* 飘落的像素方块装饰（草/泥/石/木） */
+      .boot-blocks {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .boot-blocks i {
+        position: absolute;
+        top: -32px;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(0, 0, 0, 0.28);
+        animation: boot-fall linear infinite;
+      }
+      .boot-blocks i:nth-child(1) { left: 8%;  background: #6fc44f; animation-duration: 9s;    animation-delay: 0s; }
+      .boot-blocks i:nth-child(2) { left: 21%; background: #8b5a2b; animation-duration: 12s;   animation-delay: 2s; }
+      .boot-blocks i:nth-child(3) { left: 34%; background: #9a9a9a; animation-duration: 10s;   animation-delay: 5s; }
+      .boot-blocks i:nth-child(4) { left: 47%; background: #a87445; animation-duration: 11s;   animation-delay: 3.5s; }
+      .boot-blocks i:nth-child(5) { left: 63%; background: #6fc44f; animation-duration: 8.5s;  animation-delay: 1s; }
+      .boot-blocks i:nth-child(6) { left: 76%; background: #8b5a2b; animation-duration: 13s;   animation-delay: 4s; }
+      .boot-blocks i:nth-child(7) { left: 89%; background: #9a9a9a; animation-duration: 10.5s; animation-delay: 6.5s; }
+      .boot-blocks i:nth-child(8) { left: 95%; background: #6fc44f; animation-duration: 9.5s;  animation-delay: 7.5s; }
+      @keyframes boot-fall {
+        0% { transform: translateY(-32px) rotate(0deg); opacity: 0; }
+        12% { opacity: 0.5; }
+        88% { opacity: 0.5; }
+        100% { transform: translateY(110vh) rotate(210deg); opacity: 0; }
+      }
+      .boot-center {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
+      .boot-logo {
+        font-size: 56px;
+        color: #f2f2f2;
+        letter-spacing: 7px;
+        text-shadow: 0 4px 0 #2a2016, 4px 4px 0 #19120b, 0 0 16px rgba(120, 200, 90, 0.3);
+      }
+      /* MC 黄色 splash：斜挂 + 跳动 */
+      .boot-splash {
+        margin-top: -10px;
+        color: #fff04a;
+        font-size: 17px;
+        transform: rotate(-7deg);
+        text-shadow: 2px 2px 0 #3a3000;
+        animation: boot-bob 0.9s ease-in-out infinite;
+      }
+      @keyframes boot-bob {
+        0%, 100% { transform: rotate(-7deg) scale(1); }
+        50% { transform: rotate(-7deg) scale(1.1); }
+      }
+      .boot-bar {
+        position: relative;
+        width: 360px;
+        height: 22px;
+        padding: 3px;
+        background: #191919;
+        border: 3px solid #000;
+        box-shadow: 0 0 0 3px #5a5a5a, 0 5px 10px rgba(0, 0, 0, 0.45);
+      }
+      .boot-fill {
+        height: 100%;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0 36%, transparent 37%),
+          repeating-linear-gradient(90deg, #6cd85a 0 9px, #4fb544 9px 13px);
+        animation: boot-load 1.3s ease-in-out infinite;
+      }
+      @keyframes boot-load {
+        0% { width: 6%; }
+        50% { width: 94%; }
+        100% { width: 6%; }
+      }
+      .boot-tip {
+        position: relative;
+        z-index: 1;
+        font-size: 15px;
+        color: #e6d8b8;
+        letter-spacing: 3px;
+      }
+      .boot-ver {
+        position: absolute;
+        right: 16px;
+        bottom: 13px;
+        color: #b3aa92;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .boot-hint {
+        position: absolute;
+        left: 16px;
+        bottom: 13px;
+        max-width: 46%;
+        color: #b3aa92;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+    </style>
+    <script type="module" crossorigin src="/mineworld/assets/index-9G8ypAr4.js"></script>
+  </head>
+  <body>
+    <div id="boot">
+      <div class="boot-blocks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="boot-center">
+        <div class="boot-logo">MINEWORLD</div>
+        <div class="boot-splash">100% 纯方块!</div>
+        <div class="boot-bar"><div class="boot-fill"></div></div>
+        <div class="boot-tip">加载中…</div>
+      </div>
+      <div class="boot-hint">提示: 按住左键挖方块</div>
+      <div class="boot-ver">v0.1.0</div>
+    </div>
+    <canvas id="app"></canvas>
+    <canvas id="menubg"></canvas>
+    <div id="menu">
+      <div class="menu-main">
+        <div class="logo">
+          <h1>MINEWORLD</h1>
+          <div id="splash"></div>
+        </div>
+        <button id="play" class="btn btn-wide">开始游戏</button>
+        <div class="btn-row">
+          <button id="fullscreen" class="btn">全屏</button>
+          <button id="settings-btn" class="btn">设置</button>
+          <button id="about" class="btn">关于</button>
+        </div>
+      </div>
+      <div class="footer-left">MINEWORLD 0.1.0</div>
+      <div class="footer-right">用 Three.js 打造</div>
+      <div id="about-panel" class="hidden">
+        <h2>MINEWORLD</h2>
+        <p>浏览器里的体素沙盒</p>
+        <p>TypeScript + Three.js 纯手工打造</p>
+        <p class="ctrl">
+          WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
+          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停
+        </p>
+        <button id="about-close" class="btn">关闭</button>
+      </div>
+    </div>
+    <div id="worldlist" class="hidden">
+      <h2 class="screen-title">选择世界</h2>
+      <div class="world-rows" id="world-rows"></div>
+      <div class="btn-row">
+        <button id="create-world" class="btn">创建新世界</button>
+        <button id="worldlist-back" class="btn">返回</button>
+      </div>
+    </div>
+    <div id="pause" class="hidden">
+      <h2 class="screen-title">已暂停</h2>
+      <button id="resume" class="btn btn-wide">继续游戏</button>
+      <button id="settings-btn-pause" class="btn btn-wide">设置</button>
+      <button id="save-quit" class="btn btn-wide">保存并退出</button>
+    </div>
+    <div id="settings" class="hidden"></div>
+    <div id="underwater"></div>
+    <div id="crosshair"></div>
+    <div id="status">
+      <div id="health"></div>
+      <div id="hunger"></div>
+    </div>
+    <div id="oxygen"></div>
+    <div id="hotbar"></div>
+    <div id="hurt"></div>
+    <div id="death">
+      <h2>你死了！</h2>
+      <button id="respawn" class="btn btn-wide">重生</button>
+    </div>
+    <div id="inventory" class="hidden"></div>
+    <div id="furnace" class="hidden"></div>
+  </body>
+</html>
