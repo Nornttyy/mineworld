@@ -69,3 +69,55 @@ export function quickMove(
   const left = addItem(to, cell.id, cell.count, maxOf(cell.id), start, end);
   from[i] = left > 0 ? { id: cell.id, count: left } : null;
 }
+
+// 跨数组的格子引用（背包/合成网格在不同数组里），让涂抹分发能统一操作一批格子。
+export interface SlotRef {
+  get(): ItemStack | null;
+  set(s: ItemStack | null): void;
+}
+
+// MC 左键涂抹分发：把光标整摞平分给 refs 中「空格或同类未满」的格子——每格 floor(总数/份数)，
+// 余数留在光标。份数不足以每格至少 1 个时不分（同 MC）。返回新光标。
+export function dragSplitEven(refs: SlotRef[], cursor: Cursor, maxOf: MaxStackOf): Cursor {
+  if (!cursor) return cursor;
+  const id = cursor.id;
+  const cap = maxOf(id);
+  const eligible = refs.filter((r) => {
+    const s = r.get();
+    return !s || (s.id === id && s.count < cap);
+  });
+  if (eligible.length === 0) return cursor;
+  const per = Math.floor(cursor.count / eligible.length);
+  if (per === 0) return cursor; // 不够每格 1 个 → 不分
+  let used = 0;
+  for (const r of eligible) {
+    const s = r.get();
+    const cur = s ? s.count : 0;
+    const add = Math.min(per, cap - cur);
+    if (add <= 0) continue;
+    r.set({ id, count: cur + add });
+    used += add;
+  }
+  const left = cursor.count - used;
+  return left > 0 ? { id, count: left } : null;
+}
+
+// MC 右键涂抹：经过的每个「空格或同类未满」格放 1 个，光标递减。返回新光标。
+export function dragOnePer(refs: SlotRef[], cursor: Cursor, maxOf: MaxStackOf): Cursor {
+  if (!cursor) return cursor;
+  const id = cursor.id;
+  const cap = maxOf(id);
+  let left = cursor.count;
+  for (const r of refs) {
+    if (left <= 0) break;
+    const s = r.get();
+    if (!s) {
+      r.set({ id, count: 1 });
+      left--;
+    } else if (s.id === id && s.count < cap) {
+      s.count += 1;
+      left--;
+    }
+  }
+  return left > 0 ? { id, count: left } : null;
+}

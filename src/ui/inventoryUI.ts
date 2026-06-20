@@ -2,7 +2,7 @@
 // 交互：左键拿/放整组、右键放1个/拿一半、Shift 快速转移；光标(手持物品)跟随鼠标。
 // 逻辑全在 core/inventory/slots + core/crafting/gridCraft 纯函数里，这里只渲染 + 转发事件。
 import { addItem, type Inventory, type ItemStack } from '../core/inventory/inventory';
-import { leftClick, rightClick, quickMove } from '../core/inventory/slots';
+import { leftClick, rightClick, quickMove, dragSplitEven, dragOnePer, type SlotRef } from '../core/inventory/slots';
 import { gridResult, consumeGrid } from '../core/crafting/gridCraft';
 import { itemMaxStack } from '../core/items/items';
 import { iconUrl, itemLabel } from './itemIcons';
@@ -17,6 +17,17 @@ interface Cell {
   cnt: HTMLElement;
 }
 type Region = 'main' | 'hotbar' | 'craft' | 'output';
+
+interface DragState {
+  region: Region;
+  i: number;
+  right: boolean; // 右键拖（每格放1）还是左键拖（平分）
+  started: boolean; // 是否已离开起点格、正式成为拖拽手势
+  mode: 'distribute' | 'move'; // 按下时持物=涂抹分发；空手=拿起整组拖动
+  swept: SlotRef[]; // 划过的格子（distribute）
+  sweptKeys: Set<string>;
+  sweptCells: Cell[]; // 高亮过的格子，松手时清除
+}
 
 export class InventoryUI {
   private readonly root: HTMLElement;
@@ -35,6 +46,9 @@ export class InventoryUI {
   private readonly mainCells: Cell[] = [];
   private readonly hotbarCells: Cell[] = [];
   private craftCells: Cell[] = [];
+
+  // 拖拽手势状态：按下后挂起，划过其它格才"开始"。distribute=持物涂抹分发；move=空手按住拖单组。
+  private drag: DragState | null = null;
 
   onChange: (() => void) | null = null; // 背包变动 → Game 刷新快捷栏
 
@@ -70,17 +84,24 @@ export class InventoryUI {
     this.cursorCnt.className = 'slot-count';
     this.cursorEl.append(this.cursorIcon, this.cursorCnt);
     this.cursorEl.style.display = 'none';
+    this.cursorEl.style.pointerEvents = 'none'; // 别挡住 elementFromPoint 命中下方格子
     document.body.appendChild(this.cursorEl);
     document.addEventListener('mousemove', (e) => {
       if (!this.open) return;
       this.cursorEl.style.left = `${e.clientX}px`;
       this.cursorEl.style.top = `${e.clientY}px`;
+      if (this.drag) this.onDragMove(e);
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (this.open && this.drag) this.endDrag(e);
     });
   }
 
   private makeSlot(parent: HTMLElement, region: Region, i: number): Cell {
     const el = document.createElement('div');
     el.className = 'inv-slot';
+    el.dataset.region = region;
+    el.dataset.idx = String(i);
     const icon = document.createElement('div');
     icon.className = 'slot-icon';
     const cnt = document.createElement('div');
@@ -88,7 +109,7 @@ export class InventoryUI {
     el.append(icon, cnt);
     el.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      this.clickSlot(region, i, e);
+      this.beginDrag(region, i, e);
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     parent.appendChild(el);
@@ -113,6 +134,7 @@ export class InventoryUI {
 
   // 关闭：合成格 + 光标里的残留物品退回背包，避免凭空消失
   hide(): void {
+    this.cancelDrag();
     if (this.inv) {
       for (const row of this.craft) {
         for (let c = 0; c < row.length; c++) {
@@ -141,28 +163,135 @@ export class InventoryUI {
     for (let i = 0; i < n * n; i++) this.craftCells.push(this.makeSlot(this.cgridEl, 'craft', i));
   }
 
-  private clickSlot(region: Region, i: number, e: MouseEvent): void {
+  // 鼠标按下：输出槽/Shift 即时处理；其余挂起为「待定拖拽」，松手或划格时再决定是点击还是手势。
+  private beginDrag(region: Region, i: number, e: MouseEvent): void {
     if (!this.inv) return;
     if (region === 'output') {
       this.takeOutput();
-    } else if (e.shiftKey) {
+      this.render();
+      this.onChange?.();
+      return;
+    }
+    if (e.shiftKey) {
       this.quickMoveFrom(region, i);
-    } else {
-      const right = e.button === 2;
-      if (region === 'craft') {
-        const n = this.gridN;
-        const row = this.craft[Math.floor(i / n)];
-        const c = i % n;
-        this.cursor = right ? rightClick(row, c, this.cursor, maxOf) : leftClick(row, c, this.cursor, maxOf);
+      this.render();
+      this.onChange?.();
+      return;
+    }
+    this.drag = {
+      region,
+      i,
+      right: e.button === 2,
+      started: false,
+      mode: this.cursor ? 'distribute' : 'move',
+      swept: [],
+      sweptKeys: new Set(),
+      sweptCells: [],
+    };
+  }
+
+  // 拖拽移动：首次划到别的格 → 正式开始（distribute 收集划过的格；move 把起点整组拿到光标）。
+  private onDragMove(e: MouseEvent): void {
+    const d = this.drag;
+    if (!d || !this.inv) return;
+    const hit = this.slotAt(e);
+    if (!d.started) {
+      if (!hit || (hit.region === d.region && hit.i === d.i)) return; // 还没离开起点格
+      d.started = true;
+      if (d.mode === 'distribute') {
+        this.addSwept(d, d.region, d.i); // 起点也算一格
+        this.addSwept(d, hit.region, hit.i);
       } else {
-        const idx = region === 'main' ? HOTBAR + i : i;
-        this.cursor = right
-          ? rightClick(this.inv, idx, this.cursor, maxOf)
-          : leftClick(this.inv, idx, this.cursor, maxOf);
+        this.applyClick(d.region, d.i, false); // move：左键拿起起点整组到光标
+        this.render();
       }
+      return;
+    }
+    if (d.mode === 'distribute' && hit) this.addSwept(d, hit.region, hit.i);
+  }
+
+  // 松手提交：没划动=普通点击；distribute=平分/每格1；move=放到松手所在格(否则留光标)。
+  private endDrag(e: MouseEvent): void {
+    const d = this.drag;
+    this.drag = null;
+    for (const c of d?.sweptCells ?? []) c.el.classList.remove('inv-drag-hi');
+    if (!d || !this.inv) return;
+    if (!d.started) {
+      this.applyClick(d.region, d.i, d.right); // 原地按放 = 普通左右键点击
+    } else if (d.mode === 'distribute') {
+      this.cursor = d.right
+        ? dragOnePer(d.swept, this.cursor, maxOf)
+        : dragSplitEven(d.swept, this.cursor, maxOf);
+    } else {
+      const hit = this.slotAt(e);
+      if (hit && hit.region !== 'output' && !(hit.region === d.region && hit.i === d.i)) {
+        this.applyClick(hit.region, hit.i, false); // 放到松手所在格
+      }
+      // 松手在起点/界外 → 光标继续持有（等同点击拿起）
     }
     this.render();
     this.onChange?.();
+  }
+
+  private cancelDrag(): void {
+    if (!this.drag) return;
+    for (const c of this.drag.sweptCells) c.el.classList.remove('inv-drag-hi');
+    this.drag = null;
+  }
+
+  private addSwept(d: DragState, region: Region, i: number): void {
+    if (region === 'output') return;
+    const key = `${region}:${i}`;
+    if (d.sweptKeys.has(key)) return;
+    d.sweptKeys.add(key);
+    d.swept.push(this.slotRef(region, i));
+    const cell = this.cellOf(region, i);
+    if (cell) {
+      cell.el.classList.add('inv-drag-hi');
+      d.sweptCells.push(cell);
+    }
+  }
+
+  // 在 region 第 i 格应用左右键（光标↔格子）——原 clickSlot 的核心，松手时调用。
+  private applyClick(region: Region, i: number, right: boolean): void {
+    if (!this.inv) return;
+    if (region === 'craft') {
+      const n = this.gridN;
+      const row = this.craft[Math.floor(i / n)];
+      const c = i % n;
+      this.cursor = right ? rightClick(row, c, this.cursor, maxOf) : leftClick(row, c, this.cursor, maxOf);
+    } else {
+      const idx = region === 'main' ? HOTBAR + i : i;
+      this.cursor = right ? rightClick(this.inv, idx, this.cursor, maxOf) : leftClick(this.inv, idx, this.cursor, maxOf);
+    }
+  }
+
+  // region+i → 跨数组的格子引用（涂抹分发统一操作背包格与合成格）。
+  private slotRef(region: Region, i: number): SlotRef {
+    if (region === 'craft') {
+      const n = this.gridN;
+      const row = this.craft[Math.floor(i / n)];
+      const c = i % n;
+      return { get: () => row[c], set: (s) => (row[c] = s) };
+    }
+    const inv = this.inv as Inventory;
+    const idx = region === 'main' ? HOTBAR + i : i;
+    return { get: () => inv[idx], set: (s) => (inv[idx] = s) };
+  }
+
+  // 鼠标位置下的格子（命中测试），无则 null。
+  private slotAt(e: MouseEvent): { region: Region; i: number } | null {
+    const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const el = hit?.closest('.inv-slot') as HTMLElement | null;
+    if (!el || el.dataset.region === undefined) return null;
+    return { region: el.dataset.region as Region, i: Number(el.dataset.idx) };
+  }
+
+  private cellOf(region: Region, i: number): Cell | null {
+    if (region === 'main') return this.mainCells[i] ?? null;
+    if (region === 'hotbar') return this.hotbarCells[i] ?? null;
+    if (region === 'craft') return this.craftCells[i] ?? null;
+    return null;
   }
 
   private quickMoveFrom(region: Region, i: number): void {
