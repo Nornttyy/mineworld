@@ -110,7 +110,8 @@ export class ChunkMeshManager {
       depthWrite: false,
     });
     // 不透明/镂空吃天光shader；水另走"天光 + 光影(波动/菲涅尔反射/高光)"shader
-    for (const m of [this.opaqueMat, this.cutoutMat]) this.installLight(m);
+    this.installLight(this.opaqueMat);
+    this.installLight(this.cutoutMat, true); // 树叶(cutout)随风轻摆
     this.installWaterShader(this.waterMat);
     // 火把：自发光暖色十字，不参与天光(始终全亮)，双面可见
     this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
@@ -153,7 +154,7 @@ export class ChunkMeshManager {
   }
 
   // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
-  private installLight(mat: THREE.MeshBasicMaterial): void {
+  private installLight(mat: THREE.MeshBasicMaterial, sway = false): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyTint = this.uSkyTint;
       shader.uniforms.uSkyDarken = this.uSkyDarken;
@@ -163,14 +164,24 @@ export class ChunkMeshManager {
       shader.uniforms.uShadowTexel = this.uShadowTexel;
       shader.uniforms.uShadowOn = this.uShadowOn;
       shader.uniforms.uSunUp = this.uSunUp;
+      if (sway) shader.uniforms.uTime = this.uTime;
+      // 树叶随风摆：按【世界坐标(原始 position)+时间】位移 → 相邻叶共享顶点=同步摆动、无裂缝。
+      const swayCode = sway
+        ? '{ vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
+          ' transformed.x += sin(ph + uTime*1.4) * 0.05;' +
+          ' transformed.z += sin(ph*1.3 + uTime*1.1) * 0.05;' +
+          ' transformed.y += sin(ph*0.8 + uTime*1.7) * 0.025; }\n'
+        : '';
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
+          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\n' +
+            (sway ? 'uniform float uTime;\n' : '') +
+            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
+          '#include <begin_vertex>\n' + swayCode + MC_LIGHT_GLSL + '\n' +
             'vSky = aLight.x;\n' +
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
