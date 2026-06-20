@@ -50,6 +50,20 @@ describe('天光传播', () => {
     expect(at(2, 1, 0)).toBe(MAX_LIGHT - 2); // 13
   });
 
+  it('半透明衰减(水)：露天柱穿过水每格额外 −1 → 水下越深越暗', () => {
+    // 单列、全非实心；y=2,3,4 是"水"(opacity 1)，y=0,1 是空气
+    const W = 1,
+      H = 5;
+    const opaque = (): boolean => false;
+    const opacity = (_x: number, y: number): number => (y >= 2 ? 1 : 0);
+    const light = computeSkyLight(W, H, opaque, opacity);
+    const at = (y: number): number => light[y]; // W=1 → idx=y
+    expect(at(4)).toBe(14); // 顶层水：15−1
+    expect(at(3)).toBe(13);
+    expect(at(2)).toBe(12);
+    expect(at(1)).toBe(12); // 水下方空气：保持穿水后的等级(空气不再衰减)
+  });
+
   it('lightFactor：0 最暗(>0)、15 满亮、单调递增', () => {
     expect(lightFactor(0)).toBeGreaterThan(0);
     expect(lightFactor(0)).toBeLessThan(0.2);

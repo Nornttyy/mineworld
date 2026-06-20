@@ -221,12 +221,18 @@ export function meshChunkData(
   // 光照：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 + 方块光，各 0..15。
   // 顶点存"该面朝向格"的 (天光, 方块光)，交给材质 shader 合成亮度——昼夜只缩放天光，火把光恒定。
   const LW = CHUNK_W + 2;
-  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1));
+  // 半透明衰减(同 MC opacity)：水/树叶 = 1（光穿过它们每格额外 −1 → 水下越深越暗）。
+  const opac = (hx: number, hy: number, hz: number): number => {
+    const id = getBlock(ox + hx - 1, hy, oz + hz - 1);
+    return isWaterId(id) || isCutoutId(id) ? 1 : 0;
+  };
+  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1), opac);
   const blkLight = computeBlockLight(
     LW,
     CHUNK_H,
     (hx, hy, hz) => blockLight(getBlock(ox + hx - 1, hy, oz + hz - 1)),
     (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1),
+    opac,
   );
   const skyAt = (lx: number, ly: number, lz: number): number => {
     if (ly >= CHUNK_H) return 15; // 世界顶之上=露天
@@ -236,6 +242,25 @@ export function meshChunkData(
   const blkAt = (lx: number, ly: number, lz: number): number => {
     if (ly >= CHUNK_H || ly < 0) return 0;
     return blkLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
+  };
+  // 平滑光照(同 MC smooth lighting)：某面某角，取"面外格 + 两条边格 + 对角格"中【非遮挡】格的
+  // (天光,方块光) 平均 → 顶点间渐变、柔和的明暗，而不是整面一个平铺光值。(ex,ey,ez)=面外那一格(local)。
+  const cornerLight = (ex: number, ey: number, ez: number, f: number, k: number): [number, number] => {
+    const ax = AO_AXES[f];
+    const corner = DIRS[f].c[k];
+    const su = corner[ax.ui] === 1 ? 1 : -1;
+    const sv = corner[ax.vi] === 1 ? 1 : -1;
+    const s1x = ex + su * ax.u[0], s1y = ey + su * ax.u[1], s1z = ez + su * ax.u[2];
+    const s2x = ex + sv * ax.v[0], s2y = ey + sv * ax.v[1], s2z = ez + sv * ax.v[2];
+    const ccx = s1x + sv * ax.v[0], ccy = s1y + sv * ax.v[1], ccz = s1z + sv * ax.v[2];
+    const o1 = occ(ox + s1x, s1y, oz + s1z);
+    const o2 = occ(ox + s2x, s2y, oz + s2z);
+    const oc = occ(ox + ccx, ccy, oz + ccz);
+    let sSum = skyAt(ex, ey, ez), bSum = blkAt(ex, ey, ez), n = 1;
+    if (!o1) { sSum += skyAt(s1x, s1y, s1z); bSum += blkAt(s1x, s1y, s1z); n++; }
+    if (!o2) { sSum += skyAt(s2x, s2y, s2z); bSum += blkAt(s2x, s2y, s2z); n++; }
+    if (!(o1 && o2) && !oc) { sSum += skyAt(ccx, ccy, ccz); bSum += blkAt(ccx, ccy, ccz); n++; } // 两侧都挡→对角被藏，不计
+    return [sSum / n / 15, bSum / n / 15];
   };
 
   const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
@@ -247,14 +272,13 @@ export function meshChunkData(
     const ex = lx + d.o[0]; // 该面朝向(外侧)那一格 → 取它的光
     const ey = ly + d.o[1];
     const ez = lz + d.o[2];
-    const sky = skyAt(ex, ey, ez) / 15;
-    const blk = blkAt(ex, ey, ez) / 15;
     const base = a.P.length / 3;
     const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
       const corner = d.c[k];
       ao[k] = cornerAO(occ, ox + lx, ly, oz + lz, f, k);
       const c = shade * ao[k]; // 几何阴影 × AO；天光/方块光由 shader 再乘
+      const [sky, blk] = cornerLight(ex, ey, ez, f, k); // 每角平滑光照
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);

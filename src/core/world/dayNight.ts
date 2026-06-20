@@ -44,6 +44,16 @@ export function wrapTime(t: number): number {
   return ((t % DAY_LENGTH) + DAY_LENGTH) % DAY_LENGTH;
 }
 
+// MC 1:1 天光递减 skyDarken（0..11）：露天天光等级 = 15 - skyDarken。白天 0（满 15）、半夜 11（=4，偏暗可见）。
+// 曲线同 Java 版 Level.getSkyDarken：darkFrac = clamp(0.5 - 2·cos(angle), 0, 1)，angle 使正午 cos=1、午夜 cos=-1
+// → 黄昏/黎明陡变、午间/午夜各有平台。正午=6000 刻、午夜=18000 刻。
+export function skyDarkenAt(time: number): number {
+  const t = wrapTime(time);
+  const ang = ((t - 6000) / DAY_LENGTH) * Math.PI * 2; // 正午→0、午夜→π
+  const darkFrac = Math.max(0, Math.min(1, 0.5 - 2 * Math.cos(ang)));
+  return darkFrac * 11;
+}
+
 // 取某刻的天空状态（关键帧之间线性插值，含跨午夜回绕）。
 export function skyStateAt(time: number): SkyState {
   const t = wrapTime(time);

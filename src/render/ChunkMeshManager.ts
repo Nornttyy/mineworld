@@ -19,6 +19,25 @@ const chunkFogged = (dCx: number, dCz: number, cullR2: number): boolean => {
   return nx * nx + nz * nz > cullR2; // 区块²为单位，比较平方省 sqrt
 };
 
+// MC 1:1 光照（顶点着色器用）：
+//  - mcBright(等级0..15) = (l/15)/(4-3·l/15)：MC 的亮度阶梯。
+//  - MC_LIGHT_GLSL：天光 effSky = max(天光-uSkyDarken,0)(夜晚 skyDarken 递减) 与方块光各过阶梯取较亮，
+//    再 ×0.96+0.04 留底光(不纯黑)；vTint 在天光昼夜色与火把暖色间按主导光占比混合。
+const MC_BRIGHT_GLSL = 'float mcBright(float lv){ float f = clamp(lv,0.0,15.0)/15.0; return f/(4.0-3.0*f); }';
+const MC_LIGHT_GLSL =
+  '{ float skyLv = aLight.x*15.0; float blkLv = aLight.y*15.0;' +
+  ' float bs = mcBright(max(skyLv - uSkyDarken, 0.0)); float bb = mcBright(blkLv);' +
+  ' vLF = max(bs, bb) * 0.96 + 0.04;' +
+  ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
+  ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
+
+interface ChunkMeshes {
+  opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
+  water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
+}
+
 interface ChunkMeshes {
   opaque: THREE.Mesh;
   cutout: THREE.Mesh | null;
@@ -42,6 +61,8 @@ export class ChunkMeshManager {
   // 故昼夜只缩放天光、火把(方块光)恒亮；改昼夜只动 uniform，无需重建网格。
   private readonly uSkyMul = { value: 1 };
   private readonly uSkyTint = { value: new THREE.Color(1, 1, 1) };
+  // 夜晚天光按 MC 模型递减：白天 0、半夜≈11（露天天光 15-11=4 → 偏暗但看得见，同 Java 版）。
+  private readonly uSkyDarken = { value: 0 };
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
   private readonly uTime = { value: 0 };
@@ -134,8 +155,8 @@ export class ChunkMeshManager {
   // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
   private installLight(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
-      shader.uniforms.uSkyMul = this.uSkyMul;
       shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.uniforms.uSkyDarken = this.uSkyDarken;
       // 投影阴影 uniform（自己绑，不靠 three.js 给 Basic 材质填灯光 uniform）
       shader.uniforms.uShadowMap = this.uShadowMap;
       shader.uniforms.uShadowMatrix = this.uShadowMatrix;
@@ -145,12 +166,11 @@ export class ChunkMeshManager {
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nuniform mat4 uShadowMatrix;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;',
+          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
-            ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
+          '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
             'vSky = aLight.x;\n' +
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
@@ -223,21 +243,21 @@ export class ChunkMeshManager {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
       shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.uniforms.uSkyDarken = this.uSkyDarken;
       shader.uniforms.uShaders = this.uShaders;
       shader.uniforms.uTime = this.uTime;
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：只烤天光 + 传世界坐标；水面【不位移】(平静)。
+      // 顶点：按 MC 1:1 烤天光(skyDarken 夜减) + 传世界坐标；水面【不位移】(平静)。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform float uSkyMul;\nuniform vec3 uSkyTint;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;',
+          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\n{ float s = aLight.x * uSkyMul; float b = aLight.y; float lvl = max(s, b);' +
-            ' vLF = 0.02 + 0.98 * pow(lvl, 1.7); float sf = lvl > 0.0001 ? s / lvl : 0.0; vTint = mix(vec3(1.0), uSkyTint, sf); }\n' +
+          '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
@@ -288,9 +308,14 @@ export class ChunkMeshManager {
     this.uSkyTint.value.setRGB(c[0], c[1], c[2]);
   }
 
-  /** 昼夜：天光亮度系数（白天=1，深夜≈0.05 → 地表变黑、要靠火把）。 */
+  /** 昼夜日照系数（白天=1、夜=0）：现仅供水面太阳粼光强度用（光照走 uSkyDarken）。 */
   setSkyMul(v: number): void {
     this.uSkyMul.value = v;
+  }
+
+  /** 昼夜天光递减（MC 1:1）：白天 0、半夜≈11 → 露天天光 15-11=4，偏暗但看得见、不靠火把也行。 */
+  setSkyDarken(v: number): void {
+    this.uSkyDarken.value = v;
   }
 
   /** 光影总开关：开 → 水面波动 + 菲涅尔反射 + 太阳高光；关 → 平静水面(省性能)。 */

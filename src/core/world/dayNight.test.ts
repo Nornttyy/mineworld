@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { skyStateAt, wrapTime, DAY_LENGTH } from './dayNight';
+import { skyStateAt, skyDarkenAt, wrapTime, DAY_LENGTH } from './dayNight';
 
 const avg = (c: [number, number, number]): number => (c[0] + c[1] + c[2]) / 3;
 
@@ -54,5 +54,20 @@ describe('dayNight 昼夜更替', () => {
   it('黄昏(日落)出现暖色地平线（红分量明显高于蓝）', () => {
     const s = skyStateAt(12200);
     expect(s.skyHorizon[0]).toBeGreaterThan(s.skyHorizon[2] + 0.3);
+  });
+
+  // MC 1:1 天光递减 skyDarken（露天天光 = 15 - skyDarken）
+  it('skyDarken：正午为 0（满天光）、午夜≈11（露天≈4，偏暗可见）', () => {
+    expect(skyDarkenAt(6000)).toBeCloseTo(0, 5); // 正午满 15
+    expect(skyDarkenAt(18000)).toBeCloseTo(11, 5); // 午夜 → 15-11=4
+  });
+
+  it('skyDarken：始终在 [0,11]，且午夜比正午暗', () => {
+    for (let t = 0; t < DAY_LENGTH; t += 137) {
+      const d = skyDarkenAt(t);
+      expect(d).toBeGreaterThanOrEqual(0);
+      expect(d).toBeLessThanOrEqual(11);
+    }
+    expect(skyDarkenAt(18000)).toBeGreaterThan(skyDarkenAt(6000));
   });
 });

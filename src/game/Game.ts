@@ -72,7 +72,7 @@ import {
   type Survival,
 } from '../core/survival/survival';
 import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
-import { skyStateAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
+import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
@@ -1273,12 +1273,14 @@ export class Game {
     this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
-    // 把 worldTint 拆成"色相(满亮)"+"暗度"：色相给 uSkyTint(夜偏蓝)，暗度给 uSkyMul。
-    // mx⁴ → 白天 1、深夜≈0.06：地表夜里几乎全黑(要火把)，而火把=方块光不受 uSkyMul 影响照常亮。
+    // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。
     const t = s.worldTint;
     const mx = Math.max(t[0], t[1], t[2], 0.001);
     this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
-    this.chunks.setSkyMul(Math.pow(mx, 4));
+    // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
+    const darken = skyDarkenAt(this.worldTime);
+    this.chunks.setSkyDarken(darken);
+    this.chunks.setSkyMul(1 - darken / 11); // 仅供水面太阳粼光强度(白天 1、夜 0)
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光

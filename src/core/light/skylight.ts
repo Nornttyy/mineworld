@@ -16,28 +16,34 @@ const NEI: readonly [number, number, number][] = [
 ];
 
 // 计算天光。opaque(lx,ly,lz)=该格是否挡光(实心不透明)。返回 Uint8Array(W*H*W)，值 0..15。
+// opacity(lx,ly,lz)=非挡光格的额外衰减(同 MC opacity)：空气 0、水/树叶 1 → 光穿过它们更快变暗
+// （直下柱穿水每格 −1=水下越深越暗；横向 BFS 进入该格的代价 = 1 + opacity）。缺省全 0 = 旧行为。
 export function computeSkyLight(
   W: number,
   H: number,
   opaque: (lx: number, ly: number, lz: number) => boolean,
+  opacity?: (lx: number, ly: number, lz: number) => number,
 ): Uint8Array {
+  const opac = opacity ?? ((): number => 0);
   const light = new Uint8Array(W * H * W);
   const idx = (lx: number, ly: number, lz: number): number => lx + lz * W + ly * W * W;
   const queue: number[] = [];
 
-  // 1) 露天柱：从顶往下置 15，直到第一个挡光块。这些满光格作为 BFS 起点。
+  // 1) 露天柱：从顶往下，空气保持 15、穿半透明(水/叶)每格按 opacity 衰减，遇挡光块停。
   for (let lz = 0; lz < W; lz++) {
     for (let lx = 0; lx < W; lx++) {
+      let level = MAX_LIGHT;
       for (let ly = H - 1; ly >= 0; ly--) {
         if (opaque(lx, ly, lz)) break;
+        level = Math.max(0, level - opac(lx, ly, lz)); // 穿过该格的衰减(空气=0)
         const i = idx(lx, ly, lz);
-        light[i] = MAX_LIGHT;
-        queue.push(i);
+        light[i] = level;
+        if (level > 0) queue.push(i);
       }
     }
   }
 
-  // 2) BFS 向 6 邻 −1 扩散（光渗进洞/檐下）。
+  // 2) BFS 向 6 邻扩散：进入邻格的代价 = 1 + 该格 opacity（空气 −1、水/叶 −2）。
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head];
     const lv = light[i];
@@ -46,13 +52,14 @@ export function computeSkyLight(
     const rem = i - ly * W * W;
     const lz = (rem / W) | 0;
     const lx = rem - lz * W;
-    const nb = lv - 1;
     for (const [dx, dy, dz] of NEI) {
       const nx = lx + dx;
       const ny = ly + dy;
       const nz = lz + dz;
       if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= W) continue;
       if (opaque(nx, ny, nz)) continue;
+      const nb = lv - 1 - opac(nx, ny, nz);
+      if (nb <= 0) continue;
       const ni = idx(nx, ny, nz);
       if (light[ni] >= nb) continue;
       light[ni] = nb;
@@ -70,7 +77,9 @@ export function computeBlockLight(
   H: number,
   emission: (lx: number, ly: number, lz: number) => number,
   opaque: (lx: number, ly: number, lz: number) => boolean,
+  opacity?: (lx: number, ly: number, lz: number) => number,
 ): Uint8Array {
+  const opac = opacity ?? ((): number => 0);
   const light = new Uint8Array(W * H * W);
   const idx = (lx: number, ly: number, lz: number): number => lx + lz * W + ly * W * W;
   const queue: number[] = [];
@@ -91,7 +100,7 @@ export function computeBlockLight(
     }
   }
 
-  // 2) BFS 向 6 邻 −1 扩散，挡光块不进。
+  // 2) BFS 向 6 邻扩散：进入邻格代价 = 1 + 该格 opacity，挡光块不进。
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head];
     const lv = light[i];
@@ -100,13 +109,14 @@ export function computeBlockLight(
     const rem = i - ly * W * W;
     const lz = (rem / W) | 0;
     const lx = rem - lz * W;
-    const nb = lv - 1;
     for (const [dx, dy, dz] of NEI) {
       const nx = lx + dx;
       const ny = ly + dy;
       const nz = lz + dz;
       if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= W) continue;
       if (opaque(nx, ny, nz)) continue;
+      const nb = lv - 1 - opac(nx, ny, nz);
+      if (nb <= 0) continue;
       const ni = idx(nx, ny, nz);
       if (light[ni] >= nb) continue;
       light[ni] = nb;
