@@ -5,6 +5,7 @@ import type { VoxelWorld } from '../physics/player';
 
 export interface ItemDrop {
   id: number; // 方块 id
+  count: number; // 堆叠数量；同类掉落物靠近会合并成一堆（同 MC item entity）
   x: number;
   y: number;
   z: number;
@@ -25,9 +26,11 @@ export function spawnDrop(
   by: number,
   bz: number,
   rand: () => number = Math.random,
+  count = 1,
 ): ItemDrop {
   return {
     id,
+    count,
     x: bx + 0.5,
     y: by + 0.5,
     z: bz + 0.5,
@@ -36,6 +39,32 @@ export function spawnDrop(
     vz: (rand() - 0.5) * 2,
     age: 0,
   };
+}
+
+// 合并相邻同类掉落物成一堆（同 MC item entity 自动合并），受各物品堆叠上限约束。原地修改 drops。
+// O(n²) 但掉落物数量小；radius 为合并判定的最大间距（格）。maxStack(id)=该物品堆叠上限。
+export function mergeDrops(drops: ItemDrop[], maxStack: (id: number) => number, radius = 0.75): void {
+  const r2 = radius * radius;
+  for (let i = 0; i < drops.length; i++) {
+    const a = drops[i];
+    const cap = maxStack(a.id);
+    if (a.count >= cap) continue;
+    for (let j = drops.length - 1; j > i; j--) {
+      const b = drops[j];
+      if (b.id !== a.id) continue;
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dz = a.z - b.z;
+      if (dx * dx + dy * dy + dz * dz > r2) continue;
+      const move = Math.min(cap - a.count, b.count);
+      if (move <= 0) continue;
+      a.count += move;
+      b.count -= move;
+      if (b.age < a.age) a.age = b.age; // 取较新年龄，避免合并后整堆过早消失
+      if (b.count <= 0) drops.splice(j, 1);
+      if (a.count >= cap) break;
+    }
+  }
 }
 
 // 推进一个掉落物 dt 秒：重力下落，落到实心块顶面则停住并加地面摩擦。原地修改并返回。

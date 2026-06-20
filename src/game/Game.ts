@@ -26,7 +26,7 @@ import { DropRenderer } from '../render/DropRenderer';
 import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import { EYE, CROUCH_EYE, WIDTH, HEIGHT, type Player, type VoxelWorld } from '../core/physics/player';
-import { spawnDrop, stepDrop, canPickup, type ItemDrop } from '../core/entity/itemDrop';
+import { spawnDrop, stepDrop, canPickup, mergeDrops, type ItemDrop } from '../core/entity/itemDrop';
 import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
@@ -654,6 +654,17 @@ export class Game {
     this.dead = true;
     this.digging = false;
     this.stopEating();
+    // MC：死亡把背包(快捷栏+主背包)全部撒在原地，各物品带随机初速，DROP_TTL(5min)后消失——回不去就永久丢失
+    const bx = Math.floor(this.player.pos.x);
+    const by = Math.floor(this.player.pos.y);
+    const bz = Math.floor(this.player.pos.z);
+    for (let i = 0; i < this.inv.length; i++) {
+      const s = this.inv[i];
+      if (s && s.count > 0) this.drops.push(spawnDrop(s.id, bx, by, bz, Math.random, s.count));
+      this.inv[i] = null;
+    }
+    this.hotbar.render(this.inv);
+    this.dropRenderer.sync(this.drops);
     void document.exitPointerLock(); // 解锁 → main 切到死亡界面
   }
 
@@ -944,7 +955,7 @@ export class Game {
           [st.fuel, st.fuelN],
           [st.output, st.outputN],
         ];
-        for (const [bid, n] of slots) for (let k = 0; k < n; k++) this.drops.push(spawnDrop(bid, x, y, z));
+        for (const [bid, n] of slots) if (n > 0) this.drops.push(spawnDrop(bid, x, y, z, Math.random, n));
         this.furnaces.delete(`${x},${y},${z}`);
       }
     }
@@ -966,6 +977,7 @@ export class Game {
     const px = this.player.pos.x;
     const py = this.player.pos.y + 0.9; // 玩家身体中部
     const pz = this.player.pos.z;
+    mergeDrops(this.drops, itemMaxStack); // 同类掉落物靠近合并成一堆(同 MC)，也减少实体数
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       stepDrop(d, this.physWorld, dt);
@@ -974,11 +986,10 @@ export class Game {
         continue;
       }
       if (canPickup(d, px, py, pz)) {
-        const leftover = addItem(this.inv, d.id, 1, itemMaxStack(d.id)); // 用物品真实上限(鸡蛋=16)，不能默认 64 超叠
-        if (leftover === 0) {
-          this.drops.splice(i, 1);
-          this.hotbar.render(this.inv);
-        }
+        const leftover = addItem(this.inv, d.id, d.count, itemMaxStack(d.id)); // 整堆收取；按物品真实上限(鸡蛋=16)
+        if (leftover < d.count) this.hotbar.render(this.inv); // 至少拿到一部分 → 刷新背包
+        if (leftover === 0) this.drops.splice(i, 1);
+        else d.count = leftover; // 背包装不下，剩余量留在地上
       }
     }
     this.dropRenderer.sync(this.drops);
@@ -1028,8 +1039,7 @@ export class Game {
           );
         } else if (ev.kind === 'drops') {
           for (const stack of ev.items)
-            for (let k = 0; k < stack.count; k++)
-              this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z), Math.random, stack.count));
         } else if (ev.kind === 'death') {
           died = true; // 日晒烧死：本刻末移除
         }
@@ -1140,8 +1150,7 @@ export class Game {
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
         for (const stack of ev.items)
-          for (let k = 0; k < stack.count; k++)
-            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+          this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z), Math.random, stack.count));
       } else if (ev.kind === 'death') {
         const idx = this.mobs.indexOf(mob);
         if (idx >= 0) this.mobs.splice(idx, 1);
@@ -1176,6 +1185,16 @@ export class Game {
         best = mob;
       }
     }
+    // MC：近战被方块挡——眼睛到怪之间(距离<bestT)有实心方块则打不到（隔墙无效）
+    if (best !== null) {
+      const blocked = raycastVoxel(
+        { x: ox, y: oy, z: oz },
+        { x: dx, y: dy, z: dz },
+        bestT,
+        (bx, by, bz) => isSolidId(this.world.getBlock(bx, by, bz)),
+      );
+      if (blocked) return null;
+    }
     return best;
   }
 
@@ -1184,6 +1203,12 @@ export class Game {
     this.hand.swing();
     const held = this.inv[this.hotbar.index];
     const dmg = mobDamage(held ? held.id : null);
+    // MC：攻击生物消耗耐久——剑每击 −1，其它工具当武器用每击 −2（非工具/空手不掉）
+    const wtd = held ? toolOf(held.id) : null;
+    if (wtd) {
+      for (let n = wtd.kind === 'sword' ? 1 : 2; n > 0; n--) damageTool(this.inv, this.hotbar.index, wtd.maxDurability);
+      this.hotbar.render(this.inv);
+    }
     const cy = Math.cos(this.look.yaw);
     const sy = Math.sin(this.look.yaw);
     const res = hurtMob(mob, dmg, { x: cy, z: sy }, this.mobRng);
@@ -1191,8 +1216,7 @@ export class Game {
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
         for (const stack of ev.items)
-          for (let k = 0; k < stack.count; k++)
-            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)));
+          this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z), Math.random, stack.count));
       } else if (ev.kind === 'death') {
         const idx = this.mobs.indexOf(mob);
         if (idx >= 0) this.mobs.splice(idx, 1);
