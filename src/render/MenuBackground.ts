@@ -24,8 +24,8 @@ export class MenuBackground {
   private readonly y = 175; // 飞行高度（地表~100-180，在地形之上俯瞰海/湖）
 
   constructor(canvas: HTMLCanvasElement, seed = 4242) {
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
-    this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.gl = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    this.gl.setPixelRatio(1); // ⚡ FPS：锁 1× 渲染，免高 DPI 超采样(见 Renderer)
     this.scene.background = makeSkyTexture();
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 40, RADIUS * 16); // 雾在加载边缘前盖住
 
