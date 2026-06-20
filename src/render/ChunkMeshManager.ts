@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
-import { splitByY } from './meshSplit';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames } from './atlas';
 import { DAY_LENGTH } from '../core/world/dayNight';
@@ -32,10 +31,23 @@ const MC_LIGHT_GLSL =
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
 
+interface ChunkMeshes {
+  opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
+  water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
+}
+
+interface ChunkMeshes {
+  opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
+  water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
+}
+
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
 export class ChunkMeshManager {
-  // 每区块一组 Mesh：4 套材质各按竖直分段(见 meshSplit)切成若干小段，包围球小 → 视锥剔除生效。
-  private readonly meshes = new Map<string, THREE.Mesh[]>();
+  private readonly meshes = new Map<string, ChunkMeshes>();
   private readonly opaqueMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
@@ -372,34 +384,24 @@ export class ChunkMeshManager {
   }
 
   private unload(k: string): void {
-    const arr = this.meshes.get(k);
-    if (!arr) return;
-    for (const mesh of arr) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
+    const m = this.meshes.get(k);
+    if (!m) return;
+    for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
+      if (mesh) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
     }
     this.meshes.delete(k);
   }
 
-  // 把一套网格数据按竖直分段切小，逐段建 Mesh 入场景（空数据返回空数组）。
-  // 分段后每段几何在 Y 上很矮 → 包围球小 → three.js 视锥剔除能剔掉视野外(身后/上下)的段。
-  // setup 对每段 Mesh 应用阴影/自定义深度材质等设置。
-  private addSections(
-    data: MeshData,
-    mat: THREE.Material,
-    cx: number,
-    cz: number,
-    setup?: (m: THREE.Mesh) => void,
-  ): THREE.Mesh[] {
-    const out: THREE.Mesh[] = [];
-    for (const sec of splitByY(data)) {
-      const mesh = new THREE.Mesh(this.buildGeo(sec), mat);
-      mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
-      if (setup) setup(mesh);
-      this.scene.add(mesh);
-      out.push(mesh);
-    }
-    return out;
+  // 把一套网格数据建成 Mesh 并入场景（空数据返回 null）
+  private addMesh(data: MeshData, mat: THREE.Material, cx: number, cz: number): THREE.Mesh | null {
+    if (data.indices.length === 0) return null;
+    const mesh = new THREE.Mesh(this.buildGeo(data), mat);
+    mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
+    this.scene.add(mesh);
+    return mesh;
   }
 
   // 把网格数据上屏(buildGeo + 入场景 + 阴影标记)。worker 回调与同步回退共用。
@@ -418,24 +420,19 @@ export class ChunkMeshManager {
 
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
-    const all: THREE.Mesh[] = [];
-    // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影。
-    all.push(
-      ...this.addSections(mesh.opaque, this.opaqueMat, cx, cz, (m) => {
-        m.castShadow = true;
-        m.receiveShadow = true;
-      }),
-    );
-    all.push(
-      ...this.addSections(mesh.cutout, this.cutoutMat, cx, cz, (m) => {
-        m.castShadow = true;
-        m.receiveShadow = true;
-        if (this.leafDepthMat) m.customDepthMaterial = this.leafDepthMat;
-      }),
-    );
-    all.push(...this.addSections(mesh.water, this.waterMat, cx, cz));
-    all.push(...this.addSections(mesh.torch, this.torchMat, cx, cz));
-    this.meshes.set(this.key(cx, cz), all);
+    const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
+    const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
+    const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
+    // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
+    om.castShadow = true;
+    om.receiveShadow = true;
+    if (cm) {
+      cm.castShadow = true;
+      cm.receiveShadow = true;
+      if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
+    }
+    this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
     const built = this.world.peek(cx, cz);
     if (built) built.dirty = false;
   }
@@ -507,10 +504,10 @@ export class ChunkMeshManager {
     todo.sort((a, b) => a.d - b.d);
     for (let i = 0; i < Math.min(budget, todo.length); i++) this.rebuild(todo[i].cx, todo[i].cz);
     // 已加载但因移动落进雾区的区块：隐藏(不绘制)而非卸载——避免来回移动时反复重建网格、无闪烁
-    for (const [k, arr] of this.meshes) {
+    for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of arr) mesh.visible = vis;
+      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
     }
   }
 
