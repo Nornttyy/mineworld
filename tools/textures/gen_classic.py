@@ -79,56 +79,76 @@ def streak(px, color, x, y, length, rng):
 # ---- per-block generators：经典闷色 + 立体软阴影 + 低噪点 -------------------
 
 def stone(rng):
+    # 真 vanilla 石头：均匀中性灰 + 平铺细噪（不是带高光暗部的立体卵石），零星更深小点。
     im = new()
-    fill(im, "#888888")
-    speck(im, ["#7f7f7f", "#929292"], 0.12, rng)
-    for _ in range(4):  # 软颗粒
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#888888", "#9b9b9b", "#747474", rng)
+    fill(im, "#7e7e7e")  # map color #8b8b8b 偏亮，纹理本体略深更耐看
+    speck(im, ["#757575", "#888888", "#6e6e6e"], 0.34, rng)  # 紧致细噪，读作岩石颗粒而非静电
     px = im.load()
-    for _ in range(3):  # 细裂纹，增加岩石质感
-        streak(px, "#6f6f6f", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
+    for _ in range(9):  # 零星更深的 1-2 像素小点（矿物斑感，不做立体）
+        x, y = rng.randrange(S), rng.randrange(S)
+        px[x, y] = hx("#636363")
+        if rng.random() < 0.45:
+            px[(x + 1) % S, y] = hx("#676767")
     return im
 
 
 def cobblestone(rng):
-    # 圆润鹅卵石 + 深色石缝（不再是噪点砖）。石头 wraps，故石缝平铺无缝。
+    # 圆润鹅卵石 + 深色石缝。真 MC 圆石：卵石深浅不一(冷暖灰交错)，对比比石头强。wraps 故无缝。
     im = new()
-    fill(im, "#565656")  # mortar
+    fill(im, "#535353")  # 深石缝
+    tones = [
+        ("#8c8c8c", "#9e9e9e", "#757575"),  # 亮卵石
+        ("#7b7b7b", "#8b8b8b", "#666666"),  # 中卵石
+        ("#9a9a9a", "#ababab", "#828282"),  # 更亮卵石
+        ("#6f6f6f", "#7f7f7f", "#5c5c5c"),  # 暗卵石
+    ]
     for cx, cy in [(3, 3), (11, 4), (7, 9), (2, 12), (13, 11), (9, 1), (14, 15), (5, 7)]:
-        pebble(im, cx, cy, rng.choice([3, 3, 4]), "#8a8a8a", "#9c9c9c", "#737373", rng, 0.3)
+        t = rng.choice(tones)
+        pebble(im, cx, cy, rng.choice([3, 3, 4]), t[0], t[1], t[2], rng, 0.32)
+    px = im.load()
+    for _ in range(10):  # 卵石上零星颗粒，去塑料感
+        x, y = rng.randrange(S), rng.randrange(S)
+        if px[x, y] != hx("#535353"):
+            px[x, y] = hx(rng.choice(["#828282", "#909090", "#6e6e6e"]))
     return im
 
 
 def dirt(rng):
+    # 真 vanilla 泥土：扁平棕色细噪 + 零星深色小石粒（不做立体卵石）。base 贴近 map color #a9704f 但略沉。
     im = new()
-    fill(im, "#7e5a3c")
-    speck(im, ["#6f4f33", "#8a6648"], 0.15, rng)
-    for _ in range(5):
-        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2]), "#7e5a3c", "#8f6a49", "#654227", rng)
+    fill(im, "#866043")
+    speck(im, ["#79553a", "#946b49", "#6e4d33"], 0.34, rng)
+    px = im.load()
+    for _ in range(7):  # 零星 1 像素深色土砾
+        x, y = rng.randrange(S), rng.randrange(S)
+        px[x, y] = hx("#5d4029")
     return im
 
 
-GB, GH, GL = "#6a9a4a", "#79ad57", "#577f3c"  # 经典闷绿（base/highlight/shadow）
+GB, GH, GL = "#83b154", "#94c065", "#6f9a45"  # 真 MC 平原草绿（map #8db360 / 草 tint #7cbd6b 一族）
 
 
 def grass_top(rng):
+    # 真 vanilla 草顶：饱满平原绿 + 平铺细噪（无立体草簇），零星深/亮草点。
     im = new()
     fill(im, GB)
-    speck(im, ["#638f45", "#73a651"], 0.15, rng)
-    for _ in range(5):  # 软草簇
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, GB, GH, GL, rng)
+    speck(im, ["#7aa84d", "#8dba5e", "#6f9a45"], 0.34, rng)
+    px = im.load()
+    for _ in range(8):
+        x, y = rng.randrange(S), rng.randrange(S)
+        px[x, y] = hx(rng.choice([GL, GH, "#669040"]))
     return im
 
 
 def grass_side(rng):
-    # 泥土身 + 顶部草带（顶行提亮、按列锯齿下垂）
+    # 真 MC 草侧：泥土身(同新 dirt) + 顶部绿草带按列锯齿下垂(overhang)。
     im = new()
-    fill(im, "#7e5a3c")
-    speck(im, ["#6f4f33", "#8a6648"], 0.14, rng)
+    fill(im, "#866043")
+    speck(im, ["#79553a", "#946b49", "#6e4d33"], 0.32, rng)
     px = im.load()
-    for _ in range(3):
-        pebble(im, rng.randrange(S), rng.randrange(4, S), 2, "#7e5a3c", "#8f6a49", "#654227", rng)
-    g = [GB, "#638f45", "#73a651"]
+    for _ in range(6):  # 零星深土砾
+        px[rng.randrange(S), rng.randrange(4, S)] = hx("#5d4029")
+    g = [GB, "#7aa84d", "#8dba5e"]
     for x in range(S):
         depth = rng.randint(3, 4)
         for y in range(depth):
@@ -213,14 +233,14 @@ def coal_ore(rng):
 
 def water(rng):
     im = new()
-    fill(im, "#3a6ea5")  # 经典闷蓝
-    speck(im, ["#33639a", "#4178b0"], 0.14, rng)
+    fill(im, "#3a55c0")  # 真 MC 水偏靛蓝（之前偏青绿）
+    speck(im, ["#3349ad", "#4763cc"], 0.14, rng)
     px = im.load()
     for _ in range(4):  # 微波纹
         y = rng.randrange(S)
         x0 = rng.randrange(S)
         for dx in range(rng.randint(2, 4)):
-            px[(x0 + dx) % S, y] = hx("#5188bf")
+            px[(x0 + dx) % S, y] = hx("#5a78da")
     return im
 
 
