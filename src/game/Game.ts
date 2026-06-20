@@ -195,6 +195,7 @@ export class Game {
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   private fov = 70;
   private shadowTick = 99; // 阴影节流计数；首帧即更新一次 shadow map
+  private evictCt = 0; // 区块数据驱逐节流计数（治越走越卡的内存泄漏）
   private last = 0;
   private acc = 0;
   private survival: Survival;
@@ -249,6 +250,16 @@ export class Game {
       this.world.setBlock(x, y, z, save.edits[key]);
       this.fluidSim.activate(x, y, z);
     }
+    // 远处区块被驱逐释放内存(治越走越卡)，走回来重生成是纯地形 → 用此 hook 把该区块的玩家改动贴回。
+    this.world.editHook = (cx, cz, c): void => {
+      for (const key in this.save.edits) {
+        const ci = key.indexOf(',');
+        const cj = key.indexOf(',', ci + 1);
+        const x = +key.slice(0, ci);
+        const z = +key.slice(cj + 1);
+        if ((x >> 4) === cx && (z >> 4) === cz) c.set(x & 15, +key.slice(ci + 1, cj), z & 15, this.save.edits[key]);
+      }
+    };
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
     this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
@@ -576,6 +587,12 @@ export class Game {
         loadBudget, // 每帧最多【派发】给 worker 网格化(后台算，不卡主线程)
       );
       this.chunks.flushMesh(loadBudget); // 每帧最多【上屏】worker 算好的网格(buildGeo 限量 → 稳帧)
+      // 周期驱逐远处区块数据：治"越走越卡"——原来生成过的区块永留内存(~147KB/块)、探索越远越涨→GC抖→崩。
+      // 半径 = 渲染距离 + 3(留足网格邻区 + 物理余量)，确保不驱逐还在用的；走回来重生成 + editHook 复原改动。
+      if (++this.evictCt >= 45) {
+        this.evictCt = 0;
+        this.world.evictBeyond(worldToChunk(Math.floor(this.player.pos.x)), worldToChunk(Math.floor(this.player.pos.z)), this.renderDistance + 3);
+      }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
       const wantFov = playing && readMove().sprint ? 80 : 70;

@@ -10,6 +10,9 @@ export class ChunkWorld {
   private readonly pending = new Set<string>(); // 已请求后台生成、还没回来的区块
   private readonly workers: Worker[] = [];
   private rr = 0; // round-robin 派发到各 worker
+  // 区块(重)生成后回调：让游戏层把该区块的玩家改动(挖/放)重新贴回去——因为远处区块会被驱逐释放内存，
+  // 走回来重新生成的是纯地形，必须靠这个 hook 复原改动，否则建筑/挖洞会"走远再回来就没了"。
+  editHook: ((cx: number, cz: number, c: Chunk) => void) | null = null;
 
   constructor(readonly seed: number) {
     // 浏览器：开多个后台 Worker 并行生成(深世界生成重)，数量按 CPU 核数(上限4)；
@@ -27,6 +30,7 @@ export class ChunkWorld {
           this.pending.delete(k);
           if (this.chunks.has(k)) return; // 已被同步回退生成，丢弃后台结果
           const c = Chunk.fromBuffers(blocks, fluid);
+          this.editHook?.(cx, cz, c); // 复原该区块的玩家改动(驱逐后重生成是纯地形)
           c.dirty = true; // 等网格化调度下一帧把它建出来
           this.chunks.set(k, c);
         };
@@ -61,12 +65,25 @@ export class ChunkWorld {
     return this.chunks.get(this.key(cx, cz));
   }
 
+  // 驱逐离 (centerCx,centerCz) 切比雪夫距离 > radius 的区块，释放内存。
+  // 治"越走越卡"：原来生成过的区块永远留在 Map 里(每块 ~147KB) → 探索越远内存越涨 → GC 抖→崩。
+  // 走回来会重新生成 + editHook 复原改动。radius 要 > 渲染半径+网格邻区(由游戏层保证)，免驱逐掉在用的。
+  evictBeyond(centerCx: number, centerCz: number, radius: number): void {
+    for (const k of [...this.chunks.keys()]) {
+      const ci = k.indexOf(',');
+      const cx = +k.slice(0, ci);
+      const cz = +k.slice(ci + 1);
+      if (Math.abs(cx - centerCx) > radius || Math.abs(cz - centerCz) > radius) this.chunks.delete(k);
+    }
+  }
+
   // 取区块；不存在则同步生成并缓存(物理/raycast 等需立即时的回退；正常区块已被 request 预生成)
   getChunk(cx: number, cz: number): Chunk {
     const k = this.key(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
       c = generateChunk(cx, cz, this.seed);
+      this.editHook?.(cx, cz, c); // 复原该区块的玩家改动
       this.chunks.set(k, c);
       this.pending.delete(k);
     }

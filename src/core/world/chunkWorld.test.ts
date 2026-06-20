@@ -26,6 +26,27 @@ describe('ChunkWorld', () => {
     expect(c.dirty).toBe(true);
   });
 
+  it('evictBeyond 驱逐远处区块、保留近处（治越走越卡的内存泄漏）', () => {
+    const w = new ChunkWorld(1);
+    w.getChunk(0, 0); // 近
+    w.getChunk(2, 0); // 半径=2 边界内
+    w.getChunk(10, 10); // 远
+    w.evictBeyond(0, 0, 2);
+    expect(w.hasChunk(0, 0)).toBe(true);
+    expect(w.hasChunk(2, 0)).toBe(true); // 切比雪夫=2，不驱逐
+    expect(w.hasChunk(10, 10)).toBe(false); // 远 → 驱逐
+  });
+
+  it('editHook 在区块(重)生成时复原玩家改动（驱逐后走回来不丢建筑）', () => {
+    const w = new ChunkWorld(1);
+    // 模拟游戏层：把"该区块的改动"在生成时贴回（这里在 (20,30,20) 放方块 id=7）
+    w.editHook = (cx, cz, c): void => {
+      if (cx === 1 && cz === 1) c.set(20 & 15, 30, 20 & 15, 7);
+    };
+    const c = w.getChunk(1, 1); // 触发生成 → 应调用 editHook
+    expect(c.get(20 & 15, 30, 20 & 15)).toBe(7);
+  });
+
   it('改角格的水会把【对角】邻块也标脏（cornerH/AO 采样对角，否则角处留旧缝）', () => {
     const w = new ChunkWorld(1);
     w.getChunk(0, 0);
