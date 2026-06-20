@@ -261,6 +261,7 @@ export class Game {
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
+    this.skyObjects.setShaders(loadSettings().shaders); // 光影初值：开=柔和真实云、关=MC立体云
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.furnaceUI.onChange = (): void => this.hotbar.render(this.inv);
@@ -683,9 +684,10 @@ export class Game {
     this.dropRenderer.setAtlas(atlas);
   }
 
-  // 光影开关（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光，无需重建网格。
+  // 光影开关（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光 + 云风格(立体↔真实)，无需重建网格。
   setShaders(on: boolean): void {
     this.chunks.setShaders(on);
+    this.skyObjects.setShaders(on);
   }
 
   // 渲染距离（设置项）：改区块加载半径 + 雾距(far=rd×16 格) + 雾剔除距离。小=雾近、区块少、更流畅。
