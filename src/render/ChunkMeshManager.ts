@@ -165,19 +165,22 @@ export class ChunkMeshManager {
       shader.uniforms.uShadowTexel = this.uShadowTexel;
       shader.uniforms.uShadowOn = this.uShadowOn;
       shader.uniforms.uSunUp = this.uSunUp;
-      if (sway) shader.uniforms.uTime = this.uTime;
-      // 树叶随风摆：按【世界坐标(原始 position)+时间】位移 → 相邻叶共享顶点=同步摆动、无裂缝。
+      if (sway) {
+        shader.uniforms.uTime = this.uTime;
+        shader.uniforms.uShaders = this.uShaders; // 仅「光影」开时摆（uShaders 门控）
+      }
+      // 树叶随风摆：按【世界坐标(原始 position)+时间】位移 → 相邻叶共享顶点=同步摆动、无裂缝。×uShaders=只在光影开时摆。
       const swayCode = sway
-        ? '{ vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
-          ' transformed.x += sin(ph + uTime*1.4) * 0.05;' +
-          ' transformed.z += sin(ph*1.3 + uTime*1.1) * 0.05;' +
-          ' transformed.y += sin(ph*0.8 + uTime*1.7) * 0.025; }\n'
+        ? '{ float sw = uShaders * 0.05; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
+          ' transformed.x += sin(ph + uTime*1.4) * sw;' +
+          ' transformed.z += sin(ph*1.3 + uTime*1.1) * sw;' +
+          ' transformed.y += sin(ph*0.8 + uTime*1.7) * sw * 0.5; }\n'
         : '';
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\n' +
-            (sway ? 'uniform float uTime;\n' : '') +
+            (sway ? 'uniform float uTime;\nuniform float uShaders;\n' : '') +
             'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
@@ -293,16 +296,16 @@ export class ChunkMeshManager {
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
             '  vec3 r = rip(vWPos.xz, uTime);\n' + // r.x=波纹高度(明暗带), r.yz=坡度(法线)
-            '  vec3 N = normalize(vec3(-r.y * 0.06, 1.0, -r.z * 0.06));\n' + // 波纹法线(随 ±t 流动)
+            '  vec3 N = normalize(vec3(-r.y * 0.16, 1.0, -r.z * 0.16));\n' + // 波纹法线：加大扰动→反射被波纹打碎、不再镜面塑料感
 
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
-            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.9;\n' + // 略压暗,不刺白
-            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.82);\n' + // Schlick,封顶留水色
+            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.8;\n' + // 略压暗,不刺白(反射别太满=别像镜子)
+            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.66);\n' + // Schlick,封顶降低→多透水色少反光
             '  vec3 base = vec3(0.05, 0.26, 0.40) * vLF * vTint;\n' + // 清澈水色(深蓝绿,被天光照)
             '  vec3 col = mix(base, skyR, fres);\n' + // 掠角→大幅反天空、但仍透出水蓝
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 200.0) * uSkyMul * vec3(1.0, 0.95, 0.82) * 1.6;\n' + // 太阳粼光
+            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.9;\n' + // 太阳粼光：软化(pow200→90,亮度↓)→碎银粼光非塑料硬高光
             '  col += r.x * 0.03 * vLF;\n' + // 【可见波纹明暗带】随 ±t 流动 → 一眼看见波纹在水面飘过
             '  diffuseColor.rgb = col;\n' +
             '  diffuseColor.a = mix(0.62, 0.96, fres);\n' + // 俯看清澈见底、掠角反光不透(菲涅尔透明度)
