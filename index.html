@@ -31,6 +31,9 @@
         inset: 0;
         z-index: 1;
         display: block;
+        filter: blur(8px);
+        /* 放大一点：盖住 blur 在屏幕四边产生的透明描边 */
+        transform: scale(1.08);
       }
       #menu,
       #worldlist,
