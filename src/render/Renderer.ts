@@ -14,10 +14,9 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
-    // ⚡ FPS：像素风游戏无需超采样。高 DPI 屏(retina=2×)按 min(DPR,2) 会渲 4× 像素=填充率杀手。
-    // 锁 1×(按 CSS 像素渲染)→ 高 DPI 上 2~4× 帧率，NearestFilter 贴图仍清晰(块边硬)。
+    // 分辨率按设备(用户要求保清晰)；高 DPI 屏更费但更锐。提帧改走「区块加载优化」而非降分辨率。
     // ⚠️ 不要加 powerPreference:'high-performance' —— 某些集显/混合显卡机器会创建上下文失败 → 进不了游戏。
-    this.gl.setPixelRatio(1);
+    this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     // 真实投影阴影：开启 shadow map（太阳 DirectionalLight 投影到地面，见 ChunkMeshManager）
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;

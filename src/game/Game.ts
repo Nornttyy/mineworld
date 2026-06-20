@@ -552,13 +552,16 @@ export class Game {
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
 
+      // 自适应区块加载预算：按上一帧耗时(dt)调节本帧的派发/上屏量——流畅就多铺(快速填满)、
+      // 卡就少铺(别把 collectNeighbors 拷贝 + buildGeo/GPU 上传堆到已经慢的帧上)→ 移动时加载更顺、少掉帧。
+      const loadBudget = dt > 0.026 ? 1 : dt > 0.018 ? 2 : 4; // <38fps→1，38~55→2，>55fps→4
       this.chunks.update(
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
         this.renderDistance,
-        2, // 每帧最多【派发】2 个区块给 worker 网格化(后台算，不卡主线程)
+        loadBudget, // 每帧最多【派发】给 worker 网格化(后台算，不卡主线程)
       );
-      this.chunks.flushMesh(2); // 每帧最多【上屏】2 个 worker 算好的网格(buildGeo 限量 → 稳帧)
+      this.chunks.flushMesh(loadBudget); // 每帧最多【上屏】worker 算好的网格(buildGeo 限量 → 稳帧)
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
       const wantFov = playing && readMove().sprint ? 80 : 70;
