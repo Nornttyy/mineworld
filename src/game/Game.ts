@@ -83,6 +83,7 @@ const RENDER_RADIUS = 6; // 渲染半径（区块）
 const REACH = 5; // 交互距离（方块）
 const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
+const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
 const AIR = 0;
 const EAT_TIME = 1.6; // 吃东西耗时（秒，同 MC）
 const LEAF_APPLE_CHANCE = 0.05; // 树叶掉苹果概率（1:1 是 0.5%，调高更可玩）
@@ -202,6 +203,8 @@ export class Game {
   private dead = false;
   private fallDistance = 0; // 当前连续下落格数
   private hurtCd = 0; // 受伤无敌帧剩余刻(同 MC：受伤后 0.5s=10 刻无敌，防多怪/多箭同刻叠加爆伤)
+  private readonly coordEl: HTMLElement; // F3 坐标显示(X/Y/Z；Y 按 WORLD_Y_OFFSET 偏移)
+  private coordOn = false;
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
@@ -264,6 +267,11 @@ export class Game {
     this.skyObjects.setShaders(loadSettings().shaders); // 光影初值：开=柔和真实云、关=MC立体云
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
+    this.coordEl = document.createElement('div');
+    this.coordEl.style.cssText =
+      'position:fixed;left:8px;top:8px;z-index:30;padding:4px 8px;font:14px Zpix,monospace;' +
+      'color:#fff;background:rgba(0,0,0,.45);white-space:pre;display:none;pointer-events:none;text-shadow:1px 1px 0 #000;';
+    document.body.appendChild(this.coordEl);
     this.furnaceUI.onChange = (): void => this.hotbar.render(this.inv);
     this.invUI.onChange = (): void => this.hotbar.render(this.inv);
     this.physWorld = {
@@ -340,6 +348,12 @@ export class Game {
         if (this.furnaceKey) this.closeFurnace();
         else if (this.craftingGrid > 0) this.closeCrafting();
         else if (document.pointerLockElement === canvas) this.openCrafting(2);
+        return;
+      }
+      if (e.code === 'F3') {
+        e.preventDefault(); // F3 切换坐标显示(MC 风)
+        this.coordOn = !this.coordOn;
+        this.coordEl.style.display = this.coordOn ? 'block' : 'none';
         return;
       }
       if (e.code === 'Escape' && this.furnaceKey) {
@@ -603,6 +617,10 @@ export class Game {
       this.hand.update(dt, playing ? walk : 0);
       if (this.hand.camera.aspect !== this.renderer.camera.aspect) {
         this.hand.resize(this.renderer.camera.aspect);
+      }
+      if (this.coordOn) {
+        const p = this.player.pos;
+        this.coordEl.textContent = `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}`;
       }
       this.renderer.render();
       this.renderer.renderOverlay(this.hand.scene, this.hand.camera);
