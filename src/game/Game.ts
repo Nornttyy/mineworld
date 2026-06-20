@@ -556,6 +556,8 @@ export class Game {
         2, // 每帧最多【派发】2 个区块给 worker 网格化(后台算，不卡主线程)
       );
       this.chunks.flushMesh(2); // 每帧最多【上屏】2 个 worker 算好的网格(buildGeo 限量 → 稳帧)
+      // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
+      this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
       const wantFov = playing && readMove().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;

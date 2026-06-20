@@ -4,6 +4,7 @@ import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames } from './atlas';
+import { chunkInView } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
@@ -519,6 +520,16 @@ export class ChunkMeshManager {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
       for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
+    }
+  }
+
+  /** 每帧：把视野外(身后/两侧)的区块隐藏，省掉它们的绘制。在 update()(已设雾可见性)之后调，
+   *  只往「不可见」方向收紧——绝不把雾里的区块重新点亮。px,pz=玩家世界 XZ；dirX,dirZ=单位水平视向。 */
+  cullToView(px: number, pz: number, dirX: number, dirZ: number): void {
+    for (const [k, m] of this.meshes) {
+      const [cx, cz] = k.split(',').map(Number);
+      if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ)) continue;
+      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = false;
     }
   }
 
