@@ -80,6 +80,7 @@ import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
 import type { WorldSave } from '../save/worldStore';
+import { touchesCactus } from '../core/survival/cactus';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH = 5; // 交互距离（方块）
@@ -669,6 +670,10 @@ export class Game {
       applyDamage(this.survival, fall.damage);
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
       this.flashHurt();
+    }
+    // 仙人掌接触伤害(MC 1.12：贴住每 0.5s 掉 1 血，复用 hurtCd 无敌帧防多刻叠加)
+    if (touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z, (x, y, z) => this.world.getBlock(x, y, z))) {
+      this.hurtPlayer(1, 0, 0);
     }
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
