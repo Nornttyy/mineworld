@@ -21,8 +21,33 @@ describe('settings sanitize', () => {
     expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('cartoon');
   });
 
-  it('光影开关：非布尔回退默认', () => {
-    expect(sanitizeSettings({ shaders: true }).shaders).toBe(true);
-    expect(sanitizeSettings({ shaders: 'yes' }).shaders).toBe(DEFAULT_SETTINGS.shaders);
+  it('old shaders 布尔值迁移到 lightingQuality', () => {
+    expect(sanitizeSettings({ shaders: true }).lightingQuality).toBe('high');
+    expect(sanitizeSettings({ shaders: false }).lightingQuality).toBe('standard');
+  });
+});
+
+describe('lightingQuality 迁移', () => {
+  it('默认是 standard', () => {
+    expect(DEFAULT_SETTINGS.lightingQuality).toBe('standard');
+  });
+  it('旧存档 shaders:true → high', () => {
+    expect(sanitizeSettings({ shaders: true }).lightingQuality).toBe('high');
+  });
+  it('旧存档 shaders:false → standard', () => {
+    expect(sanitizeSettings({ shaders: false }).lightingQuality).toBe('standard');
+  });
+  it('缺失 → standard', () => {
+    expect(sanitizeSettings({}).lightingQuality).toBe('standard');
+  });
+  it('已是新值则保留', () => {
+    expect(sanitizeSettings({ lightingQuality: 'off' }).lightingQuality).toBe('off');
+    expect(sanitizeSettings({ lightingQuality: 'high' }).lightingQuality).toBe('high');
+  });
+  it('非法值 → standard', () => {
+    expect(sanitizeSettings({ lightingQuality: 'ultra' }).lightingQuality).toBe('standard');
+  });
+  it('新值优先于旧 shaders（同时存在时以 lightingQuality 为准）', () => {
+    expect(sanitizeSettings({ shaders: true, lightingQuality: 'off' }).lightingQuality).toBe('off');
   });
 });
