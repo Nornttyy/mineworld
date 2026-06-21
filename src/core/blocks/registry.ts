@@ -232,6 +232,18 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: null,
   },
+  // 沙石：沙漠沙层之下，镐采。MC 硬度 0.8。
+  { id: 18, name: 'sandstone', solid: true, transparent: false, faces: all(T.sandstone), hardness: 0.8, drop: 18, needsTool: true, tool: 'pickaxe' },
+  // 仙人掌：沙上生长，徒手可采；接触伤害(游戏层处理)。MC 硬度 0.4。渲染为实心方块。
+  { id: 19, name: 'cactus', solid: true, transparent: true, faces: all(T.cactus), hardness: 0.4, drop: 19, needsTool: false, tool: null },
+  // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。半透明渲染。
+  { id: 20, name: 'ice', solid: true, transparent: true, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
+  // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。
+  { id: 21, name: 'snow_layer', solid: false, transparent: true, faces: all(T.snow), hardness: 0, drop: null, needsTool: false, tool: 'shovel' },
+  // 云杉原木：同橡木原木数值，斧更快。顶/底复用 oak_log_top。
+  { id: 22, name: 'spruce_log', solid: true, transparent: false, faces: column(T.spruce_log, T.oak_log_top, T.oak_log_top), hardness: 3.33, drop: 22, needsTool: false, tool: 'axe' },
+  // 云杉树叶：同橡树叶(镂空、手挖快不掉)。
+  { id: 23, name: 'spruce_leaves', solid: true, transparent: true, faces: all(T.spruce_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
 ];
 
 export const GRASS = 3;
@@ -257,8 +269,8 @@ export const SPRUCE_LEAVES = 23; // 云杉树叶
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
-export const isCutoutId = (id: number): boolean => id === OAK_LEAVES; // 镂空(树叶)
-export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS; // cross billboard 植物(草/长草)
+export const isCutoutId = (id: number): boolean => id === OAK_LEAVES || id === SPRUCE_LEAVES; // 镂空(树叶)
+export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || id === SNOW_LAYER; // cross/薄层 特判
 // 可被挖掘射线选中/打掉：实心方块 + 植物。草丛虽非实心(可穿过、不挡移动)，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
 export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id);
@@ -306,3 +318,6 @@ export const dropFor = (id: number, tool: HeldTool | null = null): number | null
 export const handDrop = (id: number): number | null => dropFor(id, null);
 export const blockDrop = (id: number): number | null => BLOCKS[id]?.drop ?? null;
 export const blockTool = (id: number): 'pickaxe' | 'axe' | 'shovel' | null => BLOCKS[id]?.tool ?? null;
+export const isCactus = (id: number): boolean => id === CACTUS;
+// 方块滑度（水平移动摩擦用）：冰滑(同 MC 0.98)，其余普通 0.6。
+export const blockSlipperiness = (id: number): number => (id === ICE ? 0.98 : 0.6);
