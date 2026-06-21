@@ -277,7 +277,7 @@ export class ChunkMeshManager {
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
             'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.2 * aTop * uShaders;\n' + // 水面顶点上下起伏 ±0.1格(降幅防流动/瀑布水撕缝;大起伏与流水几何本质冲突)
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * aTop * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(仅平静水面 aTop=1;瀑布/流水体 aTop=0 不起伏→不撕缝)
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
