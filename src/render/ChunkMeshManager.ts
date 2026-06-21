@@ -294,15 +294,16 @@ export class ChunkMeshManager {
 
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
-            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.8;\n' + // 略压暗,不刺白(反射别太满=别像镜子)
-            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.66);\n' + // Schlick,封顶降低→多透水色少反光
-            '  vec3 base = vec3(0.05, 0.26, 0.40) * vLF * vTint;\n' + // 清澈水色(深蓝绿,被天光照)
-            '  vec3 col = mix(base, skyR, fres);\n' + // 掠角→大幅反天空、但仍透出水蓝
+            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
+            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
+            '  vec3 base = vec3(0.10, 0.50, 0.55) * vLF * vTint;\n' + // 明亮青绿水色(浅滩清澈感)
+            '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.9;\n' + // 太阳粼光：软化(pow200→90,亮度↓)→碎银粼光非塑料硬高光
-            '  col += r.x * 0.03 * vLF;\n' + // 【可见波纹明暗带】随 ±t 流动 → 一眼看见波纹在水面飘过
+            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
+            '  float caus = pow(clamp(r.x * 0.5 + 0.5, 0.0, 1.0), 3.0);\n' + // 焦散:波纹高亮区→明亮光脉
+            '  col += caus * 0.14 * uSkyMul * vec3(0.8, 1.0, 0.95);\n' + // 青白焦散光纹,仅白天可见
             '  diffuseColor.rgb = col;\n' +
-            '  diffuseColor.a = mix(0.62, 0.96, fres);\n' + // 俯看清澈见底、掠角反光不透(菲涅尔透明度)
+            '  diffuseColor.a = mix(0.40, 0.82, fres);\n' + // 俯看0.40高透明见底、掠角0.82半遮
             '}',
         );
     };
