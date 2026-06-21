@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Mob, MobKind } from '../core/entity/mob';
 import { bodyTexture, headTexture } from './mobTextures';
+import { creeperFuseVisual } from './creeperVisual';
 
 // 把生物渲染成 MC 风的盒状模型。每只一套自己的材质(便于受击红闪 + 个体染色)，颜色 + 假面光烤进顶点
 // (与体素世界同为 unlit)。走路摆腿 + 头点动 + 尾巴甩 + 鸡啄地 + 呼吸起伏；朝移动方向；受击 0.5s 红闪。
@@ -166,7 +167,7 @@ const FLASH = new THREE.Color(0xff5a5a);
 const WHITE = new THREE.Color(1, 1, 1); // 苦力怕引信闪白
 
 export class MobRenderer {
-  private readonly models = new Map<Mob, Model & { phase: number; t: number }>();
+  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number }>();
   constructor(private readonly scene: THREE.Scene) {}
 
   sync(mobs: Mob[], dt: number): void {
@@ -182,7 +183,8 @@ export class MobRenderer {
       if (!m) {
         const built = buildModel(mob.kind);
         this.scene.add(built.group);
-        m = { ...built, phase: 0, t: Math.random() * 10 }; // t 错开 → 不同步呼吸
+        // baseScale = 建模时的个体大小(g.scale)；苦力怕引信鼓胀时在它基础上放大、引信熄灭即复原
+        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
       }
       m.t += dt;
@@ -190,12 +192,14 @@ export class MobRenderer {
       m.group.rotation.y = -mob.yaw;
       const tint = mob.hurtCooldown > 0 ? FLASH : m.base; // 受击红闪，平时个体色
       for (const mt of m.mats) mt.color.copy(tint);
-      // 苦力怕引信：越接近引爆越闪白（同 MC 引爆征兆）；fuse 归 0 时下一帧自动复原
-      if (mob.kind === 'creeper' && mob.fuse > 0) {
-        const w = Math.min(1, mob.fuse / 30 + 0.3 * Math.abs(Math.sin(mob.fuse * 0.7)));
-        const flash = tint.clone().lerp(WHITE, w);
+      // 苦力怕引信（同 MC 引爆征兆）：越接近引爆越【闪白】+【鼓胀变大】，二者同步脉动；
+      // fuse 归 0(走远/被墙挡)→ whiteness=0、swell=1 → 颜色与大小下一帧自动复原。
+      const fv = creeperFuseVisual(mob.kind === 'creeper' ? mob.fuse : 0);
+      if (fv.whiteness > 0) {
+        const flash = tint.clone().lerp(WHITE, fv.whiteness);
         for (const mt of m.mats) mt.color.copy(flash);
       }
+      m.group.scale.setScalar(m.baseScale * fv.swell); // 鼓胀（非苦力怕/未点燃时 swell=1 → 恒为个体原大小）
 
       const speed = Math.hypot(mob.vel.x, mob.vel.z); // 格/tick
       const moving = speed > 0.002;
