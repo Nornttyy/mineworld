@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
 import { GodRays } from './GodRays';
+import { Bloom } from './Bloom';
 import type { LightingQuality } from '../core/settings';
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
@@ -37,6 +38,9 @@ export class Renderer {
   private readonly godStd = new GodRays(24); // standard 档：24 采样
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
+
+  // Bloom 后处理（1/4 分辨率内部缓冲）
+  private bloom: Bloom | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -86,6 +90,14 @@ export class Renderer {
       this.rt.dispose();
       this.rt = this.buildRT(w, h);
     }
+    // Bloom RT 重建为 1/4 分辨率（CSS 像素，Bloom 内部乘 pr）。
+    if (this.bloom !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.bloom.setSize(
+        Math.max(1, Math.round((w * pr) / 4)),
+        Math.max(1, Math.round((h * pr) / 4)),
+      );
+    }
   }
 
   /** 节流重渲一次 shadow map（autoUpdate 关、靠这个触发；昼夜/玩家移动时由 Game 调）。 */
@@ -99,10 +111,14 @@ export class Renderer {
    */
   setGodRays(opts: GodRayOpts | null): void {
     if (opts === null || opts.quality === 'off') {
-      // 关闭后处理：销毁 RT，清空 opts。
+      // 关闭后处理：销毁 RT + Bloom，清空 opts。
       if (this.rt !== null) {
         this.rt.dispose();
         this.rt = null;
+      }
+      if (this.bloom !== null) {
+        this.bloom.dispose();
+        this.bloom = null;
       }
       this.god = null;
       return;
@@ -110,6 +126,16 @@ export class Renderer {
     // 确保 RT 已建（首次开启或 resize 中途重建）。
     if (this.rt === null) {
       this.rt = this.buildRT(window.innerWidth, window.innerHeight);
+    }
+    // 确保 Bloom 已建。
+    if (this.bloom === null) {
+      const pr = this.gl.getPixelRatio();
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.bloom = new Bloom(
+        Math.max(1, Math.round((w * pr) / 4)),
+        Math.max(1, Math.round((h * pr) / 4)),
+      );
     }
     this.god = opts;
   }
@@ -121,9 +147,10 @@ export class Renderer {
    * renderOverlay（第一人称手臂）始终在此之后由 Game 调用，直接上屏（不经 RT）。
    */
   render(): void {
-    if (this.god === null || this.rt === null || this.god.intensity <= 0.001) {
-      // ★ off 路径 / 太阳不可见(夜晚/出屏，intensity≈0)：等价于改动前的单行 render，零后处理开销。
-      // 既省性能(光束本就看不见时不跑 RT)，也让绝大多数情形走这条最稳的直渲路径。
+    // ★ off 路径（god===null 或 RT 未就绪）：直接渲染，零后处理开销，与改动前完全一致。
+    // bloom 必须依赖 RT（需要场景颜色纹理），故只看 god===null / rt===null 决定直渲。
+    // 不再用 intensity<=0.001 做早出（否则太阳不可见时 bloom 也会消失）。
+    if (this.god === null || this.rt === null || this.bloom === null) {
       this.gl.render(this.scene, this.camera);
       return;
     }
@@ -132,16 +159,26 @@ export class Renderer {
     this.gl.setRenderTarget(this.rt);
     this.gl.clear(); // 清颜色 + 深度（autoClear 默认 true）
     this.gl.render(this.scene, this.camera);
+    // renderTarget 此时仍是 this.rt（Step 2 会重置）
 
-    // ── Step 2: God-ray quad 合成到屏幕 ──
-    this.gl.setRenderTarget(null); // 切回屏幕
+    // ── Step 2: Bloom（1/4 res，3 个 pass，结果在 bloom.texture）──
+    // bloom.render() 内部会 setRenderTarget 到 bloomA/bloomB，
+    // 结束后调用 setRenderTarget(null)，render() 退出时 renderTarget 已为 null。
+    this.bloom.render(this.gl, this.rt.texture);
+    // 此时 renderTarget = null（由 bloom.render 还原），以下写屏幕。
+
+    // ── Step 3: God-ray + bloom 合成到屏幕 ──
+    // renderTarget 已是 null（屏幕）；bloom.render 已确保还原。
     const gr = this.god.quality === 'high' ? this.godHigh : this.godStd;
     const u = gr.material.uniforms;
     u['tColor'].value = this.rt.texture;
     u['tDepth'].value = this.rt.depthTexture;
+    u['tBloom'].value = this.bloom.texture;
     u['uSunUV'].value.copy(this.god.sunUV);
-    u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 早返回
+    u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 跳过体积光但保留 bloom
     u['uSunColor'].value.copy(this.god.sunColor);
+    // bloom 强度按档位
+    u['uBloom'].value = this.god.quality === 'high' ? 1.0 : 0.6;
     gr.render(this.gl);
     // renderOverlay（手臂）由 Game 在此方法之后调用，直接画到屏幕，不经过 RT。
   }

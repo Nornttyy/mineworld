@@ -28,20 +28,23 @@ void main() {
   const fragmentShader = /* glsl */ `
 uniform sampler2D tColor;
 uniform sampler2D tDepth;
+uniform sampler2D tBloom;
 uniform vec2 uSunUV;
 uniform vec3 uSunColor;
 uniform float uIntensity;
 uniform float uDecay;
 uniform float uWeight;
+uniform float uBloom;
 
 varying vec2 vUv;
 
 void main() {
   vec3 scene = texture2D(tColor, vUv).rgb;
+  vec3 bloomColor = texture2D(tBloom, vUv).rgb;
 
-  // 太阳不可见时（强度 0）直接输出场景色，跳过采样循环。
+  // 太阳不可见时（强度 0）跳过体积光采样循环，但 bloom 仍叠加。
   if (uIntensity <= 0.001) {
-    gl_FragColor = vec4(scene, 1.0);
+    gl_FragColor = vec4(scene + bloomColor * uBloom, 1.0);
     return;
   }
 
@@ -68,7 +71,8 @@ void main() {
   // 归一化：除以采样数，避免 weight×decay 累加超出合理范围。
   shaft /= float(${S});
 
-  gl_FragColor = vec4(scene + shaft * uSunColor * uIntensity, 1.0);
+  // 体积光光束 + bloom 辉光叠加到场景色
+  gl_FragColor = vec4(scene + shaft * uSunColor * uIntensity + bloomColor * uBloom, 1.0);
 }
 `.trim();
 
@@ -76,11 +80,13 @@ void main() {
     uniforms: {
       tColor: { value: null },
       tDepth: { value: null },
+      tBloom: { value: null },
       uSunUV: { value: new THREE.Vector2(0.5, 0.5) },
       uSunColor: { value: new THREE.Color(1.0, 0.95, 0.8) },
       uIntensity: { value: 0.0 },
       uDecay: { value: 0.96 },
       uWeight: { value: 0.5 },
+      uBloom: { value: 0.0 },
     },
     vertexShader,
     fragmentShader,
