@@ -586,9 +586,11 @@ export class Game {
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
 
-      // 自适应区块加载预算：按上一帧耗时(dt)调节本帧的派发/上屏量——流畅就多铺(快速填满)、
-      // 卡就少铺(别把 collectNeighbors 拷贝 + buildGeo/GPU 上传堆到已经慢的帧上)→ 移动时加载更顺、少掉帧。
-      const loadBudget = dt > 0.026 ? 1 : dt > 0.018 ? 2 : 4; // <38fps→1，38~55→2，>55fps→4
+      // 自适应区块加载【派发】预算：派发只是把活丢给后台 worker（主线程只付 collectNeighbors 拷贝），
+      // 重活(meshing)在 worker、上屏(buildGeo/GPU)另有 6ms 时间预算护着帧——所以派发不该塌到 1。
+      // 旧版低帧率塌到 1/帧 → ≤4 个 worker 长期闲置 → 加载追不上移动 → 区块"没加载出来"的空洞。
+      // 改：低/中帧率也保底 3~4/帧(喂饱 worker)，不再塌到 1。修空洞。
+      const loadBudget = dt > 0.026 ? 3 : dt > 0.018 ? 4 : 4; // <38fps→3，38~55→4，>55fps→4
       this.chunks.update(
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
