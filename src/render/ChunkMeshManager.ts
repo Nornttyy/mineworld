@@ -312,13 +312,14 @@ export class ChunkMeshManager {
             '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
             '  vec3 N = normalize(vec3((h0 - hx) / e * 1.0, 1.0, (h0 - hz) / e * 1.0));\n' + // 扰动增强→波纹更明显
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
+            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0);\n' + // 从水面上方看=1、水下看上来=0 → 水下不显天空反射条纹
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
             '  vec3 base = vec3(0.0, 0.48, 0.92) * vLF * vTint;\n' + // 鲜艳海蓝(高饱和亮蓝)
-            '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
+            '  vec3 col = mix(base, skyR, fres * above);\n' + // 反射仅水面上方有(水下看上来只显平滑水色,无条纹)
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
+            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7 * above;\n' + // 太阳粼光(仅水面上方)
             '  diffuseColor.rgb = col;\n' +
             '  diffuseColor.a = mix(0.45, 0.85, fres);\n' + // 稍降透明让蓝色显:俯看0.45、掠角0.85
             '}',
