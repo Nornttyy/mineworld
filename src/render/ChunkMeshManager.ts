@@ -10,7 +10,7 @@ import type { LightingQuality } from '../core/settings';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
-const SHADOW_HALF = 48; // 阴影正交相机半宽（格）——只覆盖玩家附近
+const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
 // 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
@@ -202,11 +202,11 @@ export class ChunkMeshManager {
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
             '  float bias = 0.0018;\n' +
             '  float s = 0.0;\n' +
-            '  for (int x=-1;x<=1;x++){ for (int y=-1;y<=1;y++){\n' +
-            '    float d = mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(float(x),float(y))*uShadowTexel));\n' +
-            '    s += (c.z - bias <= d) ? 1.0 : 0.0;\n' +
-            '  }}\n' +
-            '  return s / 9.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.9,-0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  return s / 4.0;\n' + // 4 抽样(原9)旋转偏移→省采样,边缘仍柔
             '}',
         )
         .replace(
