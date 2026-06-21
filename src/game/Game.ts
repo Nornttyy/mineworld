@@ -590,11 +590,13 @@ export class Game {
       // 本帧最多花 ~6ms 在上屏上，到点即停、剩下的下帧继续 → 区块加载更顺、不再一帧塞太多撑爆帧时间。
       const meshDeadline = performance.now() + 6;
       while (this.chunks.meshQueueLen() > 0 && performance.now() < meshDeadline) this.chunks.flushMesh(1);
-      // 周期驱逐远处区块数据：治"越走越卡"——原来生成过的区块永留内存(~147KB/块)、探索越远越涨→GC抖→崩。
-      // 半径 = 渲染距离 + 3(留足网格邻区 + 物理余量)，确保不驱逐还在用的；走回来重生成 + editHook 复原改动。
+      // 周期驱逐远处区块数据：治"越走越卡"内存泄漏。⚠️ 半径必须 ≥ 任何会 getBlock 的距离，否则访问被驱逐
+      // 的区块会触发【主线程同步 generateChunk】→ 卡成 PPT。生物漫游可达 MOB_DESPAWN_R≈5.5 区块、其 AI 还会
+      // 探前方/查日照 → 取 max(渲染距离+4, 12)，恒比生物可达范围大，绝不驱逐生物/物理/流体会读到的区块。
       if (++this.evictCt >= 45) {
         this.evictCt = 0;
-        this.world.evictBeyond(worldToChunk(Math.floor(this.player.pos.x)), worldToChunk(Math.floor(this.player.pos.z)), this.renderDistance + 3);
+        const evictR = Math.max(this.renderDistance + 4, 12);
+        this.world.evictBeyond(worldToChunk(Math.floor(this.player.pos.x)), worldToChunk(Math.floor(this.player.pos.z)), evictR);
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
@@ -642,6 +644,7 @@ export class Game {
         const p = this.player.pos;
         this.coordEl.textContent = `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}`;
       }
+      this.renderer.adaptResolution(dt * 1000); // 动态分辨率：卡了自动降、空闲升回清晰
       this.renderer.render();
       this.renderer.renderOverlay(this.hand.scene, this.hand.camera);
     };
