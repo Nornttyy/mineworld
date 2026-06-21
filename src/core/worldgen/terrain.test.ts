@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { generateTerrain, surfaceHeight } from './terrain';
+import { generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
+import { biomeAt } from './biome';
+import { localCoord, worldToChunk } from '../world/coords';
+
+const SAND_ID = 5;
+const GRASS_ID = 3;
+const SANDSTONE_ID = 18;
 
 describe('terrain generation', () => {
   it('is deterministic for a seed', () => {
@@ -29,5 +35,66 @@ describe('terrain generation', () => {
     const h = surfaceHeight(w, 8, 8);
     expect(w.get(8, h, 8)).not.toBe(0);
     expect(w.get(8, h + 1, 8)).toBe(0); // 地表之上是空气
+  });
+});
+
+describe('biome surface blocks', () => {
+  const SEED = 1337;
+
+  it('沙漠陆地列：地表是沙(5)、地表-5处是沙石(18)', () => {
+    // 扫描找到一个 desert 且陆地(height > SEA_LEVEL+1)的列
+    let desertWx = -1;
+    let desertWz = -1;
+    outer: for (let x = 0; x < 4000; x += 40) {
+      for (let z = 0; z < 400; z += 40) {
+        if (biomeAt(x, z, SEED) === 'desert' && columnHeight(x, z, SEED) > SEA_LEVEL + 1) {
+          desertWx = x;
+          desertWz = z;
+          break outer;
+        }
+      }
+    }
+    expect(desertWx).toBeGreaterThanOrEqual(0); // 必须能找到沙漠陆地列
+
+    const cx = worldToChunk(desertWx);
+    const cz = worldToChunk(desertWz);
+    const chunk = generateChunk(cx, cz, SEED);
+    const lx = localCoord(desertWx);
+    const lz = localCoord(desertWz);
+    const height = columnHeight(desertWx, desertWz, SEED);
+
+    expect(chunk.get(lx, height, lz)).toBe(SAND_ID);         // 地表=沙
+    expect(chunk.get(lx, height - 5, lz)).toBe(SANDSTONE_ID); // 地表-5=沙石
+  });
+
+  it('雪原陆地列：地表是草(3)', () => {
+    // 扫描找到至少一个 snow 且陆地(且地表方块不被竖井挖空)的列
+    const matches: [number, number][] = [];
+    for (let x = 0; x < 4000; x += 40) {
+      for (let z = 0; z < 400; z += 40) {
+        if (biomeAt(x, z, SEED) === 'snow' && columnHeight(x, z, SEED) > SEA_LEVEL + 1) {
+          matches.push([x, z]);
+        }
+      }
+    }
+    expect(matches.length).toBeGreaterThan(0); // 必须能找到雪原陆地列
+
+    // 从候选列中找一个地表方块是草(不被竖井挖空)的
+    let foundGrass = false;
+    for (const [wx, wz] of matches) {
+      const cx = worldToChunk(wx);
+      const cz = worldToChunk(wz);
+      const chunk = generateChunk(cx, cz, SEED);
+      const lx = localCoord(wx);
+      const lz = localCoord(wz);
+      const height = columnHeight(wx, wz, SEED);
+      const block = chunk.get(lx, height, lz);
+      if (block === GRASS_ID) {
+        foundGrass = true;
+        break;
+      }
+      // block===0 表示该列被竖井挖空，跳过
+    }
+    expect(foundGrass).toBe(true); // 雪原地表=草(Task 3.2 加雪层)
   });
 });

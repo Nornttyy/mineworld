@@ -2,7 +2,12 @@ import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2, valueNoise3 } from '../math/noise';
-import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
+import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE } from '../blocks/registry';
+import { biomeAt, biomeForest as _biomeForest } from './biome';
+
+// Re-export biomeForest so existing callers (incl. biome.test.ts if any) still work.
+// biomeForest now lives in biome.ts to avoid a circular import.
+export { biomeForest } from './biome';
 
 // 方块 id（见 core/blocks/registry）
 const STONE = 1;
@@ -100,14 +105,9 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
 const TREE_MARGIN = 2;
 const TREE_MAX_DENSITY = 0.08; // 便宜的快速剔除上限（须 ≥ treeDensity 最大值=森林密度）
 
-// 生物群系：大尺度噪声把世界分成平原(开阔、几乎无树)与森林(密树)，中间平滑过渡。
-// 返回 0..1：<0.45 平原，>0.62 森林，之间过渡带。
-export function biomeForest(wx: number, wz: number, seed: number): number {
-  return fbm2(wx / 130, wz / 130, seed + 4321, 2);
-}
 // 某列长树的概率：平原极稀疏(开阔)、森林茂密(树冠近乎相连)。
 function treeDensity(wx: number, wz: number, seed: number): number {
-  const f = biomeForest(wx, wz, seed);
+  const f = _biomeForest(wx, wz, seed);
   if (f < 0.45) return 0.003; // 平原：几乎无树
   if (f > 0.62) return 0.08; // 森林：密树
   return 0.003 + ((f - 0.45) / 0.17) * 0.077; // 过渡带
@@ -186,6 +186,7 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       );
       const flat = isFlat(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
+      const biome = biomeAt(wx, wz, seed); // 群系（仅影响陆地非沙滩列）
       for (let y = 0; y <= height; y++) {
         // 露天竖井：平坦地形的稀疏大竖井，【连草顶一起挖穿】→ 地面可见的露天矿洞口(否则草顶封住、地面看不到洞)
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
@@ -200,9 +201,23 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
           continue;
         }
         let id = STONE;
-        if (y === height) id = beach ? SAND : GRASS;
-        else if (y >= height - 3) id = beach ? SAND : DIRT;
-        else id = oreAt(wx, y, wz, height, seed); // 石层：矿脉/石
+        if (beach) {
+          // 沙滩/水边：沙覆盖，不受群系影响（保持原行为）
+          if (y === height) id = SAND;
+          else if (y >= height - 3) id = SAND;
+          else id = oreAt(wx, y, wz, height, seed);
+        } else if (biome === 'desert') {
+          // 沙漠：地表~3格沙 + 下方~4格沙石 + 再下石/矿
+          if (y === height) id = SAND;
+          else if (y >= height - 3) id = SAND;
+          else if (y >= height - 7) id = SANDSTONE;
+          else id = oreAt(wx, y, wz, height, seed);
+        } else {
+          // 温带(plains/forest) + 雪原：草顶 + 土填充（雪原地表草，Task 3.2 再加雪层）
+          if (y === height) id = GRASS;
+          else if (y >= height - 3) id = DIRT;
+          else id = oreAt(wx, y, wz, height, seed);
+        }
         c.set(lx, y, lz, id);
       }
       for (let y = height + 1; y <= SEA_LEVEL; y++) {
