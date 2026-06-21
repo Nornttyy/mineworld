@@ -435,6 +435,145 @@ def grass_plant(rng):
     return im
 
 
+def sandstone(rng):
+    # 沙石：米黄底 + 顶部提亮横带 + 底部暗纹（沉积层感）。卡通高饱和，强顶亮底暗。
+    im = new()
+    fill(im, "#d8c89a")  # 米黄底
+    speck(im, ["#cbbf8c", "#e4d4a8"], 0.05, rng)  # 极低噪点
+    px = im.load()
+    # 顶部两行提亮，底部两行加深（AO 立体感）
+    for x in range(S):
+        px[x, 0] = hx("#ecdebe")   # 顶亮带
+        px[x, 1] = hx("#e2d4b2")
+        px[x, S - 2] = hx("#b8a87a")  # 底暗带
+        px[x, S - 1] = hx("#a89868")
+    # 沉积横纹（每隔几行一条淡暗纹，强化层理）
+    for ly in (4, 8, 12):
+        for x in range(S):
+            px[x, ly] = hx("#c8b888")
+    # 软立体颗粒
+    for _ in range(3):
+        pebble(im, rng.randrange(S), rng.randrange(2, S - 2), 1, "#d8c89a", "#ecdebe", "#a89868", rng)
+    return im
+
+
+def cactus(rng):
+    # 仙人掌：饱和绿，中线略亮、两侧暗边（圆柱感），点缀白/黄刺点。
+    im = new()
+    fill(im, "#3f7d2e")  # 饱和深绿底
+    px = im.load()
+    # 左右两列暗边（深绿）
+    for y in range(S):
+        px[0, y] = hx("#2a5a1e")
+        px[1, y] = hx("#326d24")
+        px[S - 2, y] = hx("#326d24")
+        px[S - 1, y] = hx("#2a5a1e")
+    # 中心亮条（受顶光）
+    for y in range(S):
+        px[7, y] = hx("#52a03a")
+        px[8, y] = hx("#4d9636")
+    # 竖向随机噪点（深浅绿）
+    speck(im, ["#38721a", "#4a8e30"], 0.05, rng)
+    # 小刺点（白/黄，稀疏）
+    for _ in range(6):
+        sx = rng.choice([2, 3, 12, 13])
+        sy = rng.randrange(1, S - 1)
+        px[sx, sy] = hx("#e8e4c0") if rng.random() < 0.6 else hx("#d4c848")
+    # 顶亮底暗 AO
+    for x in range(S):
+        if px[x, 0][0] != hx("#2a5a1e")[0]:  # 不覆盖暗边
+            px[x, 0] = hx("#5cb840")
+        px[x, S - 1] = hx("#2a5a1e")
+    return im
+
+
+def ice(rng):
+    # 冰：浅蓝青底 + 斜向高光条（折射感），卡通简洁，高光/阴影分明。
+    im = new()
+    fill(im, "#9fd0e8")  # 浅蓝青底
+    speck(im, ["#8ec4e0", "#b0daf4"], 0.04, rng)  # 极低噪点保持干净
+    px = im.load()
+    # 斜向高光条（左上→右下方向，模拟冰面折射）
+    for i in range(S):
+        for j in range(max(0, i - 2), min(S, i + 1)):
+            if rng.random() < 0.7:
+                px[j, i] = hx("#cceeff") if rng.random() < 0.5 else hx("#b8e8f8")
+    # 斜向阴影（与高光对角）
+    for i in range(S):
+        x = S - 1 - i
+        y = i
+        if 0 <= x < S and 0 <= y < S:
+            px[x, y] = hx("#7bbcd8")
+        if 0 <= x - 1 < S and 0 <= y < S and rng.random() < 0.5:
+            px[x - 1, y] = hx("#88c8e0")
+    # 顶亮底暗 AO
+    for x in range(S):
+        px[x, 0] = hx("#daf2ff")
+        px[x, S - 1] = hx("#6ab0cc")
+    return im
+
+
+def snow(rng):
+    # 雪层：近白底 + 极淡蓝灰阴影颗粒，干净但有颗粒感不死板。
+    im = new()
+    fill(im, "#f4f8fb")  # 近白底
+    speck(im, ["#e8eef4", "#ffffff"], 0.05, rng)  # 极轻微噪点
+    px = im.load()
+    # 淡蓝阴影颗粒（深雪坑，稀疏）
+    for _ in range(8):
+        pebble(im, rng.randrange(S), rng.randrange(1, S - 1), 1, "#f4f8fb", "#ffffff", "#d0dce8", rng, 0.2)
+    # 顶边极亮（日光反射），底边淡蓝阴影
+    for x in range(S):
+        px[x, 0] = hx("#ffffff")
+        px[x, S - 1] = hx("#c8d8e8")
+    return im
+
+
+def spruce_log(rng):
+    # 云杉原木侧：深褐冷调竖条树皮纹（比橡木更深更冷），参照 oak_log_side 风格。
+    im = new()
+    bark = ["#43342a", "#3a2d24", "#4e3d31", "#30241c"]  # 深褐冷调
+    w = [3, 3, 2, 2]
+    px = im.load()
+    for x in range(S):  # 竖向树皮条
+        cb = rng.choices(bark, w)[0]
+        groove = rng.random() < 0.25
+        for y in range(S):
+            if groove and rng.random() < 0.6:
+                px[x, y] = hx("#1e1410")  # 深沟槽（比橡木更深）
+            else:
+                px[x, y] = hx(rng.choices([cb, "#5e4838", "#1e1410"], [8, 1, 1])[0])
+    # 顶亮底暗 AO
+    for x in range(S):
+        px[x, 0] = hx("#5e4838")
+        px[x, S - 1] = hx("#1e1410")
+    return im
+
+
+def spruce_leaves(rng):
+    # 云杉叶：深蓝绿，比橡树叶更暗更冷，带镂空噪点（cutout 用）。
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    cols = ["#274d33", "#2e5c3c", "#1f4028", "#366644", "#1a3322"]  # 深蓝绿冷调
+    wts = [3, 3, 2, 2, 2]
+    for y in range(S):
+        for x in range(S):
+            if rng.random() < 0.12:
+                px[x, y] = (0, 0, 0, 0)  # 镂空（略多于橡树叶，针叶更稀）
+            else:
+                r, g, b = hx(rng.choices(cols, wts)[0])
+                px[x, y] = (r, g, b, 255)
+    # 软明暗叶簇（高光/暗部更强以强化立体感）
+    for _ in range(4):
+        cx, cy = rng.randrange(S), rng.randrange(S)
+        for dy in range(-1, 2):
+            for dx in range(-1, 2):
+                if rng.random() < 0.6:
+                    r, g, b = hx("#366644") if rng.random() < 0.5 else hx("#1a3322")
+                    px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -454,6 +593,12 @@ BLOCKS = [
     ("crafting_table_side", crafting_table_side),
     ("gravel", gravel),
     ("grass_plant", grass_plant),
+    ("sandstone", sandstone),
+    ("cactus", cactus),
+    ("ice", ice),
+    ("snow", snow),
+    ("spruce_log", spruce_log),
+    ("spruce_leaves", spruce_leaves),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
