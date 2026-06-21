@@ -31,7 +31,7 @@ import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
 import { updateHostile, SKELETON_ARROW_SPEED } from '../core/entity/hostileAi';
-import { spawnRingGroup, spawnHostileRing, type SpawnWorld } from '../core/entity/mobSpawn';
+import { spawnRingGroup, spawnHostileRing, spawnHostileCave, type SpawnWorld } from '../core/entity/mobSpawn';
 import { serializeMob, deserializeMob } from '../core/entity/mobSave';
 import { isMobSunlit } from '../core/entity/mobSun';
 import { MobRenderer } from '../render/MobRenderer';
@@ -1127,13 +1127,20 @@ export class Game {
           ),
         );
       }
-      // 夜里刷僵尸/骷髅：身边敌对不足、未达硬上限、且未到总生物上限才刷一小群（白天会被日晒烧光）。
-      // 刷出的群按剩余名额裁剪，确保敌对数不超过 HOSTILE_CAP（硬上限）。
-      const room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
-      if (skyStateAt(this.worldTime).isNight && hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
+      // 刷敌对：身边敌对不足、未达硬上限、未到总生物上限才刷。矿洞(地下暗洞)白天黑夜都刷；
+      // 地表只在夜里刷(白天会被日晒烧光)。按剩余名额裁剪，确保不超过 HOSTILE_CAP。
+      let room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
+      if (hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const rk = this.mobRng();
         const kind: MobKind = rk < 0.4 ? 'zombie' : rk < 0.75 ? 'skeleton' : 'creeper';
-        this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
+        // 矿洞：玩家附近地下暗洞，不分昼夜（同 MC）
+        const cave = spawnHostileCave(kind, px, this.player.pos.y, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room);
+        this.mobs.push(...cave);
+        room -= cave.length;
+        // 夜晚：地表暗处也刷一小群
+        if (room > 0 && skyStateAt(this.worldTime).isNight) {
+          this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
+        }
       }
     }
   }

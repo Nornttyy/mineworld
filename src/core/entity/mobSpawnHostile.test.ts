@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isDarkEnoughForSpawn, spawnHostileRing, type SpawnWorld } from './mobSpawn';
+import { isDarkEnoughForSpawn, spawnHostileRing, spawnHostileCave, type SpawnWorld } from './mobSpawn';
 import { TORCH } from '../blocks/registry';
 
 const STONE = 1;
@@ -35,5 +35,42 @@ describe('敌对刷新：暗度门控 + 16–32 环带', () => {
       expect(d).toBeGreaterThan(14); // 群内散开 ±2，放宽下界
       expect(d).toBeLessThan(35);
     }
+  });
+});
+
+// 地下洞世界：地表 y=64；y∈[40,41] 是空气洞室(洞底 y=39 实心)，其余 y≤64 实心。可放火把。
+function caveWorld(torches: [number, number, number][] = []): SpawnWorld {
+  const t = new Set(torches.map(([x, y, z]) => `${x},${y},${z}`));
+  return {
+    getBlock: (x, y, z) => {
+      if (t.has(`${x},${y},${z}`)) return TORCH;
+      if (y > 64) return 0; // 地表上空气
+      if (y === 40 || y === 41) return 0; // 洞室(两格高)
+      return STONE;
+    },
+  };
+}
+
+describe('矿洞刷怪：地下暗洞(白天黑夜)', () => {
+  it('地下暗洞里能刷怪，且落在地表下够深(暗)', () => {
+    const mobs = spawnHostileCave('zombie', 0, 41, 0, rng, caveWorld(), surfaceY);
+    expect(mobs.length).toBeGreaterThan(0);
+    for (const m of mobs) expect(m.pos.y).toBeLessThan(SURFACE - 4); // 地表下≥5格
+  });
+
+  it('实心岩(无空腔) → 不刷', () => {
+    const solid: SpawnWorld = { getBlock: (_x, y, _z) => (y <= 64 ? STONE : 0) };
+    expect(spawnHostileCave('zombie', 0, 41, 0, rng, solid, surfaceY)).toEqual([]);
+  });
+
+  it('洞里被火把照亮 → 不刷', () => {
+    expect(spawnHostileCave('zombie', 0, 41, 0, rng, caveWorld([[-15, 40, 0]]), surfaceY)).toEqual([]);
+  });
+
+  it('浅坑(离地表<5格) → 不刷(够亮)', () => {
+    const shallow: SpawnWorld = {
+      getBlock: (_x, y, _z) => (y > 64 ? 0 : y === 62 || y === 63 ? 0 : STONE),
+    };
+    expect(spawnHostileCave('zombie', 0, 63, 0, rng, shallow, surfaceY)).toEqual([]);
   });
 });

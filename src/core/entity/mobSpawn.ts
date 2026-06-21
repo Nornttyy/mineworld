@@ -99,6 +99,50 @@ export function spawnHostileRing(
   return [];
 }
 
+// 在玩家附近【地下暗洞/矿洞】刷敌对：白天黑夜都刷（洞里常暗，同 MC）。
+// 在水平环带随机选列，在玩家 y 上下的竖直带里找：脚下实心 + 头两格空(可落脚) + 离地表 ≥DEPTH(无天光，够暗)
+// + 无火把照到 的洞室。地表/浅坑(够亮)与实心岩(无空腔)自然找不到 → 返回空(不硬刷)。
+export function spawnHostileCave(
+  kind: MobKind,
+  cx: number,
+  cy: number, // 玩家 y：在其上下竖直带里找洞
+  cz: number,
+  rng: () => number,
+  world: SpawnWorld,
+  surfaceY: (x: number, z: number) => number,
+  ringMin = 5,
+  ringMax = 24,
+): Mob[] {
+  const DEPTH = 5; // 距地表至少 5 格才算"够暗的洞"(避开浅坑/天光直射处)
+  for (let tries = 0; tries < 24; tries++) {
+    const ang = rng() * Math.PI * 2;
+    const d = ringMin + rng() * (ringMax - ringMin);
+    const bx = Math.floor(cx + Math.cos(ang) * d);
+    const bz = Math.floor(cz + Math.sin(ang) * d);
+    const yTop = Math.min(Math.floor(cy) + 8, surfaceY(bx, bz) - DEPTH); // 不高于地表下 DEPTH(保证暗)
+    const yBot = Math.max(2, Math.floor(cy) - 14);
+    for (let y = yTop; y >= yBot; y--) {
+      if (!canSpawnHostileAt(world, bx, y, bz)) continue; // 脚下实心 + 头两格空(洞室)
+      if (!isDarkEnoughForSpawn(world, bx, y, bz)) continue; // 近火把 → 换格往下找
+      const mobs: Mob[] = [];
+      const n = 1 + Math.floor(rng() * 2); // 洞里 1–2 只
+      for (let i = 0; i < n; i++) {
+        const x = bx + Math.floor((rng() * 2 - 1) * 2);
+        const z = bz + Math.floor((rng() * 2 - 1) * 2);
+        for (let dy = 1; dy >= -1; dy--) {
+          const sy = y + dy;
+          if (sy < surfaceY(x, z) - DEPTH && canSpawnHostileAt(world, x, sy, z)) {
+            mobs.push(spawnMob(kind, x + 0.5, sy, z + 0.5));
+            break;
+          }
+        }
+      }
+      if (mobs.length) return mobs;
+    }
+  }
+  return [];
+}
+
 // 成群生成（最多 4 只，同 MC）：在中心 ±4 格内随机撒点，每点在 cy 附近上下找可落脚的格。
 export function spawnGroup(
   kind: MobKind,
