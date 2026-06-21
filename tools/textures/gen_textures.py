@@ -672,17 +672,21 @@ def main():
         print(f"wrote {name}.png")
 
     # Pack block tiles into one atlas (4 cols × 7 rows = 28 slots, 16px each) for single-material rendering.
-    # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。tile 18..23=沙漠/雪原新方块（4×5→4×7 扩展）。
+    # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
+    # 4×8=32 槽: 0-17 基础, 18-25 下界(占位透明,贴图待下界会话填), 26-31 沙漠/雪原
     # 改行数时务必同步 mesher.ts / DropRenderer.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
                    'gravel', 'grass_plant',
+                   'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves']
-    ATLAS_COLS, ATLAS_ROWS = 4, 7  # 4×7=28 槽（18..23 沙漠/雪原新方块）；同步 mesher/DropRenderer 的 ATLAS_ROWS=7
+    ATLAS_COLS, ATLAS_ROWS = 4, 8  # 4×8=32 槽；同步 mesher/DropRenderer 的 ATLAS_ROWS=8
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm].convert('RGBA'), ((i % ATLAS_COLS) * S, (i // ATLAS_COLS) * S))
+        if nm in tex:
+            atlas.paste(tex[nm].convert('RGBA'), ((i % ATLAS_COLS) * S, (i // ATLAS_COLS) * S))
+        # 下界占位名（无 draw fn）→ 保持透明，下界会话补贴图
     atlas.save(os.path.join(OUT, '..', 'atlas.png'))
     print(f'wrote atlas.png ({S * ATLAS_COLS}x{S * ATLAS_ROWS}, {len(ATLAS_ORDER)} tiles)')
 

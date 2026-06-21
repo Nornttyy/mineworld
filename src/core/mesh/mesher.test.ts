@@ -52,9 +52,9 @@ describe('mesher (face culling)', () => {
       us.push(m.uvs[i]);
       vs.push(m.uvs[i + 1]);
     }
-    // 一格图集 = 横 1/4 × 纵 1/7 UV（图集 4 列×7 行）；内缩须远小于 1 像素，否则边缘像素只剩半格。
+    // 一格图集 = 横 1/4 × 纵 1/8 UV（图集 4 列×8 行）；内缩须远小于 1 像素，否则边缘像素只剩半格。
     expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.99 / 4);
-    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 7);
+    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 8);
   });
 
   it('AO level：标准体素环境光遮蔽', () => {

@@ -70,4 +70,17 @@ describe('dayNight 昼夜更替', () => {
     }
     expect(skyDarkenAt(18000)).toBeGreaterThan(skyDarkenAt(6000));
   });
+
+  // 下界天空：恒定暗红、无昼夜
+  it('下界天空恒暗红、与时间无关', () => {
+    const a = skyStateAt(1800, 'nether'); // 主世界这会是白天
+    const b = skyStateAt(13600, 'nether'); // 主世界这会是夜
+    expect(a).toEqual(b); // 下界不随时间变
+    expect(a.skyTop[0]).toBeGreaterThan(a.skyTop[2]); // 偏红：R > B
+    expect(a.isNight).toBe(true); // 恒"暗"
+  });
+  it('主世界行为不变（dimension 省略 == overworld）', () => {
+    expect(skyStateAt(1800)).toEqual(skyStateAt(1800, 'overworld'));
+    expect(skyStateAt(6000)).not.toEqual(skyStateAt(18000)); // 主世界仍随时间变
+  });
 });

@@ -5,6 +5,7 @@ import {
   isSolidId,
   isOpaque,
   isTargetableId,
+  isReplaceableId,
   isCutoutId,
   isPlantId,
   Face,
@@ -16,6 +17,14 @@ import {
   SPRUCE_LEAVES,
   blockSlipperiness,
   isCactus,
+  isLavaId,
+  isNetherPortalId,
+  OBSIDIAN,
+  NETHERRACK,
+  GLOWSTONE,
+  LAVA,
+  BEDROCK,
+  NETHER_PORTAL,
 } from './registry';
 
 describe('block registry', () => {
@@ -36,6 +45,19 @@ describe('block registry', () => {
   });
   it('isSolidId of unknown id is false', () => {
     expect(isSolidId(999)).toBe(false);
+  });
+  it('下界方块：基本属性', () => {
+    expect(BLOCKS[OBSIDIAN].name).toBe('obsidian');
+    expect(BLOCKS[NETHERRACK].solid).toBe(true);
+    expect(BLOCKS[GLOWSTONE].light).toBe(15); // 自发光
+    expect(BLOCKS[BEDROCK].hardness).toBeLessThan(0); // 不可破坏
+  });
+  it('下界方块：岩浆/传送门块非实心，传送门可被覆盖', () => {
+    expect(isLavaId(LAVA)).toBe(true);
+    expect(isSolidId(LAVA)).toBe(false);
+    expect(isNetherPortalId(NETHER_PORTAL)).toBe(true);
+    expect(isSolidId(NETHER_PORTAL)).toBe(false);
+    expect(isReplaceableId(NETHER_PORTAL)).toBe(true);
   });
   it('grass plants are targetable (mineable) though non-solid; water/air are neither', () => {
     expect(isSolidId(16)).toBe(false); // 草丛非实心(可穿过)
@@ -77,5 +99,13 @@ describe('沙漠/雪原新方块', () => {
     expect(isSolidId(SNOW_LAYER)).toBe(false); // 装饰薄层可穿
     expect(isCactus(CACTUS)).toBe(true);
     expect(isCactus(1)).toBe(false);
+  });
+  it('沙漠/雪原方块 id 在 26-31 范围内（不与下界 18-25 冲突）', () => {
+    expect(SANDSTONE).toBe(26);
+    expect(CACTUS).toBe(27);
+    expect(ICE).toBe(28);
+    expect(SNOW_LAYER).toBe(29);
+    expect(SPRUCE_LOG).toBe(30);
+    expect(SPRUCE_LEAVES).toBe(31);
   });
 });

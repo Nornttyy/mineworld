@@ -54,8 +54,20 @@ export function skyDarkenAt(time: number): number {
   return darkFrac * 11;
 }
 
-// 取某刻的天空状态（关键帧之间线性插值，含跨午夜回绕）。
-export function skyStateAt(time: number): SkyState {
+export type Dimension = 'overworld' | 'nether';
+
+// 下界天空：恒定暗红、无昼夜、无日月。恒"夜"(isNight)为下界刷怪铺路。
+const NETHER_SKY: SkyState = {
+  skyTop: [0.18, 0.05, 0.05],
+  skyHorizon: [0.34, 0.09, 0.07],
+  worldTint: [0.62, 0.32, 0.28],
+  light: 0.3,
+  isNight: true,
+};
+
+// 取某刻的天空状态（关键帧之间线性插值，含跨午夜回绕）。下界恒定暗红、与时间无关。
+export function skyStateAt(time: number, dimension: Dimension = 'overworld'): SkyState {
+  if (dimension === 'nether') return NETHER_SKY;
   const t = wrapTime(time);
   // 找包含 t 的区间 [a, b]。KEYS[0].t===0 且最后一段 b 用首帧+DAY_LENGTH(=24000)，
   // 故 [0,24000) 必落在某段内。

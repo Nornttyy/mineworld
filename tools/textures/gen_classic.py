@@ -583,16 +583,20 @@ def main():
     tex = {}
     for i, (name, fn) in enumerate(BLOCKS):
         tex[name] = fn(random.Random(BASE_SEED + i * 1000))
-    # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。tile 18..23=沙漠/雪原新方块（4×5→4×7 扩展）。
+    # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。
+    # 4×8=32 槽: 0-17 基础, 18-25 下界(占位透明), 26-31 沙漠/雪原
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
                    'gravel', 'grass_plant',
+                   'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves']
-    COLS, ROWS = 4, 7
+    COLS, ROWS = 4, 8
     atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))
+        if nm in tex:
+            atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))
+        # 下界占位名（无 draw fn）→ 保持透明，下界会话补贴图
     out = os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'textures', 'atlas_classic.png')
     atlas.save(out)
     print('wrote', out, atlas.size)

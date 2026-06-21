@@ -6,7 +6,7 @@ import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 7; // 4×7=28 槽（18..23 为沙漠/雪原新方块）；与 gen_textures.py、mesher 同步
+const ATLAS_ROWS = 8; // 4×8=32 槽（18-25 下界, 26-31 沙漠/雪原）；与 gen_textures.py、mesher 同步
 const TILE_PX = 16;
 const EPS = 0.5 / (TILE_PX * ATLAS_COLS);
 
