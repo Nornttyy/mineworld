@@ -284,6 +284,8 @@ export class ChunkMeshManager {
             // 程序波纹：返回 vec3(高度, 坡度x, 坡度z)。4 层行波(波长2~5格)、相位 ±t 多向 → 波纹在水面流动。
             'vec3 rip(vec2 p, float t){\n' +
             '  vec3 r = vec3(0.0); float a;\n' +
+            '  p += vec2(sin(p.y * 0.4 + t * 0.5), cos(p.x * 0.45 - t * 0.4)) * 0.7;\n' + // 域扭曲:坐标推歪→波纹不规则、飘动不成规则网格
+            '  p += vec2(sin(p.y * 0.9 - t * 0.35), cos(p.x * 0.8 + t * 0.3)) * 0.35;\n' + // 再叠一层小扭曲→更不规则
             '  a = dot(p, vec2(1.00, 0.30)) * 1.6 + t * 1.3;  r += vec3(sin(a), 1.6 * 1.00 * cos(a), 1.6 * 0.30 * cos(a));\n' +
             '  a = dot(p, vec2(-0.40, 1.00)) * 2.2 - t * 1.6; r += vec3(sin(a), 2.2 * -0.40 * cos(a), 2.2 * 1.00 * cos(a));\n' +
             '  a = dot(p, vec2(0.70, -0.60)) * 2.9 + t * 1.2; r += vec3(sin(a), 2.9 * 0.70 * cos(a), 2.9 * -0.60 * cos(a));\n' +
@@ -305,7 +307,7 @@ export class ChunkMeshManager {
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  vec3 base = vec3(0.05, 0.30, 0.96) * vLF * vTint;\n' + // 更纯更饱和的蓝(红绿压低、蓝拉满)
+            '  vec3 base = vec3(0.05, 0.36, 0.72) * vLF * vTint;\n' + // 海蓝色(深海蓝,蓝为主、带一点青)
             '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
