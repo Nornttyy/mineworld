@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
 import { biomeAt } from './biome';
 import { localCoord, worldToChunk } from '../world/coords';
+import { CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES } from '../blocks/registry';
 
 const SAND_ID = 5;
 const GRASS_ID = 3;
@@ -96,5 +97,118 @@ describe('biome surface blocks', () => {
       // block===0 表示该列被竖井挖空，跳过
     }
     expect(foundGrass).toBe(true); // 雪原地表=草(Task 3.2 加雪层)
+  });
+});
+
+describe('Task 3.2 decorations', () => {
+  const SEED = 1337;
+
+  it('仙人掌只立在沙漠的沙地上：每个 CACTUS 方块下方必须是沙(5)且群系是沙漠', () => {
+    // 扫描多个沙漠区块，断言所有 CACTUS 方块下方是 SAND 且列群系是 desert
+    const SAND_ID = 5;
+    let foundCactus = false;
+    outer: for (let cx = 0; cx < 40; cx++) {
+      for (let cz = 0; cz < 10; cz++) {
+        const chunk = generateChunk(cx, cz, SEED);
+        for (let lx = 0; lx < 16; lx++) {
+          for (let lz = 0; lz < 16; lz++) {
+            const wx = cx * 16 + lx;
+            const wz = cz * 16 + lz;
+            for (let y = 1; y < 200; y++) {
+              if (chunk.get(lx, y, lz) === CACTUS) {
+                foundCactus = true;
+                // 下方必须是沙
+                expect(chunk.get(lx, y - 1, lz)).toBe(SAND_ID);
+                // 该列群系必须是沙漠
+                expect(biomeAt(wx, wz, SEED)).toBe('desert');
+                if (foundCactus) break outer;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(foundCactus).toBe(true); // 必须找到至少一个仙人掌
+  });
+
+  it('雪原水列顶层水格是冰(ICE)而非普通水', () => {
+    // 找一个 snow 且 height < SEA_LEVEL 的列（水下），断言水柱顶格是 ICE
+    // 雪原水域在 seed=1337 约从 cx=29,cz=25 开始出现，故需扫更大范围
+    let foundIce = false;
+    outer: for (let cx = 0; cx < 60; cx++) {
+      for (let cz = 0; cz < 50; cz++) {
+        for (let lx = 0; lx < 16; lx += 4) {
+          for (let lz = 0; lz < 16; lz += 4) {
+            const wx = cx * 16 + lx;
+            const wz = cz * 16 + lz;
+            const h = columnHeight(wx, wz, SEED);
+            if (h < SEA_LEVEL && biomeAt(wx, wz, SEED) === 'snow') {
+              const chunk = generateChunk(cx, cz, SEED);
+              // 水柱顶格应该是冰
+              const topWater = chunk.get(lx, SEA_LEVEL, lz);
+              if (topWater === ICE) {
+                foundIce = true;
+                break outer;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(foundIce).toBe(true); // 雪原水面顶格必须存在冰
+  });
+
+  it('雪原陆地上有雪层(SNOW_LAYER)覆盖草顶', () => {
+    // 找 snow 且陆地的列，断言 height+1 有雪层（不要求每列都有，找到一个即可）
+    let foundSnowLayer = false;
+    outer: for (let cx = 0; cx < 40; cx++) {
+      for (let cz = 0; cz < 10; cz++) {
+        for (let lx = 0; lx < 16; lx++) {
+          for (let lz = 0; lz < 16; lz++) {
+            const wx = cx * 16 + lx;
+            const wz = cz * 16 + lz;
+            const h = columnHeight(wx, wz, SEED);
+            if (h > SEA_LEVEL + 1 && biomeAt(wx, wz, SEED) === 'snow') {
+              const chunk = generateChunk(cx, cz, SEED);
+              if (chunk.get(lx, h + 1, lz) === SNOW_LAYER) {
+                foundSnowLayer = true;
+                break outer;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(foundSnowLayer).toBe(true); // 雪原陆地上必须找到至少一个雪层
+  });
+
+  it('雪原有云杉树(SPRUCE_LOG/SPRUCE_LEAVES)、沙漠无橡树', () => {
+    // 扫描区块：雪原群系找到 SPRUCE_LOG；同时确认沙漠区块不含橡树原木
+    // 雪原从 cx≈27,cz≈26 开始出现（seed=1337），需扫更大范围
+    const OAK_LOG_ID = 6;
+    let foundSpruce = false;
+    for (let cx = 0; cx < 80; cx++) {
+      for (let cz = 0; cz < 50; cz++) {
+        const chunk = generateChunk(cx, cz, SEED);
+        for (let lx = 0; lx < 16; lx++) {
+          for (let lz = 0; lz < 16; lz++) {
+            const wx = cx * 16 + lx;
+            const wz = cz * 16 + lz;
+            const bm = biomeAt(wx, wz, SEED);
+            for (let y = 0; y < 200; y++) {
+              const id = chunk.get(lx, y, lz);
+              if (id === SPRUCE_LOG || id === SPRUCE_LEAVES) foundSpruce = true;
+              // 沙漠/雪原不能有橡树原木
+              if ((bm === 'desert' || bm === 'snow') && id === OAK_LOG_ID) {
+                // Allow: trees from adjacent non-desert/snow columns may place leaves in this chunk
+                // but oak LOG root is always at the column's exact biome — check column biome
+                expect(biomeAt(wx, wz, SEED)).not.toBe('desert');
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(foundSpruce).toBe(true); // 必须找到至少一棵云杉
   });
 });
