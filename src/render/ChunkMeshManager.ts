@@ -433,6 +433,11 @@ export class ChunkMeshManager {
     return this.meshQueue.length > 0 || this.meshPending.size > 0;
   }
 
+  /** 待上屏的网格数（供游戏层按【时间预算】逐个 flush，稳帧）。 */
+  meshQueueLen(): number {
+    return this.meshQueue.length;
+  }
+
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();

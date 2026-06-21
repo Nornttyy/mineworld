@@ -586,7 +586,10 @@ export class Game {
         this.renderDistance,
         loadBudget, // 每帧最多【派发】给 worker 网格化(后台算，不卡主线程)
       );
-      this.chunks.flushMesh(loadBudget); // 每帧最多【上屏】worker 算好的网格(buildGeo 限量 → 稳帧)
+      // 上屏按【时间预算】而非固定个数：buildGeo + GPU 上传是加载卡帧的大头，且每个网格大小不一。
+      // 本帧最多花 ~6ms 在上屏上，到点即停、剩下的下帧继续 → 区块加载更顺、不再一帧塞太多撑爆帧时间。
+      const meshDeadline = performance.now() + 6;
+      while (this.chunks.meshQueueLen() > 0 && performance.now() < meshDeadline) this.chunks.flushMesh(1);
       // 周期驱逐远处区块数据：治"越走越卡"——原来生成过的区块永留内存(~147KB/块)、探索越远越涨→GC抖→崩。
       // 半径 = 渲染距离 + 3(留足网格邻区 + 物理余量)，确保不驱逐还在用的；走回来重生成 + editHook 复原改动。
       if (++this.evictCt >= 45) {
