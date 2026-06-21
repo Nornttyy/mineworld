@@ -19,6 +19,8 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 
 export const RECIPES: Recipe[] = [
   { type: 'shapeless', ingredients: ['oak_log'], result: { item: 'oak_planks', count: 4 } },
+  // 打火石：燧石 + 铁锭（点燃下界传送门）
+  { type: 'shapeless', ingredients: ['flint', 'iron_ingot'], result: { item: 'flint_and_steel', count: 1 } },
   {
     type: 'shaped',
     pattern: ['#', '#'],

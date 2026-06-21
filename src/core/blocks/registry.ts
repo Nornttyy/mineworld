@@ -28,6 +28,15 @@ const T = {
   furnace_front: 15,
   gravel: 16, // 图集第 5 行（4×4 扩成 4×5；同步 mesher/DropRenderer 的 ATLAS_ROWS=5）
   grass_plant: 17, // 草丛贴图（cross billboard：草/长草共用）
+  // 下界方块图集索引（贴图与图集扩行在 Plan 1 Task 3 补；图集将扩成 4×7）
+  obsidian: 18,
+  netherrack: 19,
+  soul_sand: 20,
+  glowstone: 21,
+  nether_quartz_ore: 22,
+  lava: 23,
+  bedrock: 24,
+  nether_portal: 25,
 } as const;
 
 export interface BlockDef {
@@ -226,6 +235,15 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: null,
   },
+  // ── 下界方块 ─────────────────────────────────────────────────────────────
+  { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 12, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: false, tool: 'pickaxe' },
+  { id: 20, name: 'soul_sand', solid: true, transparent: false, faces: all(T.soul_sand), hardness: 0.5, drop: 20, needsTool: false, tool: 'shovel' },
+  { id: 21, name: 'glowstone', solid: true, transparent: false, faces: all(T.glowstone), hardness: 0.3, drop: 21, needsTool: false, tool: null, light: 15 },
+  { id: 22, name: 'nether_quartz_ore', solid: true, transparent: false, faces: all(T.nether_quartz_ore), hardness: 3, drop: 295 /* NETHER_QUARTZ item(Task2) */, needsTool: true, tool: 'pickaxe', minTier: 1 },
+  { id: 23, name: 'lava', solid: false, transparent: true, faces: all(T.lava), hardness: 100, drop: null, needsTool: false, tool: null, light: 15 },
+  { id: 24, name: 'bedrock', solid: true, transparent: false, faces: all(T.bedrock), hardness: -1, drop: null, needsTool: false, tool: null },
+  { id: 25, name: 'nether_portal', solid: false, transparent: true, faces: all(T.nether_portal), hardness: -1, drop: null, needsTool: false, tool: null, light: 11 },
 ];
 
 export const GRASS = 3;
@@ -242,6 +260,17 @@ export const TORCH = 14;
 export const GRAVEL = 15;
 export const GRASS_PLANT = 16; // 草丛(短)
 export const TALL_GRASS = 17; // 长草(高)
+// 下界方块
+export const OBSIDIAN = 18;
+export const NETHERRACK = 19;
+export const SOUL_SAND = 20;
+export const GLOWSTONE = 21;
+export const NETHER_QUARTZ_ORE = 22;
+export const LAVA = 23;
+export const BEDROCK = 24;
+export const NETHER_PORTAL = 25;
+export const isLavaId = (id: number): boolean => id === LAVA;
+export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
@@ -251,7 +280,8 @@ export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === T
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
 export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id);
 // 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
-export const isReplaceableId = (id: number): boolean => id === 0 || id === WATER || isPlantId(id);
+export const isReplaceableId = (id: number): boolean =>
+  id === 0 || id === WATER || isPlantId(id) || id === NETHER_PORTAL;
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
 export const isOpaque = (id: number): boolean => {
   const b = BLOCKS[id];

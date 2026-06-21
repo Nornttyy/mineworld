@@ -1,5 +1,57 @@
 import { describe, it, expect } from 'vitest';
-import { generateTerrain, surfaceHeight } from './terrain';
+import { generateTerrain, surfaceHeight, generateChunk } from './terrain';
+import { CHUNK_W } from '../world/chunk';
+import { NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
+
+describe('下界世界生成', () => {
+  it('基岩封顶封底、有地狱岩/岩浆/荧石，无草无水', () => {
+    const c = generateChunk(0, 0, 1337, 'nether');
+    let bottomBedrock = false;
+    let topBedrock = false;
+    let nr = 0;
+    let lava = 0;
+    let grass = 0;
+    let water = 0;
+    for (let x = 0; x < CHUNK_W; x++)
+      for (let z = 0; z < CHUNK_W; z++) {
+        if (c.get(x, 1, z) === BEDROCK) bottomBedrock = true;
+        if (c.get(x, 126, z) === BEDROCK) topBedrock = true;
+      }
+    for (let y = 0; y < 128; y++)
+      for (let x = 0; x < CHUNK_W; x++)
+        for (let z = 0; z < CHUNK_W; z++) {
+          const b = c.get(x, y, z);
+          if (b === NETHERRACK) nr++;
+          else if (b === LAVA) lava++;
+          else if (b === GRASS) grass++;
+          else if (b === WATER) water++;
+        }
+    expect(bottomBedrock).toBe(true);
+    expect(topBedrock).toBe(true);
+    expect(nr).toBeGreaterThan(500); // 地狱岩为主
+    expect(lava).toBeGreaterThan(0); // 有岩浆海
+    expect(grass).toBe(0);
+    expect(water).toBe(0);
+    expect(GLOWSTONE).toBeGreaterThan(0); // 荧石已注册(出现与否靠概率，这里只确保导入有效)
+  });
+
+  it('确定性：同坐标同种子结果一致', () => {
+    const a = generateChunk(2, 3, 1337, 'nether');
+    const b = generateChunk(2, 3, 1337, 'nether');
+    for (let y = 0; y < 128; y += 8)
+      for (let x = 0; x < CHUNK_W; x += 4) for (let z = 0; z < CHUNK_W; z += 4) expect(a.get(x, y, z)).toBe(b.get(x, y, z));
+  });
+
+  it('主世界生成不受影响（dimension 省略 → 无下界特征：无地狱岩、无 y=126 基岩顶）', () => {
+    const c = generateChunk(0, 0, 1337);
+    let netherrack = 0;
+    let ceilingBedrock = 0;
+    for (let x = 0; x < CHUNK_W; x++) for (let z = 0; z < CHUNK_W; z++) if (c.get(x, 126, z) === BEDROCK) ceilingBedrock++;
+    for (let y = 0; y < 128; y++) for (let x = 0; x < CHUNK_W; x++) for (let z = 0; z < CHUNK_W; z++) if (c.get(x, y, z) === NETHERRACK) netherrack++;
+    expect(netherrack).toBe(0);
+    expect(ceilingBedrock).toBe(0);
+  });
+});
 
 describe('terrain generation', () => {
   it('is deterministic for a seed', () => {

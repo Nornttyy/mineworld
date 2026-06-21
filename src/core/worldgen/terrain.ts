@@ -2,7 +2,7 @@ import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2, valueNoise3 } from '../math/noise';
-import { WATER, OAK_LOG, OAK_LEAVES } from '../blocks/registry';
+import { WATER, OAK_LOG, OAK_LEAVES, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND } from '../blocks/registry';
 
 // 方块 id（见 core/blocks/registry）
 const STONE = 1;
@@ -170,8 +170,52 @@ function placeTree(
   for (let y = ground + 1; y <= topY; y++) put(rootWx, y, rootWz, OAK_LOG, false);
 }
 
-// 生成单个区块列 (cx,cz)：石基→土→草顶；海平面以下注水、岸边铺沙；最后种树。确定性、跨区块无缝。
-export function generateChunk(cx: number, cz: number, seed: number): Chunk {
+// 下界生成参数
+const NETHER_TOP = 127; // 顶（含基岩天花板）
+const NETHER_LAVA_Y = 31; // 岩浆面：此高度及以下的洞腔灌静态岩浆
+
+// 下界区块：地狱岩为主、3D 噪声挖大洞窟、岩浆面以下灌静态岩浆、石英矿脉、零星灵魂沙、洞顶荧石簇、基岩封顶封底。确定性。
+function generateNetherChunk(cx: number, cz: number, seed: number): Chunk {
+  const c = new Chunk();
+  const s = seed + 70000; // 下界独立种子偏移（与主世界不雷同）
+  for (let lz = 0; lz < CHUNK_W; lz++) {
+    for (let lx = 0; lx < CHUNK_W; lx++) {
+      const wx = cx * CHUNK_W + lx;
+      const wz = cz * CHUNK_W + lz;
+      for (let y = 0; y <= NETHER_TOP; y++) {
+        if (y <= 1 || y >= NETHER_TOP - 1) {
+          c.set(lx, y, lz, BEDROCK); // 基岩封底(0..1) + 封顶(126..127)
+          continue;
+        }
+        // 3D 噪声挖大洞窟（两层叠加 → 更连通的腔体）
+        const cave = valueNoise3(wx / 18, y / 16, wz / 18, s + 1) > 0.55 || valueNoise3(wx / 9, y / 10, wz / 9, s + 2) > 0.78;
+        if (cave) {
+          if (y <= NETHER_LAVA_Y) c.set(lx, y, lz, LAVA); // 岩浆面以下的腔体灌静态岩浆
+          continue; // 以上腔体留空气
+        }
+        let id = NETHERRACK;
+        if (valueNoise3(wx / 4, y / 4, wz / 4, s + 3) > 0.86) id = NETHER_QUARTZ_ORE; // 石英矿脉
+        else if (valueNoise3(wx / 10, y / 10, wz / 10, s + 4) > 0.9) id = SOUL_SAND; // 灵魂沙斑块
+        c.set(lx, y, lz, id);
+      }
+      // 洞顶荧石簇：天花板下沿稀疏挂团（确定性 hash）
+      if (hash2(wx, wz, s + 5) < 0.012) {
+        for (let y = NETHER_TOP - 2; y > NETHER_TOP - 7; y--) {
+          if (c.get(lx, y, lz) === 0) {
+            c.set(lx, y, lz, GLOWSTONE);
+            break;
+          }
+        }
+      }
+    }
+  }
+  c.dirty = true;
+  return c;
+}
+
+// 生成单个区块列 (cx,cz)：主世界=石基→土→草顶+海/树；下界=地狱岩+岩浆海。确定性、跨区块无缝。
+export function generateChunk(cx: number, cz: number, seed: number, dimension: 'overworld' | 'nether' = 'overworld'): Chunk {
+  if (dimension === 'nether') return generateNetherChunk(cx, cz, seed);
   const c = new Chunk();
   for (let lz = 0; lz < CHUNK_W; lz++) {
     for (let lx = 0; lx < CHUNK_W; lx++) {
