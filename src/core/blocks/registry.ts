@@ -234,8 +234,10 @@ export const BLOCKS: BlockDef[] = [
   },
   // 沙石：沙漠沙层之下，镐采。MC 硬度 0.8。
   { id: 18, name: 'sandstone', solid: true, transparent: false, faces: all(T.sandstone), hardness: 0.8, drop: 18, needsTool: true, tool: 'pickaxe' },
-  // 仙人掌：沙上生长，徒手可采；接触伤害(游戏层处理)。MC 硬度 0.4。渲染为实心方块。
-  { id: 19, name: 'cactus', solid: true, transparent: true, faces: all(T.cactus), hardness: 0.4, drop: 19, needsTool: false, tool: null },
+  // 仙人掌：沙上生长，徒手可采；接触伤害(游戏层处理)。MC 硬度 0.4。
+  // transparent:false → isOpaque=true → 走 opaque 渲染批(贴图为不透明纯绿、无 alpha)；
+  // 若设 transparent:true 则不属任何 mesher 分支 → 不可见(曾踩)。叠柱内部面也能正确剔除。
+  { id: 19, name: 'cactus', solid: true, transparent: false, faces: all(T.cactus), hardness: 0.4, drop: 19, needsTool: false, tool: null },
   // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。半透明渲染。
   { id: 20, name: 'ice', solid: true, transparent: true, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
   // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。

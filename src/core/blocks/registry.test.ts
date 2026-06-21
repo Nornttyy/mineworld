@@ -3,6 +3,7 @@ import {
   BLOCKS,
   blockFaceTile,
   isSolidId,
+  isOpaque,
   isTargetableId,
   isCutoutId,
   isPlantId,
@@ -54,6 +55,16 @@ describe('沙漠/雪原新方块', () => {
     expect(BLOCKS[SNOW_LAYER].name).toBe('snow_layer');
     expect(BLOCKS[SPRUCE_LOG].name).toBe('spruce_log');
     expect(BLOCKS[SPRUCE_LEAVES].name).toBe('spruce_leaves');
+  });
+
+  // 防回归：每个新方块都必须落进某条 mesher 渲染分支，否则不可见。
+  // 实心新方块要么不透明(走 opaque 批)，要么镂空(spruce_leaves)。仙人掌曾误设 transparent:true
+  // → 既非 opaque 也非 cutout/plant/ice → 整株不可见。锁死它走 opaque。
+  it('实心新方块可渲染：仙人掌/沙石/云杉原木走不透明批，云杉叶走镂空', () => {
+    expect(isOpaque(CACTUS)).toBe(true); // 不可见 bug 的回归守卫
+    expect(isOpaque(SANDSTONE)).toBe(true);
+    expect(isOpaque(SPRUCE_LOG)).toBe(true);
+    expect(isCutoutId(SPRUCE_LEAVES)).toBe(true);
   });
   it('冰打滑、其余正常摩擦', () => {
     expect(blockSlipperiness(ICE)).toBeGreaterThan(blockSlipperiness(1)); // 冰 > 石
