@@ -1,7 +1,41 @@
 import { describe, it, expect } from 'vitest';
-import { generateTerrain, surfaceHeight, generateChunk } from './terrain';
+import { generateTerrain, surfaceHeight, generateChunk, columnHeight, SEA_LEVEL } from './terrain';
 import { CHUNK_W } from '../world/chunk';
 import { NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
+
+describe('水下/沿海洞穴灌水', () => {
+  const hmin = (wx: number, wz: number, seed: number): number =>
+    Math.min(
+      columnHeight(wx, wz, seed),
+      columnHeight(wx + 4, wz, seed),
+      columnHeight(wx - 4, wz, seed),
+      columnHeight(wx, wz + 4, seed),
+      columnHeight(wx, wz - 4, seed),
+    );
+
+  it('洞里的水只出现在近水列；深内陆洞不被灌水；且确有水下洞被灌水', () => {
+    const seed = 1337;
+    let caveWater = 0;
+    for (let cx = 0; cx < 8; cx++)
+      for (let cz = 0; cz < 8; cz++) {
+        const c = generateChunk(cx, cz, seed);
+        for (let lx = 0; lx < CHUNK_W; lx++)
+          for (let lz = 0; lz < CHUNK_W; lz++) {
+            const wx = cx * CHUNK_W + lx;
+            const wz = cz * CHUNK_W + lz;
+            const h = columnHeight(wx, wz, seed);
+            for (let y = 2; y < h && y < SEA_LEVEL; y++) {
+              // 地表以下、海平面以下的洞穴格若是水
+              if (c.get(lx, y, lz) === WATER) {
+                caveWater++;
+                expect(hmin(wx, wz, seed)).toBeLessThan(SEA_LEVEL); // 防过度灌水：洞水只该在近水列
+              }
+            }
+          }
+      }
+    expect(caveWater).toBeGreaterThan(0); // 确实有水下/沿海洞被灌水
+  });
+});
 
 describe('下界世界生成', () => {
   it('基岩封顶封底、有地狱岩/岩浆/荧石，无草无水', () => {
