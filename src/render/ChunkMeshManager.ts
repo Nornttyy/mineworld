@@ -307,8 +307,10 @@ export class ChunkMeshManager {
             '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
-            '  float caus = pow(clamp(r.x * 0.5 + 0.5, 0.0, 1.0), 2.0);\n' + // 焦散:指数2.0→铺得更满(满屏流动亮纹)
-            '  col += caus * 0.22 * uSkyMul * vec3(0.95, 1.0, 1.0);\n' + // 近白焦散光纹、更强,仅白天可见
+            '  float cv1 = pow(1.0 - abs(sin(dot(vWPos.xz, vec2(1.0, 0.6)) * 2.0 + uTime * 0.8)), 5.0);\n' + // 一组流动脊线(sin 零点处=细亮纹)
+            '  float cv2 = pow(1.0 - abs(sin(dot(vWPos.xz, vec2(-0.7, 1.0)) * 2.4 - uTime * 1.0)), 5.0);\n' + // 另一方向脊线
+            '  float caus = cv1 + cv2;\n' + // 两组交叉成焦散网:透过透明水→像投在水底沙上的流动亮纹
+            '  col += caus * 0.20 * uSkyMul * vec3(0.92, 1.0, 1.0);\n' + // 近白焦散,白天可见、随 uTime 流动
             '  diffuseColor.rgb = col;\n' +
             '  diffuseColor.a = mix(0.34, 0.80, fres);\n' + // 俯看0.34更透明见底、掠角0.80半遮
             '}',
