@@ -215,7 +215,12 @@ export class Game {
   private camEye = EYE; // 平滑后的视点高度（下蹲时降向 CROUCH_EYE）
   private decayQueue: { x: number; y: number; z: number; t: number }[] = []; // 待腐烂的树叶 + 倒计时(tick)
   private texturePack: TexturePack; // 当前材质风格（卡通/经典）
+  private lightingQuality: LightingQuality; // 当前光影档位（off/standard/high）；供每帧 god-ray 开关用
   private renderDistance: number; // 区块加载半径（设置项；小=雾近更流畅）
+  // God-ray 复用对象（避免每帧 GC）
+  private readonly _godSunUV = new THREE.Vector2();
+  private readonly _godSunColor = new THREE.Color();
+  private readonly _godSunWorld = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -263,6 +268,7 @@ export class Game {
       }
     };
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
+    this.lightingQuality = loadSettings().lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
     this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
@@ -646,6 +652,7 @@ export class Game {
         const p = this.player.pos;
         this.coordEl.textContent = `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}`;
       }
+      this.updateGodRays(); // 体积光：每帧喂太阳屏幕 UV + 档位给 Renderer
       this.renderer.render();
       this.renderer.renderOverlay(this.hand.scene, this.hand.camera);
     };
@@ -736,8 +743,11 @@ export class Game {
 
   // 光影画质（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光 + 云风格(立体↔真实)，无需重建网格。
   setLightingQuality(q: LightingQuality): void {
+    this.lightingQuality = q;
     this.chunks.setLightingQuality(q);
     this.skyObjects.setLightingQuality(q);
+    // off 档立即关闭 god-ray 后处理（释放 RT），避免残留
+    if (q === 'off') this.renderer.setGodRays(null);
   }
 
   // 渲染距离（设置项）：改区块加载半径 + 雾距(far=rd×16 格) + 雾剔除距离。小=雾近、区块少、更流畅。
@@ -1397,6 +1407,77 @@ export class Game {
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光
     this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.35);
+  }
+
+  /**
+   * 每帧把太阳屏幕 UV + 当前档位喂给 Renderer.setGodRays()。
+   *
+   * 太阳方向：同 updateDayNight / SkyObjects 的公式——phi = worldTime/DAY_LENGTH*2π，
+   * 世界空间 sunDir = (cos(phi), sin(phi), 0.35).normalize()（Y=上，Z=北）。
+   *
+   * 投影到屏幕 UV：用 THREE.Vector3.project(camera) → NDC [-1,1] → UV [0,1]。
+   * THREE.js 的 NDC Y 轴向上，UV Y 轴也向上（0=底部），与屏幕坐标 Y 反转无关
+   * ——着色器里直接用 UV，与 vUv 一致（vUv 也是 Y 向上）。
+   *
+   * off 档：调 renderer.setGodRays(null) → off 路径，零后处理开销。
+   * 太阳在地平线下或屏幕外：intensity = 0 → shader 早返回，只输出 sceneColor。
+   */
+  private updateGodRays(): void {
+    if (this.lightingQuality === 'off') {
+      // setLightingQuality('off') 时已调 setGodRays(null)，这里不重复调（避免每帧 dispose/rebuild）。
+      return;
+    }
+
+    // 太阳世界方向（同 SkyObjects.update & ChunkMeshManager.updateSun 的公式）。
+    const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
+    const sx = Math.cos(phi);
+    const sy = Math.sin(phi); // Y > 0 = 地平线以上
+    const sz = 0.35;
+    const len = Math.hypot(sx, sy, sz) || 1;
+
+    // 太阳在地平线以下 → intensity 0（仍传 setGodRays 以保持 RT active，shader 早返回）。
+    const sunUp = sy / len; // 归一化 Y 分量
+
+    // 太阳世界位置 = 相机位置 + 太阳方向 × 远距离（投影用，距离不影响屏幕 UV）。
+    const cam = this.renderer.camera;
+    // 把太阳方向映射到 NDC，再转 UV。
+    // THREE.Vector3.project 把世界坐标 → NDC；这里用方向 × 距离 + 相机位置。
+    const FAR = 500; // 足够远，超出地形遮挡范围
+    this._godSunWorld.set(
+      cam.position.x + (sx / len) * FAR,
+      cam.position.y + (sy / len) * FAR,
+      cam.position.z + (sz / len) * FAR,
+    );
+    this._godSunWorld.project(cam); // → NDC [-1,1]³
+    const sunWorld = this._godSunWorld;
+    // NDC.x/y → UV [0,1]（Y 轴方向与 vUv 一致，不需要翻转）
+    const uvX = sunWorld.x * 0.5 + 0.5;
+    const uvY = sunWorld.y * 0.5 + 0.5;
+
+    // 太阳是否在视锥内（NDC 各维 [-1,1]）。仅检 X/Y；Z 不检（太阳永远在 far plane 外）。
+    const onScreen = uvX >= 0 && uvX <= 1 && uvY >= 0 && uvY <= 1;
+
+    // 强度：太阳高于地平线 + 在屏幕内才有光束；高度平滑过渡（tan-like 0..1）。
+    let intensity = 0;
+    if (sunUp > 0 && onScreen) {
+      // 平滑渐入：太阳刚过地平线时强度 0，正午偏强，上限 0.6（防过曝）。
+      intensity = Math.min(0.6, sunUp * 2.5);
+    }
+
+    // 太阳颜色：黎明/黄昏偏橙，正午白。用简化双线性近似，避免引入 skyStateAt 的开销。
+    // sunUp 0→橙(1.0,0.6,0.3)；sunUp 0.5→白(1.0,0.95,0.8)。
+    const cr = 1.0;
+    const cg = 0.6 + sunUp * 0.7;
+    const cb = 0.3 + sunUp * 1.0;
+    this._godSunColor.setRGB(cr, Math.min(1.0, cg), Math.min(1.0, cb));
+    this._godSunUV.set(uvX, uvY);
+
+    this.renderer.setGodRays({
+      quality: this.lightingQuality,
+      sunUV: this._godSunUV,
+      intensity,
+      sunColor: this._godSunColor,
+    });
   }
 
   private updateWater(): void {

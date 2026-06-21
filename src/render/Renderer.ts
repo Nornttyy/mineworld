@@ -1,16 +1,42 @@
 import * as THREE from 'three';
 import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
+import { GodRays } from './GodRays';
+import type { LightingQuality } from '../core/settings';
 
-/** 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。 */
+/** God-ray パラメータ（Game から毎フレーム供给）。 */
+interface GodRayOpts {
+  quality: LightingQuality;
+  /** 太阳屏幕坐标 UV，范围 [0,1]×[0,1]（THREE.js 坐标系，Y 轴向上）。 */
+  sunUV: THREE.Vector2;
+  /** 0 = 太阳不可见，1 = 正午最强。 */
+  intensity: number;
+  /** 太阳光束颜色（黎明偏橙，正午白）。 */
+  sunColor: THREE.Color;
+}
+
+/**
+ * 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。
+ *
+ * God-ray 开关：
+ *  - setGodRays(null) 或 quality='off' → this.god = null → render() 走原直接路径。
+ *  - setGodRays({...}) → 场景渲到 RT → GodRays quad 合成到屏幕 → renderOverlay（手臂）画在最上层。
+ */
 export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   private readonly gl: THREE.WebGLRenderer;
+
   // 天空背景：自有 canvas，昼夜更替时重画渐变（见 setSkyColors）。
   private readonly skyCanvas = document.createElement('canvas');
   private readonly skyCtx: CanvasRenderingContext2D | null;
   private readonly skyTex: THREE.CanvasTexture;
   private lastSky = ''; // 上次套用的天空配色（相同则跳过重画）
+
+  // God-ray 后处理
+  private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
+  private readonly godStd = new GodRays(24); // standard 档：24 采样
+  private readonly godHigh = new GodRays(48); // high 档：48 采样
+  private god: GodRayOpts | null = null; // null = off，render() 走原路径
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -50,6 +76,12 @@ export class Renderer {
     this.gl.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    // RT 重建为与 canvas 完全相同的分辨率（含 pixelRatio 倍数）。
+    // off 档时 rt 仍为 null，无需重建。
+    if (this.rt !== null) {
+      this.rt.dispose();
+      this.rt = this.buildRT(w, h);
+    }
   }
 
   /** 节流重渲一次 shadow map（autoUpdate 关、靠这个触发；昼夜/玩家移动时由 Game 调）。 */
@@ -57,8 +89,56 @@ export class Renderer {
     this.gl.shadowMap.needsUpdate = true;
   }
 
+  /**
+   * 每帧由 Game 调用：设置 god-ray 参数。
+   * opts = null 或 quality='off' → 关闭后处理，render() 走原直接路径（零 RT 开销）。
+   */
+  setGodRays(opts: GodRayOpts | null): void {
+    if (opts === null || opts.quality === 'off') {
+      // 关闭后处理：销毁 RT，清空 opts。
+      if (this.rt !== null) {
+        this.rt.dispose();
+        this.rt = null;
+      }
+      this.god = null;
+      return;
+    }
+    // 确保 RT 已建（首次开启或 resize 中途重建）。
+    if (this.rt === null) {
+      this.rt = this.buildRT(window.innerWidth, window.innerHeight);
+    }
+    this.god = opts;
+  }
+
+  /**
+   * 主渲染：
+   *  - god == null（off 档）→ 直接 gl.render，与改动前完全一致。
+   *  - god != null          → 场景渲到 RT → god-ray quad 合成到屏幕。
+   * renderOverlay（第一人称手臂）始终在此之后由 Game 调用，直接上屏（不经 RT）。
+   */
   render(): void {
+    if (this.god === null || this.rt === null) {
+      // ★ off 路径：等价于改动前的单行 render，零额外开销。
+      this.gl.render(this.scene, this.camera);
+      return;
+    }
+
+    // ── Step 1: 场景渲到 RT（颜色 + 深度）──
+    this.gl.setRenderTarget(this.rt);
+    this.gl.clear(); // 清颜色 + 深度（autoClear 默认 true）
     this.gl.render(this.scene, this.camera);
+
+    // ── Step 2: God-ray quad 合成到屏幕 ──
+    this.gl.setRenderTarget(null); // 切回屏幕
+    const gr = this.god.quality === 'high' ? this.godHigh : this.godStd;
+    const u = gr.material.uniforms;
+    u['tColor'].value = this.rt.texture;
+    u['tDepth'].value = this.rt.depthTexture;
+    u['uSunUV'].value.copy(this.god.sunUV);
+    u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 早返回
+    u['uSunColor'].value.copy(this.god.sunColor);
+    gr.render(this.gl);
+    // renderOverlay（手臂）由 Game 在此方法之后调用，直接画到屏幕，不经过 RT。
   }
 
   // 覆盖层（第一人称手臂等）：清掉深度后画在世界之上，永不被遮挡。
@@ -67,5 +147,25 @@ export class Renderer {
     this.gl.clearDepth();
     this.gl.render(scene, camera);
     this.gl.autoClear = true;
+  }
+
+  // ─── 私有工具 ───────────────────────────────────────────────────────────────
+
+  /**
+   * 构建全分辨率场景 RT（颜色 + 独立 DepthTexture）。
+   * 分辨率 = CSS 像素 × pixelRatio，与 gl.setSize 保持一致。
+   * 不降 pixelRatio：用户禁止降分辨率。
+   */
+  private buildRT(cssW: number, cssH: number): THREE.WebGLRenderTarget {
+    const pr = this.gl.getPixelRatio();
+    const w = Math.max(1, Math.round(cssW * pr));
+    const h = Math.max(1, Math.round(cssH * pr));
+    const depthTex = new THREE.DepthTexture(w, h);
+    depthTex.type = THREE.UnsignedIntType; // 24-bit depth，与 WebGLRenderer 默认匹配
+    const rt = new THREE.WebGLRenderTarget(w, h, {
+      depthTexture: depthTex,
+      depthBuffer: true,
+    });
+    return rt;
   }
 }
