@@ -124,30 +124,32 @@ export function updateHostile(
     }
   }
 
-  // —— 攻击：远程(骷髅)射箭，近战(僵尸)接触施伤 ——
+  // —— 攻击：远程(骷髅)射箭，近战(僵尸)接触施伤，苦力怕引信 ——
+  // 三者都要求【视线通畅】(怪眼高 → 玩家胸口，中间无实心方块)。近战/引信原先漏了这道检查 →
+  // 会隔薄墙打/炸玩家(ATTACK_RANGE 1.7、FUSE_RANGE 3 都 > 1 格墙厚)→ "矿洞里凭空掉血/被炸"。
+  const eye: Vec3 = { x: mob.pos.x, y: mob.pos.y + def.height * 0.85, z: mob.pos.z }; // 怪眼高
+  const chest: Vec3 | null = target ? { x: target.x, y: target.y + 1.0, z: target.z } : null; // 瞄玩家胸口
   if (def.ranged) {
     // 射程内 + 冷却就绪 + 视线通畅 → 朝玩家胸口射一箭（from=骷髅眼高，target 为玩家脚部 +1）
-    const from: Vec3 = { x: mob.pos.x, y: mob.pos.y + def.height * 0.85, z: mob.pos.z };
-    const chest: Vec3 | null = target ? { x: target.x, y: target.y + 1.0, z: target.z } : null; // 瞄玩家胸口
-    if (chest && pdist <= SHOOT_RANGE && mob.atkCd <= 0 && hasLineOfSight(world, from, chest)) {
+    if (chest && pdist <= SHOOT_RANGE && mob.atkCd <= 0 && hasLineOfSight(world, eye, chest)) {
       // 下坠补偿：箭飞 pdist 用时 ≈ pdist/速度，期间重力下坠 0.5·g·t²；抬高瞄点抵消（×1.15 容差阻力/夹角）。
       const t = pdist / SKELETON_ARROW_SPEED;
       const drop = 0.5 * ARROW_GRAVITY * t * t * 1.15;
-      const dx = chest.x - from.x;
-      const dy = chest.y + drop - from.y;
-      const dz = chest.z - from.z;
+      const dx = chest.x - eye.x;
+      const dy = chest.y + drop - eye.y;
+      const dz = chest.z - eye.z;
       const len = Math.hypot(dx, dy, dz) || 1;
       events.push({
         kind: 'shootArrow',
-        from,
+        from: eye,
         dir: { x: dx / len, y: dy / len, z: dz / len },
         damage: def.attack ?? 2,
       });
       mob.atkCd = SHOOT_CD;
     }
   } else if (def.explosive) {
-    // 苦力怕：进引信范围 → 站定膨胀倒计时；玩家走远 → 熄灭重置；到点 → 引爆并自毁
-    if (target && pdist <= FUSE_RANGE) {
+    // 苦力怕：进引信范围【且看得见玩家】→ 站定膨胀倒计时；玩家走远/被墙挡 → 熄灭重置；到点 → 引爆并自毁
+    if (chest && pdist <= FUSE_RANGE && hasLineOfSight(world, eye, chest)) {
       mob.fuse++;
       wishX = 0; // 引信中站住不动(同 MC)
       wishZ = 0;
@@ -157,9 +159,9 @@ export function updateHostile(
         return { mob, events };
       }
     } else {
-      mob.fuse = 0; // 玩家走远 → 引信熄灭(同 MC)
+      mob.fuse = 0; // 玩家走远/隔墙看不见 → 引信熄灭(同 MC)
     }
-  } else if (target && pdist <= ATTACK_RANGE && mob.atkCd <= 0) {
+  } else if (chest && pdist <= ATTACK_RANGE && mob.atkCd <= 0 && hasLineOfSight(world, eye, chest)) {
     events.push({ kind: 'attackPlayer', damage: def.attack ?? 2 });
     mob.atkCd = ATTACK_CD;
   }

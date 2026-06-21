@@ -54,6 +54,25 @@ describe('敌对生物 AI（僵尸/骷髅）', () => {
     const r = updateHostile(z, flat, rng, null, false);
     expect(dmgOf(r.events)).toBeNull();
   });
+
+  // 隔墙：怪和玩家各贴 1 格薄墙两侧，水平距离 1.6 ≤ ATTACK_RANGE(1.7)，但中间有实心墙挡视线。
+  // 修复前 bug：近战不查视线 → 隔墙照打玩家（"在矿洞里凭空掉血"）。
+  const walled = (wallX: number): VoxelWorld => ({
+    isSolid: (x, y, _z) => y <= 0 || x === wallX,
+    isWater: () => false,
+  });
+
+  it('隔实心墙不近战攻击玩家（视线被挡）', () => {
+    const z = spawnMob('zombie', 5.7, 1, 5);
+    const r = updateHostile(z, walled(6), rng, { x: 7.3, y: 1, z: 5 }, false); // 距离1.6≤1.7，但 x=6 是墙
+    expect(dmgOf(r.events)).toBeNull(); // 隔墙不该打到
+  });
+
+  it('同样距离、无墙（视线通畅）→ 正常近战', () => {
+    const z = spawnMob('zombie', 5.7, 1, 5);
+    const r = updateHostile(z, flat, rng, { x: 7.3, y: 1, z: 5 }, false); // 同距离 1.6，但无墙
+    expect(dmgOf(r.events)).toBe(3); // 看得见 → 照打（证明是墙挡住了上一条）
+  });
 });
 
 describe('苦力怕 AI（引信 + 爆炸）', () => {
@@ -90,5 +109,12 @@ describe('苦力怕 AI（引信 + 爆炸）', () => {
     const m = spawnMob('creeper', 5, 1, 5);
     const r = updateHostile(m, flat, rng, null, true); // sunlit=true
     expect(r.mob.health).toBe(m.health);
+  });
+
+  it('隔实心墙不点引信（视线被挡）', () => {
+    const walled: VoxelWorld = { isSolid: (x, y, _z) => y <= 0 || x === 6, isWater: () => false };
+    const c = spawnMob('creeper', 5.7, 1, 5);
+    const r = updateHostile(c, walled, rng, { x: 7.3, y: 1, z: 5 }, false); // 距离1.6≤3，但 x=6 是墙
+    expect(r.mob.fuse).toBe(0); // 隔墙不该被点燃 → 不会隔墙炸玩家
   });
 });
