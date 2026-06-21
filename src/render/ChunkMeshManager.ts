@@ -281,28 +281,26 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
-            // 程序波纹：返回 vec3(高度, 坡度x, 坡度z)。4 层行波(波长2~5格)、相位 ±t 多向 → 波纹在水面流动。
-            'vec3 rip(vec2 p, float t){\n' +
-            '  vec3 r = vec3(0.0); float a;\n' +
-            '  p += vec2(sin(p.y * 0.4 + t * 0.5), cos(p.x * 0.45 - t * 0.4)) * 0.7;\n' + // 域扭曲:坐标推歪→波纹不规则、飘动不成规则网格
-            '  p += vec2(sin(p.y * 0.9 - t * 0.35), cos(p.x * 0.8 + t * 0.3)) * 0.35;\n' + // 再叠一层小扭曲→更不规则
-            '  a = dot(p, vec2(1.00, 0.30)) * 1.6 + t * 1.3;  r += vec3(sin(a), 1.6 * 1.00 * cos(a), 1.6 * 0.30 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.40, 1.00)) * 2.2 - t * 1.6; r += vec3(sin(a), 2.2 * -0.40 * cos(a), 2.2 * 1.00 * cos(a));\n' +
-            '  a = dot(p, vec2(0.70, -0.60)) * 2.9 + t * 1.2; r += vec3(sin(a), 2.9 * 0.70 * cos(a), 2.9 * -0.60 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.70, -0.55)) * 3.6 - t * 1.5; r += vec3(sin(a), 3.6 * -0.70 * cos(a), 3.6 * -0.55 * cos(a));\n' +
-            '  a = dot(p, vec2(0.30, 0.95)) * 4.2 + t * 1.8;  r += vec3(sin(a), 4.2 * 0.30 * cos(a), 4.2 * 0.95 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.95, 0.25)) * 4.8 - t * 1.4; r += vec3(sin(a), 4.8 * -0.95 * cos(a), 4.8 * 0.25 * cos(a));\n' +
-            '  return r;\n' +
-            '}',
+            // 值噪声 + 两层不同尺度/方向滚动 → 不重复的混沌波纹(比正弦波自然、飘动不规则)。
+            'float mwH(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
+            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
+            'float mwWave(vec2 q, float t){\n' +
+            '  return mwH(q * 0.5 + vec2(t * 0.06, t * 0.04)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.05, t * 0.085)) * 0.4; }',
         )
         .replace(
           '#include <color_fragment>',
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
-            '  vec3 r = rip(vWPos.xz, uTime);\n' + // r.x=波纹高度(明暗带), r.yz=坡度(法线)
-            '  vec3 N = normalize(vec3(-r.y * 0.22, 1.0, -r.z * 0.22));\n' + // 波纹法线：扰动加大→浪荡得更明显
-
+            '  vec2 wq = vWPos.xz; float e = 0.35;\n' + // 噪声法线:有限差分求坡度→法线(不规则波纹)
+            '  float h0 = mwWave(wq, uTime);\n' +
+            '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
+            '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
+            '  vec3 N = normalize(vec3((h0 - hx) / e * 0.5, 1.0, (h0 - hz) / e * 0.5));\n' +
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
