@@ -170,9 +170,10 @@ export class ChunkMeshManager {
         shader.uniforms.uTime = this.uTime;
         shader.uniforms.uShaders = this.uShaders; // 仅「光影」开时摆（uShaders 门控）
       }
-      // 树叶随风摆：按【世界坐标(原始 position)+时间】位移 → 相邻叶共享顶点=同步摆动、无裂缝。×uShaders=只在光影开时摆。
+      // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
+      // 位移按【世界坐标(原始 position)+时间】→相邻顶点共享相位、无裂缝。×uShaders=只在光影开时摆。
       const swayCode = sway
-        ? '{ float sw = uShaders * 0.05; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
+        ? '{ float sw = uShaders * 0.06 * aSway; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
           ' transformed.x += sin(ph + uTime*1.4) * sw;' +
           ' transformed.z += sin(ph*1.3 + uTime*1.1) * sw;' +
           ' transformed.y += sin(ph*0.8 + uTime*1.7) * sw * 0.5; }\n'
@@ -181,7 +182,7 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\n' +
-            (sway ? 'uniform float uTime;\nuniform float uShaders;\n' : '') +
+            (sway ? 'uniform float uTime;\nuniform float uShaders;\nattribute float aSway;\n' : '') +
             'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
@@ -406,6 +407,7 @@ export class ChunkMeshManager {
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
+    if (data.sway && data.sway.length) g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
   }

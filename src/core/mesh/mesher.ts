@@ -89,6 +89,7 @@ export interface MeshData {
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
+  sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
 }
 
 interface BlockGrid {
@@ -176,8 +177,9 @@ interface FaceArrays {
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
   T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
+  SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [], SW: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -188,6 +190,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
     top: a.T.length ? new Float32Array(a.T) : undefined,
+    sway: a.SW.length ? new Float32Array(a.SW) : undefined,
   };
 };
 
@@ -290,6 +293,7 @@ export function meshChunkData(
     } else {
       a.I.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
     }
+    if (a === cut) a.SW.push(1, 1, 1, 1); // cutout(树叶等)：整体摆
   };
 
   // 火把：在格中心立一个暖色"交叉竖片"小网格，自发光(走独立材质，不参与天光 shader)。
@@ -344,6 +348,7 @@ export function meshChunkData(
       cut.U.push(u0, vB, u1, vB, u1, vT, u0, vT);
       cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
       cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
+      cut.SW.push(0, 0, 1, 1); // 底左,底右=根锚定(0)；顶右,顶左=草尖摆(1)
       cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   };
