@@ -44,7 +44,10 @@ void main() {
 
   // 太阳不可见时（强度 0）跳过体积光采样循环，但 bloom 仍叠加。
   if (uIntensity <= 0.001) {
-    gl_FragColor = vec4(scene + bloomColor * uBloom, 1.0);
+    // 合成是自定义 ShaderMaterial，three.js 不自动做 linear→sRGB；RT 存的是线性场景，
+    // 故这里手动 sRGB 编码，否则直接输出线性值会整体偏暗。
+    vec3 outc = scene + bloomColor * uBloom;
+    gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
     return;
   }
 
@@ -71,8 +74,9 @@ void main() {
   // 归一化：除以采样数，避免 weight×decay 累加超出合理范围。
   shaft /= float(${S});
 
-  // 体积光光束 + bloom 辉光叠加到场景色
-  gl_FragColor = vec4(scene + shaft * uSunColor * uIntensity + bloomColor * uBloom, 1.0);
+  // 体积光光束 + bloom 辉光叠加到场景色；末尾手动 sRGB 编码(自定义 ShaderMaterial three.js 不自动编码 → 否则偏暗)
+  vec3 outc = scene + shaft * uSunColor * uIntensity + bloomColor * uBloom;
+  gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
 }
 `.trim();
 
