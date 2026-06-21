@@ -128,6 +128,16 @@ function buildModel(kind: MobKind): Model {
     P(0.06, 0.14, 0.06, wood, 0.47, lH + 0.02, 0.16); // 下弓梢
     P(0.02, 0.6, 0.02, 0xeae6d8, 0.55, lH + 0.32, 0.16); // 弓弦
     for (const [x, z] of [[0, 0.1], [0, -0.1]] as const) addLeg(g, mat, legs, bone, x, z, lH, 0.12);
+  } else if (kind === 'husk') {
+    const skin = 0xb8a060, pants = 0x7a6535, lH = 0.82; // 沙黄皮 + 深褐裤(日晒尸壳配色)
+    B(0.5, 0.66, 0.28, 0, lH + 0.33, 0); // 躯干(贴图:沙黄破衫)
+    head = T(headTexture('husk')!, 0.44, 0.44, 0.44, 0, lH + 0.88, 0); // 头(贴图:干枯沙皮)
+    P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, 0.11); // 眼
+    P(0.07, 0.1, 0.08, EYE_C, 0.22, lH + 0.94, -0.11);
+    P(0.06, 0.05, 0.22, 0x5a4820, 0.22, lH + 0.8, 0); // 嘴(更深暗)
+    P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, 0.3); // 双臂前伸(尸壳同僵尸招牌姿势)
+    P(0.6, 0.18, 0.18, skin, 0.34, lH + 0.56, -0.3);
+    for (const [x, z] of [[0, 0.12], [0, -0.12]] as const) addLeg(g, mat, legs, pants, x, z, lH, 0.2);
   } else if (kind === 'creeper') {
     const green = 0x5fa044, dark = 0x3f7a2e, lH = 0.36; // 苦力怕绿 + 深腿
     B(0.5, 0.82, 0.32, 0, lH + 0.5, 0); // 直立躯干(贴图:绿斑)
