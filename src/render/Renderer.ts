@@ -117,8 +117,9 @@ export class Renderer {
    * renderOverlay（第一人称手臂）始终在此之后由 Game 调用，直接上屏（不经 RT）。
    */
   render(): void {
-    if (this.god === null || this.rt === null) {
-      // ★ off 路径：等价于改动前的单行 render，零额外开销。
+    if (this.god === null || this.rt === null || this.god.intensity <= 0.001) {
+      // ★ off 路径 / 太阳不可见(夜晚/出屏，intensity≈0)：等价于改动前的单行 render，零后处理开销。
+      // 既省性能(光束本就看不见时不跑 RT)，也让绝大多数情形走这条最稳的直渲路径。
       this.gl.render(this.scene, this.camera);
       return;
     }
