@@ -1094,6 +1094,8 @@ export class Game {
           this.arrows.push(
             spawnArrow(ev.from.x, ev.from.y, ev.from.z, ev.dir.x, ev.dir.y, ev.dir.z, SKELETON_ARROW_SPEED, false, ev.damage),
           );
+        } else if (ev.kind === 'explode') {
+          this.explode(ev.pos, ev.radius, ev.damage); // 苦力怕引爆：炸方块 + 按距离伤玩家
         } else if (ev.kind === 'drops') {
           for (const stack of ev.items)
             this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z), Math.random, stack.count));
@@ -1129,10 +1131,42 @@ export class Game {
       // 刷出的群按剩余名额裁剪，确保敌对数不超过 HOSTILE_CAP（硬上限）。
       const room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
       if (skyStateAt(this.worldTime).isNight && hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
-        const kind: MobKind = this.mobRng() < 0.5 ? 'zombie' : 'skeleton';
+        const rk = this.mobRng();
+        const kind: MobKind = rk < 0.4 ? 'zombie' : rk < 0.75 ? 'skeleton' : 'creeper';
         this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
       }
     }
+  }
+
+  // 苦力怕引爆：球形炸掉半径内的实心方块（空气/水不炸；y<0 由 setBlock 兜底）。批量改方块、最后只
+  // remesh 一次（remeshDirty 是同步重建，逐块调会卡死）；爆心烟尘 + 按距离衰减伤玩家并击退。
+  private explode(center: { x: number; y: number; z: number }, radius: number, maxDamage: number): void {
+    const cx = Math.floor(center.x);
+    const cy = Math.floor(center.y);
+    const cz = Math.floor(center.z);
+    const r2 = radius * radius;
+    const ri = Math.ceil(radius);
+    for (let dy = -ri; dy <= ri; dy++)
+      for (let dz = -ri; dz <= ri; dz++)
+        for (let dx = -ri; dx <= ri; dx++) {
+          if (dx * dx + dy * dy + dz * dz > r2) continue;
+          const bx = cx + dx;
+          const by = cy + dy;
+          const bz = cz + dz;
+          if (!isSolidId(this.world.getBlock(bx, by, bz))) continue; // 空气/水不炸
+          this.world.setBlock(bx, by, bz, AIR);
+          this.save.edits[`${bx},${by},${bz}`] = AIR; // 坑随存档保留
+          this.fluidSim.activate(bx, by, bz); // 让周围的水流进坑
+        }
+    this.chunks.remeshDirty(); // 一次性重建被波及的脏区块
+    this.particles.push(...spawnBurst(center.x, center.y + 0.4, center.z, [0.33, 0.33, 0.33], 30)); // 爆炸烟尘(灰)
+    // 距离衰减伤害 + 击退：爆心约满伤、边缘=0（伤害范围略大于炸块半径）
+    const p = this.player.pos;
+    const ddx = p.x - center.x;
+    const ddz = p.z - center.z;
+    const dist = Math.hypot(ddx, p.y + 0.9 - center.y, ddz);
+    const dmg = Math.round(maxDamage * (1 - dist / (radius + 1.5)));
+    if (dmg > 0) this.hurtPlayer(dmg, ddx, ddz);
   }
 
   // 此刻该生物是否被太阳直晒（白天 + 头顶通天，无遮挡）→ 敌对生物会被烧。

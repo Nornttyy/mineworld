@@ -40,6 +40,7 @@ export const FLINT = 289; // 挖砂砾小概率掉；合成箭
 export const STRING = 290; // 骷髅掉（无蜘蛛，用骷髅替代来源）；合成弓
 export const ARROW = 291; // 燧石+羽毛+木棍 合成；弓射出；落地可捡
 export const BOW = 292; // 3 线+3 棍 合成；蓄力射箭（在 Game 里特判，不是挖掘工具）
+export const GUNPOWDER = 293; // 苦力怕掉落（0-2）
 
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
@@ -102,6 +103,7 @@ const ITEMS: Record<number, ItemDef> = {
   [STRING]: { name: 'string', maxStack: 64, food: null, tool: null },
   [ARROW]: { name: 'arrow', maxStack: 64, food: null, tool: null },
   [BOW]: { name: 'bow', maxStack: 1, food: null, tool: null }, // 武器，但非挖掘 ToolDef
+  [GUNPOWDER]: { name: 'gunpowder', maxStack: 64, food: null, tool: null }, // 苦力怕掉落
 };
 
 export const ITEM_IDS: number[] = Object.keys(ITEMS).map(Number);

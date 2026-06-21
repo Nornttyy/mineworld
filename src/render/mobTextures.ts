@@ -63,6 +63,11 @@ function drawBody(kind: MobKind, ctx: CanvasRenderingContext2D, S: number): void
       fill('#84847a', 1, y + 1, 6, 1);
       fill('#84847a', 9, y + 1, 6, 1); // 肋下影
     }
+  } else if (kind === 'creeper') {
+    fill('#5fa044', 0, 0, S, S); // 苦力怕绿底
+    const r = srand(81);
+    for (let i = 0; i < 22; i++)
+      fill(r() > 0.5 ? '#4d8a36' : '#6fb050', Math.floor(r() * S), Math.floor(r() * S), 1, 1 + Math.floor(r() * 2)); // 深浅绿斑(苦力怕斑驳)
   } else {
     fill('#f1f1f1', 0, 0, S, S); // 鸡:白羽
     const r = srand(41);

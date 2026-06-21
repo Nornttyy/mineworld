@@ -20,6 +20,10 @@ const SHOOT_RANGE = 15; // 射程（水平格）
 const RANGED_MIN = 5; // 比这近 → 后退
 const RANGED_PREF = 10; // 比这远 → 靠近；之间 → 站住射
 const SHOOT_CD = 35; // 射击冷却（tick，≈1.75s）
+// 苦力怕引信
+const FUSE_RANGE = 3; // 玩家进入此距离(格)→ 点燃引信
+const FUSE_TIME = 30; // 引信 30 tick ≈ 1.5s → 引爆（同 MC）
+const BLAST_RADIUS = 3; // 爆炸半径(格，MC creeper power 3)
 // 水中浮力（与被动 mob.ts 一致）：浮到水面漂着、不沉底，和玩家一样一沉一浮。
 const WATER_BUOY = 0.06; // 上浮加速度
 const WATER_DRAG = 0.85; // 水阻尼
@@ -141,6 +145,20 @@ export function updateHostile(
       });
       mob.atkCd = SHOOT_CD;
     }
+  } else if (def.explosive) {
+    // 苦力怕：进引信范围 → 站定膨胀倒计时；玩家走远 → 熄灭重置；到点 → 引爆并自毁
+    if (target && pdist <= FUSE_RANGE) {
+      mob.fuse++;
+      wishX = 0; // 引信中站住不动(同 MC)
+      wishZ = 0;
+      if (mob.fuse >= FUSE_TIME) {
+        events.push({ kind: 'explode', pos: { ...mob.pos }, radius: BLAST_RADIUS, damage: def.attack ?? 22 });
+        events.push({ kind: 'death', pos: { ...mob.pos } }); // 自爆消失，不掉火药(同 MC)
+        return { mob, events };
+      }
+    } else {
+      mob.fuse = 0; // 玩家走远 → 引信熄灭(同 MC)
+    }
   } else if (target && pdist <= ATTACK_RANGE && mob.atkCd <= 0) {
     events.push({ kind: 'attackPlayer', damage: def.attack ?? 2 });
     mob.atkCd = ATTACK_CD;
@@ -203,7 +221,7 @@ export function updateHostile(
   }
 
   // —— 日晒受损：白天被太阳直射 → 持续掉血，烧死即清场（天亮自然消除夜怪）——
-  if (sunlit) mob.health -= SUN_DPS;
+  if (sunlit && !def.explosive) mob.health -= SUN_DPS; // 苦力怕不怕晒(同 MC)
 
   if (mob.health <= 0) {
     events.push({ kind: 'drops', items: rollDrops(mob.kind, rng), pos: { ...mob.pos } });

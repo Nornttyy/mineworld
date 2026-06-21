@@ -12,12 +12,13 @@ import {
   BONE,
   STRING,
   ARROW,
+  GUNPOWDER,
 } from '../items/items';
 
 // 被动动物（猪/牛/羊/鸡）——朴素数据 + 纯函数（AI/物理/受伤/掉落），可无头单测。
 // 渲染在 render/MobRenderer；副作用（生成掉落物 ItemDrop、移除死亡实体）由 game/ 按事件施加。
 
-export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton';
+export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton' | 'creeper';
 
 export interface MobDef {
   hp: number;
@@ -29,6 +30,7 @@ export interface MobDef {
   attack?: number; // 攻击伤害（近战接触 / 远程箭，半心=1）
   sense?: number; // 察觉/追击半径（格）
   ranged?: boolean; // 远程：拉开距离、射箭（骷髅），不靠接触伤
+  explosive?: boolean; // 苦力怕：不近战，靠近玩家点燃引信、到点自爆（炸方块+伤玩家）
 }
 
 // 1:1 MC Java（生命=2×心；体型/移速按手感+Wiki）。僵尸/骷髅敌对、夜行、白天暴晒受损。
@@ -39,6 +41,7 @@ export const MOB_DEFS: Record<MobKind, MobDef> = {
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
   zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16 },
   skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.052, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
+  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.05, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true }, // attack=爆心最大伤害，按距离衰减
 };
 
 export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
@@ -54,6 +57,7 @@ export interface Mob {
   ai: { state: 'idle' | 'wander' | 'panic' | 'chase'; timer: number; target: Vec3 | null };
   eggTimer: number; // 仅鸡：下个蛋的 tick
   atkCd: number; // 敌对：攻击冷却（tick），>0 时不再造成接触伤害
+  fuse: number; // 苦力怕：引信计时（tick，0=未点燃；到 FUSE_TIME 引爆）
 }
 
 export interface MobDrop {
@@ -66,7 +70,8 @@ export type MobEvent =
   | { kind: 'death'; pos: Vec3 }
   | { kind: 'hurt' }
   | { kind: 'attackPlayer'; damage: number } // 敌对接触攻击 → 游戏层对玩家施伤
-  | { kind: 'shootArrow'; from: Vec3; dir: Vec3; damage: number }; // 骷髅射箭 → 游戏层生成箭实体
+  | { kind: 'shootArrow'; from: Vec3; dir: Vec3; damage: number } // 骷髅射箭 → 游戏层生成箭实体
+  | { kind: 'explode'; pos: Vec3; radius: number; damage: number }; // 苦力怕引爆 → 游戏层炸方块 + 伤玩家
 export interface MobUpdate {
   mob: Mob;
   events: MobEvent[];
@@ -93,6 +98,7 @@ export function spawnMob(kind: MobKind, x: number, y: number, z: number): Mob {
     ai: { state: 'idle', timer: 20, target: null },
     eggTimer: kind === 'chicken' ? 6000 : 0,
     atkCd: 0,
+    fuse: 0,
   };
 }
 
@@ -297,6 +303,10 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       const arr = Math.floor(rng() * 2); // 0–1 箭（MC 骷髅也掉箭）
       if (arr > 0) out.push({ id: ARROW, count: arr });
       return out;
+    }
+    case 'creeper': {
+      const n = Math.floor(rng() * 3); // 0–2 火药（仅被打死时掉；自爆不掉，同 MC）
+      return n > 0 ? [{ id: GUNPOWDER, count: n }] : [];
     }
   }
 }

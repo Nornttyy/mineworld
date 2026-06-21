@@ -127,6 +127,17 @@ function buildModel(kind: MobKind): Model {
     P(0.06, 0.14, 0.06, wood, 0.47, lH + 0.02, 0.16); // 下弓梢
     P(0.02, 0.6, 0.02, 0xeae6d8, 0.55, lH + 0.32, 0.16); // 弓弦
     for (const [x, z] of [[0, 0.1], [0, -0.1]] as const) addLeg(g, mat, legs, bone, x, z, lH, 0.12);
+  } else if (kind === 'creeper') {
+    const green = 0x5fa044, dark = 0x3f7a2e, lH = 0.36; // 苦力怕绿 + 深腿
+    B(0.5, 0.82, 0.32, 0, lH + 0.5, 0); // 直立躯干(贴图:绿斑)
+    head = P(0.46, 0.46, 0.46, green, 0, lH + 1.12, 0); // 头(绿)
+    const F = 0x0d0d0d; // 脸=黑，画在前脸(+z)
+    P(0.13, 0.14, 0.06, F, 0.11, lH + 1.18, 0.22); // 左眼
+    P(0.13, 0.14, 0.06, F, -0.11, lH + 1.18, 0.22); // 右眼
+    P(0.1, 0.16, 0.06, F, 0, lH + 1.06, 0.22); // 嘴-中竖
+    P(0.1, 0.1, 0.06, F, 0.1, lH + 0.98, 0.22); // 嘴-左下
+    P(0.1, 0.1, 0.06, F, -0.1, lH + 0.98, 0.22); // 嘴-右下(倒T 苦力怕脸)
+    for (const [x, z] of [[0.16, 0.13], [0.16, -0.13], [-0.16, 0.13], [-0.16, -0.13]] as const) addLeg(g, mat, legs, dark, x, z, lH, 0.16);
   } else {
     const white = 0xf2f2f2, beak = 0xe7951f, red = 0xcc3b30, lH = 0.22;
     B(0.34, 0.34, 0.3, -0.02, lH + 0.17, 0); // 身(贴图)
@@ -152,6 +163,7 @@ function buildModel(kind: MobKind): Model {
 }
 
 const FLASH = new THREE.Color(0xff5a5a);
+const WHITE = new THREE.Color(1, 1, 1); // 苦力怕引信闪白
 
 export class MobRenderer {
   private readonly models = new Map<Mob, Model & { phase: number; t: number }>();
@@ -178,6 +190,12 @@ export class MobRenderer {
       m.group.rotation.y = -mob.yaw;
       const tint = mob.hurtCooldown > 0 ? FLASH : m.base; // 受击红闪，平时个体色
       for (const mt of m.mats) mt.color.copy(tint);
+      // 苦力怕引信：越接近引爆越闪白（同 MC 引爆征兆）；fuse 归 0 时下一帧自动复原
+      if (mob.kind === 'creeper' && mob.fuse > 0) {
+        const w = Math.min(1, mob.fuse / 30 + 0.3 * Math.abs(Math.sin(mob.fuse * 0.7)));
+        const flash = tint.clone().lerp(WHITE, w);
+        for (const mt of m.mats) mt.color.copy(flash);
+      }
 
       const speed = Math.hypot(mob.vel.x, mob.vel.z); // 格/tick
       const moving = speed > 0.002;

@@ -55,3 +55,40 @@ describe('敌对生物 AI（僵尸/骷髅）', () => {
     expect(dmgOf(r.events)).toBeNull();
   });
 });
+
+describe('苦力怕 AI（引信 + 爆炸）', () => {
+  it('玩家进引信范围 → 点燃引信、站定不动', () => {
+    const c = spawnMob('creeper', 5, 1, 5);
+    const r = updateHostile(c, flat, rng, { x: 6.5, y: 1, z: 5 }, false); // 距离 1.5 ≤ 3
+    expect(r.mob.fuse).toBe(1);
+    expect(r.mob.pos.x).toBeCloseTo(5, 5); // 引信中站定，不再朝玩家挪
+  });
+
+  it('引信到点 → 引爆（发 explode + death）', () => {
+    let m = spawnMob('creeper', 5, 1, 5);
+    let exploded = false;
+    let died = false;
+    for (let i = 0; i < 40 && !exploded; i++) {
+      const r = updateHostile(m, flat, rng, { x: 6.5, y: 1, z: 5 }, false);
+      m = r.mob;
+      if (r.events.some((e) => e.kind === 'explode')) exploded = true;
+      if (r.events.some((e) => e.kind === 'death')) died = true;
+    }
+    expect(exploded).toBe(true);
+    expect(died).toBe(true);
+  });
+
+  it('玩家走远 → 引信熄灭重置', () => {
+    let m = spawnMob('creeper', 5, 1, 5);
+    m = updateHostile(m, flat, rng, { x: 6.5, y: 1, z: 5 }, false).mob; // fuse=1
+    expect(m.fuse).toBe(1);
+    m = updateHostile(m, flat, rng, { x: 20, y: 1, z: 5 }, false).mob; // 玩家跑出引信范围
+    expect(m.fuse).toBe(0);
+  });
+
+  it('白天日晒不掉血（苦力怕不怕晒）', () => {
+    const m = spawnMob('creeper', 5, 1, 5);
+    const r = updateHostile(m, flat, rng, null, true); // sunlit=true
+    expect(r.mob.health).toBe(m.health);
+  });
+});
