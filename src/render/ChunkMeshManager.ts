@@ -303,7 +303,7 @@ export class ChunkMeshManager {
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  vec3 base = vec3(0.20, 0.45, 0.82) * vLF * vTint;\n' + // 明显的蓝色水(清澈但蓝得出来)
+            '  vec3 base = vec3(0.05, 0.30, 0.96) * vLF * vTint;\n' + // 更纯更饱和的蓝(红绿压低、蓝拉满)
             '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
