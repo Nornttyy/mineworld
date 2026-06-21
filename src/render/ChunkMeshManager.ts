@@ -303,16 +303,12 @@ export class ChunkMeshManager {
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  vec3 base = vec3(0.42, 0.62, 0.70) * vLF * vTint;\n' + // 淡灰蓝青、高亮低饱和(发白浅蓝清水,主要透出底沙)
+            '  vec3 base = vec3(0.20, 0.45, 0.82) * vLF * vTint;\n' + // 明显的蓝色水(清澈但蓝得出来)
             '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
-            '  float cv1 = pow(1.0 - abs(sin(dot(vWPos.xz, vec2(1.0, 0.6)) * 2.0 + uTime * 0.8)), 5.0);\n' + // 一组流动脊线(sin 零点处=细亮纹)
-            '  float cv2 = pow(1.0 - abs(sin(dot(vWPos.xz, vec2(-0.7, 1.0)) * 2.4 - uTime * 1.0)), 5.0);\n' + // 另一方向脊线
-            '  float caus = cv1 + cv2;\n' + // 两组交叉成焦散网:透过透明水→像投在水底沙上的流动亮纹
-            '  col += caus * 0.20 * uSkyMul * vec3(0.92, 1.0, 1.0);\n' + // 近白焦散,白天可见、随 uTime 流动
             '  diffuseColor.rgb = col;\n' +
-            '  diffuseColor.a = mix(0.34, 0.80, fres);\n' + // 俯看0.34更透明见底、掠角0.80半遮
+            '  diffuseColor.a = mix(0.45, 0.85, fres);\n' + // 稍降透明让蓝色显:俯看0.45、掠角0.85
             '}',
         );
     };
