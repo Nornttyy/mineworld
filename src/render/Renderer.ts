@@ -44,6 +44,10 @@ export class Renderer {
     // ⚠️ 曾加过动态降分辨率(adaptResolution 自动降到 0.6×)，画面发糊被用户否决、已移除——不要再加回来。
     // ⚠️ 不要加 powerPreference:'high-performance' —— 某些集显/混合显卡机器会创建上下文失败 → 进不了游戏。
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 电影级色调映射(ACES)：把"生平"的原始色分级成胶片观感——高光柔和滚降(天空不再死白)、中间调更润。
+    // 后处理栈第一步(最便宜、几乎零开销、不会白屏);bloom/SSAO 随后。曝光可调。
+    this.gl.toneMapping = THREE.ACESFilmicToneMapping;
+    this.gl.toneMappingExposure = 1.1;
     // 真实投影阴影：开启 shadow map（太阳 DirectionalLight 投影到地面，见 ChunkMeshManager）
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
