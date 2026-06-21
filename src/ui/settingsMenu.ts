@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings, type Settings, type TexturePack } from '../core/settings';
+import { loadSettings, saveSettings, type Settings, type TexturePack, type LightingQuality } from '../core/settings';
 
 // 像素风控件样式（拉杆 + 复选框）：方块化、硬边、无圆角。原生控件无法用内联样式改伪元素，故注入一次。
 function ensureControlStyles(): void {
@@ -45,10 +45,13 @@ export class SettingsMenu {
           <span id="set-vol-val" style="width:46px;text-align:right;"></span>
         </label>
         <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">音效尚未开发，先存着</div>
-        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
+        <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">光影</span>
-          <input id="set-shaders" type="checkbox" />
-          <span style="color:#8aa;font-size:12px;">真实云 / 真实水面（即将接入）</span>
+          <select id="set-lighting" style="background:#16212e;color:#dce8f2;border:2px solid #5a7390;padding:2px 6px;font-family:'Zpix',monospace;font-size:14px;cursor:pointer;">
+            <option value="off">关</option>
+            <option value="standard">标准</option>
+            <option value="high">高</option>
+          </select>
         </label>
         <div style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">材质</span>
@@ -66,7 +69,7 @@ export class SettingsMenu {
 
     const vol = root.querySelector('#set-vol') as HTMLInputElement;
     const volVal = root.querySelector('#set-vol-val') as HTMLElement;
-    const shaders = root.querySelector('#set-shaders') as HTMLInputElement;
+    const lighting = root.querySelector('#set-lighting') as HTMLSelectElement;
     const texCartoon = root.querySelector('#set-tex-cartoon') as HTMLButtonElement;
     const texClassic = root.querySelector('#set-tex-classic') as HTMLButtonElement;
 
@@ -93,8 +96,8 @@ export class SettingsMenu {
       setFill();
       apply();
     });
-    shaders.addEventListener('change', () => {
-      this.settings = { ...this.settings, shaders: shaders.checked };
+    lighting.addEventListener('change', () => {
+      this.settings = { ...this.settings, lightingQuality: lighting.value as LightingQuality };
       apply();
     });
     texCartoon.addEventListener('click', () => setTex('cartoon'));
@@ -115,7 +118,7 @@ export class SettingsMenu {
     vol.value = String(this.settings.volume);
     volVal.textContent = `${this.settings.volume}%`;
     setFill();
-    shaders.checked = this.settings.shaders;
+    lighting.value = this.settings.lightingQuality;
     rd.value = String(this.settings.renderDistance);
     rdVal.textContent = String(this.settings.renderDistance);
     setRdFill();
