@@ -261,24 +261,34 @@ def water(rng):
 
 
 def water_frames(n):
-    """MC 风静水 + 【极轻微缓动】：低对比、稀疏的柔和细波，缓慢同向漂移(24 帧无缝循环)。
-    不是旧那种忙碌斜纹滚动——对比低、纹样稀、漂得慢，整片仍读作平静水面，只是细纹缓缓浮动一点。"""
+    """MC 风水：纹样【不移动】，只在【固定位置】轻微淡入淡出地重复变化(同 Minecraft 水)。
+    一组固定的细波纹标记(位置全程不动)，各带独立时间相位 → 在原地缓缓淡入/淡出，互不同步、绝不平移。
+    24 帧无缝循环、低对比、稀疏 → 整片仍是平静水面，只是细纹在原地轻轻明灭。"""
     import math
 
     base = hx("#2f86e0")  # 主蓝(不变)
-    hi = hx("#3f90e6")  # 淡亮(仅比主蓝微偏)
-    dk = hx("#2a7ace")  # 淡暗
+    rng = random.Random(424242)
+    # 固定细波纹：位置/长度/明暗/各自相位，全程位置不变(rng 一次定死)
+    marks = []
+    for _ in range(14):
+        y = rng.randrange(S)
+        x0 = rng.randrange(S)
+        ln = rng.randint(2, 4)
+        col = hx("#3f90e6") if rng.random() < 0.55 else hx("#2a7ace")  # 淡亮 / 淡暗，仅比主蓝微偏
+        mid = tuple((base[k] + col[k]) // 2 for k in range(3))  # 半淡 → 平滑淡入淡出(不是硬闪)
+        marks.append((y, x0, ln, col, mid, rng.uniform(0, 2 * math.pi)))
     frames = []
     for f in range(n):
         ph = 2 * math.pi * f / n  # 相位整循环 → 首尾无缝
         im = new()
+        fill(im, "#2f86e0")  # 先铺满主蓝底，再在固定位置画淡纹
         px = im.load()
-        for y in range(S):
-            for x in range(S):
-                # 两道低频柔波(主要沿 y、带一点 x 斜度避免纯横条)，随相位缓慢同向漂移。
-                w = math.sin(2 * math.pi * y / S - ph) + 0.5 * math.sin(2 * math.pi * (2 * y + x) / S - ph * 0.7)
-                # 高阈值 → 只有波峰/波谷化成淡纹，绝大多数仍是主蓝 → 稀疏、安静
-                px[x, y] = hi if w > 1.2 else dk if w < -1.3 else base
+        for (y, x0, ln, col, mid, phase) in marks:
+            s = math.sin(ph + phase)  # 该纹本帧的强度：在【固定位置】淡入淡出(s 变，位置不变)
+            c = col if s > 0.55 else mid if s > 0.1 else None
+            if c is not None:
+                for dx in range(ln):
+                    px[(x0 + dx) % S, y] = c
         frames.append(im)
     return frames
 
