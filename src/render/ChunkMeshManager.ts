@@ -265,15 +265,25 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：按 MC 1:1 烤天光(skyDarken 夜减) + 传世界坐标；水面【不位移】(平静)。
+      // 顶点：烤天光 + 传世界坐标；水面顶点按波高【上下起伏】(仅光影开,aTop 标记的水面顶点动、侧壁底不动→免穿帮)。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' + MC_BRIGHT_GLSL,
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+            // 顶点端波高噪声(与片元同款,vertex 独立定义)→ 抬降水面顶点
+            'float mwHv(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
+            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
+            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.06, t * 0.04)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.05, t * 0.085)) * 0.4; }\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
+            'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * aTop * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(仅光影开 + 仅 aTop 水面顶点,侧壁底不动)
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
@@ -300,7 +310,7 @@ export class ChunkMeshManager {
             '  float h0 = mwWave(wq, uTime);\n' +
             '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
             '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
-            '  vec3 N = normalize(vec3((h0 - hx) / e * 0.5, 1.0, (h0 - hz) / e * 0.5));\n' +
+            '  vec3 N = normalize(vec3((h0 - hx) / e * 1.0, 1.0, (h0 - hz) / e * 1.0));\n' + // 扰动增强→波纹更明显
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
