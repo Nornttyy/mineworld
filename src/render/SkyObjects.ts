@@ -40,11 +40,11 @@ function makeRealSunTex(): THREE.CanvasTexture {
   const cx2 = S / 2;
   const r = S / 2;
   const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,230,1)');   // 中心：近白
-  g.addColorStop(0.35, 'rgba(255,240,120,1)'); // 内环：亮黄
-  g.addColorStop(0.65, 'rgba(255,200,50,1)');  // 外环：暖黄
-  g.addColorStop(0.85, 'rgba(255,160,20,0.5)'); // 边缘：橙暖半透
-  g.addColorStop(1, 'rgba(255,120,0,0)');       // 外缘：透明
+  g.addColorStop(0, 'rgba(255,255,255,1)');     // 中心：纯白
+  g.addColorStop(0.4, 'rgba(255,255,240,1)');   // 内环：近白
+  g.addColorStop(0.7, 'rgba(255,251,214,1)');   // 外环：淡黄(非橙)
+  g.addColorStop(0.88, 'rgba(255,248,200,0.5)'); // 边缘：淡黄半透
+  g.addColorStop(1, 'rgba(255,246,190,0)');      // 外缘：透明
   x.fillStyle = g;
   x.beginPath();
   x.arc(cx2, cx2, r, 0, Math.PI * 2);
@@ -65,11 +65,11 @@ function makeSunGlowTex(): THREE.CanvasTexture {
   const cx2 = S / 2;
   const r = S / 2;
   const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,220,100,0.55)');  // 中心：暖黄半透
-  g.addColorStop(0.25, 'rgba(255,200,80,0.35)'); // 内辉
-  g.addColorStop(0.55, 'rgba(255,160,40,0.15)'); // 中辉
-  g.addColorStop(0.8, 'rgba(255,120,10,0.04)');  // 外辉
-  g.addColorStop(1, 'rgba(255,80,0,0)');          // 边缘：全透
+  g.addColorStop(0, 'rgba(255,255,238,0.5)');    // 中心：淡白黄半透(非橙)
+  g.addColorStop(0.25, 'rgba(255,252,224,0.32)'); // 内辉
+  g.addColorStop(0.55, 'rgba(255,249,208,0.14)'); // 中辉
+  g.addColorStop(0.8, 'rgba(255,247,198,0.04)');  // 外辉
+  g.addColorStop(1, 'rgba(255,245,188,0)');        // 边缘：全透
   x.fillStyle = g;
   x.beginPath();
   x.arc(cx2, cx2, r, 0, Math.PI * 2);
