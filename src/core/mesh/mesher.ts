@@ -375,16 +375,14 @@ export function meshChunkData(
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
   // 角高度(MC 平均法)：该角周围 4 格水的自身高度平均；近满(≥0.8)权重×10；空气计 0 高度。
-  //  被"水或不透明方块"盖住头顶的水格 → 灌满到顶(高度 1)，否则方块下的浅水会露出空洞/缝。
+  //  只有"上方还是水"(同一水柱内)才算满；头顶是方块【不再】强行灌满——否则流进/放方块后的浅水会被画成整块
+  //  (用户报的 bug：放方块后水变整块)。水在真实高度画出水面(下方顶面逻辑已改成头顶有方块也画顶面)。
   const cornerH = (wy: number, cells: [number, number][]): number => {
     let total = 0;
     let count = 0;
     for (const [cx, cz] of cells) {
       const a = waterAmount(cx, wy, cz);
       if (waterAmount(cx, wy + 1, cz) > 0) return 1; // 上方有水(柱内) → 满
-      // 头顶有方块：较满的水(量≥6,含源头/灌进来的水)灌满贴住方块——免得看着"没填满/流不进"；
-      //   只有很浅的水(量<6,薄薄一层)才保持自身矮高度——免得浅水被画成整块。
-      if (a >= 6 && isOpaque(getBlock(cx, wy + 1, cz))) return 1;
       if (a > 0) {
         const h = a / 9;
         if (h >= 0.8) {
@@ -427,8 +425,10 @@ export function meshChunkData(
           const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);
           const h11 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz + 1], [wx + 1, wz + 1]]);
           const h10 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz - 1], [wx + 1, wz - 1]]);
-          // 顶面（上方非水且非不透明）：斜水面
-          if (waterAmount(wx, ly + 1, wz) === 0 && !isOpaque(getBlock(wx, ly + 1, wz))) {
+          // 顶面（上方只要不是水就画——【即便头顶有方块】也在水的真实高度画出水面）：
+          //  这样"流进上方有方块的格"的水看得见(修 bug：覆盖格的水流进去却看不见、像没流进)，
+          //  且不会被强行画成整块。水面高度 < 1(/9 上限≈0.89)，恒低于头顶方块底面，不会穿帮/z-fight。
+          if (waterAmount(wx, ly + 1, wz) === 0) {
             emitWaterFace(lx, ly, lz, Face.PosY, [h00, h01, h11, h10]);
           }
           // 底面：下方是空气才画
