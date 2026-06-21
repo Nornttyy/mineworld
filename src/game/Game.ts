@@ -644,7 +644,6 @@ export class Game {
         const p = this.player.pos;
         this.coordEl.textContent = `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}`;
       }
-      this.renderer.adaptResolution(dt * 1000); // 动态分辨率：卡了自动降、空闲升回清晰
       this.renderer.render();
       this.renderer.renderOverlay(this.hand.scene, this.hand.camera);
     };
