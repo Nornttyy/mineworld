@@ -22,7 +22,7 @@ import {
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { findUnsupportedLeaves } from '../core/world/leafDecay';
 import { loadAtlas } from '../render/atlas';
-import { loadSettings, type TexturePack } from '../core/settings';
+import { loadSettings, type TexturePack, type LightingQuality } from '../core/settings';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
 import { CrackOverlay } from '../render/CrackOverlay';
 import { DropRenderer } from '../render/DropRenderer';
@@ -266,7 +266,7 @@ export class Game {
     this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
-    this.chunks.setShaders(loadSettings().shaders); // 光影开关初值(真实水面波动/反射)
+    this.chunks.setLightingQuality(loadSettings().lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
@@ -277,7 +277,7 @@ export class Game {
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
-    this.skyObjects.setShaders(loadSettings().shaders); // 光影初值：开=柔和真实云、关=MC立体云
+    this.skyObjects.setLightingQuality(loadSettings().lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.coordEl = document.createElement('div');
@@ -735,10 +735,10 @@ export class Game {
     this.dropRenderer.setAtlas(atlas);
   }
 
-  // 光影开关（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光 + 云风格(立体↔真实)，无需重建网格。
-  setShaders(on: boolean): void {
-    this.chunks.setShaders(on);
-    this.skyObjects.setShaders(on);
+  // 光影画质（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光 + 云风格(立体↔真实)，无需重建网格。
+  setLightingQuality(q: LightingQuality): void {
+    this.chunks.setLightingQuality(q);
+    this.skyObjects.setLightingQuality(q);
   }
 
   // 渲染距离（设置项）：改区块加载半径 + 雾距(far=rd×16 格) + 雾剔除距离。小=雾近、区块少、更流畅。

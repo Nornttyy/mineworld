@@ -7,6 +7,7 @@ import { splitChunkMesh, type ChunkSections } from './meshSplit';
 import { loadWaterFrames } from './atlas';
 import { chunkInView, sectionTooDeep } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
+import type { LightingQuality } from '../core/settings';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
@@ -112,7 +113,7 @@ export class ChunkMeshManager {
 
     // 太阳光(投影阴影)：castShadow 让 three.js 每帧把 castShadow 物体渲进 shadow map(深度)；
     // 材质用 RGBA 打包深度，方块 shader 自己采样。正交相机只覆盖玩家附近 ±SHADOW_HALF。
-    this.sun.castShadow = false; // 默认关(集显 shadow PCF 每片元每帧太卡)；由 setShaders(「光影」开关)控制开
+    this.sun.castShadow = false; // 默认关(集显 shadow PCF 每片元每帧太卡)；由 setLightingQuality 控制开
     this.sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     const sc = this.sun.shadow.camera;
     sc.left = -SHADOW_HALF;
@@ -326,12 +327,11 @@ export class ChunkMeshManager {
     this.uSkyDarken.value = v;
   }
 
-  /** 光影总开关：开 → 水面波动 + 菲涅尔反射 + 太阳高光；关 → 平静水面(省性能)。 */
-  setShaders(on: boolean): void {
-    this.uShaders.value = on ? 1 : 0;
-    // 阴影开销大(集显每帧 PCF 卡) → 归「光影」开关：关时不渲 shadow pass、shader 跳 PCF
-    this.sun.castShadow = on;
-    if (!on) this.uShadowOn.value = 0;
+  /** 光影画质：off=全关；standard=便宜效果(水/云/摆/体积光)；high=再加太阳阴影。 */
+  setLightingQuality(q: LightingQuality): void {
+    this.uShaders.value = q !== 'off' ? 1 : 0;
+    this.sun.castShadow = q === 'high'; // 阴影只在高档
+    if (q !== 'high') this.uShadowOn.value = 0;
   }
 
   /** 雾剔除距离(随渲染距离)：超出此距离的区块完全在雾里 → 不网格化/不绘制。far 单位=格。 */

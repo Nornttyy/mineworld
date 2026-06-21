@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DAY_LENGTH } from '../core/world/dayNight';
+import type { LightingQuality } from '../core/settings';
 
 // 像素太阳：亮黄方块 + 暖芯（MC 风方块太阳）
 function makeSunTex(): THREE.CanvasTexture {
@@ -148,8 +149,9 @@ export class SkyObjects {
     scene.add(this.sun, this.moon, this.voxelClouds, this.softClouds);
   }
 
-  /** 光影开关：开 → 柔和真实云；关 → MC 立体方块云。 */
-  setShaders(on: boolean): void {
+  /** 光影画质：off → MC 立体方块云；standard/high → 柔和真实云。 */
+  setLightingQuality(q: LightingQuality): void {
+    const on = q !== 'off';
     this.shaders = on;
     this.voxelClouds.visible = !on;
     this.softClouds.visible = on;
