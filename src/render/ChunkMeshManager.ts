@@ -453,8 +453,8 @@ export class ChunkMeshManager {
       if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
     }
     this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
-    const built = this.world.peek(cx, cz);
-    if (built) built.dirty = false;
+    // 注意：dirty 由派发方(rebuild 派 worker 时 / rebuildSync 同步重建后)清，applyMesh 不清——
+    // 否则"派发后又被编辑(dirty=true)"的区块，等旧 worker 结果上屏时会被误清回 false → 丢改动。
   }
 
   // 同步网格化(主线程跑 meshChunk)：挖/放即时重建、无 Worker 回退、邻区没齐时兜底。
@@ -465,6 +465,8 @@ export class ChunkMeshManager {
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
     this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
+    const c = this.world.peek(cx, cz);
+    if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
   }
 
   // 收集本+8邻区的 blocks/fluid 副本(worker 网格化时采光晕/face/AO)。任一邻区还没生成→null(这次不派)。
@@ -489,7 +491,7 @@ export class ChunkMeshManager {
       return;
     }
     const k = this.key(cx, cz);
-    if (this.meshPending.has(k)) return; // 已在排队
+    if (this.meshPending.has(k)) return; // 已在排队；若期间又被编辑(dirty=true)，下帧 update() 会再派(自愈)
     const nb = this.collectNeighbors(cx, cz);
     if (!nb) return; // 邻区还没生成好 → 这次不网格化(留着下次 update 重试)，绝不同步 meshChunk 卡主线程
     this.meshPending.add(k);
@@ -542,11 +544,15 @@ export class ChunkMeshManager {
     }
   }
 
-  /** 立即重建所有已加载且变脏的区块（挖/放后调用）。 */
+  /** 挖/放/流体/树叶腐烂后：重建变脏的已加载区块。改走 worker 异步——原来这里同步跑 meshChunk
+   *  (整列 16×192×16 重建，实测 ~100~200ms/区块，挖边界格连带 ×4、流体每 5 刻批量重建)会把主线程
+   *  冻成 PPT(交互 INP 飙到数百 ms)。异步代价仅是改动延迟 1~2 帧上屏(挖掉的方块晚一两帧消失)，
+   *  完全值得。若某区块的旧网格还在 worker 在途，本次跳过、保持 dirty，下帧 update() 会再派最新数据
+   *  (自愈，最多晚 1~2 帧)。(无 Worker 的测试/node 环境，rebuild 自动回退同步 rebuildSync，与原先一致。) */
   remeshDirty(): void {
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
-      if (this.world.peek(cx, cz)?.dirty) this.rebuildSync(cx, cz); // 挖/放要即时反馈→同步
+      if (this.world.peek(cx, cz)?.dirty) this.rebuild(cx, cz);
     }
   }
 }
