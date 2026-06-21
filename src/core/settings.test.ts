@@ -21,9 +21,8 @@ describe('settings sanitize', () => {
     expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('cartoon');
   });
 
-  it('old shaders 布尔值迁移到 lightingQuality', () => {
-    expect(sanitizeSettings({ shaders: true }).lightingQuality).toBe('high');
-    expect(sanitizeSettings({ shaders: false }).lightingQuality).toBe('standard');
+  it('空对象回退到默认', () => {
+    expect(sanitizeSettings({}).lightingQuality).toBe(DEFAULT_SETTINGS.lightingQuality);
   });
 });
 
@@ -36,6 +35,9 @@ describe('lightingQuality 迁移', () => {
   });
   it('旧存档 shaders:false → standard', () => {
     expect(sanitizeSettings({ shaders: false }).lightingQuality).toBe('standard');
+  });
+  it('非布尔 shaders(如 "yes") → standard', () => {
+    expect(sanitizeSettings({ shaders: 'yes' }).lightingQuality).toBe('standard');
   });
   it('缺失 → standard', () => {
     expect(sanitizeSettings({}).lightingQuality).toBe('standard');
