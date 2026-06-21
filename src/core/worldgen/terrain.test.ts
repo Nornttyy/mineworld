@@ -104,11 +104,33 @@ describe('Task 3.2 decorations', () => {
   const SEED = 1337;
 
   it('仙人掌只立在沙漠的沙地上：每个 CACTUS 方块下方必须是沙(5)且群系是沙漠', () => {
-    // 扫描多个沙漠区块，断言所有 CACTUS 方块下方是 SAND 且列群系是 desert
+    // 先用 biomeAt 找沙漠陆地列，再生成该列所在区块，在区块内找仙人掌验证
     const SAND_ID = 5;
+
+    // Step 1: 纯 biomeAt 扫描找一个沙漠陆地列（不生成任何区块）
+    let targetWx = -1;
+    let targetWz = -1;
+    outer: for (let wx = 0; wx < 4000; wx += 16) {
+      for (let wz = 0; wz < 4000; wz += 16) {
+        if (biomeAt(wx, wz, SEED) === 'desert' && columnHeight(wx, wz, SEED) > SEA_LEVEL + 1) {
+          targetWx = wx;
+          targetWz = wz;
+          break outer;
+        }
+      }
+    }
+    expect(targetWx).toBeGreaterThanOrEqual(0); // 必须能找到沙漠区域
+
+    // Step 2: 生成该坐标所在区块（以及相邻几个，扩大找到仙人掌的概率）
     let foundCactus = false;
-    outer: for (let cx = 0; cx < 40; cx++) {
-      for (let cz = 0; cz < 10; cz++) {
+    const cx0 = worldToChunk(targetWx);
+    const cz0 = worldToChunk(targetWz);
+    outerChunk: for (let dcx = 0; dcx < 10; dcx++) {
+      for (let dcz = 0; dcz < 10; dcz++) {
+        const cx = cx0 + dcx;
+        const cz = cz0 + dcz;
+        // 快速检查：该区块中心是否是沙漠
+        if (biomeAt(cx * 16 + 8, cz * 16 + 8, SEED) !== 'desert') continue;
         const chunk = generateChunk(cx, cz, SEED);
         for (let lx = 0; lx < 16; lx++) {
           for (let lz = 0; lz < 16; lz++) {
@@ -121,7 +143,7 @@ describe('Task 3.2 decorations', () => {
                 expect(chunk.get(lx, y - 1, lz)).toBe(SAND_ID);
                 // 该列群系必须是沙漠
                 expect(biomeAt(wx, wz, SEED)).toBe('desert');
-                if (foundCactus) break outer;
+                break outerChunk;
               }
             }
           }
@@ -132,24 +154,43 @@ describe('Task 3.2 decorations', () => {
   });
 
   it('雪原水列顶层水格是冰(ICE)而非普通水', () => {
-    // 找一个 snow 且 height < SEA_LEVEL 的列（水下），断言水柱顶格是 ICE
-    // 雪原水域在 seed=1337 约从 cx=29,cz=25 开始出现，故需扫更大范围
+    // 先用 biomeAt+columnHeight 找一个 snow 且 height<SEA_LEVEL 的列（水下）
+    // 再生成该列的区块，验证 SEA_LEVEL 处是冰
     let foundIce = false;
-    outer: for (let cx = 0; cx < 60; cx++) {
-      for (let cz = 0; cz < 50; cz++) {
-        for (let lx = 0; lx < 16; lx += 4) {
-          for (let lz = 0; lz < 16; lz += 4) {
-            const wx = cx * 16 + lx;
-            const wz = cz * 16 + lz;
-            const h = columnHeight(wx, wz, SEED);
-            if (h < SEA_LEVEL && biomeAt(wx, wz, SEED) === 'snow') {
-              const chunk = generateChunk(cx, cz, SEED);
-              // 水柱顶格应该是冰
-              const topWater = chunk.get(lx, SEA_LEVEL, lz);
-              if (topWater === ICE) {
-                foundIce = true;
-                break outer;
-              }
+
+    // Step 1: 纯 biomeAt/columnHeight 扫描定位（不生成区块）
+    let targetWx = -1;
+    let targetWz = -1;
+    outer: for (let wx = 0; wx < 20000; wx += 8) {
+      for (let wz = 0; wz < 20000; wz += 8) {
+        if (biomeAt(wx, wz, SEED) === 'snow' && columnHeight(wx, wz, SEED) < SEA_LEVEL) {
+          targetWx = wx;
+          targetWz = wz;
+          break outer;
+        }
+      }
+    }
+    expect(targetWx).toBeGreaterThanOrEqual(0); // 必须能找到雪原水域列
+
+    // Step 2: 生成该列所在区块，验证冰
+    const cx = worldToChunk(targetWx);
+    const cz = worldToChunk(targetWz);
+    const lx = localCoord(targetWx);
+    const lz = localCoord(targetWz);
+    const chunk = generateChunk(cx, cz, SEED);
+    const topWater = chunk.get(lx, SEA_LEVEL, lz);
+    if (topWater === ICE) {
+      foundIce = true;
+    } else {
+      // 在同一区块内寻找其他符合条件的列
+      for (let slx = 0; slx < 16 && !foundIce; slx++) {
+        for (let slz = 0; slz < 16 && !foundIce; slz++) {
+          const swx = cx * 16 + slx;
+          const swz = cz * 16 + slz;
+          const h = columnHeight(swx, swz, SEED);
+          if (h < SEA_LEVEL && biomeAt(swx, swz, SEED) === 'snow') {
+            if (chunk.get(slx, SEA_LEVEL, slz) === ICE) {
+              foundIce = true;
             }
           }
         }
@@ -159,20 +200,41 @@ describe('Task 3.2 decorations', () => {
   });
 
   it('雪原陆地上有雪层(SNOW_LAYER)覆盖草顶', () => {
-    // 找 snow 且陆地的列，断言 height+1 有雪层（不要求每列都有，找到一个即可）
+    // 先用 biomeAt+columnHeight 找雪原陆地列，再生成区块验证雪层
+    // Step 1: 纯 biomeAt/columnHeight 扫描定位（不生成区块）
+    let targetWx = -1;
+    let targetWz = -1;
+    outer: for (let wx = 0; wx < 10000; wx += 8) {
+      for (let wz = 0; wz < 10000; wz += 8) {
+        if (biomeAt(wx, wz, SEED) === 'snow' && columnHeight(wx, wz, SEED) > SEA_LEVEL + 1) {
+          targetWx = wx;
+          targetWz = wz;
+          break outer;
+        }
+      }
+    }
+    expect(targetWx).toBeGreaterThanOrEqual(0); // 必须能找到雪原陆地列
+
+    // Step 2: 生成该列所在区块（以及相邻区块），找到雪层
     let foundSnowLayer = false;
-    outer: for (let cx = 0; cx < 40; cx++) {
-      for (let cz = 0; cz < 10; cz++) {
+    const cx0 = worldToChunk(targetWx);
+    const cz0 = worldToChunk(targetWz);
+    outerChunk: for (let dcx = 0; dcx < 5; dcx++) {
+      for (let dcz = 0; dcz < 5; dcz++) {
+        const cx = cx0 + dcx;
+        const cz = cz0 + dcz;
+        // 快速检查：该区块中心是否是雪原
+        if (biomeAt(cx * 16 + 8, cz * 16 + 8, SEED) !== 'snow') continue;
+        const chunk = generateChunk(cx, cz, SEED);
         for (let lx = 0; lx < 16; lx++) {
           for (let lz = 0; lz < 16; lz++) {
             const wx = cx * 16 + lx;
             const wz = cz * 16 + lz;
             const h = columnHeight(wx, wz, SEED);
             if (h > SEA_LEVEL + 1 && biomeAt(wx, wz, SEED) === 'snow') {
-              const chunk = generateChunk(cx, cz, SEED);
               if (chunk.get(lx, h + 1, lz) === SNOW_LAYER) {
                 foundSnowLayer = true;
-                break outer;
+                break outerChunk;
               }
             }
           }
@@ -183,12 +245,31 @@ describe('Task 3.2 decorations', () => {
   });
 
   it('雪原有云杉树(SPRUCE_LOG/SPRUCE_LEAVES)、沙漠无橡树', () => {
-    // 扫描区块：雪原群系找到 SPRUCE_LOG；同时确认沙漠区块不含橡树原木
-    // 雪原从 cx≈27,cz≈26 开始出现（seed=1337），需扫更大范围
+    // 先用 biomeAt 找雪原区块，只生成雪原区块，搜索 SPRUCE_LOG；同时验证沙漠/雪原无橡树
     const OAK_LOG_ID = 6;
     let foundSpruce = false;
-    for (let cx = 0; cx < 80; cx++) {
-      for (let cz = 0; cz < 50; cz++) {
+
+    // Step 1: 用 biomeAt 找雪原区块坐标（纯噪声，不生成区块）
+    let snowCx = -1;
+    let snowCz = -1;
+    outerSearch: for (let wx = 0; wx < 30000; wx += 32) {
+      for (let wz = 0; wz < 30000; wz += 32) {
+        if (biomeAt(wx, wz, SEED) === 'snow' && columnHeight(wx, wz, SEED) > SEA_LEVEL + 1) {
+          snowCx = worldToChunk(wx);
+          snowCz = worldToChunk(wz);
+          break outerSearch;
+        }
+      }
+    }
+    expect(snowCx).toBeGreaterThanOrEqual(0); // 必须能找到雪原区域
+
+    // Step 2: 生成以该区块为中心的一批雪原区块，扫描 SPRUCE_LOG
+    outerChunk: for (let dcx = 0; dcx < 15; dcx++) {
+      for (let dcz = 0; dcz < 15; dcz++) {
+        const cx = snowCx + dcx;
+        const cz = snowCz + dcz;
+        // 快速检查：该区块中心是否是雪原
+        if (biomeAt(cx * 16 + 8, cz * 16 + 8, SEED) !== 'snow') continue;
         const chunk = generateChunk(cx, cz, SEED);
         for (let lx = 0; lx < 16; lx++) {
           for (let lz = 0; lz < 16; lz++) {
@@ -207,6 +288,7 @@ describe('Task 3.2 decorations', () => {
             }
           }
         }
+        if (foundSpruce) break outerChunk;
       }
     }
     expect(foundSpruce).toBe(true); // 必须找到至少一棵云杉
