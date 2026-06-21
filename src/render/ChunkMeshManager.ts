@@ -284,10 +284,12 @@ export class ChunkMeshManager {
             // 程序波纹：返回 vec3(高度, 坡度x, 坡度z)。4 层行波(波长2~5格)、相位 ±t 多向 → 波纹在水面流动。
             'vec3 rip(vec2 p, float t){\n' +
             '  vec3 r = vec3(0.0); float a;\n' +
-            '  a = dot(p, vec2(1.00, 0.30)) * 1.3 + t * 0.9;  r += vec3(sin(a), 1.3 * 1.00 * cos(a), 1.3 * 0.30 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.40, 1.00)) * 1.8 - t * 1.1; r += vec3(sin(a), 1.8 * -0.40 * cos(a), 1.8 * 1.00 * cos(a));\n' +
-            '  a = dot(p, vec2(0.70, -0.60)) * 2.5 + t * 0.8; r += vec3(sin(a), 2.5 * 0.70 * cos(a), 2.5 * -0.60 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.70, -0.55)) * 3.5 - t * 1.0; r += vec3(sin(a), 3.5 * -0.70 * cos(a), 3.5 * -0.55 * cos(a));\n' +
+            '  a = dot(p, vec2(1.00, 0.30)) * 1.6 + t * 1.3;  r += vec3(sin(a), 1.6 * 1.00 * cos(a), 1.6 * 0.30 * cos(a));\n' +
+            '  a = dot(p, vec2(-0.40, 1.00)) * 2.2 - t * 1.6; r += vec3(sin(a), 2.2 * -0.40 * cos(a), 2.2 * 1.00 * cos(a));\n' +
+            '  a = dot(p, vec2(0.70, -0.60)) * 2.9 + t * 1.2; r += vec3(sin(a), 2.9 * 0.70 * cos(a), 2.9 * -0.60 * cos(a));\n' +
+            '  a = dot(p, vec2(-0.70, -0.55)) * 3.6 - t * 1.5; r += vec3(sin(a), 3.6 * -0.70 * cos(a), 3.6 * -0.55 * cos(a));\n' +
+            '  a = dot(p, vec2(0.30, 0.95)) * 4.2 + t * 1.8;  r += vec3(sin(a), 4.2 * 0.30 * cos(a), 4.2 * 0.95 * cos(a));\n' +
+            '  a = dot(p, vec2(-0.95, 0.25)) * 4.8 - t * 1.4; r += vec3(sin(a), 4.8 * -0.95 * cos(a), 4.8 * 0.25 * cos(a));\n' +
             '  return r;\n' +
             '}',
         )
@@ -297,7 +299,7 @@ export class ChunkMeshManager {
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
             '  vec3 r = rip(vWPos.xz, uTime);\n' + // r.x=波纹高度(明暗带), r.yz=坡度(法线)
-            '  vec3 N = normalize(vec3(-r.y * 0.16, 1.0, -r.z * 0.16));\n' + // 波纹法线：加大扰动→反射被波纹打碎、不再镜面塑料感
+            '  vec3 N = normalize(vec3(-r.y * 0.22, 1.0, -r.z * 0.22));\n' + // 波纹法线：扰动加大→浪荡得更明显
 
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
