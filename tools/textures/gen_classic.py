@@ -353,6 +353,26 @@ def gravel(rng):
     return im
 
 
+def grass_plant(rng):
+    # 经典风草丛：透明底 + 一簇闷色绿叶(底深顶亮、顶端收尖)。与卡通版同形状，只换经典平原草绿(不鲜艳)。
+    # 供 cross billboard(草/长草)用，cutout alpha-test。必须随卡通一起进图集，否则经典 pack 下草不可见。
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    dk, mid, hi = (60, 92, 42, 255), hx(GL) + (255,), hx(GB) + (255,)
+    blades = [(4, 2, 4), (6, 5, 2), (8, 8, 1), (10, 11, 3), (12, 14, 5), (7, 6, 6), (9, 10, 7)]
+    for bx, tx, ty in blades:  # 叶子从底(y=15)长到(tx,ty)，逐像素上移、上亮下深
+        steps = 15 - ty
+        for i in range(steps + 1):
+            t = i / max(1, steps)
+            x = round(bx + (tx - bx) * t)
+            y = 15 - i
+            col = dk if t < 0.34 else (mid if t < 0.72 else hi)
+            if 0 <= x < S and 0 <= y < S:
+                im.putpixel((x, y), col)
+            if t < 0.55 and 0 <= x + 1 < S and 0 <= y < S:  # 底部加粗一点
+                im.putpixel((x + 1, y), dk if t < 0.34 else mid)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -371,6 +391,7 @@ BLOCKS = [
     ("iron_ore", iron_ore),
     ("furnace_front", furnace_front),
     ("gravel", gravel),
+    ("grass_plant", grass_plant),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -441,7 +462,7 @@ def main():
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
-                   'gravel']
+                   'gravel', 'grass_plant']
     COLS, ROWS = 4, 5
     atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
