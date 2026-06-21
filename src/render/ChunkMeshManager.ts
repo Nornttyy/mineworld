@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
-import { CHUNK_W, CHUNK_H } from '../core/world/chunk';
-import { meshChunk, type MeshData } from '../core/mesh/mesher';
+import { CHUNK_W } from '../core/world/chunk';
+import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
-import { splitChunkMesh, type ChunkSections } from './meshSplit';
 import { loadWaterFrames } from './atlas';
-import { chunkInView, sectionTooDeep } from './chunkCull';
+import { chunkInView } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
@@ -33,10 +32,18 @@ const MC_LIGHT_GLSL =
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
 
-// 一个区块的全部网格段（竖直分段后，四套材质各若干段拍平成一个数组）。
-// 每段是独立 THREE.Mesh、包围球小 → three.js 视锥剔除能逐段剔掉看不见的地下/上方段。
 interface ChunkMeshes {
-  meshes: THREE.Mesh[];
+  opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
+  water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
+}
+
+interface ChunkMeshes {
+  opaque: THREE.Mesh;
+  cutout: THREE.Mesh | null;
+  water: THREE.Mesh | null;
+  torch: THREE.Mesh | null;
 }
 
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
@@ -75,7 +82,7 @@ export class ChunkMeshManager {
   private readonly meshWorkers: Worker[] = [];
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
-  private readonly meshQueue: { cx: number; cz: number; mesh: ChunkSections }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
+  private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
 
   constructor(
@@ -135,7 +142,7 @@ export class ChunkMeshManager {
       const n = Math.max(1, Math.min(4, cores - 1));
       for (let i = 0; i < n; i++) {
         const w = new MeshGenWorker();
-        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkSections }>): void => {
+        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
           const { cx, cz, mesh } = e.data;
           const k = this.key(cx, cz);
           if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
@@ -394,24 +401,20 @@ export class ChunkMeshManager {
   private unload(k: string): void {
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of m.meshes) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
+    for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
+      if (mesh) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
     }
     this.meshes.delete(k);
   }
 
-  // 把一套网格段建成 Mesh 并入场景（空数据返回 null）。
-  // 关 three.js 自动视锥剔除(对矮段小包围盒会"整批误剔"成空洞，同 clouds/particles)，改用 cullVertical 手动剔除；
-  // 记下本段顶部世界 Y(userData.maxY)供手动竖直剔除判断。
+  // 把一套网格数据建成 Mesh 并入场景（空数据返回 null）
   private addMesh(data: MeshData, mat: THREE.Material, cx: number, cz: number): THREE.Mesh | null {
     if (data.indices.length === 0) return null;
-    const geo = this.buildGeo(data);
-    geo.computeBoundingBox();
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(this.buildGeo(data), mat);
     mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
-    mesh.frustumCulled = false; // 本仓库 three 视锥剔除对小包围盒几何会整批误剔 → 关掉，改手动剔除(cullToView 水平 + cullVertical 竖直)
-    mesh.userData.maxY = geo.boundingBox ? geo.boundingBox.max.y : CHUNK_H; // 段顶世界 Y(geometry 局部坐标即世界 Y，mesh.y=0)
     this.scene.add(mesh);
     return mesh;
   }
@@ -435,38 +438,21 @@ export class ChunkMeshManager {
     return this.meshQueue.length;
   }
 
-  private applyMesh(cx: number, cz: number, sm: ChunkSections): void {
+  private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
-    const meshes: THREE.Mesh[] = [];
-    // 不透明段：投影 + 接收阴影
-    for (const d of sm.opaque) {
-      const m = this.addMesh(d, this.opaqueMat, cx, cz);
-      if (m) {
-        m.castShadow = true;
-        m.receiveShadow = true;
-        meshes.push(m);
-      }
+    const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
+    const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
+    const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
+    // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
+    om.castShadow = true;
+    om.receiveShadow = true;
+    if (cm) {
+      cm.castShadow = true;
+      cm.receiveShadow = true;
+      if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
     }
-    // 树叶(镂空)段：用镂空深度材质投影(叶影有孔，不是实心黑块)
-    for (const d of sm.cutout) {
-      const m = this.addMesh(d, this.cutoutMat, cx, cz);
-      if (m) {
-        m.castShadow = true;
-        m.receiveShadow = true;
-        if (this.leafDepthMat) m.customDepthMaterial = this.leafDepthMat;
-        meshes.push(m);
-      }
-    }
-    // 水/火把段：不投影
-    for (const d of sm.water) {
-      const m = this.addMesh(d, this.waterMat, cx, cz);
-      if (m) meshes.push(m);
-    }
-    for (const d of sm.torch) {
-      const m = this.addMesh(d, this.torchMat, cx, cz);
-      if (m) meshes.push(m);
-    }
-    this.meshes.set(this.key(cx, cz), { meshes });
+    this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
     // 注意：dirty 由派发方(rebuild 派 worker 时 / rebuildSync 同步重建后)清，applyMesh 不清——
     // 否则"派发后又被编辑(dirty=true)"的区块，等旧 worker 结果上屏时会被误清回 false → 丢改动。
   }
@@ -478,7 +464,7 @@ export class ChunkMeshManager {
     this.meshPending.delete(k);
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
-    this.applyMesh(cx, cz, splitChunkMesh(meshChunk(this.world, cx, cz))); // 同步回退路径在主线程切段(罕见：无worker/邻区没齐，单块不会OOM)
+    this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
     const c = this.world.peek(cx, cz);
     if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
   }
@@ -544,7 +530,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of m.meshes) mesh.visible = vis;
+      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
     }
   }
 
@@ -554,18 +540,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ)) continue;
-      for (const mesh of m.meshes) mesh.visible = false;
-    }
-  }
-
-  /** 每帧：竖直分段剔除——隐藏"整段都深在玩家脚下"的段(站地面时看不见的深处洞穴/基岩，约半数三角形)。
-   *  在 cullToView 之后调，同样只往「不可见」收紧。留足余量(VERTICAL_CULL_MARGIN)绝不剔到正在看的地表/树，
-   *  故不会出现"树冠悬空/地面破洞"。下到地下时余量内的段全留。这是替代 three 内建视锥剔除(对矮段会误剔)的安全做法。 */
-  cullVertical(playerY: number): void {
-    for (const [, m] of this.meshes) {
-      for (const mesh of m.meshes) {
-        if (mesh.visible && sectionTooDeep(mesh.userData.maxY as number, playerY)) mesh.visible = false;
-      }
+      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = false;
     }
   }
 

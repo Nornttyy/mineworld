@@ -24,12 +24,3 @@ export function chunkInView(
   const cosA = (ddx * dirX + ddz * dirZ) / Math.sqrt(d2); // 与视线夹角余弦
   return cosA >= cullCos;
 }
-
-// 竖直分段剔除（配合 meshSplit）：段是矮网格(各占一段高度)。three.js 内建视锥剔除在本仓库对这类小包围盒
-// 几何会"整批误剔"(同 SkyObjects/ParticleRenderer 关 frustumCulled 的原因) → 段会无故消失成空洞。
-// 故段一律关 frustumCulled，改这里手动剔除：只剔"整段都在玩家脚下很深处"的段(深处洞穴/基岩，站地面绝对
-// 看不见)，留足余量(VERTICAL_CULL_MARGIN)绝不剔到正在看的地表/树。下到地下时余量内的段全留(不剔身边)。
-export const VERTICAL_CULL_MARGIN = 40; // 段顶低于玩家这么多格才剔(站地面≈剔掉最深洞穴段=约半数三角形)
-// 某段(段顶世界 Y = sectionTopY)是否整段都深在玩家(playerY)脚下 → 可安全隐藏。
-export const sectionTooDeep = (sectionTopY: number, playerY: number, margin = VERTICAL_CULL_MARGIN): boolean =>
-  sectionTopY < playerY - margin;
