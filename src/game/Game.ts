@@ -80,7 +80,6 @@ import { spawnBurst, stepParticles, particleColor, type Particle } from '../core
 import type { WorldSave } from '../save/worldStore';
 
 const TICK_MS = 50; // 20 TPS 固定步长
-const RENDER_RADIUS = 6; // 渲染半径（区块）
 const REACH = 5; // 交互距离（方块）
 const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
