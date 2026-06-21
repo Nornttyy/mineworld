@@ -277,7 +277,7 @@ export class ChunkMeshManager {
             '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
-            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.20, t * 0.14)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.17, t * 0.28)) * 0.4; }\n' + MC_BRIGHT_GLSL,
+            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
@@ -299,7 +299,7 @@ export class ChunkMeshManager {
             '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
             'float mwWave(vec2 q, float t){\n' +
-            '  return mwH(q * 0.5 + vec2(t * 0.20, t * 0.14)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.17, t * 0.28)) * 0.4; }',
+            '  return mwH(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }',
         )
         .replace(
           '#include <color_fragment>',
@@ -315,7 +315,7 @@ export class ChunkMeshManager {
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  vec3 base = vec3(0.05, 0.36, 0.72) * vLF * vTint;\n' + // 海蓝色(深海蓝,蓝为主、带一点青)
+            '  vec3 base = vec3(0.0, 0.48, 0.92) * vLF * vTint;\n' + // 鲜艳海蓝(高饱和亮蓝)
             '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
