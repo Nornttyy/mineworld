@@ -261,10 +261,26 @@ def water(rng):
 
 
 def water_frames(n):
-    """不再做流动动画：MC 风【静水】，n 帧全是同一张图 → 渲染层照常切帧但画面纹丝不动。
-    (用户要"别让水看起来在动、要我的世界那种"。日后想要 MC 那种极轻微的缓动可在此加。)"""
-    still = _water_still()
-    return [still for _ in range(n)]
+    """MC 风静水 + 【极轻微缓动】：低对比、稀疏的柔和细波，缓慢同向漂移(24 帧无缝循环)。
+    不是旧那种忙碌斜纹滚动——对比低、纹样稀、漂得慢，整片仍读作平静水面，只是细纹缓缓浮动一点。"""
+    import math
+
+    base = hx("#2f86e0")  # 主蓝(不变)
+    hi = hx("#3f90e6")  # 淡亮(仅比主蓝微偏)
+    dk = hx("#2a7ace")  # 淡暗
+    frames = []
+    for f in range(n):
+        ph = 2 * math.pi * f / n  # 相位整循环 → 首尾无缝
+        im = new()
+        px = im.load()
+        for y in range(S):
+            for x in range(S):
+                # 两道低频柔波(主要沿 y、带一点 x 斜度避免纯横条)，随相位缓慢同向漂移。
+                w = math.sin(2 * math.pi * y / S - ph) + 0.5 * math.sin(2 * math.pi * (2 * y + x) / S - ph * 0.7)
+                # 高阈值 → 只有波峰/波谷化成淡纹，绝大多数仍是主蓝 → 稀疏、安静
+                px[x, y] = hi if w > 1.2 else dk if w < -1.3 else base
+        frames.append(im)
+    return frames
 
 
 def oak_leaves(rng):
