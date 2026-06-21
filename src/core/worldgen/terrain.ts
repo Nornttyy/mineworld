@@ -2,7 +2,7 @@ import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2, valueNoise3 } from '../math/noise';
-import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES } from '../blocks/registry';
+import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, isSolidId } from '../blocks/registry';
 import { biomeAt, biomeForest as _biomeForest } from './biome';
 
 // Re-export biomeForest so existing callers (incl. biome.test.ts if any) still work.
@@ -284,6 +284,15 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       // 低密度：约 2% → 不密集，避免连片
       const r = hash2(wx, wz, seed * 11 + 53);
       if (r >= 0.02) continue;
+      // MC 1.12：仙人掌底格(h+1)的 4 个水平邻格不能是仙人掌或实心方块，否则弹出。
+      // 只检查本区块内的邻格；跨区块边界是已接受的限制（极少数情形，注释说明）。
+      const baseY = h + 1;
+      if (
+        (lx > 0  && (c.get(lx - 1, baseY, lz) === CACTUS || isSolidId(c.get(lx - 1, baseY, lz)))) ||
+        (lx < CHUNK_W - 1 && (c.get(lx + 1, baseY, lz) === CACTUS || isSolidId(c.get(lx + 1, baseY, lz)))) ||
+        (lz > 0  && (c.get(lx, baseY, lz - 1) === CACTUS || isSolidId(c.get(lx, baseY, lz - 1)))) ||
+        (lz < CHUNK_W - 1 && (c.get(lx, baseY, lz + 1) === CACTUS || isSolidId(c.get(lx, baseY, lz + 1))))
+      ) continue; // 有邻格阻挡 → 跳过此列，对齐 MC 1.12 行为
       // 高度 1~3（hash 确定性）
       const cactusH = 1 + Math.floor(hash2(wx * 3, wz * 3, seed * 7 + 13) * 3);
       for (let dy = 1; dy <= cactusH; dy++) {

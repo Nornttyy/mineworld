@@ -244,6 +244,51 @@ describe('Task 3.2 decorations', () => {
     expect(foundSnowLayer).toBe(true); // 雪原陆地上必须找到至少一个雪层
   });
 
+  it('沙漠仙人掌不相邻：每个 CACTUS 方块的 4 个水平邻格(同 y)均非 CACTUS', () => {
+    // 先用 biomeAt 找沙漠区块，生成一批，扫描确认无相邻仙人掌。
+    // 同时断言至少找到了仙人掌（否则测试没有意义）。
+    let targetWx = -1;
+    let targetWz = -1;
+    outer: for (let wx = 0; wx < 4000; wx += 16) {
+      for (let wz = 0; wz < 4000; wz += 16) {
+        if (biomeAt(wx, wz, SEED) === 'desert' && columnHeight(wx, wz, SEED) > SEA_LEVEL + 1) {
+          targetWx = wx;
+          targetWz = wz;
+          break outer;
+        }
+      }
+    }
+    expect(targetWx).toBeGreaterThanOrEqual(0);
+
+    const cx0 = worldToChunk(targetWx);
+    const cz0 = worldToChunk(targetWz);
+    let foundCactus = false;
+
+    for (let dcx = 0; dcx < 15; dcx++) {
+      for (let dcz = 0; dcz < 15; dcz++) {
+        const cx = cx0 + dcx;
+        const cz = cz0 + dcz;
+        if (biomeAt(cx * 16 + 8, cz * 16 + 8, SEED) !== 'desert') continue;
+        const chunk = generateChunk(cx, cz, SEED);
+        for (let lx = 0; lx < 16; lx++) {
+          for (let lz = 0; lz < 16; lz++) {
+            for (let y = 1; y < 200; y++) {
+              if (chunk.get(lx, y, lz) === CACTUS) {
+                foundCactus = true;
+                // 检查 4 个水平邻格（同 y），仅在本区块内；跨区块边界是已知限制。
+                if (lx > 0)      expect(chunk.get(lx - 1, y, lz)).not.toBe(CACTUS);
+                if (lx < 15)     expect(chunk.get(lx + 1, y, lz)).not.toBe(CACTUS);
+                if (lz > 0)      expect(chunk.get(lx, y, lz - 1)).not.toBe(CACTUS);
+                if (lz < 15)     expect(chunk.get(lx, y, lz + 1)).not.toBe(CACTUS);
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(foundCactus).toBe(true); // 必须找到至少一个仙人掌，否则测试无意义
+  });
+
   it('雪原有云杉树(SPRUCE_LOG/SPRUCE_LEAVES)、沙漠无橡树', () => {
     // 先用 biomeAt 找雪原区块，只生成雪原区块，搜索 SPRUCE_LOG；同时验证沙漠/雪原无橡树
     const OAK_LOG_ID = 6;
