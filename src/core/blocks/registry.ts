@@ -28,6 +28,12 @@ const T = {
   furnace_front: 15,
   gravel: 16, // 图集第 5 行（4×4 扩成 4×5；同步 mesher/DropRenderer 的 ATLAS_ROWS=5）
   grass_plant: 17, // 草丛贴图（cross billboard：草/长草共用）
+  sandstone: 18, // 沙漠：沙石层（4×7 图集第 5 行 slot 18）
+  cactus: 19,    // 沙漠：仙人掌
+  ice: 20,       // 雪原：水面冻结冰
+  snow: 21,      // 雪原：雪层贴图
+  spruce_log: 22, // 云杉原木侧面；顶/底复用 oak_log_top
+  spruce_leaves: 23, // 云杉树叶（cutout 镂空）
 } as const;
 
 export interface BlockDef {
@@ -242,6 +248,12 @@ export const TORCH = 14;
 export const GRAVEL = 15;
 export const GRASS_PLANT = 16; // 草丛(短)
 export const TALL_GRASS = 17; // 长草(高)
+export const SANDSTONE = 18;   // 沙漠沙石层（占位；Task 1.3 加完整 BlockDef）
+export const CACTUS = 19;      // 仙人掌
+export const ICE = 20;         // 雪原冰
+export const SNOW_LAYER = 21;  // 雪层
+export const SPRUCE_LOG = 22;  // 云杉原木
+export const SPRUCE_LEAVES = 23; // 云杉树叶
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;

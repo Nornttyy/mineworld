@@ -6,7 +6,7 @@ import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, b
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 5; // 4×5=20 槽（tile 16=gravel 在第 5 行）；与 gen_textures.py、DropRenderer 同步
+const ATLAS_ROWS = 7; // 4×7=28 槽（18..23 为沙漠/雪原新方块）；与 gen_textures.py、DropRenderer 同步
 const TILE_PX = 16;
 
 // MC 固定面亮度（烤进顶点色）：顺序同 Face 枚举 +X,-X,+Y,-Y,+Z,-Z
