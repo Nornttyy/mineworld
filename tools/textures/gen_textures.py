@@ -237,37 +237,58 @@ def furnace_front(rng):
     return im
 
 
-def water(rng):
+def _water_still():
+    """我的世界风格【静止】水：均匀中蓝 + 柔和稀疏的水平细波纹(深浅蓝小段)，低对比、不闪不动。
+    固定种子 → 图集水块与所有动画帧用同一张图，画面完全不动(用户要"别让水看起来在动")。"""
+    rng = random.Random(7_654_321)
     im = new()
-    fill(im, "#2f86e0")  # 鲜艳卡通蓝（单帧静态，不做动画）
-    speck(im, ["#2877cc", "#3f93ec"], 0.06, rng)  # 干净
+    fill(im, "#2f86e0")  # 主蓝(不变)
+    speck(im, ["#2e83dc", "#3389e2"], 0.03, rng)  # 几乎看不出的底噪(颜色贴近主蓝)，干净不脏
     px = im.load()
-    for _ in range(4):  # 微波纹高光
+    # 柔和水平细波纹：几道短横段、深浅交替、低密度、【低对比】——MC 静水的细鳞纹。
+    # 颜色贴近主蓝(只差一点)，所以平铺时不会形成明显网格/落点，整片读作平静水面。
+    for _ in range(6):
         y = rng.randrange(S)
         x0 = rng.randrange(S)
+        col = "#3d8fe6" if rng.random() < 0.55 else "#2b7bd2"  # 淡亮/淡暗，仅比主蓝微偏
         for dx in range(rng.randint(2, 4)):
-            px[(x0 + dx) % S, y] = hx("#6db4f5")
+            px[(x0 + dx) % S, y] = hx(col)
     return im
 
 
+def water(rng):
+    return _water_still()  # 图集水块：与动画帧同一张静水(rng 忽略，保证完全一致)
+
+
 def water_frames(n):
-    """N 帧卡通水动画：两道斜向正弦波纹随相位流动+变化。
-    横纵频率取 2π/S 的整数倍 → 平铺无缝；帧相位 0..2π 整循环 → 首尾无缝。
-    渲染层每帧整张切 material.map（所有水格同步），不做 UV 平移。"""
+    """MC 风水：纹样【不移动】，只在【固定位置】轻微淡入淡出地重复变化(同 Minecraft 水)。
+    一组固定的细波纹标记(位置全程不动)，各带独立时间相位 → 在原地缓缓淡入/淡出，互不同步、绝不平移。
+    24 帧无缝循环、低对比、稀疏 → 整片仍是平静水面，只是细纹在原地轻轻明灭。"""
     import math
 
-    base, hi, dk = hx("#2f86e0")[:3], hx("#6db4f5")[:3], hx("#2877cc")[:3]
+    base = hx("#2f86e0")  # 主蓝(不变)
+    rng = random.Random(424242)
+    # 固定细波纹：位置/长度/明暗/各自相位，全程位置不变(rng 一次定死)
+    marks = []
+    for _ in range(14):
+        y = rng.randrange(S)
+        x0 = rng.randrange(S)
+        ln = rng.randint(2, 4)
+        col = hx("#3f90e6") if rng.random() < 0.55 else hx("#2a7ace")  # 淡亮 / 淡暗，仅比主蓝微偏
+        mid = tuple((base[k] + col[k]) // 2 for k in range(3))  # 半淡 → 平滑淡入淡出(不是硬闪)
+        marks.append((y, x0, ln, col, mid, rng.uniform(0, 2 * math.pi)))
     frames = []
     for f in range(n):
-        ph = 2 * math.pi * f / n
+        ph = 2 * math.pi * f / n  # 相位整循环 → 首尾无缝
         im = new()
+        fill(im, "#2f86e0")  # 先铺满主蓝底，再在固定位置画淡纹
         px = im.load()
-        for y in range(S):
-            for x in range(S):
-                w = math.sin(2 * math.pi * (2 * x + y) / S + ph) + 0.7 * math.sin(
-                    2 * math.pi * (x - 2 * y) / S - ph * 1.3
-                )
-                px[x, y] = hi if w > 1.35 else dk if w < -1.45 else base
+        for (y, x0, ln, col, mid, phase) in marks:
+            s = math.sin(ph + phase)  # 该纹本帧的强度：在【固定位置】淡入淡出(s 变，位置不变)
+            c = col if s > 0.55 else mid if s > 0.1 else None
+            if c is not None:
+                for dx in range(ln):
+                    px[(x0 + dx) % S, y] = c
         frames.append(im)
     return frames
 
