@@ -247,6 +247,9 @@ export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
 export const isCutoutId = (id: number): boolean => id === OAK_LEAVES; // 镂空(树叶)
 export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS; // cross billboard 植物(草/长草)
+// 可被挖掘射线选中/打掉：实心方块 + 植物。草丛虽非实心(可穿过、不挡移动)，但能被瞄准破坏——
+// 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
+export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id);
 // 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
 export const isReplaceableId = (id: number): boolean => id === 0 || id === WATER || isPlantId(id);
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
@@ -276,6 +279,7 @@ export const canHarvest = (id: number, tool: HeldTool | null = null): boolean =>
 // 破坏耗时(ms)，1:1 MC Java：ceil(硬度 ×(能采?30:100) / 工具速度) ×50（1 tick=50ms）。
 // tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镐挖石 ≈1.15s。
 export const breakTimeMs = (id: number, tool: HeldTool | null = null): number => {
+  if (isPlantId(id)) return 0; // 草丛/长草：任何手持(含剑/空手)都瞬破，同 MC——否则握剑时草打不掉
   if (tool && tool.kind === 'sword') return Infinity; // 剑不破坏方块（同 MC 不同：这里完全挖不动）
   const h = Math.max(0, blockHardness(id));
   if (h === 0) return 0;

@@ -30,6 +30,20 @@ describe('破坏耗时（徒手，毫秒）', () => {
   });
 });
 
+describe('草丛/长草瞬破（任何手持都打得掉）', () => {
+  const GRASS_PLANT = 16;
+  const TALL_GRASS = 17;
+  const sword = { kind: 'sword' as const, tier: 1, speed: 1.5 };
+  it('空手瞬破', () => {
+    expect(breakTimeMs(GRASS_PLANT)).toBe(0);
+    expect(breakTimeMs(TALL_GRASS)).toBe(0);
+  });
+  it('握剑也瞬破（普通方块握剑挖不动，草是例外）', () => {
+    expect(breakTimeMs(GRASS_PLANT, sword)).toBe(0);
+    expect(breakTimeMs(STONE, sword)).toBe(Infinity); // 对照：剑挖不动石头
+  });
+});
+
 describe('徒手掉落：需镐的方块不掉', () => {
   it('石/圆石/煤矿徒手挖不掉东西', () => {
     expect(handDrop(STONE)).toBeNull();

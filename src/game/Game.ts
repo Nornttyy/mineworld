@@ -8,6 +8,8 @@ import {
   isSolidId,
   isWaterId,
   isReplaceableId,
+  isPlantId,
+  isTargetableId,
   breakTimeMs,
   dropFor,
   OAK_LEAVES,
@@ -905,7 +907,8 @@ export class Game {
     const cp = Math.cos(this.look.pitch);
     const sp = Math.sin(this.look.pitch);
     const dir = { x: cy * cp, y: sp, z: sy * cp };
-    return raycastVoxel(o, dir, REACH, (x, y, z) => isSolidId(this.world.getBlock(x, y, z)));
+    // 选中判定用 isTargetableId(实心 + 草丛)，让草丛能被瞄准/打掉；非 isSolidId 否则射线穿草打到后面方块。
+    return raycastVoxel(o, dir, REACH, (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)));
   }
 
   // 记录方块改动到存档 delta
@@ -988,9 +991,24 @@ export class Game {
 
   // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
+    // 草丛/长草：瞬破、无掉落、不耗工具耐久/疲劳。直接清掉即可。
+    if (isPlantId(id)) {
+      this.edit(x, y, z, AIR);
+      this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 6));
+      this.digProgress = 0;
+      this.digTarget = null;
+      this.crack.hide();
+      return;
+    }
     let drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     this.edit(x, y, z, AIR);
+    // 失去支撑的草丛随之破坏：破坏的方块上方若是草丛/长草，一并清掉(同 MC，草需下方方块支撑)。
+    const above = this.world.getBlock(x, y + 1, z);
+    if (isPlantId(above)) {
+      this.edit(x, y + 1, z, AIR);
+      this.particles.push(...spawnBurst(x + 0.5, y + 1.5, z + 0.5, particleColor(above), 6));
+    }
     this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
@@ -1162,7 +1180,8 @@ export class Game {
           const bx = cx + dx;
           const by = cy + dy;
           const bz = cz + dz;
-          if (!isSolidId(this.world.getBlock(bx, by, bz))) continue; // 空气/水不炸
+          const b = this.world.getBlock(bx, by, bz);
+          if (!isSolidId(b) && !isPlantId(b)) continue; // 空气/水不炸；实心 + 草丛都炸(免得炸完草浮空)
           this.world.setBlock(bx, by, bz, AIR);
           this.save.edits[`${bx},${by},${bz}`] = AIR; // 坑随存档保留
           this.fluidSim.activate(bx, by, bz); // 让周围的水流进坑
@@ -1331,9 +1350,11 @@ export class Game {
     if (!stack || stack.count <= 0 || stack.id >= 256) return; // 空手或手持物品(食物/工具/棍等不可放置)
     const hit = this.rayHit();
     if (!hit) return;
-    const px = hit.x + hit.nx;
-    const py = hit.y + hit.ny;
-    const pz = hit.z + hit.nz;
+    // 瞄到的若是可替换块(草丛)→ 直接放在它那格(替换掉草)；否则放在命中面的外侧那格。
+    const onReplaceable = isReplaceableId(this.world.getBlock(hit.x, hit.y, hit.z));
+    const px = onReplaceable ? hit.x : hit.x + hit.nx;
+    const py = onReplaceable ? hit.y : hit.y + hit.ny;
+    const pz = onReplaceable ? hit.z : hit.z + hit.nz;
     const target = this.world.getBlock(px, py, pz);
     if (!isReplaceableId(target)) return; // 仅可放进空气/水/草丛(草丛可被覆盖)
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己

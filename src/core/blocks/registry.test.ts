@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BLOCKS, blockFaceTile, isSolidId, Face } from './registry';
+import { BLOCKS, blockFaceTile, isSolidId, isTargetableId, Face } from './registry';
 
 describe('block registry', () => {
   it('air is non-solid, stone is solid', () => {
@@ -19,5 +19,13 @@ describe('block registry', () => {
   });
   it('isSolidId of unknown id is false', () => {
     expect(isSolidId(999)).toBe(false);
+  });
+  it('grass plants are targetable (mineable) though non-solid; water/air are neither', () => {
+    expect(isSolidId(16)).toBe(false); // 草丛非实心(可穿过)
+    expect(isTargetableId(16)).toBe(true); // …但挖掘射线能选中/打掉(选择框≠碰撞框)
+    expect(isTargetableId(17)).toBe(true); // 长草同理
+    expect(isTargetableId(1)).toBe(true); // 石头：实心 → 可选
+    expect(isTargetableId(9)).toBe(false); // 水：不可挖选
+    expect(isTargetableId(0)).toBe(false); // 空气
   });
 });
