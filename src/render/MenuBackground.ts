@@ -82,9 +82,11 @@ export class MenuBackground {
     });
     // 网格化已移到 Web Worker：派活后必须每帧 flushMesh 把算好的网格【上屏】，否则背景空着(只剩天空)。
     // 轮询直到全部网格化结果都上屏(meshBusy 转 false)，主菜单一显示就铺满；600 帧封顶兜底防卡死。
+    // 竖直分段后每区块网格段数翻了 2~3 倍：flushMesh 上屏限量(每帧 ≤48 段)，把 GPU buffer 上传摊到多帧，
+    // 避免同帧一次性建几百个 geometry 的显存峰值(上一版分段就是预加载一次性上传太多 → OOM 进不去)。600 帧封顶足够铺满。
     for (let i = 0; i < 600 && (i < 3 || this.chunks.meshBusy()); i++) {
       this.chunks.update(cx, cz, radius, 999);
-      this.chunks.flushMesh(999);
+      this.chunks.flushMesh(48);
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
     }
   }

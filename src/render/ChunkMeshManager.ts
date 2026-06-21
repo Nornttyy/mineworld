@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
-import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
+import { meshChunk, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
+import { splitChunkMesh, type ChunkSections } from './meshSplit';
 import { loadWaterFrames } from './atlas';
 import { chunkInView } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
@@ -32,18 +33,10 @@ const MC_LIGHT_GLSL =
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
 
+// 一个区块的全部网格段（竖直分段后，四套材质各若干段拍平成一个数组）。
+// 每段是独立 THREE.Mesh、包围球小 → three.js 视锥剔除能逐段剔掉看不见的地下/上方段。
 interface ChunkMeshes {
-  opaque: THREE.Mesh;
-  cutout: THREE.Mesh | null;
-  water: THREE.Mesh | null;
-  torch: THREE.Mesh | null;
-}
-
-interface ChunkMeshes {
-  opaque: THREE.Mesh;
-  cutout: THREE.Mesh | null;
-  water: THREE.Mesh | null;
-  torch: THREE.Mesh | null;
+  meshes: THREE.Mesh[];
 }
 
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
@@ -82,7 +75,7 @@ export class ChunkMeshManager {
   private readonly meshWorkers: Worker[] = [];
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
-  private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
+  private readonly meshQueue: { cx: number; cz: number; mesh: ChunkSections }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
 
   constructor(
@@ -142,7 +135,7 @@ export class ChunkMeshManager {
       const n = Math.max(1, Math.min(4, cores - 1));
       for (let i = 0; i < n; i++) {
         const w = new MeshGenWorker();
-        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
+        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkSections }>): void => {
           const { cx, cz, mesh } = e.data;
           const k = this.key(cx, cz);
           if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
@@ -401,11 +394,9 @@ export class ChunkMeshManager {
   private unload(k: string): void {
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
-      if (mesh) {
-        this.scene.remove(mesh);
-        mesh.geometry.dispose();
-      }
+    for (const mesh of m.meshes) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
     }
     this.meshes.delete(k);
   }
@@ -438,21 +429,38 @@ export class ChunkMeshManager {
     return this.meshQueue.length;
   }
 
-  private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
+  private applyMesh(cx: number, cz: number, sm: ChunkSections): void {
     this.unload(this.key(cx, cz));
-    const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
-    const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
-    const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
-    const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
-    // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
-    om.castShadow = true;
-    om.receiveShadow = true;
-    if (cm) {
-      cm.castShadow = true;
-      cm.receiveShadow = true;
-      if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
+    const meshes: THREE.Mesh[] = [];
+    // 不透明段：投影 + 接收阴影
+    for (const d of sm.opaque) {
+      const m = this.addMesh(d, this.opaqueMat, cx, cz);
+      if (m) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        meshes.push(m);
+      }
     }
-    this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
+    // 树叶(镂空)段：用镂空深度材质投影(叶影有孔，不是实心黑块)
+    for (const d of sm.cutout) {
+      const m = this.addMesh(d, this.cutoutMat, cx, cz);
+      if (m) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        if (this.leafDepthMat) m.customDepthMaterial = this.leafDepthMat;
+        meshes.push(m);
+      }
+    }
+    // 水/火把段：不投影
+    for (const d of sm.water) {
+      const m = this.addMesh(d, this.waterMat, cx, cz);
+      if (m) meshes.push(m);
+    }
+    for (const d of sm.torch) {
+      const m = this.addMesh(d, this.torchMat, cx, cz);
+      if (m) meshes.push(m);
+    }
+    this.meshes.set(this.key(cx, cz), { meshes });
     // 注意：dirty 由派发方(rebuild 派 worker 时 / rebuildSync 同步重建后)清，applyMesh 不清——
     // 否则"派发后又被编辑(dirty=true)"的区块，等旧 worker 结果上屏时会被误清回 false → 丢改动。
   }
@@ -464,7 +472,7 @@ export class ChunkMeshManager {
     this.meshPending.delete(k);
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
-    this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
+    this.applyMesh(cx, cz, splitChunkMesh(meshChunk(this.world, cx, cz))); // 同步回退路径在主线程切段(罕见：无worker/邻区没齐，单块不会OOM)
     const c = this.world.peek(cx, cz);
     if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
   }
@@ -530,7 +538,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
+      for (const mesh of m.meshes) mesh.visible = vis;
     }
   }
 
@@ -540,7 +548,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ)) continue;
-      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = false;
+      for (const mesh of m.meshes) mesh.visible = false;
     }
   }
 
