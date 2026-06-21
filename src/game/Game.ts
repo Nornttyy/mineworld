@@ -602,6 +602,7 @@ export class Game {
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
+      this.chunks.cullVertical(this.player.pos.y); // 竖直分段剔除：隐藏脚下深处看不见的洞穴段(约半数三角形)
       const wantFov = playing && readMove().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;

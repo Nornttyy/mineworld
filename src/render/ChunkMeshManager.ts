@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { ChunkWorld } from '../core/world/chunkWorld';
-import { CHUNK_W } from '../core/world/chunk';
+import { CHUNK_W, CHUNK_H } from '../core/world/chunk';
 import { meshChunk, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { splitChunkMesh, type ChunkSections } from './meshSplit';
 import { loadWaterFrames } from './atlas';
-import { chunkInView } from './chunkCull';
+import { chunkInView, sectionTooDeep } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
@@ -401,11 +401,17 @@ export class ChunkMeshManager {
     this.meshes.delete(k);
   }
 
-  // 把一套网格数据建成 Mesh 并入场景（空数据返回 null）
+  // 把一套网格段建成 Mesh 并入场景（空数据返回 null）。
+  // 关 three.js 自动视锥剔除(对矮段小包围盒会"整批误剔"成空洞，同 clouds/particles)，改用 cullVertical 手动剔除；
+  // 记下本段顶部世界 Y(userData.maxY)供手动竖直剔除判断。
   private addMesh(data: MeshData, mat: THREE.Material, cx: number, cz: number): THREE.Mesh | null {
     if (data.indices.length === 0) return null;
-    const mesh = new THREE.Mesh(this.buildGeo(data), mat);
+    const geo = this.buildGeo(data);
+    geo.computeBoundingBox();
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
+    mesh.frustumCulled = false; // 本仓库 three 视锥剔除对小包围盒几何会整批误剔 → 关掉，改手动剔除(cullToView 水平 + cullVertical 竖直)
+    mesh.userData.maxY = geo.boundingBox ? geo.boundingBox.max.y : CHUNK_H; // 段顶世界 Y(geometry 局部坐标即世界 Y，mesh.y=0)
     this.scene.add(mesh);
     return mesh;
   }
@@ -549,6 +555,17 @@ export class ChunkMeshManager {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ)) continue;
       for (const mesh of m.meshes) mesh.visible = false;
+    }
+  }
+
+  /** 每帧：竖直分段剔除——隐藏"整段都深在玩家脚下"的段(站地面时看不见的深处洞穴/基岩，约半数三角形)。
+   *  在 cullToView 之后调，同样只往「不可见」收紧。留足余量(VERTICAL_CULL_MARGIN)绝不剔到正在看的地表/树，
+   *  故不会出现"树冠悬空/地面破洞"。下到地下时余量内的段全留。这是替代 three 内建视锥剔除(对矮段会误剔)的安全做法。 */
+  cullVertical(playerY: number): void {
+    for (const [, m] of this.meshes) {
+      for (const mesh of m.meshes) {
+        if (mesh.visible && sectionTooDeep(mesh.userData.maxY as number, playerY)) mesh.visible = false;
+      }
     }
   }
 
