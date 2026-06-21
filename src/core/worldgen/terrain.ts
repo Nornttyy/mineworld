@@ -12,6 +12,8 @@ const SAND = 5;
 const COAL_ORE = 8;
 const IRON_ORE = 12;
 const GRAVEL = 15;
+const GRASS_PLANT = 16; // 草丛
+const TALL_GRASS = 17; // 长草
 export const SEA_LEVEL = 116; // 海平面(地表~99-151 偏下段→陆多海少~45%)：低于此注水成海/湖，岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
@@ -220,6 +222,20 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const g = columnHeight(wx, wz, seed);
       if (g <= SEA_LEVEL + 1) continue; // 只在草地（避开沙滩/水）
       if (r < treeDensity(wx, wz, seed)) placeTree(c, cx, cz, wx, wz, g, seed);
+    }
+  }
+
+  // 装饰：草地上撒草丛/长草(cross billboard，可穿过、瞬破)。在种树之后——只放进空气格、避开树干。
+  for (let lz = 0; lz < CHUNK_W; lz++) {
+    for (let lx = 0; lx < CHUNK_W; lx++) {
+      const wx = x0 + lx;
+      const wz = z0 + lz;
+      const h = columnHeight(wx, wz, seed);
+      if (h <= SEA_LEVEL + 1) continue; // 沙滩/水下不长草
+      if (c.get(lx, h, lz) !== GRASS || c.get(lx, h + 1, lz) !== 0) continue; // 表层须草方块、其上须空气(避树干/竖井)
+      const gr = hash2(wx, wz, seed * 7 + 31); // [0,1)
+      if (gr > 0.4) continue; // ~40% 草地长草
+      c.set(lx, h + 1, lz, gr < 0.08 ? TALL_GRASS : GRASS_PLANT); // 其中 ~1/5 是长草
     }
   }
 

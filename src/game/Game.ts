@@ -7,6 +7,7 @@ import { worldToChunk } from '../core/world/coords';
 import {
   isSolidId,
   isWaterId,
+  isReplaceableId,
   breakTimeMs,
   dropFor,
   OAK_LEAVES,
@@ -1336,7 +1337,7 @@ export class Game {
     const py = hit.y + hit.ny;
     const pz = hit.z + hit.nz;
     const target = this.world.getBlock(px, py, pz);
-    if (target !== AIR && !isWaterId(target)) return; // 仅可放进空气或水
+    if (!isReplaceableId(target)) return; // 仅可放进空气/水/草丛(草丛可被覆盖)
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
     const id = takeOne(this.inv, sel);
     if (id === null) return;

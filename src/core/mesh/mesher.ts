@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, blockFaceTile, blockLight, Face, TORCH } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS } from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
@@ -321,6 +321,33 @@ export function meshChunkData(
     }
   };
 
+  // 草丛/长草：格中心两片交叉竖片(cross billboard)，贴 grass_plant 图、入 cutout(alpha-test+双面)批。
+  // 高度 hgt 由调用方给(草矮/长草高)；光照取本格天光/方块光(露天满、树下变暗)。
+  const emitPlant = (lx: number, ly: number, lz: number, tile: number, hgt: number): void => {
+    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u1 = u0 + du;
+    const vB = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps; // 底边 V
+    const vT = vB + dv; // 顶边 V
+    const sky = skyAt(lx, ly, lz) / 15;
+    const blk = blkAt(lx, ly, lz) / 15;
+    const sh = 0.9; // 无 AO，轻微压暗
+    const cx = lx + 0.5;
+    const cz = lz + 0.5;
+    const r = 0.5;
+    const quads: [number, number, number, number][] = [
+      [cx - r, cz - r, cx + r, cz + r], // 对角片
+      [cx - r, cz + r, cx + r, cz - r], // 反对角片
+    ];
+    for (const [x0, z0, x1, z1] of quads) {
+      const base = cut.P.length / 3;
+      cut.P.push(x0, ly, z0, x1, ly, z1, x1, ly + hgt, z1, x0, ly + hgt, z0); // 底左,底右,顶右,顶左
+      cut.U.push(u0, vB, u1, vB, u1, vT, u0, vT);
+      cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+      cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
+      cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  };
+
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
   // UV 用世界坐标平铺（顶/底用 x,z；侧面用 水平,y）：整片水面连续平铺、斜水面不会扭曲，
   // 配合独立可滚动水纹理做流动动画。
@@ -419,6 +446,8 @@ export function meshChunkData(
           side(Face.NegZ, 0, -1, [0, h00, h10, 0]);
         } else if (id === TORCH) {
           emitTorch(lx, lz, ly);
+        } else if (isPlantId(id)) {
+          emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.45 : 0.82); // 草矮、长草高
         }
       }
     }

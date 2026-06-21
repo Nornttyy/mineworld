@@ -27,6 +27,7 @@ const T = {
   iron_ore: 14,
   furnace_front: 15,
   gravel: 16, // 图集第 5 行（4×4 扩成 4×5；同步 mesher/DropRenderer 的 ATLAS_ROWS=5）
+  grass_plant: 17, // 草丛贴图（cross billboard：草/长草共用）
 } as const;
 
 export interface BlockDef {
@@ -201,6 +202,30 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: 'shovel',
   },
+  // 草丛 / 长草：非实心(可穿过)、镂空 cross billboard(mesher 特判)、瞬破不掉落、可被放置覆盖。
+  // 装饰用，世界生成时撒在草地上。faces 仅占位(实际由 mesher 画成交叉竖片)。
+  {
+    id: 16,
+    name: 'grass_plant',
+    solid: false,
+    transparent: true,
+    faces: all(T.grass_plant),
+    hardness: 0,
+    drop: null,
+    needsTool: false,
+    tool: null,
+  },
+  {
+    id: 17,
+    name: 'tall_grass',
+    solid: false,
+    transparent: true,
+    faces: all(T.grass_plant),
+    hardness: 0,
+    drop: null,
+    needsTool: false,
+    tool: null,
+  },
 ];
 
 export const GRASS = 3;
@@ -215,10 +240,15 @@ export const COAL_ORE = 8;
 export const FURNACE = 13;
 export const TORCH = 14;
 export const GRAVEL = 15;
+export const GRASS_PLANT = 16; // 草丛(短)
+export const TALL_GRASS = 17; // 长草(高)
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
 export const isCutoutId = (id: number): boolean => id === OAK_LEAVES; // 镂空(树叶)
+export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS; // cross billboard 植物(草/长草)
+// 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
+export const isReplaceableId = (id: number): boolean => id === 0 || id === WATER || isPlantId(id);
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
 export const isOpaque = (id: number): boolean => {
   const b = BLOCKS[id];
