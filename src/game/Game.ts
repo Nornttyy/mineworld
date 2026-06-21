@@ -96,10 +96,10 @@ const MOB_REACH = 3.5; // 攻击实体距离（格，≈MC）
 const MOB_CAP = 16; // 玩家附近生物上限（性能保险）
 const MOB_DESPAWN_R = 88; // 超出此横向距离即卸载（略小于渲染半径，让落在身后的及时清掉、腾出名额）
 const MOB_NEAR_R = 48; // 统计/维持种群的半径
-const MOB_NEAR_TARGET = 6; // 身边维持的目标数量
+const MOB_NEAR_TARGET = 3; // 身边维持的目标数量（降低动物密度/刷新：6→3）
 const HOSTILE_NEAR_TARGET = 4; // 夜里身边维持的敌对生物数（僵尸/骷髅）
 const HOSTILE_CAP = 8; // 敌对生物硬上限（玩家周围最多这么多僵尸/骷髅，防夜里越积越多）
-const MOB_SPAWN_EVERY = 25; // 每多少刻尝试一次补刷（~1.25s）
+const MOB_SPAWN_EVERY = 50; // 每多少刻尝试一次补刷（降低刷新率：25→50，约 2.5s 一次）
 const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
 // 弓箭
 const ARROW_TTL = 1200; // 箭存活上限（tick，60s）后消失
