@@ -373,6 +373,87 @@ def grass_plant(rng):
     return im
 
 
+# ── 下界方块（经典闷色风）──────────────────────────────────────────────────────
+def obsidian(rng):
+    im = new()
+    fill(im, "#140c1c")
+    speck(im, ["#1f1430", "#2c1d44"], 0.06, rng)
+    px = im.load()
+    for _ in range(4):
+        px[rng.randrange(S), rng.randrange(S)] = hx("#4a2f78")
+    return im
+
+
+def netherrack(rng):
+    im = new()
+    fill(im, "#5e2828")
+    speck(im, ["#4d2020", "#6e3232", "#5a2626"], 0.2, rng)
+    px = im.load()
+    for _ in range(4):
+        streak(px, "#401a1a", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
+    return im
+
+
+def soul_sand(rng):
+    im = new()
+    fill(im, "#443226")
+    speck(im, ["#382a1f", "#4e3a2c"], 0.18, rng)
+    for cx, cy in [(4, 5), (11, 6), (7, 11)]:
+        pebble(im, cx, cy, 2, "#443226", "#352820", "#221913", rng, 0.1)
+    return im
+
+
+def glowstone(rng):
+    im = new()
+    fill(im, "#cba85a")
+    speck(im, ["#d8bd78", "#b8943e"], 0.2, rng)
+    for _ in range(6):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#cba85a", "#e6cf8e", "#a87f34", rng)
+    return im
+
+
+def nether_quartz_ore(rng):
+    im = netherrack(rng)
+    for _ in range(7):
+        pebble(im, rng.randrange(S), rng.randrange(S), 1, "#d8d2cc", "#efe9e2", "#b8afa6", rng, 0.1)
+    return im
+
+
+def lava(rng):
+    im = new()
+    fill(im, "#c84e10")
+    speck(im, ["#b2440c", "#d8641c"], 0.18, rng)
+    px = im.load()
+    for _ in range(5):
+        streak(px, "#e8b833", rng.randrange(S), rng.randrange(S), rng.randint(3, 5), rng)
+    for _ in range(3):
+        streak(px, "#963205", rng.randrange(S), rng.randrange(S), rng.randint(2, 3), rng)
+    return im
+
+
+def bedrock(rng):
+    im = new()
+    fill(im, "#2b2b2c")
+    speck(im, ["#202021", "#383839"], 0.3, rng)
+    for _ in range(6):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#2b2b2c", "#424244", "#161617", rng)
+    return im
+
+
+def nether_portal(rng):
+    im = new()
+    fill(im, "#4e2682")
+    px = im.load()
+    for x in range(S):
+        for y in range(S):
+            w = (x * 3 + y * 2 + rng.randrange(4)) % 7
+            if w < 2:
+                px[x, y] = hx("#7a4cb0")
+            elif w > 5:
+                px[x, y] = hx("#37185e")
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -392,6 +473,14 @@ BLOCKS = [
     ("furnace_front", furnace_front),
     ("gravel", gravel),
     ("grass_plant", grass_plant),
+    ("obsidian", obsidian),
+    ("netherrack", netherrack),
+    ("soul_sand", soul_sand),
+    ("glowstone", glowstone),
+    ("nether_quartz_ore", nether_quartz_ore),
+    ("lava", lava),
+    ("bedrock", bedrock),
+    ("nether_portal", nether_portal),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -462,8 +551,10 @@ def main():
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
-                   'gravel', 'grass_plant']
-    COLS, ROWS = 4, 5
+                   'gravel', 'grass_plant',
+                   'obsidian', 'netherrack', 'soul_sand', 'glowstone',
+                   'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal']
+    COLS, ROWS = 4, 7  # 26 tile → 4×7（与 gen_textures 一致；同步 mesher/DropRenderer ATLAS_ROWS）
     atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))

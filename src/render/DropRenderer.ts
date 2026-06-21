@@ -6,7 +6,7 @@ import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 5; // 4×5=20 槽（tile 16=gravel 在第 5 行）；与 gen_textures.py、mesher 同步
+const ATLAS_ROWS = 7; // 4×7=28 槽（tile 18-25=下界方块在 5-7 行）；与 gen_textures.py、mesher 同步
 const TILE_PX = 16;
 const EPS = 0.5 / (TILE_PX * ATLAS_COLS);
 
