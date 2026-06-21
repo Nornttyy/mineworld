@@ -3,6 +3,8 @@ import { generateTerrain, surfaceHeight, generateChunk } from './terrain';
 import { CHUNK_W } from '../world/chunk';
 import { NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
 
+// 注：水下/沿海洞穴灌水的测试在 floodCaves.test.ts。
+
 describe('下界世界生成', () => {
   it('基岩封顶封底、有地狱岩/岩浆/荧石，无草无水', () => {
     const c = generateChunk(0, 0, 1337, 'nether');
