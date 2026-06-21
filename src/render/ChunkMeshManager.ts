@@ -40,13 +40,6 @@ interface ChunkMeshes {
   torch: THREE.Mesh | null;
 }
 
-interface ChunkMeshes {
-  opaque: THREE.Mesh;
-  cutout: THREE.Mesh | null;
-  water: THREE.Mesh | null;
-  torch: THREE.Mesh | null;
-}
-
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
 export class ChunkMeshManager {
   private readonly meshes = new Map<string, ChunkMeshes>();
