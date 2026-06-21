@@ -15,7 +15,7 @@ const GRAVEL = 15;
 export const SEA_LEVEL = 116; // 海平面(地表~99-151 偏下段→陆多海少~45%)：低于此注水成海/湖，岸边铺沙
 const SEA_FLUID = flByte(8, true, false); // 生成水的流体字节：满量源头
 
-// 地形是否平坦：四向各 5 格内地表高度差都 ≤3。峡谷只在平坦处刷，免把山体切碎成条纹。
+// 地形是否平坦：四向各 5 格内地表高度差都 ≤3。竖井只在平坦处刷，免把山体切碎。
 function isFlat(wx: number, wz: number, seed: number): boolean {
   const h = columnHeight(wx, wz, seed);
   return (
@@ -29,7 +29,7 @@ function isFlat(wx: number, wz: number, seed: number): boolean {
 // 多种洞穴类型叠加，判断某格是否为空腔。调用方限制 y<height-3(洞穴只在地表下≥4格)，
 // 故洞穴不碰土层/草顶 → 山坡再陡也不会露出方块条纹。返回 true=挖空。
 // 矿洞(按深度分层)：浅层小矿洞为主+少量中、中层中矿洞+一些大、深层大矿洞。
-// depth=地表往下的格数；每层只算该层需要的噪声(省算力)。峡谷另算(ravineAt)，不算矿洞。
+// depth=地表往下的格数；每层只算该层需要的噪声(省算力)。不算矿洞。
 // hmin=周围最低地表、flat=是否平坦，都只依赖 (wx,wz)→由调用方按列算一次传入(避免每格重算 9 次 columnHeight，这是生成耗时主因)。
 function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number): boolean {
   // 注：露天竖井已移到 generateChunk 主循环单独处理(需破草顶成露天口)，这里只管地下隧道/矿洞。
@@ -50,13 +50,6 @@ function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number):
   // 深层：大矿洞为主 + 连通中隧道
   if (valueNoise3(wxw / 26, wy / 18, wzw / 26, seed + 700) < 0.16) return true;
   return Math.abs(valueNoise3(wxw / 18, wy / 14, wzw / 18, seed + 333) - 0.5) < 0.04;
-}
-
-// 峡谷(独立，不算矿洞)：平坦地形的竖直深裂缝，从近地表一直切到很深。flat 由调用方列级传入。
-function ravineAt(wx: number, wy: number, wz: number, flat: boolean, seed: number): boolean {
-  if (!flat || wy < 2) return false;
-  const rv = fbm2(wx / 145, wz / 145, seed + 888);
-  return Math.abs(rv - 0.5) < 0.02;
 }
 
 // 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
@@ -181,7 +174,7 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       const wx = cx * CHUNK_W + lx;
       const wz = cz * CHUNK_W + lz;
       const height = columnHeight(wx, wz, seed);
-      // 列级预算(只依赖 wx,wz)：hmin=周围最低地表(洞穴防破坡)、flat=平坦(竖井/峡谷)。算一次，y 循环复用 → 省掉每格 9 次 columnHeight。
+      // 列级预算(只依赖 wx,wz)：hmin=周围最低地表(洞穴防破坡)、flat=平坦(竖井)。算一次，y 循环复用 → 省掉每格 9 次 columnHeight。
       const hmin = Math.min(
         height,
         columnHeight(wx + 4, wz, seed),
@@ -194,13 +187,8 @@ export function generateChunk(cx: number, cz: number, seed: number): Chunk {
       for (let y = 0; y <= height; y++) {
         // 露天竖井：平坦地形的稀疏大竖井，【连草顶一起挖穿】→ 地面可见的露天矿洞口(否则草顶封住、地面看不到洞)
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
-        // 竖井破到地表(y<=height)；其余矿洞/峡谷只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
-        if (
-          y > 1 &&
-          (shaft ||
-            (y < height &&
-              (caveAt(wx, y, wz, hmin, seed) || (hmin - y < 36 && ravineAt(wx, y, wz, flat, seed)))))
-        ) {
+        // 竖井破到地表(y<=height)；矿洞只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
+        if (y > 1 && (shaft || (y < height && caveAt(wx, y, wz, hmin, seed)))) {
           // 这列在水下(地表低于海平面 → 上方注了水)时，把挖空的洞/竖井灌满水 → 水下矿洞不再是干的隔绝空腔；
           //   陆地上的干洞仍留空气。
           if (height < SEA_LEVEL) {
