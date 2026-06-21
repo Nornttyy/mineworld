@@ -18,7 +18,7 @@ import {
 // 被动动物（猪/牛/羊/鸡）——朴素数据 + 纯函数（AI/物理/受伤/掉落），可无头单测。
 // 渲染在 render/MobRenderer；副作用（生成掉落物 ItemDrop、移除死亡实体）由 game/ 按事件施加。
 
-export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton' | 'creeper';
+export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton' | 'creeper' | 'husk';
 
 export interface MobDef {
   hp: number;
@@ -31,6 +31,7 @@ export interface MobDef {
   sense?: number; // 察觉/追击半径（格）
   ranged?: boolean; // 远程：拉开距离、射箭（骷髅），不靠接触伤
   explosive?: boolean; // 苦力怕：不近战，靠近玩家点燃引信、到点自爆（炸方块+伤玩家）
+  sunImmune?: boolean; // 日晒免疫：白天不被烧（苦力怕/尸壳，同 MC 1.12）
 }
 
 // 1:1 MC Java（生命=2×心；体型/移速按手感+Wiki）。僵尸/骷髅敌对、夜行、白天暴晒受损。
@@ -41,7 +42,8 @@ export const MOB_DEFS: Record<MobKind, MobDef> = {
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
   zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16 },
   skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.052, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
-  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.05, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true }, // attack=爆心最大伤害，按距离衰减
+  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.05, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害，按距离衰减
+  husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
 };
 
 export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
@@ -290,8 +292,9 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       if (f > 0) out.push({ id: FEATHER, count: f });
       return out;
     }
-    case 'zombie': {
-      const n = Math.floor(rng() * 3); // 0–2 腐肉
+    case 'zombie':
+    case 'husk': {
+      const n = Math.floor(rng() * 3); // 0–2 腐肉（尸壳同僵尸，MC 1.12）
       return n > 0 ? [{ id: ROTTEN_FLESH, count: n }] : [];
     }
     case 'skeleton': {

@@ -223,7 +223,7 @@ export function updateHostile(
   }
 
   // —— 日晒受损：白天被太阳直射 → 持续掉血，烧死即清场（天亮自然消除夜怪）——
-  if (sunlit && !def.explosive) mob.health -= SUN_DPS; // 苦力怕不怕晒(同 MC)
+  if (sunlit && !def.sunImmune) mob.health -= SUN_DPS; // sunImmune 怪（苦力怕/尸壳）不怕晒(同 MC 1.12)
 
   if (mob.health <= 0) {
     events.push({ kind: 'drops', items: rollDrops(mob.kind, rng), pos: { ...mob.pos } });

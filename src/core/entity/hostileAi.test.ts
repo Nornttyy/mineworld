@@ -118,3 +118,17 @@ describe('苦力怕 AI（引信 + 爆炸）', () => {
     expect(r.mob.fuse).toBe(0); // 隔墙不该被点燃 → 不会隔墙炸玩家
   });
 });
+
+describe('尸壳 AI（sunImmune）', () => {
+  it('尸壳白天日晒不掉血(不同于僵尸)', () => {
+    const h = spawnMob('husk', 5, 1, 5);
+    const r = updateHostile(h, flat, rng, null, true); // sunlit=true
+    expect(r.mob.health).toBe(h.health);
+  });
+
+  it('僵尸白天仍会被晒掉血(回归保护)', () => {
+    const z = spawnMob('zombie', 5, 1, 5);
+    const r = updateHostile(z, flat, rng, null, true);
+    expect(r.mob.health).toBeLessThan(z.health);
+  });
+});
