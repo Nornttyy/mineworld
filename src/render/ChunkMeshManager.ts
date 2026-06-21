@@ -277,7 +277,7 @@ export class ChunkMeshManager {
             '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
-            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.06, t * 0.04)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.05, t * 0.085)) * 0.4; }\n' + MC_BRIGHT_GLSL,
+            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.20, t * 0.14)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.17, t * 0.28)) * 0.4; }\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
@@ -299,7 +299,7 @@ export class ChunkMeshManager {
             '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
             '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
             'float mwWave(vec2 q, float t){\n' +
-            '  return mwH(q * 0.5 + vec2(t * 0.06, t * 0.04)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.05, t * 0.085)) * 0.4; }',
+            '  return mwH(q * 0.5 + vec2(t * 0.20, t * 0.14)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.17, t * 0.28)) * 0.4; }',
         )
         .replace(
           '#include <color_fragment>',
