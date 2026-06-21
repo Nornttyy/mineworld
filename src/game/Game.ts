@@ -221,6 +221,7 @@ export class Game {
   private readonly _godSunUV = new THREE.Vector2();
   private readonly _godSunColor = new THREE.Color();
   private readonly _godSunWorld = new THREE.Vector3();
+  private readonly _godFwd = new THREE.Vector3(); // 相机朝向（判太阳是否在前方，防背后投影出 NaN→黑屏）
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
@@ -1440,6 +1441,9 @@ export class Game {
 
     // 太阳世界位置 = 相机位置 + 太阳方向 × 远距离（投影用，距离不影响屏幕 UV）。
     const cam = this.renderer.camera;
+    // 太阳是否在相机前方(dot>0)。在背后时 project() 会算出 NaN/乱值的屏幕坐标 → 合成出黑屏；必须门控。
+    cam.getWorldDirection(this._godFwd);
+    const facing = this._godFwd.x * (sx / len) + this._godFwd.y * (sy / len) + this._godFwd.z * (sz / len);
     // 把太阳方向映射到 NDC，再转 UV。
     // THREE.Vector3.project 把世界坐标 → NDC；这里用方向 × 距离 + 相机位置。
     const FAR = 500; // 足够远，超出地形遮挡范围
@@ -1459,7 +1463,7 @@ export class Game {
 
     // 强度：太阳高于地平线 + 在屏幕内才有光束；高度平滑过渡（tan-like 0..1）。
     let intensity = 0;
-    if (sunUp > 0 && onScreen) {
+    if (sunUp > 0 && facing > 0 && onScreen) {
       // 平滑渐入：太阳刚过地平线时强度 0，正午偏强，上限 0.6（防过曝）。
       intensity = Math.min(0.6, sunUp * 2.5);
     }
