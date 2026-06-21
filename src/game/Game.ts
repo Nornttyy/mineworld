@@ -34,7 +34,8 @@ import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
 import { updateHostile, SKELETON_ARROW_SPEED } from '../core/entity/hostileAi';
-import { spawnRingGroup, spawnHostileRing, spawnHostileCave, type SpawnWorld } from '../core/entity/mobSpawn';
+import { spawnRingGroup, spawnHostileRing, spawnHostileCave, hostileKindFor, type SpawnWorld } from '../core/entity/mobSpawn';
+import { biomeAt } from '../core/worldgen/biome';
 import { serializeMob, deserializeMob } from '../core/entity/mobSave';
 import { isMobSunlit } from '../core/entity/mobSun';
 import { MobRenderer } from '../render/MobRenderer';
@@ -1114,6 +1115,8 @@ export class Game {
         } else if (ev.kind === 'attackPlayer') {
           // 近战命中：扣血 + 闪红/抖手 + 把玩家从怪物方向推开
           this.hurtPlayer(ev.damage, px - mob.pos.x, pz - mob.pos.z);
+          // 尸壳命中附加饥饿效果（MC 1.12：每次命中+3点耗竭，近似 Hunger I）
+          if (mob.kind === 'husk') addExhaustion(this.survival, 3);
         } else if (ev.kind === 'shootArrow') {
           // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
           this.arrows.push(
@@ -1157,13 +1160,14 @@ export class Game {
       let room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
       if (hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const rk = this.mobRng();
-        const kind: MobKind = rk < 0.4 ? 'zombie' : rk < 0.75 ? 'skeleton' : 'creeper';
+        const biome = biomeAt(px, pz, this.save.seed);
+        const kind: MobKind = hostileKindFor(biome, rk);
         // 矿洞：玩家附近地下暗洞，不分昼夜（同 MC）
         const cave = spawnHostileCave(kind, px, this.player.pos.y, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room);
         this.mobs.push(...cave);
         room -= cave.length;
-        // 夜晚：地表暗处也刷一小群
-        if (room > 0 && skyStateAt(this.worldTime).isNight) {
+        // 夜晚：地表暗处也刷一小群（尸壳 sunImmune，沙漠白天地表也刷）
+        if (room > 0 && (skyStateAt(this.worldTime).isNight || MOB_DEFS[kind].sunImmune)) {
           this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
         }
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canSpawnAt, spawnGroup, spawnRingGroup } from './mobSpawn';
+import { canSpawnAt, spawnGroup, spawnRingGroup, hostileKindFor } from './mobSpawn';
 import { makeRng } from '../math/rng';
 import { GRASS } from '../blocks/registry';
 
@@ -51,5 +51,24 @@ describe('spawnRingGroup（玩家周围环带刷群，供"边走边补充"）', 
   it('找不到草地：返回空（不硬刷到非草地）', () => {
     const noGrass = { getBlock: (): number => 1 }; // 全石头
     expect(spawnRingGroup('cow', 0, 0, makeRng(7), noGrass, () => 9)).toHaveLength(0);
+  });
+});
+
+describe('hostileKindFor：沙漠出尸壳，其他生态出僵尸/骷髅/苦力怕', () => {
+  it('沙漠低roll → 尸壳（而非僵尸）', () => {
+    expect(hostileKindFor('desert', 0.1)).toBe('husk');
+  });
+  it('沙漠高roll(≥0.4) → 骷髅（与普通生态相同）', () => {
+    expect(hostileKindFor('desert', 0.5)).toBe('skeleton');
+  });
+  it('平原低roll → 僵尸（非尸壳）', () => {
+    expect(hostileKindFor('plains', 0.1)).toBe('zombie');
+  });
+  it('平原中roll → 骷髅', () => {
+    expect(hostileKindFor('plains', 0.6)).toBe('skeleton');
+  });
+  it('任意生态高roll → 苦力怕', () => {
+    expect(hostileKindFor('plains', 0.9)).toBe('creeper');
+    expect(hostileKindFor('desert', 0.9)).toBe('creeper');
   });
 });

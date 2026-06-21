@@ -1,7 +1,17 @@
 import { GRASS, isSolidId, TORCH } from '../blocks/registry';
 import { spawnMob, type Mob, type MobKind } from './mob';
+import type { Biome } from '../worldgen/biome';
 
 const TORCH_LIGHT = 14; // 火把发光等级（与 registry 一致）；逐格 −1 衰减
+
+// 根据生物群系 + 随机 roll 决定敌对生物种类（纯函数，可单测）。
+// 分布：<0.4 近战(僵尸/尸壳)，<0.75 骷髅，其余苦力怕。
+// 沙漠中近战槽由尸壳(sunImmune)替换僵尸，白天也不会被日晒烧掉（同 MC 1.12）。
+export function hostileKindFor(biome: Biome, roll: number): MobKind {
+  if (roll < 0.4) return biome === 'desert' ? 'husk' : 'zombie';
+  if (roll < 0.75) return 'skeleton';
+  return 'creeper';
+}
 
 // 自然生成规则（纯逻辑，靠只读世界视图，可单测）。
 export interface SpawnWorld {
