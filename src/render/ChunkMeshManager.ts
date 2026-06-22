@@ -290,7 +290,7 @@ export class ChunkMeshManager {
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nattribute float aWaterDepth;\nvarying float vWaterDepth;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nvarying float vWaterDepth;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
             // 顶点端波高噪声(与片元同款,vertex 独立定义)→ 抬降水面顶点
             'float mwHv(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
             '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
@@ -304,8 +304,8 @@ export class ChunkMeshManager {
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
             'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * aTop * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(仅平静水面 aTop=1;瀑布/流水体 aTop=0 不起伏→不撕缝)
-            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = aWaterDepth;',
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * step(0.5, aTop) * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(aTop>0=平静水面起伏;≤0=瀑布/侧壁底不起伏→不撕缝)
+            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);', // |aTop|=水柱深度,给片元按深度调透明
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
       shader.fragmentShader = shader.fragmentShader
@@ -430,7 +430,6 @@ export class ChunkMeshManager {
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
     if (data.sway && data.sway.length) g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
-    if (data.depth && data.depth.length) g.setAttribute('aWaterDepth', new THREE.BufferAttribute(data.depth, 1)); // 仅水：水柱深度(格)→ shader 按深度调透明
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
   }

@@ -44,12 +44,16 @@ describe('水面高度·头顶有方块（修：放方块后水不再变整块 /
     expect(level(true)).toBeLessThan(Y + 0.95); // 且确实不是满格
   });
 
-  it('水柱深度 attribute：浅水(1格)depth=1、深水(5格)depth=5（光影按深度调透明:浅→透深→实）', () => {
+  it('水柱深度(编码进 aTop 符号)：浅水(1格)|aTop|=1、深水(5格)|aTop|=5（光影按深度调透明:浅→透深→实）', () => {
+    // aTop 现承载带符号水深：|值|=水柱深度(片元调透明)，符号=起伏 gate(正起伏/负不起伏)。复用属性,零额外显存。
     const maxDepth = (w: ChunkWorld): number => {
-      const d = meshChunk(w, 0, 0).water.depth;
-      if (!d || !d.length) return 0;
+      const t = meshChunk(w, 0, 0).water.top;
+      if (!t || !t.length) return 0;
       let m = 0;
-      for (let i = 0; i < d.length; i++) if (d[i] > m) m = d[i];
+      for (let i = 0; i < t.length; i++) {
+        const a = Math.abs(t[i]);
+        if (a > m) m = a;
+      }
       return m;
     };
     // 浅：单格水，头顶空气 → 顶面 depth=1
