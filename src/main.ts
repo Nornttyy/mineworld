@@ -25,6 +25,18 @@ const showLoading = (v: boolean, text = '加载中…'): void => {
   if (v) bootTip.textContent = text;
 };
 
+// 把任何未捕获错误 / Promise 拒绝显示到加载界面——否则启动失败 = 静默转圈，没法定位"进不去"。
+// 游戏跑起来之后(gameStarted)的零星报错不抢屏。
+let gameStarted = false;
+const surfaceFatal = (msg: string): void => {
+  if (gameStarted) return;
+  showLoading(true, `出错了：${msg}（请把这行字发给开发）`);
+};
+window.addEventListener('error', (e) => surfaceFatal(e.message || String((e as ErrorEvent).error)));
+window.addEventListener('unhandledrejection', (e) =>
+  surfaceFatal(String((e.reason && (e.reason.message || e.reason.stack)) || e.reason)),
+);
+
 // 随机 splash 文字
 const SPLASHES = [
   '100% 纯方块!',
@@ -195,25 +207,34 @@ $('worldlist-back').addEventListener('click', () => showOnly(menu));
 function startGame(world: WorldSave): void {
   if (game) return;
   showOnly(null);
-  showLoading(true);
+  showLoading(true, '进入中…');
   // 进游戏前先彻底释放菜单背景世界(整套区块网格 + worker + 第二个 WebGL 上下文)，
-  // 否则它与游戏世界双份常驻内存 → 集显/低内存机 OOM(createImageData/array buffer 分配失败)。
-  menubg?.dispose();
+  // 否则它与游戏世界双份常驻内存 → 集显/低内存机 OOM。⚠️ 包 try：dispose 抛错绝不能静默掐死启动。
+  try {
+    menubg?.dispose();
+  } catch (err) {
+    console.error('[startGame] 菜单背景释放出错(忽略,继续):', err);
+  }
   menubg = null;
   // 双 rAF：先让浏览器把 spinner 画出来，再做阻塞的世界构建 + 初始区块生成。
+  // 每个阶段把进度写到加载界面 → 卡在哪一步一目了然(便于定位"进不去")。
   requestAnimationFrame(() =>
     requestAnimationFrame(async () => {
       try {
+        showLoading(true, '进入中…①构建世界');
         game = new Game(canvas, world);
+        showLoading(true, '进入中…②生成出生区块');
         await Promise.race([game.preloadSpawn(), timeout(12000)]); // 出生预载封顶 12s，超时也进游戏(地形会继续补)
+        showLoading(true, '进入中…③启动渲染');
         game.start();
+        gameStarted = true;
         showLoading(false);
         void canvas.requestPointerLock();
       } catch (e) {
         // 任何报错都显示到加载界面，别再静默卡死（方便定位"进不去"到底卡在哪）
         console.error('[startGame] 进入游戏失败:', e);
-        const msg = e instanceof Error ? `${e.message}` : String(e);
-        showLoading(true, `进入失败：${msg}（已记录，请把这行字告诉开发）`);
+        const msg = e instanceof Error ? `${e.stack ?? e.message}` : String(e);
+        showLoading(true, `进入失败：${msg}`);
       }
     }),
   );
