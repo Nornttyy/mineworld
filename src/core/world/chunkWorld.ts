@@ -4,10 +4,14 @@ import { generateChunk } from '../worldgen/terrain';
 import { WATER } from '../blocks/registry';
 import ChunkGenWorker from './chunkGen.worker?worker';
 
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
 // 无限世界：按需生成并缓存区块列，提供世界坐标的方块读写。
 export class ChunkWorld {
   private readonly chunks = new Map<string, Chunk>();
   private readonly pending = new Set<string>(); // 已请求后台生成、还没回来的区块
+  private readonly pendingSince = new Map<string, number>(); // 派发时刻(ms)，给看门狗判 worker 丢消息超时重试
+  private readonly genFails = new Map<string, number>(); // 该区块连续生成失败(抛异常)次数，超上限放弃+告警，防死循环
   private readonly workers: Worker[] = [];
   private rr = 0; // round-robin 派发到各 worker
   // 区块(重)生成后回调：让游戏层把该区块的玩家改动(挖/放)重新贴回去——因为远处区块会被驱逐释放内存，
@@ -23,16 +27,28 @@ export class ChunkWorld {
       for (let i = 0; i < n; i++) {
         const w = new ChunkGenWorker();
         w.onmessage = (
-          e: MessageEvent<{ cx: number; cz: number; blocks: ArrayBuffer; fluid: ArrayBuffer }>,
+          e: MessageEvent<{ cx: number; cz: number; blocks?: ArrayBuffer; fluid?: ArrayBuffer; error?: string }>,
         ): void => {
-          const { cx, cz, blocks, fluid } = e.data;
+          const { cx, cz, blocks, fluid, error } = e.data;
           const k = this.key(cx, cz);
           this.pending.delete(k);
-          if (this.chunks.has(k)) return; // 已被同步回退生成，丢弃后台结果
+          this.pendingSince.delete(k);
+          if (error) {
+            // 生成失败：pending 已清 → 未达上限时 update() 会再 request 重试；告警暴露真正触发原因。
+            const n = (this.genFails.get(k) ?? 0) + 1;
+            this.genFails.set(k, n);
+            console.warn(`[chunkgen] 区块(${cx},${cz}) 生成失败 #${n}: ${error.split('\n')[0]}`);
+            return;
+          }
+          this.genFails.delete(k);
+          if (this.chunks.has(k) || !blocks || !fluid) return; // 已被同步回退生成，丢弃后台结果
           const c = Chunk.fromBuffers(blocks, fluid);
           this.editHook?.(cx, cz, c); // 复原该区块的玩家改动(驱逐后重生成是纯地形)
           c.dirty = true; // 等网格化调度下一帧把它建出来
           this.chunks.set(k, c);
+        };
+        w.onerror = (ev): void => {
+          console.error('[chunkgen worker] 致命错误(整个 worker 挂了，会拖慢加载):', ev.message);
         };
         this.workers.push(w);
       }
@@ -51,13 +67,28 @@ export class ChunkWorld {
   request(cx: number, cz: number): void {
     const k = this.key(cx, cz);
     if (this.chunks.has(k) || this.pending.has(k)) return;
+    if ((this.genFails.get(k) ?? 0) >= 3) return; // 连续 3 次生成抛异常 → 放弃(已告警)，不再每帧死循环重试
     if (this.workers.length === 0) {
       this.getChunk(cx, cz); // 无 Worker(测试/node)：同步生成回退
       return;
     }
     this.pending.add(k);
+    this.pendingSince.set(k, now());
     this.workers[this.rr].postMessage({ cx, cz, seed: this.seed });
     this.rr = (this.rr + 1) % this.workers.length;
+  }
+
+  /** 看门狗：worker 偶发丢消息/卡死 → pending 永不回 → 区块永久不生成成洞。超时还没回的清掉 pending，
+   *  下帧 update() 会重新 request 重试(自愈)。由游戏层/ChunkMeshManager.update 定期调。 */
+  retryStuckGen(timeoutMs = 8000): void {
+    const t = now();
+    for (const [k, since] of this.pendingSince) {
+      if (t - since > timeoutMs) {
+        this.pending.delete(k);
+        this.pendingSince.delete(k);
+        console.warn(`[chunkgen] 区块 ${k} 生成 ${Math.round((t - since) / 1000)}s 未回(worker 丢消息?) → 重试`);
+      }
+    }
   }
 
   // 只看缓存、不生成(网格化调度用，避免触发同步生成卡帧)。

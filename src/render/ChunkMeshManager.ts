@@ -8,6 +8,8 @@ import { chunkInView } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
 
+const perfNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
@@ -76,6 +78,8 @@ export class ChunkMeshManager {
   private readonly meshWorkers: Worker[] = [];
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
+  private readonly meshPendingSince = new Map<string, number>(); // 派发时刻(ms)，看门狗判 worker 丢消息超时重试
+  private readonly meshFails = new Map<string, number>(); // 该区块连续网格化失败次数，超上限放弃+告警，防死循环
   private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
   // 玩家编辑(挖/放/流体)触发的重建走【优先队列】：flushMesh 先把它们上屏，再按 budget 放批量加载结果。
   // 否则低帧时(shader 重→budget 跌到 1)挖掉的方块结果排在一堆加载结果后面，迟迟不上屏 → "方块破坏不消失"。
@@ -140,12 +144,21 @@ export class ChunkMeshManager {
       const n = Math.max(1, Math.min(4, cores - 1));
       for (let i = 0; i < n; i++) {
         const w = new MeshGenWorker();
-        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh: ChunkMesh }>): void => {
-          const { cx, cz, mesh } = e.data;
+        w.onmessage = (e: MessageEvent<{ cx: number; cz: number; mesh?: ChunkMesh; error?: string }>): void => {
+          const { cx, cz, mesh, error } = e.data;
           const k = this.key(cx, cz);
           if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
           this.meshPending.delete(k);
-          if (!this.world.peek(cx, cz)) return; // 区块已卸载 → 丢弃
+          this.meshPendingSince.delete(k);
+          if (error) {
+            // 网格化失败：meshPending 已清 → 未达上限时 update() 会再派重试；告警暴露真正触发原因。
+            const n = (this.meshFails.get(k) ?? 0) + 1;
+            this.meshFails.set(k, n);
+            console.warn(`[meshgen] 区块(${cx},${cz}) 网格化失败 #${n}: ${error.split('\n')[0]}`);
+            return;
+          }
+          this.meshFails.delete(k);
+          if (!mesh || !this.world.peek(cx, cz)) return; // 区块已卸载/无数据 → 丢弃
           if (this.editKeys.has(k)) {
             this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
             // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
@@ -153,6 +166,9 @@ export class ChunkMeshManager {
           } else {
             this.meshQueue.push({ cx, cz, mesh }); // 批量加载 → 普通队列，每帧 flushMesh 限量上屏(防卡)
           }
+        };
+        w.onerror = (ev): void => {
+          console.error('[meshgen worker] 致命错误(整个 worker 挂了，区块会停止网格化):', ev.message);
         };
         this.meshWorkers.push(w);
       }
@@ -418,6 +434,8 @@ export class ChunkMeshManager {
 
   private unload(k: string): void {
     this.editKeys.delete(k); // 卸载就清掉优先标记，防 editKeys 累积已驱逐区块
+    this.meshPendingSince.delete(k);
+    this.meshFails.delete(k);
     const m = this.meshes.get(k);
     if (!m) return;
     for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
@@ -487,6 +505,7 @@ export class ChunkMeshManager {
     const k = this.key(cx, cz);
     // 作废这个区块在途/待上屏的 worker 结果——下面同步上屏的才是最新；否则旧 worker 结果回来会把挖/放盖回去
     this.meshPending.delete(k);
+    this.meshPendingSince.delete(k);
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
     const pi = this.priorityQueue.findIndex((m) => m.cx === cx && m.cz === cz);
@@ -519,9 +538,11 @@ export class ChunkMeshManager {
     }
     const k = this.key(cx, cz);
     if (this.meshPending.has(k)) return; // 已在排队；若期间又被编辑(dirty=true)，下帧 update() 会再派(自愈)
+    if ((this.meshFails.get(k) ?? 0) >= 3) return; // 连续 3 次网格化抛异常 → 放弃(已告警)，不再每帧死循环重试
     const nb = this.collectNeighbors(cx, cz);
     if (!nb) return; // 邻区还没生成好 → 这次不网格化(留着下次 update 重试)，绝不同步 meshChunk 卡主线程
     this.meshPending.add(k);
+    this.meshPendingSince.set(k, perfNow());
     const transfer = [...nb.blocks.map((b) => b.buffer), ...nb.fluid.map((f) => f.buffer)];
     this.meshWorkers[this.meshRr].postMessage({ cx, cz, blocks: nb.blocks, fluid: nb.fluid }, transfer);
     this.meshRr = (this.meshRr + 1) % this.meshWorkers.length;
@@ -529,8 +550,23 @@ export class ChunkMeshManager {
     if (built) built.dirty = false; // 标记已派(清 dirty 防 update 反复派)；worker 回来才真正上屏
   }
 
+  /** 看门狗：网格 worker 偶发丢消息/卡死 → meshPending 永不回 → 区块永久不上屏成洞。
+   *  超时还没回的清掉 meshPending(下面 update 的 todo 会因 !meshes.has 再派，自愈)。每帧 update 开头调。 */
+  private retryStuckMeshes(timeoutMs = 8000): void {
+    const t = perfNow();
+    for (const [k, since] of this.meshPendingSince) {
+      if (t - since > timeoutMs) {
+        this.meshPending.delete(k);
+        this.meshPendingSince.delete(k);
+        console.warn(`[meshgen] 区块 ${k} 网格化 ${Math.round((t - since) / 1000)}s 未回(worker 丢消息?) → 重试`);
+      }
+    }
+  }
+
   /** 确保中心 radius 内区块已网格化；远处卸载。每次最多(重)建 budget 个，分摊到多帧。 */
   update(centerCx: number, centerCz: number, radius: number, budget = 2): void {
+    this.retryStuckMeshes(); // 看门狗：网格 worker 丢消息卡住的区块→清 pending 让下面重派(自愈，治"加载不出来的洞")
+    this.world.retryStuckGen(); // 同理治生成卡住的洞
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
       if (Math.abs(cx - centerCx) > radius + 1 || Math.abs(cz - centerCz) > radius + 1) this.unload(k);

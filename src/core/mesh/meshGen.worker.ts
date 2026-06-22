@@ -34,18 +34,23 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     return s < 0 ? 0 : flAmount(fluid[s][li(wx, wy, wz)]);
   };
 
-  const m = meshChunkData(cx, cz, getBlock, waterAmount);
+  try {
+    const m = meshChunkData(cx, cz, getBlock, waterAmount);
 
-  const transfer: ArrayBuffer[] = [];
-  const collect = (md: MeshData): void => {
-    transfer.push(md.positions.buffer, md.uvs.buffer, md.colors.buffer, md.indices.buffer);
-    if (md.light && md.light.length) transfer.push(md.light.buffer);
-    if (md.top && md.top.length) transfer.push(md.top.buffer);
-  };
-  const mesh: ChunkMesh = m;
-  collect(mesh.opaque);
-  collect(mesh.cutout);
-  collect(mesh.water);
-  collect(mesh.torch);
-  (self as unknown as Worker).postMessage({ cx, cz, mesh }, transfer);
+    const transfer: ArrayBuffer[] = [];
+    const collect = (md: MeshData): void => {
+      transfer.push(md.positions.buffer, md.uvs.buffer, md.colors.buffer, md.indices.buffer);
+      if (md.light && md.light.length) transfer.push(md.light.buffer);
+      if (md.top && md.top.length) transfer.push(md.top.buffer);
+    };
+    const mesh: ChunkMesh = m;
+    collect(mesh.opaque);
+    collect(mesh.cutout);
+    collect(mesh.water);
+    collect(mesh.torch);
+    (self as unknown as Worker).postMessage({ cx, cz, mesh }, transfer);
+  } catch (err) {
+    // 网格化抛异常也务必回报——否则主线程 meshPending 永不清 → 该区块永久不重建成洞。
+    (self as unknown as Worker).postMessage({ cx, cz, error: String((err as Error)?.stack ?? err) });
+  }
 };
