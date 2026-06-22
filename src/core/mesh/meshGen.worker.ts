@@ -41,7 +41,6 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     transfer.push(md.positions.buffer, md.uvs.buffer, md.colors.buffer, md.indices.buffer);
     if (md.light && md.light.length) transfer.push(md.light.buffer);
     if (md.top && md.top.length) transfer.push(md.top.buffer);
-    if (md.depth && md.depth.length) transfer.push(md.depth.buffer);
   };
   const mesh: ChunkMesh = m;
   collect(mesh.opaque);
