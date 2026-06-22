@@ -657,6 +657,50 @@ def nether_portal(rng):
     return im
 
 
+def coal_block(rng):
+    # 煤炭块：近黑、干净，微弱炭光高光 + 顶亮底暗 AO（卡通强对比）。
+    im = new()
+    fill(im, "#1b1b20")
+    speck(im, ["#141418", "#2a2a32"], 0.06, rng)
+    for _ in range(4):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#22222a", "#3a3a46", "#101014", rng, 0.2)
+    px = im.load()
+    for x in range(S):
+        px[x, 0] = hx("#34343e")      # 顶亮
+        px[x, S - 1] = hx("#0d0d10")  # 底暗
+    return im
+
+
+def iron_block(rng):
+    # 铁块：亮金属灰 + 倒角边（上/左提亮、下/右压暗），干净金属感。
+    im = new()
+    fill(im, "#d3d3d6")
+    speck(im, ["#c6c6ca", "#e2e2e6"], 0.04, rng)
+    px = im.load()
+    for i in range(S):
+        px[i, 0] = hx("#f0f0f3")      # 上边高光
+        px[0, i] = hx("#eaeaee")      # 左边高光
+        px[i, S - 1] = hx("#a9a9af")  # 下边阴影
+        px[S - 1, i] = hx("#b4b4ba")  # 右边阴影
+    return im
+
+
+def quartz_block(rng):
+    # 石英块：近白米色 + 顶亮带 + 极淡竖纹（仿 MC 石英）。
+    im = new()
+    fill(im, "#e9e6dd")
+    speck(im, ["#e0dcd1", "#f3f1ea"], 0.04, rng)
+    px = im.load()
+    for x in range(S):
+        px[x, 0] = hx("#f6f4ee")
+        px[x, 1] = hx("#f0eee6")
+        px[x, S - 1] = hx("#cfcabd")
+    for x in range(2, S, 5):
+        for y in range(2, S - 1):
+            px[x, y] = hx("#dedacf")
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -690,6 +734,9 @@ BLOCKS = [
     ("lava", lava),
     ("bedrock", bedrock),
     ("nether_portal", nether_portal),
+    ("coal_block", coal_block),
+    ("iron_block", iron_block),
+    ("quartz_block", quartz_block),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -764,15 +811,16 @@ def main():
 
     # Pack block tiles into one atlas (4 cols × 7 rows = 28 slots, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
-    # 4×8=32 槽: 0-17 基础, 18-25 下界(占位透明,贴图待下界会话填), 26-31 沙漠/雪原
-    # 改行数时务必同步 mesher.ts / DropRenderer.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
+    # 4×9=36 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-34 合成储存方块
+    # 改行数时务必同步 mesher.ts / DropRenderer.ts / FirstPersonHand.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
                    'gravel', 'grass_plant',
                    'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
-                   'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves']
-    ATLAS_COLS, ATLAS_ROWS = 4, 8  # 4×8=32 槽；同步 mesher/DropRenderer 的 ATLAS_ROWS=8
+                   'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
+                   'coal_block', 'iron_block', 'quartz_block']
+    ATLAS_COLS, ATLAS_ROWS = 4, 9  # 4×9=36 槽；同步 mesher/DropRenderer/FirstPersonHand 的 ATLAS_ROWS=9
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:
@@ -796,6 +844,10 @@ def main():
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
         'gravel': ('gravel', 'gravel'),
+        'sandstone': ('sandstone', 'sandstone'),
+        'coal_block': ('coal_block', 'coal_block'),
+        'iron_block': ('iron_block', 'iron_block'),
+        'quartz_block': ('quartz_block', 'quartz_block'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)

@@ -45,6 +45,37 @@ export const RECIPES: Recipe[] = [
     key: { '#': 'cobblestone' },
     result: { item: 'furnace', count: 1 },
   },
+  // ── 储存/压缩方块（背包 2×2 / 工作台 3×3），1:1 MC ────────────────────────
+  // 沙石：2×2 沙 → 1 沙石（背包可做）
+  {
+    type: 'shaped',
+    pattern: ['##', '##'],
+    key: { '#': 'sand' },
+    result: { item: 'sandstone', count: 1 },
+  },
+  // 石英块：2×2 下界石英 → 1 石英块（背包可做，给下界石英一个用途）
+  {
+    type: 'shaped',
+    pattern: ['##', '##'],
+    key: { '#': 'nether_quartz' },
+    result: { item: 'quartz_block', count: 1 },
+  },
+  // 煤炭块：3×3 煤 → 1 块（需工作台）；可逆：1 块 → 9 煤
+  {
+    type: 'shaped',
+    pattern: ['###', '###', '###'],
+    key: { '#': 'coal' },
+    result: { item: 'coal_block', count: 1 },
+  },
+  { type: 'shapeless', ingredients: ['coal_block'], result: { item: 'coal', count: 9 } },
+  // 铁块：3×3 铁锭 → 1 块（需工作台）；可逆：1 块 → 9 铁锭
+  {
+    type: 'shaped',
+    pattern: ['###', '###', '###'],
+    key: { '#': 'iron_ingot' },
+    result: { item: 'iron_block', count: 1 },
+  },
+  { type: 'shapeless', ingredients: ['iron_block'], result: { item: 'iron_ingot', count: 9 } },
   {
     type: 'shaped',
     pattern: ['C', 'S'],

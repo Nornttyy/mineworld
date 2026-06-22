@@ -45,6 +45,10 @@ const T = {
   snow: 29,
   spruce_log: 30,
   spruce_leaves: 31,
+  // 合成储存方块图集索引 (32-34)：背包/工作台配方产物（图集第 9 行）
+  coal_block: 32,
+  iron_block: 33,
+  quartz_block: 34,
 } as const;
 
 export interface BlockDef {
@@ -267,6 +271,13 @@ export const BLOCKS: BlockDef[] = [
   { id: 30, name: 'spruce_log', solid: true, transparent: false, faces: column(T.spruce_log, T.oak_log_top, T.oak_log_top), hardness: 3.33, drop: 30, needsTool: false, tool: 'axe' },
   // 云杉树叶：同橡树叶(镂空、手挖快不掉)。
   { id: 31, name: 'spruce_leaves', solid: true, transparent: true, faces: all(T.spruce_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  // ── 合成储存方块 (32-34)：把零散资源压成一格存储，背包/工作台配方产物 ───────────
+  // 煤炭块：9 煤合成(可逆)；镐采掉自身。MC 硬度 5，木镐即可。
+  { id: 32, name: 'coal_block', solid: true, transparent: false, faces: all(T.coal_block), hardness: 5, drop: 32, needsTool: true, tool: 'pickaxe' },
+  // 铁块：9 铁锭合成(可逆)；需石镐及以上(同 MC)。MC 硬度 5。
+  { id: 33, name: 'iron_block', solid: true, transparent: false, faces: all(T.iron_block), hardness: 5, drop: 33, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  // 石英块：4 下界石英合成；镐采掉自身。MC 硬度 0.8。
+  { id: 34, name: 'quartz_block', solid: true, transparent: false, faces: all(T.quartz_block), hardness: 0.8, drop: 34, needsTool: true, tool: 'pickaxe' },
 ];
 
 export const GRASS = 3;
@@ -299,6 +310,10 @@ export const ICE = 28;         // 雪原冰
 export const SNOW_LAYER = 29;  // 雪层
 export const SPRUCE_LOG = 30;  // 云杉原木
 export const SPRUCE_LEAVES = 31; // 云杉树叶
+// 合成储存方块 (32-34)
+export const COAL_BLOCK = 32;   // 煤炭块（9 煤）
+export const IRON_BLOCK = 33;   // 铁块（9 铁锭）
+export const QUARTZ_BLOCK = 34; // 石英块（4 下界石英）
 
 export const isLavaId = (id: number): boolean => id === LAVA;
 export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;

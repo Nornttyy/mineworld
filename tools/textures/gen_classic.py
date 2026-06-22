@@ -573,6 +573,45 @@ def nether_portal(rng):
     return im
 
 
+def coal_block(rng):
+    # 煤炭块：经典暗黑，低饱和、平实噪点。
+    im = new()
+    fill(im, "#19191c")
+    speck(im, ["#121214", "#262629"], 0.25, rng)
+    for _ in range(4):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#1f1f23", "#303035", "#0e0e10", rng)
+    return im
+
+
+def iron_block(rng):
+    # 铁块：经典金属灰 + 倒角边。
+    im = new()
+    fill(im, "#cfcfd2")
+    speck(im, ["#c2c2c6", "#dcdce0"], 0.18, rng)
+    px = im.load()
+    for i in range(S):
+        px[i, 0] = hx("#e8e8eb")
+        px[0, i] = hx("#e2e2e6")
+        px[i, S - 1] = hx("#a6a6ac")
+        px[S - 1, i] = hx("#b0b0b6")
+    return im
+
+
+def quartz_block(rng):
+    # 石英块：经典米白 + 顶亮带 + 淡竖纹。
+    im = new()
+    fill(im, "#e6e3da")
+    speck(im, ["#dcd8ce", "#efece4"], 0.18, rng)
+    px = im.load()
+    for x in range(S):
+        px[x, 0] = hx("#f2f0ea")
+        px[x, S - 1] = hx("#cbc6b9")
+    for x in range(2, S, 5):
+        for y in range(2, S - 1):
+            px[x, y] = hx("#dad6cb")
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -606,6 +645,9 @@ BLOCKS = [
     ("lava", lava),
     ("bedrock", bedrock),
     ("nether_portal", nether_portal),
+    ("coal_block", coal_block),
+    ("iron_block", iron_block),
+    ("quartz_block", quartz_block),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -673,14 +715,15 @@ def main():
     for i, (name, fn) in enumerate(BLOCKS):
         tex[name] = fn(random.Random(BASE_SEED + i * 1000))
     # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。
-    # 4×8=32 槽: 0-17 基础, 18-25 下界(占位透明), 26-31 沙漠/雪原
+    # 4×9=36 槽: 0-17 基础, 18-25 下界(占位透明), 26-31 沙漠/雪原, 32-34 合成储存方块
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
                    'gravel', 'grass_plant',
                    'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
-                   'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves']
-    COLS, ROWS = 4, 8
+                   'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
+                   'coal_block', 'iron_block', 'quartz_block']
+    COLS, ROWS = 4, 9
     atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:

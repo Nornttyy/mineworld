@@ -15,6 +15,9 @@ import {
   SNOW_LAYER,
   SPRUCE_LOG,
   SPRUCE_LEAVES,
+  COAL_BLOCK,
+  IRON_BLOCK,
+  QUARTZ_BLOCK,
   blockSlipperiness,
   isCactus,
   isLavaId,
@@ -107,5 +110,25 @@ describe('沙漠/雪原新方块', () => {
     expect(SNOW_LAYER).toBe(29);
     expect(SPRUCE_LOG).toBe(30);
     expect(SPRUCE_LEAVES).toBe(31);
+  });
+});
+
+describe('合成储存方块 (32-34)', () => {
+  it('煤块/铁块/石英块已注册、id 正确', () => {
+    expect(COAL_BLOCK).toBe(32);
+    expect(IRON_BLOCK).toBe(33);
+    expect(QUARTZ_BLOCK).toBe(34);
+    expect(BLOCKS[COAL_BLOCK].name).toBe('coal_block');
+    expect(BLOCKS[IRON_BLOCK].name).toBe('iron_block');
+    expect(BLOCKS[QUARTZ_BLOCK].name).toBe('quartz_block');
+  });
+  // 防回归：实心储存方块必须走 opaque 渲染批，否则不可见（同仙人掌不可见 bug）。
+  it('三块都不透明、掉落自身、需镐采集', () => {
+    for (const id of [COAL_BLOCK, IRON_BLOCK, QUARTZ_BLOCK]) {
+      expect(isOpaque(id)).toBe(true);
+      expect(BLOCKS[id].drop).toBe(id);
+      expect(BLOCKS[id].tool).toBe('pickaxe');
+    }
+    expect(BLOCKS[IRON_BLOCK].minTier).toBe(2); // 铁块需石镐及以上（同 MC）
   });
 });
