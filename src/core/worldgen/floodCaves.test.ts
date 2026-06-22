@@ -1,23 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { generateChunk, columnHeight, SEA_LEVEL } from './terrain';
+import { generateChunk, columnHeight } from './terrain';
 import { WATER } from '../blocks/registry';
 
-// 水下/沿海矿洞灌水：海/湖下方 + 岸边/水下崖壁(近水：周围±4 内有水下地表 → hmin<海平面)的【地表以下】
-// 且【海平面以下】的洞穴格应含水；远离水的深内陆洞仍是干的(地表以下无水)。
-describe('worldgen — 水下/沿海矿洞灌水', () => {
-  const hmin = (wx: number, wz: number, seed: number): number =>
-    Math.min(
-      columnHeight(wx, wz, seed),
-      columnHeight(wx + 4, wz, seed),
-      columnHeight(wx - 4, wz, seed),
-      columnHeight(wx, wz + 4, seed),
-      columnHeight(wx, wz - 4, seed),
-    );
-
-  it('近水的地表以下洞穴含水；远离水的内陆洞仍是空气', () => {
+// 矿洞生成时【不预灌水】(留空气)——水下的洞由流体模拟从开口(竖井/破口)自然流入(运行时)：
+// 能流到的灌进去、流完自行 settle，流不到的封闭腔保持干燥。这里守住"生成期地表以下不出现预填的洞水"。
+describe('worldgen — 矿洞生成不预灌水', () => {
+  it('地表以下被挖空的洞穴格生成时是空气，不是水', () => {
     const seed = 4242;
-    let nearWaterCaveWater = 0;
-    let inlandCaveWater = 0;
+    let subsurfaceWater = 0;
     for (let cx = -2; cx <= 2; cx++) {
       for (let cz = -2; cz <= 2; cz++) {
         const c = generateChunk(cx, cz, seed);
@@ -27,16 +17,12 @@ describe('worldgen — 水下/沿海矿洞灌水', () => {
             const wz = cz * 16 + lz;
             const h = columnHeight(wx, wz, seed);
             for (let y = 2; y < h; y++) {
-              if (c.get(lx, y, lz) === WATER) {
-                if (hmin(wx, wz, seed) < SEA_LEVEL) nearWaterCaveWater++;
-                else inlandCaveWater++;
-              }
+              if (c.get(lx, y, lz) === WATER) subsurfaceWater++;
             }
           }
         }
       }
     }
-    expect(nearWaterCaveWater).toBeGreaterThan(0); // 近水洞被灌水
-    expect(inlandCaveWater).toBe(0); // 远离水的内陆洞仍干（地表以下无水）
+    expect(subsurfaceWater).toBe(0); // 生成期洞穴不灌水（水靠运行时流体从开口流入）
   });
 });

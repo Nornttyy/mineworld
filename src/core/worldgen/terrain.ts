@@ -237,12 +237,8 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
         // 竖井破到地表(y<=height)；矿洞只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
         if (y > 1 && (shaft || (y < height && caveAt(wx, y, wz, hmin, seed)))) {
-          // 水下/沿海的洞穴灌满水：本格在海平面以下(y<SEA) 且 近水(周围±4 内有水下地表 hmin<SEA) → 注满量源头水。
-          //   这样海底洞、岸边/水下崖壁里的洞都是水的(不再是干的隔绝空腔)；远离水的深内陆洞仍留空气(可点火把探)。
-          if (hmin < SEA_LEVEL && y < SEA_LEVEL) {
-            c.set(lx, y, lz, WATER);
-            c.setFluid(lx, y, lz, SEA_FLUID);
-          }
+          // 洞穴/竖井生成时【留空气，不预灌水】。水下的洞由流体模拟从开口(竖井/破口)自然流入——
+          // 能流到的灌进去、流完自行 settle；流不到的封闭腔保持干燥。(原来预灌满量水，改为按需自然流入。)
           continue;
         }
         let id = STONE;
