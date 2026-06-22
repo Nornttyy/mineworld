@@ -232,76 +232,6 @@
       #about-panel .btn {
         margin-top: 18px;
       }
-      #newworld {
-        position: fixed;
-        z-index: 20; /* 盖过旋转菜单背景(#menubg z:1) 和世界列表(z:10)，否则弹窗被背景画布遮住看不见 */
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: 460px;
-        padding: 26px;
-        color: #fff;
-        background: rgba(20, 20, 26, 0.95);
-        border: 2px solid #000;
-        box-shadow:
-          inset 2px 2px 0 rgba(255, 255, 255, 0.15),
-          inset -2px -2px 0 rgba(0, 0, 0, 0.5);
-      }
-      #newworld h2 {
-        margin: 0 0 18px;
-        font-size: 26px;
-        text-align: center;
-      }
-      .nw-field {
-        display: block;
-        margin: 14px 0;
-        font-size: 14px;
-        color: #cfcfcf;
-      }
-      .nw-field input {
-        display: block;
-        width: 100%;
-        margin-top: 6px;
-        box-sizing: border-box;
-        font-family: inherit;
-        font-size: 16px;
-        color: #fff;
-        padding: 9px 10px;
-        background: #1c1c22;
-        border: 2px solid #000;
-        box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
-      }
-      .nw-modes {
-        display: flex;
-        gap: 12px;
-        margin-top: 6px;
-      }
-      .nw-mode {
-        flex: 1;
-        font-family: inherit;
-        font-size: 16px;
-        color: #fff;
-        padding: 10px;
-        background: #6c6c6c;
-        border: 2px solid #000;
-        cursor: pointer;
-        box-shadow:
-          inset 2px 2px 0 rgba(255, 255, 255, 0.3),
-          inset -2px -2px 0 rgba(0, 0, 0, 0.45);
-      }
-      .nw-mode.active {
-        background: #7a9b5c;
-      }
-      .nw-desc {
-        margin-top: 8px;
-        font-size: 13px;
-        color: #9fd17a;
-        min-height: 18px;
-      }
-      #newworld .btn-row {
-        margin-top: 22px;
-        justify-content: center;
-      }
       #underwater {
         position: fixed;
         inset: 0;
@@ -871,7 +801,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-DvBsL0UW.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-BL3xfZcs.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -919,26 +849,6 @@
       <div class="btn-row">
         <button id="create-world" class="btn">创建新世界</button>
         <button id="worldlist-back" class="btn">返回</button>
-      </div>
-    </div>
-    <div id="newworld" class="hidden">
-      <h2>创建新世界</h2>
-      <label class="nw-field">世界名称
-        <input id="nw-name" type="text" maxlength="32" placeholder="新的世界" />
-      </label>
-      <label class="nw-field">种子（留空随机；可填数字或任意文字）
-        <input id="nw-seed" type="text" maxlength="24" placeholder="随机" />
-      </label>
-      <div class="nw-field">游戏模式
-        <div class="nw-modes">
-          <button id="nw-survival" class="nw-mode active" type="button">生存</button>
-          <button id="nw-creative" class="nw-mode" type="button">创造</button>
-        </div>
-        <div id="nw-mode-desc" class="nw-desc">挖矿、合成、打怪，会饿会死。</div>
-      </div>
-      <div class="btn-row">
-        <button id="nw-create" class="btn">创建</button>
-        <button id="nw-cancel" class="btn">取消</button>
       </div>
     </div>
     <div id="pause" class="hidden">
