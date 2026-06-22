@@ -4,10 +4,13 @@
 import type { SerializedMob } from '../core/entity/mobSave';
 import type { FurnaceState } from '../core/crafting/smelting';
 
+export type GameMode = 'survival' | 'creative';
+
 export interface WorldSave {
   id: string;
   name: string;
   seed: number;
+  gameMode?: GameMode; // 不存=survival（老档迁移）
   lastPlayed: number;
   edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）
   player?: { x: number; y: number; z: number; yaw: number; pitch: number };
@@ -47,12 +50,23 @@ export function getWorld(id: string): WorldSave | undefined {
   return readAll().find((w) => w.id === id);
 }
 
-// 新建一个世界（随机种子、空改动）并存盘
-export function createWorld(name: string): WorldSave {
+// 把"种子输入框"的字符串解析成种子：空→null(调用方用随机)、纯数字→该数、其它字符串→确定性哈希。
+export function parseSeed(input: string): number | null {
+  const s = input.trim();
+  if (!s) return null;
+  if (/^-?\d+$/.test(s)) return Math.abs(Math.floor(Number(s))) % 2_000_000_000;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return Math.abs(h) % 2_000_000_000;
+}
+
+// 新建一个世界并存盘。seed 省略=随机；gameMode 默认生存。
+export function createWorld(name: string, seed?: number, gameMode: GameMode = 'survival'): WorldSave {
   const w: WorldSave = {
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name: name.trim() || '新的世界',
-    seed: Math.floor(Math.random() * 2_000_000_000),
+    seed: seed ?? Math.floor(Math.random() * 2_000_000_000),
+    gameMode,
     lastPlayed: Date.now(),
     edits: {},
   };
