@@ -9,6 +9,8 @@ const SAND_ID = 5;
 const GRASS_ID = 3;
 const SANDSTONE_ID = 26;
 
+// 注：水下/沿海洞穴灌水的测试在 floodCaves.test.ts。
+
 describe('下界世界生成', () => {
   it('基岩封顶封底、有地狱岩/岩浆/荧石，无草无水', () => {
     const c = generateChunk(0, 0, 1337, 'nether');

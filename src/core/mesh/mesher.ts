@@ -89,6 +89,7 @@ export interface MeshData {
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
+  sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
 }
 
 interface BlockGrid {
@@ -176,8 +177,9 @@ interface FaceArrays {
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
   T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
+  SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [], SW: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -188,6 +190,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
     top: a.T.length ? new Float32Array(a.T) : undefined,
+    sway: a.SW.length ? new Float32Array(a.SW) : undefined,
   };
 };
 
@@ -290,6 +293,7 @@ export function meshChunkData(
     } else {
       a.I.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
     }
+    if (a === cut) a.SW.push(1, 1, 1, 1); // cutout(树叶等)：整体摆
   };
 
   // 火把：在格中心立一个暖色"交叉竖片"小网格，自发光(走独立材质，不参与天光 shader)。
@@ -344,6 +348,7 @@ export function meshChunkData(
       cut.U.push(u0, vB, u1, vB, u1, vT, u0, vT);
       cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
       cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
+      cut.SW.push(0, 0, 1, 1); // 底左,底右=根锚定(0)；顶右,顶左=草尖摆(1)
       cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   };
@@ -371,6 +376,8 @@ export function meshChunkData(
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
   // UV 用世界坐标平铺（顶/底用 x,z；侧面用 水平,y）：整片水面连续平铺、斜水面不会扭曲，
   // 配合独立可滚动水纹理做流动动画。
+  // 起伏权重：1=平静水面(湖/海,头顶是空气)→可大幅上下起伏；0=水柱内/瀑布体(头顶还是水)→不起伏，避免流水/瀑布撕缝。每个水格设一次。
+  let waterWobble = 1;
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
@@ -389,8 +396,9 @@ export function meshChunkData(
       else wa.U.push(wx, py); // ±Z 侧
       wa.C.push(shade, shade, shade);
       wa.L.push(sky, blk);
-      // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)=1 → 光影里随涌浪起伏；侧壁底沿/底面=0 不动(免穿帮露缝)
-      wa.T.push(topFace || yArr[k] > 0.01 ? 1 : 0);
+      // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)起伏权重=waterWobble；侧壁底沿/底面=0 不动(免穿帮露缝)。
+      // 平静水(waterWobble=1)整面随涌浪起伏；瀑布/落水体(=0)不起伏 → 流水不撕缝。
+      wa.T.push((topFace || yArr[k] > 0.01) ? waterWobble : 0);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -433,13 +441,15 @@ export function meshChunkData(
         } else if (isCutoutId(id)) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
-            // 镂空(树叶)：露给非实心(空气/水)的面才画；叶-叶、叶-实心剔除
-            if (isSolidId(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            // 镂空(树叶)：像 MC「精细」叶——只对【不透明实心邻】剔面；叶-叶之间也画 → 树冠密实、挖进去里面仍是叶子(不透空)
+            if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
             emit(cut, lx, ly, lz, id, f);
           }
         } else if (isWaterId(id)) {
           const wx = ox + lx;
           const wz = oz + lz;
+          // 头顶是空气=平静水面(可起伏)；头顶还是水=水柱内/瀑布体(不起伏，免流水/瀑布撕缝)。
+          waterWobble = waterAmount(wx, ly + 1, wz) > 0 ? 0 : 1;
           // 四角高度（取邻格平均 → 顺流斜面）。角命名 hAB：A=本格 x 侧(0/1)，B=z 侧(0/1)。
           const h00 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz - 1], [wx - 1, wz - 1]]);
           const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);

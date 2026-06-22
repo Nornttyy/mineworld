@@ -10,7 +10,7 @@ import type { LightingQuality } from '../core/settings';
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
-const SHADOW_HALF = 48; // 阴影正交相机半宽（格）——只覆盖玩家附近
+const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
 // 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
@@ -32,13 +32,6 @@ const MC_LIGHT_GLSL =
   ' vLF = max(bs, bb) * 0.96 + 0.04;' +
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
-
-interface ChunkMeshes {
-  opaque: THREE.Mesh;
-  cutout: THREE.Mesh | null;
-  water: THREE.Mesh | null;
-  torch: THREE.Mesh | null;
-}
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
@@ -84,6 +77,10 @@ export class ChunkMeshManager {
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
   private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
+  // 玩家编辑(挖/放/流体)触发的重建走【优先队列】：flushMesh 先把它们上屏，再按 budget 放批量加载结果。
+  // 否则低帧时(shader 重→budget 跌到 1)挖掉的方块结果排在一堆加载结果后面，迟迟不上屏 → "方块破坏不消失"。
+  private readonly editKeys = new Set<string>(); // 标记"此区块的重建是编辑触发"，供 worker 回调分流到优先队列
+  private readonly priorityQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = [];
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
 
   constructor(
@@ -148,7 +145,14 @@ export class ChunkMeshManager {
           const k = this.key(cx, cz);
           if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
           this.meshPending.delete(k);
-          if (this.world.peek(cx, cz)) this.meshQueue.push({ cx, cz, mesh }); // 入队，每帧 flushMesh 限量上屏(防卡)
+          if (!this.world.peek(cx, cz)) return; // 区块已卸载 → 丢弃
+          if (this.editKeys.has(k)) {
+            this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
+            // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
+            if (!this.world.peek(cx, cz)?.dirty) this.editKeys.delete(k);
+          } else {
+            this.meshQueue.push({ cx, cz, mesh }); // 批量加载 → 普通队列，每帧 flushMesh 限量上屏(防卡)
+          }
         };
         this.meshWorkers.push(w);
       }
@@ -170,9 +174,10 @@ export class ChunkMeshManager {
         shader.uniforms.uTime = this.uTime;
         shader.uniforms.uShaders = this.uShaders; // 仅「光影」开时摆（uShaders 门控）
       }
-      // 树叶随风摆：按【世界坐标(原始 position)+时间】位移 → 相邻叶共享顶点=同步摆动、无裂缝。×uShaders=只在光影开时摆。
+      // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
+      // 位移按【世界坐标(原始 position)+时间】→相邻顶点共享相位、无裂缝。×uShaders=只在光影开时摆。
       const swayCode = sway
-        ? '{ float sw = uShaders * 0.05; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
+        ? '{ float sw = uShaders * 0.06 * aSway; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
           ' transformed.x += sin(ph + uTime*1.4) * sw;' +
           ' transformed.z += sin(ph*1.3 + uTime*1.1) * sw;' +
           ' transformed.y += sin(ph*0.8 + uTime*1.7) * sw * 0.5; }\n'
@@ -181,7 +186,7 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\n' +
-            (sway ? 'uniform float uTime;\nuniform float uShaders;\n' : '') +
+            (sway ? 'uniform float uTime;\nuniform float uShaders;\nattribute float aSway;\n' : '') +
             'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
@@ -201,11 +206,11 @@ export class ChunkMeshManager {
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
             '  float bias = 0.0018;\n' +
             '  float s = 0.0;\n' +
-            '  for (int x=-1;x<=1;x++){ for (int y=-1;y<=1;y++){\n' +
-            '    float d = mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(float(x),float(y))*uShadowTexel));\n' +
-            '    s += (c.z - bias <= d) ? 1.0 : 0.0;\n' +
-            '  }}\n' +
-            '  return s / 9.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.9,-0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  return s / 4.0;\n' + // 4 抽样(原9)旋转偏移→省采样,边缘仍柔
             '}',
         )
         .replace(
@@ -265,15 +270,25 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：按 MC 1:1 烤天光(skyDarken 夜减) + 传世界坐标；水面【不位移】(平静)。
+      // 顶点：烤天光 + 传世界坐标；水面顶点按波高【上下起伏】(仅光影开,aTop 标记的水面顶点动、侧壁底不动→免穿帮)。
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' + MC_BRIGHT_GLSL,
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+            // 顶点端波高噪声(与片元同款,vertex 独立定义)→ 抬降水面顶点
+            'float mwHv(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
+            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
+            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
+            'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * aTop * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(仅平静水面 aTop=1;瀑布/流水体 aTop=0 不起伏→不撕缝)
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
@@ -281,36 +296,37 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
-            // 程序波纹：返回 vec3(高度, 坡度x, 坡度z)。4 层行波(波长2~5格)、相位 ±t 多向 → 波纹在水面流动。
-            'vec3 rip(vec2 p, float t){\n' +
-            '  vec3 r = vec3(0.0); float a;\n' +
-            '  a = dot(p, vec2(1.00, 0.30)) * 1.3 + t * 0.9;  r += vec3(sin(a), 1.3 * 1.00 * cos(a), 1.3 * 0.30 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.40, 1.00)) * 1.8 - t * 1.1; r += vec3(sin(a), 1.8 * -0.40 * cos(a), 1.8 * 1.00 * cos(a));\n' +
-            '  a = dot(p, vec2(0.70, -0.60)) * 2.5 + t * 0.8; r += vec3(sin(a), 2.5 * 0.70 * cos(a), 2.5 * -0.60 * cos(a));\n' +
-            '  a = dot(p, vec2(-0.70, -0.55)) * 3.5 - t * 1.0; r += vec3(sin(a), 3.5 * -0.70 * cos(a), 3.5 * -0.55 * cos(a));\n' +
-            '  return r;\n' +
-            '}',
+            // 值噪声 + 两层不同尺度/方向滚动 → 不重复的混沌波纹(比正弦波自然、飘动不规则)。
+            'float mwH(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
+            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
+            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
+            'float mwWave(vec2 q, float t){\n' +
+            '  return mwH(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }',
         )
         .replace(
           '#include <color_fragment>',
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
             // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
-            '  vec3 r = rip(vWPos.xz, uTime);\n' + // r.x=波纹高度(明暗带), r.yz=坡度(法线)
-            '  vec3 N = normalize(vec3(-r.y * 0.16, 1.0, -r.z * 0.16));\n' + // 波纹法线：加大扰动→反射被波纹打碎、不再镜面塑料感
-
+            '  vec2 wq = vWPos.xz; float e = 0.35;\n' + // 噪声法线:有限差分求坡度→法线(不规则波纹)
+            '  float h0 = mwWave(wq, uTime);\n' +
+            '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
+            '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
+            '  vec3 N = normalize(vec3((h0 - hx) / e * 1.0, 1.0, (h0 - hz) / e * 1.0));\n' + // 扰动增强→波纹更明显
             '  vec3 V = normalize(cameraPosition - vWPos);\n' +
+            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0);\n' + // 从水面上方看=1、水下看上来=0 → 水下不显天空反射条纹
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  vec3 base = vec3(0.10, 0.50, 0.55) * vLF * vTint;\n' + // 明亮青绿水色(浅滩清澈感)
-            '  vec3 col = mix(base, skyR, fres);\n' + // 俯看主要是水色,掠角才有天空倒影
+            '  vec3 base = vec3(0.0, 0.48, 0.92) * vLF * vTint;\n' + // 鲜艳海蓝(高饱和亮蓝)
+            '  vec3 col = mix(base, skyR, fres * above);\n' + // 反射仅水面上方有(水下看上来只显平滑水色,无条纹)
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7;\n' + // 太阳粼光:略减亮→碎银而非硬高光
-            '  float caus = pow(clamp(r.x * 0.5 + 0.5, 0.0, 1.0), 3.0);\n' + // 焦散:波纹高亮区→明亮光脉
-            '  col += caus * 0.14 * uSkyMul * vec3(0.8, 1.0, 0.95);\n' + // 青白焦散光纹,仅白天可见
+            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7 * above;\n' + // 太阳粼光(仅水面上方)
             '  diffuseColor.rgb = col;\n' +
-            '  diffuseColor.a = mix(0.40, 0.82, fres);\n' + // 俯看0.40高透明见底、掠角0.82半遮
+            '  diffuseColor.a = mix(0.45, 0.85, fres);\n' + // 稍降透明让蓝色显:俯看0.45、掠角0.85
             '}',
         );
     };
@@ -395,11 +411,13 @@ export class ChunkMeshManager {
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
+    if (data.sway && data.sway.length) g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
   }
 
   private unload(k: string): void {
+    this.editKeys.delete(k); // 卸载就清掉优先标记，防 editKeys 累积已驱逐区块
     const m = this.meshes.get(k);
     if (!m) return;
     for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
@@ -423,6 +441,12 @@ export class ChunkMeshManager {
   // 把网格数据上屏(buildGeo + 入场景 + 阴影标记)。worker 回调与同步回退共用。
   /** 每帧把 worker 网格化结果【限量】上屏(buildGeo + GPU 上传)：防同帧多个 worker 一起上传导致掉帧。 */
   flushMesh(budget: number): void {
+    // 先上屏【编辑触发】的结果(挖/放/流体)：即使批量加载被 budget 饿着，挖掉的方块也立刻消失。
+    // 上限 8 防一次性爆发(如流体/爆炸批量脏块)同帧 buildGeo 过多卡顿；超出的下帧继续(仍排在批量加载前)。
+    for (let prio = 0; prio < 8 && this.priorityQueue.length > 0; prio++) {
+      const item = this.priorityQueue.shift();
+      if (item && this.world.peek(item.cx, item.cz)) this.applyMesh(item.cx, item.cz, item.mesh);
+    }
     for (let i = 0; i < budget && this.meshQueue.length > 0; i++) {
       const item = this.meshQueue.shift();
       if (item && this.world.peek(item.cx, item.cz)) this.applyMesh(item.cx, item.cz, item.mesh);
@@ -431,12 +455,12 @@ export class ChunkMeshManager {
 
   /** 还有 worker 网格化在途，或结果待上屏（供主菜单预加载等待铺满后再显示）。 */
   meshBusy(): boolean {
-    return this.meshQueue.length > 0 || this.meshPending.size > 0;
+    return this.meshQueue.length > 0 || this.priorityQueue.length > 0 || this.meshPending.size > 0;
   }
 
   /** 待上屏的网格数（供游戏层按【时间预算】逐个 flush，稳帧）。 */
   meshQueueLen(): number {
-    return this.meshQueue.length;
+    return this.meshQueue.length + this.priorityQueue.length;
   }
 
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
@@ -465,6 +489,8 @@ export class ChunkMeshManager {
     this.meshPending.delete(k);
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
+    const pi = this.priorityQueue.findIndex((m) => m.cx === cx && m.cz === cz);
+    if (pi >= 0) this.priorityQueue.splice(pi, 1); // 同步上屏的才最新，作废优先队列里该块的旧结果
     this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
     const c = this.world.peek(cx, cz);
     if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
@@ -553,7 +579,10 @@ export class ChunkMeshManager {
   remeshDirty(): void {
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
-      if (this.world.peek(cx, cz)?.dirty) this.rebuild(cx, cz);
+      if (this.world.peek(cx, cz)?.dirty) {
+        this.editKeys.add(k); // 编辑触发的重建 → worker 回来走优先队列(立刻上屏，不被批量加载饿着)
+        this.rebuild(cx, cz);
+      }
     }
   }
 }

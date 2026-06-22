@@ -42,21 +42,23 @@ function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number):
   // 注：露天竖井已移到 generateChunk 主循环单独处理(需破草顶成露天口)，这里只管地下隧道/矿洞。
   const depth = hmin - wy;
   if (depth < 12) return false; // 距周围最低地表 12 格内留实心(山坡侧面也不破洞)
-  // domain warp：用低频噪声把采样坐标推歪 → 洞穴蜿蜒弯曲(单层 valueNoise3 等值面太规整笔直)；仅 2 次噪声，远快于 fbm3
+  // domain warp：三轴都用低频噪声把采样坐标推歪 → 洞穴在 X/Y/Z 各方向都蜿蜒(不再偏某一方向)；3 次噪声。
   const wxw = wx + (valueNoise3(wx / 36, wy / 30, wz / 36, seed + 991) - 0.5) * 26;
+  const wyw = wy + (valueNoise3(wy / 30, wx / 34, wz / 34, seed + 993) - 0.5) * 22; // 加 Y 扭曲 → 洞穴也上下起伏，不再是水平层
   const wzw = wz + (valueNoise3(wz / 36, wy / 30, wx / 36, seed + 992) - 0.5) * 26;
+  // 采样各向同性(X/Y/Z 同尺度) → 洞穴不再被竖直压成水平片、方向均匀分布。
   if (depth < 50) {
     // 浅层：小矿洞，稀疏
-    return Math.abs(valueNoise3(wxw / 14, wy / 10, wzw / 14, seed + 222) - 0.5) < 0.03;
+    return Math.abs(valueNoise3(wxw / 14, wyw / 14, wzw / 14, seed + 222) - 0.5) < 0.03;
   }
   if (depth < 100) {
     // 中层：中矿洞 + 一些大矿洞
-    if (Math.abs(valueNoise3(wxw / 18, wy / 14, wzw / 18, seed + 333) - 0.5) < 0.05) return true;
-    return valueNoise3(wxw / 22, wy / 16, wzw / 22, seed + 700) < 0.07;
+    if (Math.abs(valueNoise3(wxw / 18, wyw / 18, wzw / 18, seed + 333) - 0.5) < 0.05) return true;
+    return valueNoise3(wxw / 22, wyw / 22, wzw / 22, seed + 700) < 0.07;
   }
   // 深层：大矿洞为主 + 连通中隧道
-  if (valueNoise3(wxw / 26, wy / 18, wzw / 26, seed + 700) < 0.16) return true;
-  return Math.abs(valueNoise3(wxw / 18, wy / 14, wzw / 18, seed + 333) - 0.5) < 0.04;
+  if (valueNoise3(wxw / 26, wyw / 26, wzw / 26, seed + 700) < 0.16) return true;
+  return Math.abs(valueNoise3(wxw / 18, wyw / 18, wzw / 18, seed + 333) - 0.5) < 0.04;
 }
 
 // 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
@@ -239,12 +241,8 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
         // 竖井破到地表(y<=height)；矿洞只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
         if (y > 1 && (shaft || (y < height && caveAt(wx, y, wz, hmin, seed)))) {
-          // 这列在水下(地表低于海平面 → 上方注了水)时，把挖空的洞/竖井灌满水 → 水下矿洞不再是干的隔绝空腔；
-          //   陆地上的干洞仍留空气。
-          if (height < SEA_LEVEL) {
-            c.set(lx, y, lz, WATER);
-            c.setFluid(lx, y, lz, SEA_FLUID);
-          }
+          // 洞穴/竖井生成时【留空气，不预灌水】。水下的洞由流体模拟从开口(竖井/破口)自然流入——
+          // 能流到的灌进去、流完自行 settle；流不到的封闭腔保持干燥。(原来预灌满量水，改为按需自然流入。)
           continue;
         }
         let id = STONE;

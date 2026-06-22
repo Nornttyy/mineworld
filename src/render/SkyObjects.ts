@@ -31,6 +31,103 @@ function makeMoonTex(): THREE.CanvasTexture {
   return pixelTex(c);
 }
 
+// 真实太阳：径向渐变——中心近白、边缘暖黄、外缘透明的实心亮盘。
+function makeRealSunTex(): THREE.CanvasTexture {
+  const S = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d') as CanvasRenderingContext2D;
+  const cx2 = S / 2;
+  const r = S / 2;
+  const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
+  g.addColorStop(0, 'rgba(255,255,255,1)');     // 中心：纯白
+  g.addColorStop(0.4, 'rgba(255,255,240,1)');   // 内环：近白
+  g.addColorStop(0.7, 'rgba(255,251,214,1)');   // 外环：淡黄(非橙)
+  g.addColorStop(0.88, 'rgba(255,248,200,0.5)'); // 边缘：淡黄半透
+  g.addColorStop(1, 'rgba(255,246,190,0)');      // 外缘：透明
+  x.fillStyle = g;
+  x.beginPath();
+  x.arc(cx2, cx2, r, 0, Math.PI * 2);
+  x.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// 太阳光晕：更大、更柔的暖色径向辉光（中心半透明→边缘全透）。
+function makeSunGlowTex(): THREE.CanvasTexture {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d') as CanvasRenderingContext2D;
+  const cx2 = S / 2;
+  const r = S / 2;
+  const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
+  g.addColorStop(0, 'rgba(255,255,238,0.5)');    // 中心：淡白黄半透(非橙)
+  g.addColorStop(0.25, 'rgba(255,252,224,0.32)'); // 内辉
+  g.addColorStop(0.55, 'rgba(255,249,208,0.14)'); // 中辉
+  g.addColorStop(0.8, 'rgba(255,247,198,0.04)');  // 外辉
+  g.addColorStop(1, 'rgba(255,245,188,0)');        // 边缘：全透
+  x.fillStyle = g;
+  x.beginPath();
+  x.arc(cx2, cx2, r, 0, Math.PI * 2);
+  x.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// 真实月亮：冷白圆盘 + 几块淡灰陨石坑斑 + 柔和边缘。
+function makeRealMoonTex(): THREE.CanvasTexture {
+  const S = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d') as CanvasRenderingContext2D;
+  const cx2 = S / 2;
+  const r = S / 2;
+  // 月面底色：冷白柔和渐变
+  const g = x.createRadialGradient(cx2 - r * 0.15, cx2 - r * 0.15, 0, cx2, cx2, r);
+  g.addColorStop(0, 'rgba(245,248,255,1)');   // 高光中心
+  g.addColorStop(0.55, 'rgba(220,228,242,1)'); // 月面中部
+  g.addColorStop(0.82, 'rgba(190,200,220,1)'); // 边缘暗部
+  g.addColorStop(0.92, 'rgba(170,180,205,0.5)'); // 柔和边缘
+  g.addColorStop(1, 'rgba(150,165,195,0)');     // 外缘透明
+  x.fillStyle = g;
+  x.beginPath();
+  x.arc(cx2, cx2, r, 0, Math.PI * 2);
+  x.fill();
+  // 陨石坑斑（淡灰色半透）
+  const craters: [number, number, number][] = [
+    [0.38, 0.32, 0.09],
+    [0.62, 0.55, 0.07],
+    [0.28, 0.6, 0.055],
+    [0.55, 0.3, 0.05],
+    [0.45, 0.68, 0.065],
+  ];
+  for (const [fx, fy, fr] of craters) {
+    const cgx = cx2 + (fx - 0.5) * (S * 0.7);
+    const cgy = cx2 + (fy - 0.5) * (S * 0.7);
+    const cr = fr * S;
+    const cg = x.createRadialGradient(cgx, cgy, 0, cgx, cgy, cr);
+    cg.addColorStop(0, 'rgba(140,150,170,0.28)');
+    cg.addColorStop(0.6, 'rgba(160,168,185,0.12)');
+    cg.addColorStop(1, 'rgba(170,178,195,0)');
+    x.fillStyle = cg;
+    x.beginPath();
+    x.arc(cgx, cgy, cr, 0, Math.PI * 2);
+    x.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function pixelTex(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
@@ -102,6 +199,9 @@ function addBox(P: number[], C: number[], I: number[], cx: number, cy: number, c
 export class SkyObjects {
   private readonly sun: THREE.Mesh;
   private readonly moon: THREE.Mesh;
+  private readonly realSun: THREE.Mesh;  // 真实发光太阳（光影开）
+  private readonly sunGlow: THREE.Mesh;  // 太阳柔和光晕（光影开，加法混合）
+  private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
   private readonly voxelClouds: THREE.Mesh; // 立体方块云（默认）
   private readonly softClouds: THREE.Mesh; // 柔和真实云（光影开）
   private readonly softMat: THREE.MeshBasicMaterial;
@@ -116,6 +216,15 @@ export class SkyObjects {
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false });
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), sky(makeSunTex()));
     this.moon = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), sky(makeMoonTex()));
+
+    // 真实日月（光影开时显示）
+    this.realSun = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), sky(makeRealSunTex()));
+    this.sunGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(150, 150),
+      new THREE.MeshBasicMaterial({ map: makeSunGlowTex(), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }),
+    );
+    this.realMoon = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sky(makeRealMoonTex()));
+    this.realSun.visible = this.sunGlow.visible = this.realMoon.visible = false;
 
     // 立体云：白盒层，半透明、受雾(地平线淡出)、双面(从下抬头也可见)。网格随玩家所在云格重建。
     const voxelMat = new THREE.MeshBasicMaterial({
@@ -146,15 +255,20 @@ export class SkyObjects {
       this.softMat.map.repeat.set(3, 3); // 少而大的柔云团
     }
 
-    scene.add(this.sun, this.moon, this.voxelClouds, this.softClouds);
+    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds);
   }
 
-  /** 光影画质：off → MC 立体方块云；standard/high → 柔和真实云。 */
+  /** 光影画质：off → MC 立体方块云 + 方块日月；standard/high → 柔和真实云 + 真实日月。 */
   setLightingQuality(q: LightingQuality): void {
     const on = q !== 'off';
     this.shaders = on;
     this.voxelClouds.visible = !on;
     this.softClouds.visible = on;
+    this.sun.visible = !on;
+    this.moon.visible = !on;
+    this.realSun.visible = on;
+    this.sunGlow.visible = on;
+    this.realMoon.visible = on;
   }
 
   // 重建以 (originX,originZ) 云格为左下角、CLOUD_GRID² 范围的立体云网格（世界固定 pattern）。
@@ -186,6 +300,14 @@ export class SkyObjects {
     this.sun.lookAt(camPos);
     this.moon.position.copy(camPos).addScaledVector(this.dir, -R);
     this.moon.lookAt(camPos);
+
+    // 真实日月与方块版同位同朝向（setLightingQuality 控制哪组可见）
+    this.realSun.position.copy(this.sun.position);
+    this.realSun.lookAt(camPos);
+    this.sunGlow.position.copy(this.sun.position);
+    this.sunGlow.lookAt(camPos);
+    this.realMoon.position.copy(this.moon.position);
+    this.realMoon.lookAt(camPos);
 
     this.drift += CLOUD_DRIFT; // 缓风（单调，不随昼夜回绕跳变）
 
@@ -227,28 +349,46 @@ function pnoise(x: number, z: number, period: number): number {
 
 // 柔和真实云贴图：周期 fbm → 软边白云团（少而大），透明背景，可无缝平铺。
 function makeSoftCloudTex(): THREE.CanvasTexture {
-  const S = 256;
-  const P = 8; // 贴图覆盖 P 个噪声周期 → 无缝
+  const S = 512; // 提分辨率，掠角看更清晰
+  const P = 8; // 基础噪声周期 → 平铺无缝（各倍频周期都是 P 的整数倍，照样无缝）
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const x = c.getContext('2d') as CanvasRenderingContext2D;
   const img = x.createImageData(S, S);
+  // 4 倍频 FBM（周期对齐 → 仍无缝）：比原来 2 倍频自然得多，云有大团+细絮的层次，不再是糊块。
+  const fbm = (u: number, v: number): number => {
+    let n = 0;
+    let amp = 0.5;
+    let f = 1;
+    let norm = 0;
+    for (let o = 0; o < 4; o++) {
+      n += pnoise(u * f, v * f, P * f) * amp;
+      norm += amp;
+      amp *= 0.5;
+      f *= 2;
+    }
+    return n / norm;
+  };
   for (let py = 0; py < S; py++) {
     for (let px = 0; px < S; px++) {
       const u = (px / S) * P;
       const v = (py / S) * P;
-      let n = pnoise(u, v, P) * 0.65 + pnoise(u * 2, v * 2, P * 2) * 0.35; // 2 倍频也周期对齐
-      n = Math.max(0, Math.min(1, (n - 0.5) / 0.32)); // 阈值 → 稀疏
-      const a = n * n * (3 - 2 * n) * 205; // smoothstep → 蓬松软边
+      let d = fbm(u, v);
+      d = Math.max(0, Math.min(1, (d - 0.46) / 0.3)); // 阈值 → 蓬松、稀疏
+      const a = d * d * (3 - 2 * d); // smoothstep → 软边
+      const shade = 224 + 31 * a; // 厚处更亮白、薄絮偏冷白 → 有体积感（不再是纯平白）
       const i = (py * S + px) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-      img.data[i + 3] = a;
+      img.data[i] = shade;
+      img.data[i + 1] = shade;
+      img.data[i + 2] = Math.min(255, shade + 6); // 极轻微偏蓝 → 高空感
+      img.data[i + 3] = a * 230;
     }
   }
   x.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.magFilter = THREE.LinearFilter; // 柔和（非像素）
+  t.anisotropy = 4; // 掠角（朝地平线看）更清晰
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
