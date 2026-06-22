@@ -23,6 +23,9 @@ export interface MoveIntent {
   swimUp?: boolean; // 水中上浮（空格按住）
   crouch?: boolean; // 下蹲（Shift/C）：碰撞变矮 + 减速 + 贴地时不走下方块边缘
   slow?: boolean; // 减速（吃东西/用物品时，同 MC 速度降到约 20%）
+  fly?: boolean; // 创造飞行：无重力，竖直由 flyUp/flyDown 控制（双击空格切换，游戏层维护）
+  flyUp?: boolean; // 飞行中上升（空格按住）
+  flyDown?: boolean; // 飞行中下降（Shift 按住）
 }
 
 export interface VoxelWorld {
@@ -44,3 +47,7 @@ export const VDRAG = 0.98;
 export const JUMP = 0.42;
 export const WALK_PER_TICK = 4.317 / 20; // ≈0.216 b/tick 行走速度（同 MC）
 export const SPRINT_PER_TICK = 5.612 / 20; // ≈0.281 b/tick 疾跑速度（同 MC）
+// 创造飞行（每 tick）：水平约 2× 行走，疾跑再翻倍；竖直与水平同档。无重力。
+export const FLY_PER_TICK = 0.42;
+export const FLY_SPRINT_PER_TICK = 0.84;
+export const FLY_VERT_PER_TICK = 0.42;

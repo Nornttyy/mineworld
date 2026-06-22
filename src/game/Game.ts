@@ -11,6 +11,7 @@ import {
   isPlantId,
   isTargetableId,
   breakTimeMs,
+  blockHardness,
   dropFor,
   OAK_LEAVES,
   OAK_LOG,
@@ -89,6 +90,23 @@ const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
 const AIR = 0;
+
+// 创造模式初始物品栏：常用建材放快捷栏(0-8)，更多方块/铁工具/弓箭放主背包。创造放置不耗、可无限用。
+const CREATIVE_LOADOUT: { id: number; count: number }[] = [
+  { id: 3, count: 64 }, { id: 2, count: 64 }, { id: 1, count: 64 }, { id: 4, count: 64 }, // 草/土/石/圆石
+  { id: 7, count: 64 }, { id: 6, count: 64 }, { id: 5, count: 64 }, { id: 21, count: 64 }, { id: 14, count: 64 }, // 木板/原木/沙/荧石/火把
+  { id: 15, count: 64 }, { id: 26, count: 64 }, { id: 32, count: 64 }, { id: 33, count: 64 }, { id: 34, count: 64 }, // 砂砾/沙石/煤块/铁块/石英块
+  { id: 18, count: 64 }, { id: 19, count: 64 }, { id: 20, count: 64 }, { id: 10, count: 64 }, { id: 30, count: 64 }, // 黑曜石/地狱岩/灵魂沙/树叶/云杉木
+  { id: 8, count: 64 }, { id: 12, count: 64 }, { id: 11, count: 64 }, { id: 13, count: 64 }, { id: 27, count: 64 }, { id: 28, count: 64 }, // 煤矿/铁矿/工作台/熔炉/仙人掌/冰
+  { id: 269, count: 1 }, { id: 270, count: 1 }, { id: 271, count: 1 }, { id: 272, count: 1 }, // 铁镐/斧/锹/剑
+  { id: BOW, count: 1 }, { id: ARROW, count: 64 },
+];
+
+function creativeInventory(): Inventory {
+  const inv = emptyInventory();
+  for (let i = 0; i < CREATIVE_LOADOUT.length && i < inv.length; i++) inv[i] = { ...CREATIVE_LOADOUT[i] };
+  return inv;
+}
 const EAT_TIME = 1.6; // 吃东西耗时（秒，同 MC）
 const LEAF_APPLE_CHANCE = 0.05; // 树叶掉苹果概率（1:1 是 0.5%，调高更可玩）
 const SPRINT_EXHAUSTION = 0.1; // 每格疾跑消耗（MC）
@@ -206,6 +224,9 @@ export class Game {
   private readonly statusBar: StatusBar;
   private readonly worldSpawn: { x: number; y: number; z: number };
   private dead = false;
+  private readonly creative: boolean; // 创造模式：无敌/不饿、秒破不掉落、放置不耗、可飞
+  private flying = false; // 创造飞行中（双击空格切换）
+  private flyTapWindow = 0; // 双击空格检测窗口(刻)；>0 时再按一次空格即切换飞行
   private fallDistance = 0; // 当前连续下落格数
   private hurtCd = 0; // 受伤无敌帧剩余刻(同 MC：受伤后 0.5s=10 刻无敌，防多怪/多箭同刻叠加爆伤)
   private readonly coordEl: HTMLElement; // F3 坐标显示(X/Y/Z；Y 按 WORLD_Y_OFFSET 偏移)
@@ -228,11 +249,13 @@ export class Game {
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
     this.canvas = canvas;
     this.save = save;
+    this.creative = save.gameMode === 'creative';
     this.renderer = new Renderer(canvas);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
-    this.inv = save.inv ? deserializeInventory(save.inv) : emptyInventory();
+    // 创造新世界发整套建材/工具；有存档照存档；生存新世界空背包。
+    this.inv = save.inv ? deserializeInventory(save.inv) : this.creative ? creativeInventory() : emptyInventory();
     this.hotbar.render(this.inv);
     // 生命/饥饿：有存档用存档（已死状态则重置为满），否则全满。
     // 先铺 newSurvival() 默认值，再覆盖存档字段——补齐旧存档没有的字段(如 oxygen)，避免缺值。
@@ -551,8 +574,17 @@ export class Game {
       while (playing && this.acc >= TICK_MS) {
         this.prev = this.player;
         const m = readMove();
-        this.crouching = m.crouch;
         const jumped = consumeJump();
+        // 创造：双击空格切换飞行（两次起跳按键落在 6 刻≈0.3s 窗口内）。
+        if (this.creative && jumped) {
+          if (this.flyTapWindow > 0) {
+            this.flying = !this.flying;
+            this.flyTapWindow = 0;
+          } else this.flyTapWindow = 6;
+        }
+        if (this.flyTapWindow > 0) this.flyTapWindow--;
+        if (!this.creative) this.flying = false;
+        this.crouching = this.flying ? false : m.crouch; // 飞行时 Shift=下降，不当下蹲(相机不下沉)
         this.player = step(
           this.player,
           {
@@ -562,8 +594,11 @@ export class Game {
             jump: jumped,
             swimUp: m.jumpHeld,
             sprint: m.sprint,
-            crouch: m.crouch, // 下蹲：减速 + 不走下边缘 + 矮碰撞
+            crouch: this.flying ? false : m.crouch, // 下蹲：减速 + 不走下边缘 + 矮碰撞
             slow: this.eating, // 吃东西减速（同 MC 用物品 ≈20% 速度）
+            fly: this.flying, // 创造飞行：无重力，竖直由下面 flyUp/flyDown 控制
+            flyUp: m.jumpHeld, // 空格按住上升
+            flyDown: m.crouch, // Shift 按住下降
           },
           this.physWorld,
         );
@@ -666,6 +701,10 @@ export class Game {
 
   // 每模拟刻推进生命/饥饿：累积疲劳(疾跑/跳)、结算摔落、回血/掉血、判定死亡。
   private stepSurvival(sprint: boolean, jumped: boolean): void {
+    if (this.creative) {
+      this.fallDistance = 0; // 创造：不饿、不摔伤、不淹、不掉血——满状态无敌
+      return;
+    }
     if (this.hurtCd > 0) this.hurtCd--; // 受伤无敌帧倒计时
     const dx = this.player.pos.x - this.prev.pos.x;
     const dz = this.player.pos.z - this.prev.pos.z;
@@ -707,6 +746,7 @@ export class Game {
 
   // 玩家被攻击：扣血 + 红屏/手抖 + 沿来源→玩家方向被击退（近战传攻击者坐标，箭传飞行方向）。
   private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number): void {
+    if (this.creative) return; // 创造：免疫一切伤害（怪/箭/爆炸/仙人掌）
     if (this.hurtCd > 0) return; // 无敌帧内：免疫(同 MC hurtResistantTime，防同刻多源爆伤)
     this.hurtCd = 10; // 0.5s 无敌
     applyDamage(this.survival, damage);
@@ -983,7 +1023,11 @@ export class Game {
       this.digProgress = 0;
     }
     const id = this.world.getBlock(hit.x, hit.y, hit.z);
-    const need = breakTimeMs(id, this.heldTool()) / 1000;
+    if (blockHardness(id) < 0) {
+      this.crack.hide();
+      return; // 不可破坏（基岩 hardness<0）：生存/创造都挖不动
+    }
+    const need = this.creative ? 0 : breakTimeMs(id, this.heldTool()) / 1000; // 创造：瞬破
     if (need <= 0) {
       this.mineBlock(hit.x, hit.y, hit.z, id); // 瞬破方块
       return;
@@ -1019,7 +1063,7 @@ export class Game {
       this.crack.hide();
       return;
     }
-    let drop = dropFor(id, this.heldTool()); // 需镐的方块要用镐才掉
+    let drop = this.creative ? null : dropFor(id, this.heldTool()); // 创造不掉落；需镐的方块要用镐才掉
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     this.edit(x, y, z, AIR);
     // 失去支撑的草丛随之破坏：破坏的方块上方若是草丛/长草，一并清掉(同 MC，草需下方方块支撑)。
@@ -1030,8 +1074,8 @@ export class Game {
     }
     this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
-    if (id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
-      this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC）
+    if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
+      this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }
     if (id === OAK_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木 → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
@@ -1380,7 +1424,8 @@ export class Game {
     const target = this.world.getBlock(px, py, pz);
     if (!isReplaceableId(target)) return; // 仅可放进空气/水/草丛(草丛可被覆盖)
     if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
-    const id = takeOne(this.inv, sel);
+    // 创造：放置不消耗物品（无限建材）；生存：取走 1 个。
+    const id = this.creative ? stack.id : takeOne(this.inv, sel);
     if (id === null) return;
     this.edit(px, py, pz, id);
     this.hotbar.render(this.inv);

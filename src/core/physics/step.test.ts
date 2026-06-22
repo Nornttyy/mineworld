@@ -98,3 +98,35 @@ describe('physics step', () => {
     expect(p.pos.y).toBeGreaterThanOrEqual(-0.01); // 没掉穿地面
   });
 });
+
+describe('creative flight', () => {
+  const sky: VoxelWorld = { isSolid: (_x, y) => y < 0 }; // 只有 y<0 是地面，高空全空
+  const air = (): Player => ({ pos: { x: 0.5, y: 20, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: false });
+
+  it('飞行无重力：不按上下键时悬停在原高度', () => {
+    let p = air();
+    const y0 = p.pos.y;
+    for (let i = 0; i < 40; i++) p = step(p, { forward: 0, right: 0, yaw: 0, jump: false, fly: true }, sky);
+    expect(p.pos.y).toBeCloseTo(y0, 5); // 不下坠
+  });
+
+  it('flyUp 上升、flyDown 下降', () => {
+    let up = air();
+    let dn = air();
+    const y0 = up.pos.y;
+    for (let i = 0; i < 10; i++) {
+      up = step(up, { forward: 0, right: 0, yaw: 0, jump: false, fly: true, flyUp: true }, sky);
+      dn = step(dn, { forward: 0, right: 0, yaw: 0, jump: false, fly: true, flyDown: true }, sky);
+    }
+    expect(up.pos.y).toBeGreaterThan(y0 + 2);
+    expect(dn.pos.y).toBeLessThan(y0 - 2);
+  });
+
+  it('飞行也不能穿墙', () => {
+    const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 3 };
+    let p: Player = { pos: { x: 0.5, y: 20, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    for (let i = 0; i < 40; i++) p = step(p, { forward: 1, right: 0, yaw: 0, jump: false, fly: true }, wall);
+    expect(p.pos.x).toBeLessThan(3); // 撞墙停住，没飞穿
+    expect(p.pos.x).toBeGreaterThan(0.5); // 但确实飞过去了
+  });
+});
