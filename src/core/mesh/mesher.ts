@@ -90,6 +90,7 @@ export interface MeshData {
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
   sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
+  depth?: Float32Array; // 仅水：每顶点所在水柱深度(格,封顶7)，光影按深度调透明:浅→透、深→实
 }
 
 interface BlockGrid {
@@ -178,8 +179,9 @@ interface FaceArrays {
   L: number[]; // 每顶点 (天光01, 方块光01)
   T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
   SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
+  D: number[]; // 仅水：每顶点水柱深度(格)；其余网格留空
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [], SW: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [], SW: [], D: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -191,6 +193,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     light: new Float32Array(a.L),
     top: a.T.length ? new Float32Array(a.T) : undefined,
     sway: a.SW.length ? new Float32Array(a.SW) : undefined,
+    depth: a.D.length ? new Float32Array(a.D) : undefined,
   };
 };
 
@@ -358,6 +361,7 @@ export function meshChunkData(
   // 配合独立可滚动水纹理做流动动画。
   // 起伏权重：1=平静水面(湖/海,头顶是空气)→可大幅上下起伏；0=水柱内/瀑布体(头顶还是水)→不起伏，避免流水/瀑布撕缝。每个水格设一次。
   let waterWobble = 1;
+  let waterDepth = 1; // 当前水格所在水柱深度(格,封顶7)；每个水格设一次,emitWaterFace 写入每顶点
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
@@ -379,6 +383,7 @@ export function meshChunkData(
       // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)起伏权重=waterWobble；侧壁底沿/底面=0 不动(免穿帮露缝)。
       // 平静水(waterWobble=1)整面随涌浪起伏；瀑布/落水体(=0)不起伏 → 流水不撕缝。
       wa.T.push((topFace || yArr[k] > 0.01) ? waterWobble : 0);
+      wa.D.push(waterDepth);
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -430,6 +435,11 @@ export function meshChunkData(
           const wz = oz + lz;
           // 头顶是空气=平静水面(可起伏)；头顶还是水=水柱内/瀑布体(不起伏，免流水/瀑布撕缝)。
           waterWobble = waterAmount(wx, ly + 1, wz) > 0 ? 0 : 1;
+          // 水柱深度:向上找到水面 + 向下找到底(封顶7格,够 shader 区分浅/深)。浅水透、深水实。
+          let wd = 1;
+          for (let yy = ly + 1; wd < 7 && yy < CHUNK_H && waterAmount(wx, yy, wz) > 0; yy++) wd++;
+          for (let yy = ly - 1; wd < 7 && yy >= 0 && waterAmount(wx, yy, wz) > 0; yy--) wd++;
+          waterDepth = wd;
           // 四角高度（取邻格平均 → 顺流斜面）。角命名 hAB：A=本格 x 侧(0/1)，B=z 侧(0/1)。
           const h00 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz - 1], [wx - 1, wz - 1]]);
           const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);
