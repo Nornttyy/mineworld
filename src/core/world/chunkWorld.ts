@@ -59,6 +59,21 @@ export class ChunkWorld {
     return `${cx},${cz}`;
   }
 
+  /**
+   * 释放：终止后台生成 worker + 清空区块缓存。供 MenuBackground 进游戏时调用。
+   * 否则菜单世界的 chunkGen worker(每个独立 JS isolate,内存重)与区块数据会一直常驻 → 与游戏世界双份 → OOM。
+   * worker.onmessage 闭包持有 this → 必须 terminate 才能让本世界被 GC。
+   */
+  dispose(): void {
+    for (const w of this.workers) w.terminate();
+    this.workers.length = 0;
+    this.chunks.clear();
+    this.pending.clear();
+    this.pendingSince.clear();
+    this.genFails.clear();
+    this.editHook = null;
+  }
+
   hasChunk(cx: number, cz: number): boolean {
     return this.chunks.has(this.key(cx, cz));
   }

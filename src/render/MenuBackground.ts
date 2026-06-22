@@ -9,7 +9,7 @@ import { makeSkyTexture, HORIZON_COLOR } from './sky';
 
 // 主菜单旋转全景：低空飞过无限世界（与游戏同款地形：水/海滩），相机缓缓前飞 + 转向，
 // 区块随飞随加载。固定种子、纯装饰，与玩家存档/游戏无关。独立画布，不冲突。
-const RADIUS = 6; // 加载半径（区块）
+const RADIUS = 4; // 加载半径（区块）——菜单背景纯装饰，小半径省内存（进游戏 dispose 前的瞬时占用也更小，缓解低内存机 OOM）
 
 export class MenuBackground {
   private readonly gl: THREE.WebGLRenderer;
@@ -22,6 +22,8 @@ export class MenuBackground {
   private z = 0.5;
   private heading = 0.7;
   private readonly y = 175; // 飞行高度（地表~100-180，在地形之上俯瞰海/湖）
+  // resize 监听存成字段：dispose 时 removeEventListener，否则这个闭包持有 this → 整套菜单世界永不被 GC(进游戏后双份占内存→OOM)。
+  private readonly onResize = (): void => this.resize();
 
   constructor(canvas: HTMLCanvasElement, seed = 4242) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -35,7 +37,7 @@ export class MenuBackground {
     this.chunks.update(worldToChunk(Math.floor(this.x)), worldToChunk(Math.floor(this.z)), RADIUS, 999);
 
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', this.onResize);
   }
 
   // 从原点向外找最近的水，把起点放到它前方 14 格、朝它飞
@@ -120,7 +122,9 @@ export class MenuBackground {
    */
   dispose(): void {
     this.running = false; // 停 rAF 循环
-    this.chunks.dispose(); // 卸载菜单世界所有区块网格 + 终止其 worker + 销毁材质
+    window.removeEventListener('resize', this.onResize); // 摘掉监听,否则闭包持有 this → 整套世界泄漏
+    this.chunks.dispose(); // 卸载菜单世界所有区块网格 + 终止其 mesh worker + 销毁材质
+    this.world.dispose(); // 终止 chunkGen worker + 清空区块数据(JS 堆大头,泄漏会 OOM)
     this.gl.dispose();
     this.gl.forceContextLoss(); // 释放该 WebGL 上下文的全部 GPU 资源(几何/纹理/帧缓冲)
   }
