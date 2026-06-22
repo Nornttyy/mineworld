@@ -405,6 +405,25 @@ export class ChunkMeshManager {
     return `${cx},${cz}`;
   }
 
+  /**
+   * 释放本管理器全部资源(供 MenuBackground 进游戏时调用)：卸载所有区块网格、终止网格化 worker、销毁自有材质/水纹理。
+   * 修复:菜单背景的整套世界(RADIUS=6≈169 区块网格 + 4 worker + WebGL 资源)进游戏后从不释放 → 与游戏世界【双份】占内存 → 集显/低内存机 OOM。
+   * 不销毁传入的共享图集 atlas、共享 waterFrames(由别处拥有/缓存)；只销毁自有的克隆 waterTex 与材质。
+   */
+  dispose(): void {
+    for (const k of [...this.meshes.keys()]) this.unload(k); // 从场景移除 + dispose 所有 geometry
+    for (const w of this.meshWorkers) w.terminate(); // 终止网格化 worker(否则线程/内存常驻)
+    this.meshWorkers.length = 0;
+    this.opaqueMat.dispose();
+    this.cutoutMat.dispose();
+    this.waterMat.dispose();
+    this.torchMat.dispose();
+    this.waterTex.dispose();
+    this.leafDepthMat?.dispose();
+    this.scene.remove(this.sun);
+    this.scene.remove(this.sun.target);
+  }
+
   private buildGeo(data: MeshData): THREE.BufferGeometry {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));

@@ -8,7 +8,7 @@ const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElemen
 
 // 主菜单/存档界面的旋转全景背景（独立画布，与游戏无关）
 const menubgCanvas = $('menubg') as HTMLCanvasElement;
-const menubg = new MenuBackground(menubgCanvas);
+let menubg: MenuBackground | null = new MenuBackground(menubgCanvas);
 
 const menu = $('menu');
 const worldlist = $('worldlist');
@@ -75,8 +75,8 @@ function showOnly(el: HTMLElement | null): void {
   // 旋转背景只在主菜单/存档界面显示
   const bg = el === menu || el === worldlist;
   menubgCanvas.style.display = bg ? 'block' : 'none';
-  if (bg) menubg.start();
-  else menubg.stop();
+  if (bg) menubg?.start();
+  else menubg?.stop();
 }
 
 // 超时兜底：preload 等区块生成/网格化是无限轮询，万一某机器 worker 卡住会永远停在加载界面。
@@ -88,7 +88,7 @@ const timeout = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, 
 void (async () => {
   showLoading(true, '加载中…');
   try {
-    await Promise.race([menubg.preload(), timeout(8000)]); // 背景预载封顶 8s，超时也进菜单
+    if (menubg) await Promise.race([menubg.preload(), timeout(8000)]); // 背景预载封顶 8s，超时也进菜单
   } catch (e) {
     console.error('[menubg] preload 失败:', e); // 背景挂了不该挡住菜单
   }
@@ -161,6 +161,10 @@ function startGame(world: WorldSave): void {
   if (game) return;
   showOnly(null);
   showLoading(true);
+  // 进游戏前先彻底释放菜单背景世界(整套区块网格 + worker + 第二个 WebGL 上下文)，
+  // 否则它与游戏世界双份常驻内存 → 集显/低内存机 OOM(createImageData/array buffer 分配失败)。
+  menubg?.dispose();
+  menubg = null;
   // 双 rAF：先让浏览器把 spinner 画出来，再做阻塞的世界构建 + 初始区块生成。
   requestAnimationFrame(() =>
     requestAnimationFrame(async () => {

@@ -112,4 +112,16 @@ export class MenuBackground {
   stop(): void {
     this.running = false;
   }
+
+  /**
+   * 进游戏时调用：停渲染循环 + 释放整套菜单世界(区块网格/worker/材质) + 丢弃 WebGL 上下文。
+   * 否则菜单背景(独立 scene + ChunkMeshManager + 第二个 WebGL 上下文)会与游戏世界【双份】常驻内存 → OOM。
+   * 进游戏后不再返回菜单(退出走 location.reload 重建)，故可安全永久释放。
+   */
+  dispose(): void {
+    this.running = false; // 停 rAF 循环
+    this.chunks.dispose(); // 卸载菜单世界所有区块网格 + 终止其 worker + 销毁材质
+    this.gl.dispose();
+    this.gl.forceContextLoss(); // 释放该 WebGL 上下文的全部 GPU 资源(几何/纹理/帧缓冲)
+  }
 }
