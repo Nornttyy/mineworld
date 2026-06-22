@@ -1,6 +1,6 @@
 import { Game } from './game/Game';
 import { MenuBackground } from './render/MenuBackground';
-import { listWorlds, createWorld, saveWorld, deleteWorld, type WorldSave } from './save/worldStore';
+import { listWorlds, createWorld, saveWorld, deleteWorld, parseSeed, type WorldSave, type GameMode } from './save/worldStore';
 import { SettingsMenu } from './ui/settingsMenu';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
@@ -70,6 +70,7 @@ function setHud(show: boolean): void {
 
 function showOnly(el: HTMLElement | null): void {
   for (const s of [menu, worldlist, pause]) s.classList.add('hidden');
+  $('newworld').classList.add('hidden'); // 切屏时关掉创建弹窗
   if (el) el.classList.remove('hidden');
   setHud(false);
   // 旋转背景只在主菜单/存档界面显示
@@ -138,7 +139,7 @@ function renderWorldList(): void {
     name.textContent = w.name;
     const meta = document.createElement('span');
     meta.className = 'wmeta';
-    meta.textContent = `种子 ${w.seed}`;
+    meta.textContent = `种子 ${w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
     const del = document.createElement('span');
     del.className = 'wdel';
     del.textContent = '删除';
@@ -153,7 +154,41 @@ function renderWorldList(): void {
   }
 }
 
-$('create-world').addEventListener('click', () => startGame(createWorld('新的世界')));
+// --- 创建新世界弹窗（名称 / 种子 / 模式）---
+const newworld = $('newworld');
+const nwName = $('nw-name') as HTMLInputElement;
+const nwSeed = $('nw-seed') as HTMLInputElement;
+const nwDesc = $('nw-mode-desc');
+let nwMode: GameMode = 'survival';
+function setNwMode(m: GameMode): void {
+  nwMode = m;
+  $('nw-survival').classList.toggle('active', m === 'survival');
+  $('nw-creative').classList.toggle('active', m === 'creative');
+  nwDesc.textContent =
+    m === 'creative' ? '无限方块、自由飞行（双击空格）、无敌不饿——专心建造。' : '挖矿、合成、打怪，会饿会死。';
+}
+function submitNewWorld(): void {
+  const world = createWorld(nwName.value, parseSeed(nwSeed.value) ?? undefined, nwMode);
+  newworld.classList.add('hidden');
+  startGame(world);
+}
+$('nw-survival').addEventListener('click', () => setNwMode('survival'));
+$('nw-creative').addEventListener('click', () => setNwMode('creative'));
+$('create-world').addEventListener('click', () => {
+  nwName.value = '';
+  nwSeed.value = '';
+  setNwMode('survival');
+  newworld.classList.remove('hidden');
+  nwName.focus();
+});
+$('nw-create').addEventListener('click', submitNewWorld);
+$('nw-cancel').addEventListener('click', () => newworld.classList.add('hidden'));
+// 输入框里按回车直接创建
+for (const inp of [nwName, nwSeed]) {
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitNewWorld();
+  });
+}
 $('worldlist-back').addEventListener('click', () => showOnly(menu));
 
 // --- 进入游戏 ---

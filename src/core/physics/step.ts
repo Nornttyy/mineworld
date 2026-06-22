@@ -14,6 +14,9 @@ import {
   CROUCH_SPEED_MULT,
   SLOW_SPEED_MULT,
   KB_DECAY,
+  FLY_PER_TICK,
+  FLY_SPRINT_PER_TICK,
+  FLY_VERT_PER_TICK,
 } from './player';
 import { blockSlipperiness } from '../blocks/registry';
 
@@ -86,6 +89,19 @@ function isOnGround(pos: Vec3, world: VoxelWorld, height = HEIGHT): boolean {
 export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Player {
   const pos: Vec3 = { ...player.pos };
   const vel: Vec3 = { ...player.vel };
+
+  // 创造飞行：无重力/无水浮力/无击退。水平按意图、竖直由上升/下降键控制；仍逐轴扫掠碰撞(不能穿墙)。
+  if (intent.fly) {
+    const wish = wishDir(intent);
+    const sp = intent.sprint ? FLY_SPRINT_PER_TICK : FLY_PER_TICK;
+    vel.x = wish.x * sp;
+    vel.z = wish.z * sp;
+    vel.y = (intent.flyUp ? FLY_VERT_PER_TICK : 0) - (intent.flyDown ? FLY_VERT_PER_TICK : 0);
+    if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
+    if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
+    if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
+    return { pos, vel, onGround: isOnGround(pos, world), kbx: 0, kbz: 0 };
+  }
 
   const crouch = intent.crouch === true;
   const h = crouch ? CROUCH_HEIGHT : HEIGHT; // 下蹲时碰撞箱变矮
