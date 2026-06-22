@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
 import { GodRays } from './GodRays';
 import { Bloom } from './Bloom';
+import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
@@ -41,6 +42,9 @@ export class Renderer {
 
   // Bloom 后处理（1/4 分辨率内部缓冲）
   private bloom: Bloom | null = null;
+
+  // SSAO 后处理（1/2 分辨率）
+  private ssao: SSAO | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -98,6 +102,14 @@ export class Renderer {
         Math.max(1, Math.round((h * pr) / 4)),
       );
     }
+    // SSAO RT 重建为 1/2 物理分辨率。
+    if (this.ssao !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.ssao.setSize(
+        Math.max(1, Math.round((w * pr) / 2)),
+        Math.max(1, Math.round((h * pr) / 2)),
+      );
+    }
   }
 
   /** 节流重渲一次 shadow map（autoUpdate 关、靠这个触发；昼夜/玩家移动时由 Game 调）。 */
@@ -111,7 +123,7 @@ export class Renderer {
    */
   setGodRays(opts: GodRayOpts | null): void {
     if (opts === null || opts.quality === 'off') {
-      // 关闭后处理：销毁 RT + Bloom，清空 opts。
+      // 关闭后处理：销毁 RT + Bloom + SSAO，清空 opts。
       if (this.rt !== null) {
         this.rt.dispose();
         this.rt = null;
@@ -119,6 +131,10 @@ export class Renderer {
       if (this.bloom !== null) {
         this.bloom.dispose();
         this.bloom = null;
+      }
+      if (this.ssao !== null) {
+        this.ssao.dispose();
+        this.ssao = null;
       }
       this.god = null;
       return;
@@ -135,6 +151,17 @@ export class Renderer {
       this.bloom = new Bloom(
         Math.max(1, Math.round((w * pr) / 4)),
         Math.max(1, Math.round((h * pr) / 4)),
+      );
+    }
+    // 确保 SSAO 已建。
+    if (this.ssao === null) {
+      const pr = this.gl.getPixelRatio();
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.ssao = new SSAO();
+      this.ssao.setSize(
+        Math.max(1, Math.round((w * pr) / 2)),
+        Math.max(1, Math.round((h * pr) / 2)),
       );
     }
     this.god = opts;
@@ -165,10 +192,17 @@ export class Renderer {
     // bloom.render() 内部会 setRenderTarget 到 bloomA/bloomB，
     // 结束后调用 setRenderTarget(null)，render() 退出时 renderTarget 已为 null。
     this.bloom.render(this.gl, this.rt.texture);
-    // 此时 renderTarget = null（由 bloom.render 还原），以下写屏幕。
+    // 此时 renderTarget = null（由 bloom.render 还原）。
 
-    // ── Step 3: God-ray + bloom 合成到屏幕 ──
-    // renderTarget 已是 null（屏幕）；bloom.render 已确保还原。
+    // ── Step 2.5: SSAO（1/2 res，2 个 pass，结果在 ssao.texture）──
+    // ssao.render() 内部保证 setRenderTarget(null) 还原，且出错时静默兜底。
+    if (this.ssao !== null) {
+      this.ssao.render(this.gl, this.rt.depthTexture, this.camera);
+    }
+    // 此时 renderTarget = null（由 ssao.render 还原）。
+
+    // ── Step 3: God-ray + bloom + AO 合成到屏幕 ──
+    // renderTarget 已是 null（屏幕）。
     const gr = this.god.quality === 'high' ? this.godHigh : this.godStd;
     const u = gr.material.uniforms;
     u['tColor'].value = this.rt.texture;
@@ -179,6 +213,14 @@ export class Renderer {
     u['uSunColor'].value.copy(this.god.sunColor);
     // bloom 强度按档位
     u['uBloom'].value = this.god.quality === 'high' ? 1.0 : 0.6;
+    // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
+    if (this.ssao !== null) {
+      u['tAO'].value = this.ssao.texture;
+      u['uAO'].value = this.god.quality === 'high' ? 0.7 : 0.5;
+    } else {
+      u['tAO'].value = null;
+      u['uAO'].value = 0.0;
+    }
     gr.render(this.gl);
     // renderOverlay（手臂）由 Game 在此方法之后调用，直接画到屏幕，不经过 RT。
   }

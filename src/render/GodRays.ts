@@ -29,18 +29,27 @@ void main() {
 uniform sampler2D tColor;
 uniform sampler2D tDepth;
 uniform sampler2D tBloom;
+uniform sampler2D tAO;
 uniform vec2 uSunUV;
 uniform vec3 uSunColor;
 uniform float uIntensity;
 uniform float uDecay;
 uniform float uWeight;
 uniform float uBloom;
+uniform float uAO;
 
 varying vec2 vUv;
 
 void main() {
   vec3 scene = texture2D(tColor, vUv).rgb;
   vec3 bloomColor = texture2D(tBloom, vUv).rgb;
+
+  // AO：只压暗场景色（环境光遮蔽），不影响体积光光束或 bloom 辉光。
+  // uAO = 0 时 mix 结果 = 1.0 → 无任何暗化（完全兜底）。
+  // tAO.r = 1（全白）时也无暗化；tAO.r = 0（完全遮蔽）× uAO 最多暗化 uAO 比例。
+  float aoValue = texture2D(tAO, vUv).r;
+  float aoFactor = mix(1.0, aoValue, uAO);
+  scene *= aoFactor;
 
   // 太阳不可见时（强度 0）跳过体积光采样循环，但 bloom 仍叠加。
   if (uIntensity <= 0.001) {
@@ -74,7 +83,7 @@ void main() {
   // 归一化：除以采样数，避免 weight×decay 累加超出合理范围。
   shaft /= float(${S});
 
-  // 体积光光束 + bloom 辉光叠加到场景色；末尾手动 sRGB 编码(自定义 ShaderMaterial three.js 不自动编码 → 否则偏暗)
+  // 体积光光束 + bloom 辉光叠加到场景色（AO 已乘到 scene 上）；末尾手动 sRGB 编码
   vec3 outc = scene + shaft * uSunColor * uIntensity + bloomColor * uBloom;
   gl_FragColor = vec4(pow(clamp(outc * 1.15 * vec3(1.08, 1.0, 0.9), 0.0, 1.0), vec3(0.4545)), 1.0);
 }
@@ -85,12 +94,14 @@ void main() {
       tColor: { value: null },
       tDepth: { value: null },
       tBloom: { value: null },
+      tAO:    { value: null },   // AO 灰度纹理（1 = 无遮蔽；null → uAO=0 兜底）
       uSunUV: { value: new THREE.Vector2(0.5, 0.5) },
       uSunColor: { value: new THREE.Color(1.0, 0.95, 0.8) },
       uIntensity: { value: 0.0 },
       uDecay: { value: 0.96 },
       uWeight: { value: 0.5 },
       uBloom: { value: 0.0 },
+      uAO:    { value: 0.0 },   // AO 强度 0..1（0 = 不开 AO，完全兜底）
     },
     vertexShader,
     fragmentShader,
