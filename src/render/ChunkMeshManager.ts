@@ -4,7 +4,7 @@ import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames } from './atlas';
-import { chunkInView } from './chunkCull';
+import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
 
@@ -502,6 +502,15 @@ export class ChunkMeshManager {
     return this.meshQueue.length + this.priorityQueue.length;
   }
 
+  /** F3 调试用：区块管线各阶段计数。下次若再现"加载不出来/隐身"，看哪个数不对：
+   *  meshed=已上屏  pending=派给 worker 还没回  queued=worker 算完还没上屏  hidden=已上屏但被剔除隐藏。 */
+  pipelineStats(): { meshed: number; visible: number; pending: number; queued: number } {
+    let visible = 0;
+    for (const m of this.meshes.values())
+      if ([m.opaque, m.cutout, m.water, m.torch].some((s) => s && s.visible)) visible++;
+    return { meshed: this.meshes.size, visible, pending: this.meshPending.size, queued: this.meshQueueLen() };
+  }
+
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
@@ -584,8 +593,10 @@ export class ChunkMeshManager {
     }
   }
 
-  /** 确保中心 radius 内区块已网格化；远处卸载。每次最多(重)建 budget 个，分摊到多帧。 */
-  update(centerCx: number, centerCz: number, radius: number, budget = 2): void {
+  /** 确保中心 radius 内区块已网格化；远处卸载。每次最多(重)建 budget 个，分摊到多帧。
+   *  dirX,dirZ=玩家单位水平视向(默认 0,0=不分朝向)：传了就【前方优先】建图——把有限预算先砸向玩家
+   *  看得见/正走向的区块，别浪费在身后(cullToView 反正隐藏)的，根治"往前走前面区块加载不出来"。 */
+  update(centerCx: number, centerCz: number, radius: number, budget = 2, dirX = 0, dirZ = 0): void {
     this.retryStuckMeshes(); // 看门狗：网格 worker 丢消息卡住的区块→清 pending 让下面重派(自愈，治"加载不出来的洞")
     this.world.retryStuckGen(); // 同理治生成卡住的洞
     for (const k of [...this.meshes.keys()]) {
@@ -597,7 +608,7 @@ export class ChunkMeshManager {
     for (let dz = -radius - 1; dz <= radius + 1; dz++) {
       for (let dx = -radius - 1; dx <= radius + 1; dx++) this.world.request(centerCx + dx, centerCz + dz);
     }
-    const todo: { cx: number; cz: number; d: number }[] = [];
+    const todo: { cx: number; cz: number; d: number; ahead: boolean }[] = [];
     for (let dz = -radius; dz <= radius; dz++) {
       for (let dx = -radius; dx <= radius; dx++) {
         if (chunkFogged(dx, dz, this.fogCullR2)) continue; // 完全在雾里的角块：不网格化(看不见)
@@ -605,10 +616,12 @@ export class ChunkMeshManager {
         const cz = centerCz + dz;
         const c = this.world.peek(cx, cz);
         if (!c) continue; // 还没生成好 → 跳过，下次 update 再看
-        if (!this.meshes.has(this.key(cx, cz)) || c.dirty) todo.push({ cx, cz, d: dx * dx + dz * dz });
+        if (!this.meshes.has(this.key(cx, cz)) || c.dirty)
+          todo.push({ cx, cz, d: dx * dx + dz * dz, ahead: chunkAhead(dx, dz, dirX, dirZ) });
       }
     }
-    todo.sort((a, b) => a.d - b.d);
+    // 前方优先(ahead 先建)，同档内近的先建。dir=(0,0) 时 ahead 恒 true → 退回纯距离排序。
+    todo.sort((a, b) => (a.ahead === b.ahead ? a.d - b.d : a.ahead ? -1 : 1));
     for (let i = 0; i < Math.min(budget, todo.length); i++) this.rebuild(todo[i].cx, todo[i].cz);
     // 已加载但因移动落进雾区的区块：隐藏(不绘制)而非卸载——避免来回移动时反复重建网格、无闪烁
     for (const [k, m] of this.meshes) {
