@@ -216,7 +216,9 @@ export class Renderer {
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;
-      u['uAO'].value = this.god.quality === 'high' ? 0.7 : 0.5;
+      // 保守起步：AO 只压暗凹角/接缝(不动平面)，但 shader 里还叠了 pow(ao,1.5) 加深，
+      // 0.7 易过暗(用户多次反馈"太暗")。先 0.55/0.4，看截图再按需调高。
+      u['uAO'].value = this.god.quality === 'high' ? 0.55 : 0.4;
     } else {
       u['tAO'].value = null;
       u['uAO'].value = 0.0;
