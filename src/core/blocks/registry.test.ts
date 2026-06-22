@@ -1,8 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import {
-  BLOCKS, blockFaceTile, isSolidId, isTargetableId, isReplaceableId, Face,
-  isLavaId, isNetherPortalId,
-  OBSIDIAN, NETHERRACK, GLOWSTONE, LAVA, BEDROCK, NETHER_PORTAL,
+  BLOCKS,
+  blockFaceTile,
+  isSolidId,
+  isOpaque,
+  isTargetableId,
+  isReplaceableId,
+  isCutoutId,
+  isPlantId,
+  Face,
+  SANDSTONE,
+  CACTUS,
+  ICE,
+  SNOW_LAYER,
+  SPRUCE_LOG,
+  SPRUCE_LEAVES,
+  COAL_BLOCK,
+  IRON_BLOCK,
+  QUARTZ_BLOCK,
+  blockSlipperiness,
+  isCactus,
+  isLavaId,
+  isNetherPortalId,
+  OBSIDIAN,
+  NETHERRACK,
+  GLOWSTONE,
+  LAVA,
+  BEDROCK,
+  NETHER_PORTAL,
 } from './registry';
 
 describe('block registry', () => {
@@ -44,5 +69,66 @@ describe('block registry', () => {
     expect(isTargetableId(1)).toBe(true); // 石头：实心 → 可选
     expect(isTargetableId(9)).toBe(false); // 水：不可挖选
     expect(isTargetableId(0)).toBe(false); // 空气
+  });
+});
+
+describe('沙漠/雪原新方块', () => {
+  it('注册了 6 个新方块且名字正确', () => {
+    expect(BLOCKS[SANDSTONE].name).toBe('sandstone');
+    expect(BLOCKS[CACTUS].name).toBe('cactus');
+    expect(BLOCKS[ICE].name).toBe('ice');
+    expect(BLOCKS[SNOW_LAYER].name).toBe('snow_layer');
+    expect(BLOCKS[SPRUCE_LOG].name).toBe('spruce_log');
+    expect(BLOCKS[SPRUCE_LEAVES].name).toBe('spruce_leaves');
+  });
+
+  // 防回归：每个新方块都必须落进某条 mesher 渲染分支，否则不可见。
+  // 实心新方块要么不透明(走 opaque 批)，要么镂空(spruce_leaves)。仙人掌曾误设 transparent:true
+  // → 既非 opaque 也非 cutout/plant/ice → 整株不可见。锁死它走 opaque。
+  it('实心新方块可渲染：仙人掌/沙石/云杉原木走不透明批，云杉叶走镂空', () => {
+    expect(isOpaque(CACTUS)).toBe(true); // 不可见 bug 的回归守卫
+    expect(isOpaque(SANDSTONE)).toBe(true);
+    expect(isOpaque(SPRUCE_LOG)).toBe(true);
+    expect(isCutoutId(SPRUCE_LEAVES)).toBe(true);
+  });
+  it('冰打滑、其余正常摩擦', () => {
+    expect(blockSlipperiness(ICE)).toBeGreaterThan(blockSlipperiness(1)); // 冰 > 石
+    expect(blockSlipperiness(1)).toBeCloseTo(0.6, 5);
+    expect(blockSlipperiness(ICE)).toBeCloseTo(0.98, 5);
+  });
+  it('云杉叶是镂空、雪层是可穿草类、仙人掌可判定', () => {
+    expect(isCutoutId(SPRUCE_LEAVES)).toBe(true);
+    expect(isPlantId(SNOW_LAYER)).toBe(true);
+    expect(isSolidId(SNOW_LAYER)).toBe(false); // 装饰薄层可穿
+    expect(isCactus(CACTUS)).toBe(true);
+    expect(isCactus(1)).toBe(false);
+  });
+  it('沙漠/雪原方块 id 在 26-31 范围内（不与下界 18-25 冲突）', () => {
+    expect(SANDSTONE).toBe(26);
+    expect(CACTUS).toBe(27);
+    expect(ICE).toBe(28);
+    expect(SNOW_LAYER).toBe(29);
+    expect(SPRUCE_LOG).toBe(30);
+    expect(SPRUCE_LEAVES).toBe(31);
+  });
+});
+
+describe('合成储存方块 (32-34)', () => {
+  it('煤块/铁块/石英块已注册、id 正确', () => {
+    expect(COAL_BLOCK).toBe(32);
+    expect(IRON_BLOCK).toBe(33);
+    expect(QUARTZ_BLOCK).toBe(34);
+    expect(BLOCKS[COAL_BLOCK].name).toBe('coal_block');
+    expect(BLOCKS[IRON_BLOCK].name).toBe('iron_block');
+    expect(BLOCKS[QUARTZ_BLOCK].name).toBe('quartz_block');
+  });
+  // 防回归：实心储存方块必须走 opaque 渲染批，否则不可见（同仙人掌不可见 bug）。
+  it('三块都不透明、掉落自身、需镐采集', () => {
+    for (const id of [COAL_BLOCK, IRON_BLOCK, QUARTZ_BLOCK]) {
+      expect(isOpaque(id)).toBe(true);
+      expect(BLOCKS[id].drop).toBe(id);
+      expect(BLOCKS[id].tool).toBe('pickaxe');
+    }
+    expect(BLOCKS[IRON_BLOCK].minTier).toBe(2); // 铁块需石镐及以上（同 MC）
   });
 });

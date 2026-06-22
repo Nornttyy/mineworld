@@ -9,6 +9,7 @@ export enum Face {
 }
 
 // atlas.png 的格子索引（与 tools/textures/gen_textures.py 的 ATLAS_ORDER 一致）
+// 4×8=32 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原
 const T = {
   stone: 0,
   dirt: 1,
@@ -26,9 +27,9 @@ const T = {
   crafting_table_side: 13,
   iron_ore: 14,
   furnace_front: 15,
-  gravel: 16, // 图集第 5 行（4×4 扩成 4×5；同步 mesher/DropRenderer 的 ATLAS_ROWS=5）
-  grass_plant: 17, // 草丛贴图（cross billboard：草/长草共用）
-  // 下界方块图集索引（贴图与图集扩行在 Plan 1 Task 3 补；图集将扩成 4×7）
+  gravel: 16,
+  grass_plant: 17,
+  // 下界方块图集索引 (18-25)
   obsidian: 18,
   netherrack: 19,
   soul_sand: 20,
@@ -37,6 +38,17 @@ const T = {
   lava: 23,
   bedrock: 24,
   nether_portal: 25,
+  // 沙漠/雪原方块图集索引 (26-31)
+  sandstone: 26,
+  cactus: 27,
+  ice: 28,
+  snow: 29,
+  spruce_log: 30,
+  spruce_leaves: 31,
+  // 合成储存方块图集索引 (32-34)：背包/工作台配方产物（图集第 9 行）
+  coal_block: 32,
+  iron_block: 33,
+  quartz_block: 34,
 } as const;
 
 export interface BlockDef {
@@ -235,7 +247,7 @@ export const BLOCKS: BlockDef[] = [
     needsTool: false,
     tool: null,
   },
-  // ── 下界方块 ─────────────────────────────────────────────────────────────
+  // ── 下界方块 (18-25) ─────────────────────────────────────────────────────
   { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 12, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 2 },
   { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: false, tool: 'pickaxe' },
   { id: 20, name: 'soul_sand', solid: true, transparent: false, faces: all(T.soul_sand), hardness: 0.5, drop: 20, needsTool: false, tool: 'shovel' },
@@ -244,6 +256,28 @@ export const BLOCKS: BlockDef[] = [
   { id: 23, name: 'lava', solid: false, transparent: true, faces: all(T.lava), hardness: 100, drop: null, needsTool: false, tool: null, light: 15 },
   { id: 24, name: 'bedrock', solid: true, transparent: false, faces: all(T.bedrock), hardness: -1, drop: null, needsTool: false, tool: null },
   { id: 25, name: 'nether_portal', solid: false, transparent: true, faces: all(T.nether_portal), hardness: -1, drop: null, needsTool: false, tool: null, light: 11 },
+  // ── 沙漠/雪原方块 (26-31) ────────────────────────────────────────────────
+  // 沙石：沙漠沙层之下，镐采。MC 硬度 0.8。
+  { id: 26, name: 'sandstone', solid: true, transparent: false, faces: all(T.sandstone), hardness: 0.8, drop: 26, needsTool: true, tool: 'pickaxe' },
+  // 仙人掌：沙上生长，徒手可采；接触伤害(游戏层处理)。MC 硬度 0.4。
+  // transparent:false → isOpaque=true → 走 opaque 渲染批(贴图为不透明纯绿、无 alpha)；
+  // 若设 transparent:true 则不属任何 mesher 分支 → 不可见(曾踩)。叠柱内部面也能正确剔除。
+  { id: 27, name: 'cactus', solid: true, transparent: false, faces: all(T.cactus), hardness: 0.4, drop: 27, needsTool: false, tool: null },
+  // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。半透明渲染。
+  { id: 28, name: 'ice', solid: true, transparent: true, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
+  // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。
+  { id: 29, name: 'snow_layer', solid: false, transparent: true, faces: all(T.snow), hardness: 0, drop: null, needsTool: false, tool: 'shovel' },
+  // 云杉原木：同橡木原木数值，斧更快。顶/底复用 oak_log_top。
+  { id: 30, name: 'spruce_log', solid: true, transparent: false, faces: column(T.spruce_log, T.oak_log_top, T.oak_log_top), hardness: 3.33, drop: 30, needsTool: false, tool: 'axe' },
+  // 云杉树叶：同橡树叶(镂空、手挖快不掉)。
+  { id: 31, name: 'spruce_leaves', solid: true, transparent: true, faces: all(T.spruce_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  // ── 合成储存方块 (32-34)：把零散资源压成一格存储，背包/工作台配方产物 ───────────
+  // 煤炭块：9 煤合成(可逆)；镐采掉自身。MC 硬度 5，木镐即可。
+  { id: 32, name: 'coal_block', solid: true, transparent: false, faces: all(T.coal_block), hardness: 5, drop: 32, needsTool: true, tool: 'pickaxe' },
+  // 铁块：9 铁锭合成(可逆)；需石镐及以上(同 MC)。MC 硬度 5。
+  { id: 33, name: 'iron_block', solid: true, transparent: false, faces: all(T.iron_block), hardness: 5, drop: 33, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  // 石英块：4 下界石英合成；镐采掉自身。MC 硬度 0.8。
+  { id: 34, name: 'quartz_block', solid: true, transparent: false, faces: all(T.quartz_block), hardness: 0.8, drop: 34, needsTool: true, tool: 'pickaxe' },
 ];
 
 export const GRASS = 3;
@@ -269,13 +303,25 @@ export const NETHER_QUARTZ_ORE = 22;
 export const LAVA = 23;
 export const BEDROCK = 24;
 export const NETHER_PORTAL = 25;
+// 沙漠/雪原方块 (重编号 26-31)
+export const SANDSTONE = 26;   // 沙漠沙石层
+export const CACTUS = 27;      // 仙人掌
+export const ICE = 28;         // 雪原冰
+export const SNOW_LAYER = 29;  // 雪层
+export const SPRUCE_LOG = 30;  // 云杉原木
+export const SPRUCE_LEAVES = 31; // 云杉树叶
+// 合成储存方块 (32-34)
+export const COAL_BLOCK = 32;   // 煤炭块（9 煤）
+export const IRON_BLOCK = 33;   // 铁块（9 铁锭）
+export const QUARTZ_BLOCK = 34; // 石英块（4 下界石英）
+
 export const isLavaId = (id: number): boolean => id === LAVA;
 export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
-export const isCutoutId = (id: number): boolean => id === OAK_LEAVES; // 镂空(树叶)
-export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS; // cross billboard 植物(草/长草)
+export const isCutoutId = (id: number): boolean => id === OAK_LEAVES || id === SPRUCE_LEAVES; // 镂空(树叶)
+export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || id === SNOW_LAYER; // cross/薄层 特判
 // 可被挖掘射线选中/打掉：实心方块 + 植物。草丛虽非实心(可穿过、不挡移动)，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
 export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id);
@@ -307,7 +353,7 @@ export const canHarvest = (id: number, tool: HeldTool | null = null): boolean =>
 };
 
 // 破坏耗时(ms)，1:1 MC Java：ceil(硬度 ×(能采?30:100) / 工具速度) ×50（1 tick=50ms）。
-// tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镐挖石 ≈1.15s。
+// tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镚挖石 ≈1.15s。
 export const breakTimeMs = (id: number, tool: HeldTool | null = null): number => {
   if (isPlantId(id)) return 0; // 草丛/长草：任何手持(含剑/空手)都瞬破，同 MC——否则握剑时草打不掉
   if (tool && tool.kind === 'sword') return Infinity; // 剑不破坏方块（同 MC 不同：这里完全挖不动）
@@ -324,3 +370,6 @@ export const dropFor = (id: number, tool: HeldTool | null = null): number | null
 export const handDrop = (id: number): number | null => dropFor(id, null);
 export const blockDrop = (id: number): number | null => BLOCKS[id]?.drop ?? null;
 export const blockTool = (id: number): 'pickaxe' | 'axe' | 'shovel' | null => BLOCKS[id]?.tool ?? null;
+export const isCactus = (id: number): boolean => id === CACTUS;
+// 方块滑度（水平移动摩擦用）：冰滑(同 MC 0.98)，其余普通 0.6。
+export const blockSlipperiness = (id: number): number => (id === ICE ? 0.98 : 0.6);

@@ -349,28 +349,46 @@ function pnoise(x: number, z: number, period: number): number {
 
 // 柔和真实云贴图：周期 fbm → 软边白云团（少而大），透明背景，可无缝平铺。
 function makeSoftCloudTex(): THREE.CanvasTexture {
-  const S = 256;
-  const P = 8; // 贴图覆盖 P 个噪声周期 → 无缝
+  const S = 512; // 提分辨率，掠角看更清晰
+  const P = 8; // 基础噪声周期 → 平铺无缝（各倍频周期都是 P 的整数倍，照样无缝）
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const x = c.getContext('2d') as CanvasRenderingContext2D;
   const img = x.createImageData(S, S);
+  // 4 倍频 FBM（周期对齐 → 仍无缝）：比原来 2 倍频自然得多，云有大团+细絮的层次，不再是糊块。
+  const fbm = (u: number, v: number): number => {
+    let n = 0;
+    let amp = 0.5;
+    let f = 1;
+    let norm = 0;
+    for (let o = 0; o < 4; o++) {
+      n += pnoise(u * f, v * f, P * f) * amp;
+      norm += amp;
+      amp *= 0.5;
+      f *= 2;
+    }
+    return n / norm;
+  };
   for (let py = 0; py < S; py++) {
     for (let px = 0; px < S; px++) {
       const u = (px / S) * P;
       const v = (py / S) * P;
-      let n = pnoise(u, v, P) * 0.65 + pnoise(u * 2, v * 2, P * 2) * 0.35; // 2 倍频也周期对齐
-      n = Math.max(0, Math.min(1, (n - 0.5) / 0.32)); // 阈值 → 稀疏
-      const a = n * n * (3 - 2 * n) * 205; // smoothstep → 蓬松软边
+      let d = fbm(u, v);
+      d = Math.max(0, Math.min(1, (d - 0.46) / 0.3)); // 阈值 → 蓬松、稀疏
+      const a = d * d * (3 - 2 * d); // smoothstep → 软边
+      const shade = 224 + 31 * a; // 厚处更亮白、薄絮偏冷白 → 有体积感（不再是纯平白）
       const i = (py * S + px) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-      img.data[i + 3] = a;
+      img.data[i] = shade;
+      img.data[i + 1] = shade;
+      img.data[i + 2] = Math.min(255, shade + 6); // 极轻微偏蓝 → 高空感
+      img.data[i + 3] = a * 230;
     }
   }
   x.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.magFilter = THREE.LinearFilter; // 柔和（非像素）
+  t.anisotropy = 4; // 掠角（朝地平线看）更清晰
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }

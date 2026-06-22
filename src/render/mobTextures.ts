@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { MobKind } from '../core/entity/mob';
 
-// 程序生成的生物像素贴图(MC 风)。身体(bodyTexture):牛斑/羊卷毛/猪皮/鸡羽/僵尸破衫/骷髅肋骨。
-// 头(headTexture,仅僵尸/骷髅):绿烂皮 / 裂骨。配合 vertexColors 烤光 + 个体染色。NearestFilter 像素硬边。
+// 程序生成的生物像素贴图(MC 风)。身体(bodyTexture):牛斑/羊卷毛/猪皮/鸡羽/僵尸破衫/骷髅肋骨/尸壳沙衫。
+// 头(headTexture,仅僵尸/骷髅/尸壳):绿烂皮 / 裂骨 / 干枯沙皮。配合 vertexColors 烤光 + 个体染色。NearestFilter 像素硬边。
 const cache = new Map<string, THREE.CanvasTexture>();
 
 function srand(seed: number): () => number {
@@ -63,6 +63,13 @@ function drawBody(kind: MobKind, ctx: CanvasRenderingContext2D, S: number): void
       fill('#84847a', 1, y + 1, 6, 1);
       fill('#84847a', 9, y + 1, 6, 1); // 肋下影
     }
+  } else if (kind === 'husk') {
+    fill('#c2b280', 0, 0, S, S); // 沙黄衫底(日晒褪色)
+    const r = srand(57);
+    for (let i = 0; i < 12; i++) fill(r() > 0.5 ? '#a89660' : '#d4c898', Math.floor(r() * S), Math.floor(r() * S), 1 + Math.floor(r() * 2), 1 + Math.floor(r() * 2)); // 干裂磨损斑
+    fill('#8b7340', 4, 9, 3, 3); // 破洞露沙皮
+    fill('#7a6535', 5, 10, 1, 1);
+    for (let x = 0; x < S; x++) if (srand(95 + x)() > 0.45) fill('#9b8050', x, S - 1, 1, 1); // 破烂下摆
   } else if (kind === 'creeper') {
     fill('#5fa044', 0, 0, S, S); // 苦力怕绿底
     const r = srand(81);
@@ -76,7 +83,7 @@ function drawBody(kind: MobKind, ctx: CanvasRenderingContext2D, S: number): void
   }
 }
 
-function drawHead(kind: 'zombie' | 'skeleton', ctx: CanvasRenderingContext2D, S: number): void {
+function drawHead(kind: 'zombie' | 'skeleton' | 'husk', ctx: CanvasRenderingContext2D, S: number): void {
   const fill = (col: string, x: number, y: number, w = 1, h = 1): void => {
     ctx.fillStyle = col;
     ctx.fillRect(x, y, w, h);
@@ -86,6 +93,11 @@ function drawHead(kind: 'zombie' | 'skeleton', ctx: CanvasRenderingContext2D, S:
     const r = srand(61);
     for (let i = 0; i < 18; i++) fill(r() > 0.5 ? '#4c7a3e' : '#6aa055', Math.floor(r() * S), Math.floor(r() * S)); // 腐烂斑驳
     fill('#3f6a34', 0, S - 2, S, 2); // 下颌阴影
+  } else if (kind === 'husk') {
+    fill('#b8a060', 0, 0, S, S); // 沙黄皮(日晒干枯)
+    const r = srand(67);
+    for (let i = 0; i < 18; i++) fill(r() > 0.5 ? '#9a8448' : '#ceb878', Math.floor(r() * S), Math.floor(r() * S)); // 龟裂斑驳
+    fill('#7a6535', 0, S - 2, S, 2); // 下颌阴影(更深)
   } else {
     fill('#dcdcd0', 0, 0, S, S); // 骨白
     const r = srand(71);
@@ -97,8 +109,8 @@ export function bodyTexture(kind: MobKind): THREE.CanvasTexture {
   return makeTex('b-' + kind, (ctx, S) => drawBody(kind, ctx, S));
 }
 
-// 头部贴图：仅僵尸/骷髅有(绿烂皮 / 裂骨)；其它动物用纯色头，返回 null。
+// 头部贴图：僵尸/骷髅/尸壳有独立头贴图(绿烂皮 / 裂骨 / 干枯沙皮)；其它动物用纯色头，返回 null。
 export function headTexture(kind: MobKind): THREE.CanvasTexture | null {
-  if (kind !== 'zombie' && kind !== 'skeleton') return null;
+  if (kind !== 'zombie' && kind !== 'skeleton' && kind !== 'husk') return null;
   return makeTex('h-' + kind, (ctx, S) => drawHead(kind, ctx, S));
 }

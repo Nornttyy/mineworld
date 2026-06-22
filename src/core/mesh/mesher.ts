@@ -2,11 +2,11 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS, SNOW_LAYER, ICE } from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 5; // 4×5=20 槽（tile 16=gravel 在第 5 行）；与 gen_textures.py、DropRenderer 同步
+const ATLAS_ROWS = 9; // 4×9=36 槽（18-25 下界, 26-31 沙漠/雪原, 32-34 合成储存）；与 gen_textures.py、DropRenderer、FirstPersonHand 同步
 const TILE_PX = 16;
 
 // MC 固定面亮度（烤进顶点色）：顺序同 Face 枚举 +X,-X,+Y,-Y,+Z,-Z
@@ -353,6 +353,26 @@ export function meshChunkData(
     }
   };
 
+  // 雪层：贴地薄水平四边形，高度偏移 0.06，整张 snow tile，入 cutout(双面) 批。
+  // 不用 cross billboard——雪是贴地平铺，不是竖立交叉片。
+  const emitSnowLayer = (lx: number, ly: number, lz: number, tile: number): void => {
+    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u1 = u0 + du;
+    const vB = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const vT = vB + dv;
+    const sky = skyAt(lx, ly, lz) / 15;
+    const blk = blkAt(lx, ly, lz) / 15;
+    const sh = 1.0; // 顶面满亮度
+    const yTop = ly + 0.06; // 薄层高度：贴地 6% 格高
+    const base = cut.P.length / 3;
+    // 一张水平四边形：4 角按顶面 DIRS[2].c 排列（+Y 面 CCW）
+    cut.P.push(lx, yTop, lz,  lx, yTop, lz + 1,  lx + 1, yTop, lz + 1,  lx + 1, yTop, lz);
+    cut.U.push(u0, vB,  u0, vT,  u1, vT,  u1, vB);
+    cut.C.push(sh, sh, sh,  sh, sh, sh,  sh, sh, sh,  sh, sh, sh);
+    cut.L.push(sky, blk,  sky, blk,  sky, blk,  sky, blk);
+    cut.I.push(base, base + 1, base + 2,  base, base + 2, base + 3);
+  };
+
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
   // UV 用世界坐标平铺（顶/底用 x,z；侧面用 水平,y）：整片水面连续平铺、斜水面不会扭曲，
   // 配合独立可滚动水纹理做流动动画。
@@ -464,7 +484,18 @@ export function meshChunkData(
         } else if (id === TORCH) {
           emitTorch(lx, lz, ly);
         } else if (isPlantId(id)) {
-          emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.45 : 0.82); // 草矮、长草高
+          if (id === SNOW_LAYER) {
+            emitSnowLayer(lx, ly, lz, blockFaceTile(id, Face.PosY));
+          } else {
+            emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.45 : 0.82); // 草矮、长草高
+          }
+        } else if (id === ICE) {
+          // 冰：solid+transparent 但非 cutout；按不透明方块渲染（贴图本身无 alpha，走 opaque 批）
+          for (let f = 0; f < 6; f++) {
+            const d = DIRS[f];
+            if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            emit(op, lx, ly, lz, id, f);
+          }
         }
       }
     }

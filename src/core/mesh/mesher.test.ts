@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Section } from '../world/section';
-import { meshSection, aoLevel } from './mesher';
+import { ChunkWorld } from '../world/chunkWorld';
+import { meshSection, meshChunk, aoLevel } from './mesher';
+import { SNOW_LAYER } from '../blocks/registry';
 
 describe('mesher (face culling)', () => {
   it('empty section -> no geometry', () => {
@@ -50,9 +52,9 @@ describe('mesher (face culling)', () => {
       us.push(m.uvs[i]);
       vs.push(m.uvs[i + 1]);
     }
-    // 一格图集 = 横 1/4 × 纵 1/5 UV（图集 4 列×5 行）；内缩须远小于 1 像素，否则边缘像素只剩半格。
+    // 一格图集 = 横 1/4 × 纵 1/9 UV（图集 4 列×9 行）；内缩须远小于 1 像素，否则边缘像素只剩半格。
     expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.99 / 4);
-    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 5);
+    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 9);
   });
 
   it('AO level：标准体素环境光遮蔽', () => {
@@ -63,5 +65,32 @@ describe('mesher (face culling)', () => {
     expect(aoLevel(true, false, true)).toBe(1);
     expect(aoLevel(true, true, false)).toBe(0); // 两侧都挡=最暗(忽略对角)
     expect(aoLevel(true, true, true)).toBe(0);
+  });
+});
+
+describe('mesher 雪层特判', () => {
+  it('雪层渲染为贴地薄四边形（所有顶点 y 偏移 ≤ 0.2）', () => {
+    const w = new ChunkWorld(99);
+    // 在 y=160 放一块实心石头作地面，y=161 放雪层
+    const STONE = 1;
+    w.setBlock(8, 160, 8, STONE);
+    w.setBlock(8, 161, 8, SNOW_LAYER);
+
+    const m = meshChunk(w, 0, 0);
+    // 雪层应当进入 cutout 批（薄平四边形）
+    expect(m.cutout.positions.length).toBeGreaterThan(0);
+
+    // 雪层格局部坐标为 (8, 161, 8)；其顶点 y 应在 [161, 161+0.2] 范围内（贴地薄层）
+    const pos = m.cutout.positions;
+    const snowYValues: number[] = [];
+    for (let i = 1; i < pos.length; i += 3) {
+      const y = pos[i];
+      // 雪层格 y=161，收集该格附近的 y 值（忽略其他块的顶点）
+      if (y >= 161 && y <= 163) snowYValues.push(y);
+    }
+    expect(snowYValues.length).toBeGreaterThan(0);
+    // 所有雪层顶点相对于格底的 y 偏移应 ≤ 0.2
+    const maxOffset = Math.max(...snowYValues) - 161;
+    expect(maxOffset).toBeLessThanOrEqual(0.2);
   });
 });

@@ -77,6 +77,10 @@ export class ChunkMeshManager {
   private meshRr = 0; // round-robin 派发
   private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
   private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
+  // 玩家编辑(挖/放/流体)触发的重建走【优先队列】：flushMesh 先把它们上屏，再按 budget 放批量加载结果。
+  // 否则低帧时(shader 重→budget 跌到 1)挖掉的方块结果排在一堆加载结果后面，迟迟不上屏 → "方块破坏不消失"。
+  private readonly editKeys = new Set<string>(); // 标记"此区块的重建是编辑触发"，供 worker 回调分流到优先队列
+  private readonly priorityQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = [];
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
 
   constructor(
@@ -141,7 +145,14 @@ export class ChunkMeshManager {
           const k = this.key(cx, cz);
           if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
           this.meshPending.delete(k);
-          if (this.world.peek(cx, cz)) this.meshQueue.push({ cx, cz, mesh }); // 入队，每帧 flushMesh 限量上屏(防卡)
+          if (!this.world.peek(cx, cz)) return; // 区块已卸载 → 丢弃
+          if (this.editKeys.has(k)) {
+            this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
+            // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
+            if (!this.world.peek(cx, cz)?.dirty) this.editKeys.delete(k);
+          } else {
+            this.meshQueue.push({ cx, cz, mesh }); // 批量加载 → 普通队列，每帧 flushMesh 限量上屏(防卡)
+          }
         };
         this.meshWorkers.push(w);
       }
@@ -408,6 +419,7 @@ export class ChunkMeshManager {
   }
 
   private unload(k: string): void {
+    this.editKeys.delete(k); // 卸载就清掉优先标记，防 editKeys 累积已驱逐区块
     const m = this.meshes.get(k);
     if (!m) return;
     for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
@@ -431,6 +443,12 @@ export class ChunkMeshManager {
   // 把网格数据上屏(buildGeo + 入场景 + 阴影标记)。worker 回调与同步回退共用。
   /** 每帧把 worker 网格化结果【限量】上屏(buildGeo + GPU 上传)：防同帧多个 worker 一起上传导致掉帧。 */
   flushMesh(budget: number): void {
+    // 先上屏【编辑触发】的结果(挖/放/流体)：即使批量加载被 budget 饿着，挖掉的方块也立刻消失。
+    // 上限 8 防一次性爆发(如流体/爆炸批量脏块)同帧 buildGeo 过多卡顿；超出的下帧继续(仍排在批量加载前)。
+    for (let prio = 0; prio < 8 && this.priorityQueue.length > 0; prio++) {
+      const item = this.priorityQueue.shift();
+      if (item && this.world.peek(item.cx, item.cz)) this.applyMesh(item.cx, item.cz, item.mesh);
+    }
     for (let i = 0; i < budget && this.meshQueue.length > 0; i++) {
       const item = this.meshQueue.shift();
       if (item && this.world.peek(item.cx, item.cz)) this.applyMesh(item.cx, item.cz, item.mesh);
@@ -439,12 +457,12 @@ export class ChunkMeshManager {
 
   /** 还有 worker 网格化在途，或结果待上屏（供主菜单预加载等待铺满后再显示）。 */
   meshBusy(): boolean {
-    return this.meshQueue.length > 0 || this.meshPending.size > 0;
+    return this.meshQueue.length > 0 || this.priorityQueue.length > 0 || this.meshPending.size > 0;
   }
 
   /** 待上屏的网格数（供游戏层按【时间预算】逐个 flush，稳帧）。 */
   meshQueueLen(): number {
-    return this.meshQueue.length;
+    return this.meshQueue.length + this.priorityQueue.length;
   }
 
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
@@ -473,6 +491,8 @@ export class ChunkMeshManager {
     this.meshPending.delete(k);
     const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
     if (qi >= 0) this.meshQueue.splice(qi, 1);
+    const pi = this.priorityQueue.findIndex((m) => m.cx === cx && m.cz === cz);
+    if (pi >= 0) this.priorityQueue.splice(pi, 1); // 同步上屏的才最新，作废优先队列里该块的旧结果
     this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
     const c = this.world.peek(cx, cz);
     if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
@@ -561,7 +581,10 @@ export class ChunkMeshManager {
   remeshDirty(): void {
     for (const k of [...this.meshes.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
-      if (this.world.peek(cx, cz)?.dirty) this.rebuild(cx, cz);
+      if (this.world.peek(cx, cz)?.dirty) {
+        this.editKeys.add(k); // 编辑触发的重建 → worker 回来走优先队列(立刻上屏，不被批量加载饿着)
+        this.rebuild(cx, cz);
+      }
     }
   }
 }

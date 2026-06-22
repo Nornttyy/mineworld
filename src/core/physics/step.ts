@@ -15,6 +15,7 @@ import {
   SLOW_SPEED_MULT,
   KB_DECAY,
 } from './player';
+import { blockSlipperiness } from '../blocks/registry';
 
 const HW = WIDTH / 2;
 type Axis = 'x' | 'y' | 'z';
@@ -108,8 +109,25 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   // 击退速度叠加到移动意图上（被怪打中时由 Game 设置），逐刻衰减，碰墙归零靠下面的扫掠
   const kbx = player.kbx ?? 0;
   const kbz = player.kbz ?? 0;
-  vel.x = wish.x * speed + kbx;
-  vel.z = wish.z * speed + kbz;
+
+  // 冰面打滑：脚下方块的滑度决定水平速度保留系数（MC 1.12：冰 0.98，普通地面 0.6）。
+  // 有移动意图时直接设定目标速度（与原逻辑一致）；
+  // 无移动意图且贴地时，用滑度保留当前水平速度（冰上滑行，普通地面快速减速）。
+  const hasHorizIntent = Math.hypot(wish.x, wish.z) > 1e-9;
+  if (hasHorizIntent || !grounded || inWater) {
+    // 有输入 / 在水中 / 空中：直接设定速度（保持原行为）
+    vel.x = wish.x * speed + kbx;
+    vel.z = wish.z * speed + kbz;
+  } else {
+    // 无输入且贴地：按脚下方块滑度保留水平速度（冰面惯性滑行）
+    const floorBx = Math.floor(pos.x);
+    const floorBy = Math.floor(pos.y - 0.1);
+    const floorBz = Math.floor(pos.z);
+    const floorId = world.getBlock?.(floorBx, floorBy, floorBz) ?? 0;
+    const slip = blockSlipperiness(floorId);
+    vel.x = vel.x * slip + kbx;
+    vel.z = vel.z * slip + kbz;
+  }
 
   // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
   if (resolveAxis(pos, 'y', vel.y, world, h)) vel.y = 0;

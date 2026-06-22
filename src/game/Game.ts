@@ -34,7 +34,8 @@ import { spawnArrow, stepArrow, type Arrow } from '../core/entity/arrow';
 import { ArrowRenderer } from '../render/ArrowRenderer';
 import { updateMob, hurtMob, isHostile, MOB_DEFS, type Mob, type MobKind } from '../core/entity/mob';
 import { updateHostile, SKELETON_ARROW_SPEED } from '../core/entity/hostileAi';
-import { spawnRingGroup, spawnHostileRing, spawnHostileCave, type SpawnWorld } from '../core/entity/mobSpawn';
+import { spawnRingGroup, spawnHostileRing, spawnHostileCave, hostileKindFor, type SpawnWorld } from '../core/entity/mobSpawn';
+import { biomeAt } from '../core/worldgen/biome';
 import { serializeMob, deserializeMob } from '../core/entity/mobSave';
 import { isMobSunlit } from '../core/entity/mobSun';
 import { MobRenderer } from '../render/MobRenderer';
@@ -80,6 +81,7 @@ import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
 import type { WorldSave } from '../save/worldStore';
+import { touchesCactus } from '../core/survival/cactus';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH = 5; // 交互距离（方块）
@@ -586,9 +588,11 @@ export class Game {
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
 
-      // 自适应区块加载预算：按上一帧耗时(dt)调节本帧的派发/上屏量——流畅就多铺(快速填满)、
-      // 卡就少铺(别把 collectNeighbors 拷贝 + buildGeo/GPU 上传堆到已经慢的帧上)→ 移动时加载更顺、少掉帧。
-      const loadBudget = dt > 0.026 ? 1 : dt > 0.018 ? 2 : 4; // <38fps→1，38~55→2，>55fps→4
+      // 自适应区块加载【派发】预算：派发只是把活丢给后台 worker（主线程只付 collectNeighbors 拷贝），
+      // 重活(meshing)在 worker、上屏(buildGeo/GPU)另有 6ms 时间预算护着帧——所以派发不该塌到 1。
+      // 旧版低帧率塌到 1/帧 → ≤4 个 worker 长期闲置 → 加载追不上移动 → 区块"没加载出来"的空洞。
+      // 改：低/中帧率也保底 3~4/帧(喂饱 worker)，不再塌到 1。修空洞。
+      const loadBudget = dt > 0.026 ? 3 : dt > 0.018 ? 4 : 4; // <38fps→3，38~55→4，>55fps→4
       this.chunks.update(
         worldToChunk(Math.floor(this.player.pos.x)),
         worldToChunk(Math.floor(this.player.pos.z)),
@@ -677,6 +681,10 @@ export class Game {
       applyDamage(this.survival, fall.damage);
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
       this.flashHurt();
+    }
+    // 仙人掌接触伤害(MC 1.12：贴住每 0.5s 掉 1 血，复用 hurtCd 无敌帧防多刻叠加)
+    if (touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z, (x, y, z) => this.world.getBlock(x, y, z))) {
+      this.hurtPlayer(1, 0, 0);
     }
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
@@ -1120,6 +1128,8 @@ export class Game {
         } else if (ev.kind === 'attackPlayer') {
           // 近战命中：扣血 + 闪红/抖手 + 把玩家从怪物方向推开
           this.hurtPlayer(ev.damage, px - mob.pos.x, pz - mob.pos.z);
+          // 尸壳命中附加饥饿效果（MC 1.12：每次命中+3点耗竭，近似 Hunger I）
+          if (mob.kind === 'husk') addExhaustion(this.survival, 3);
         } else if (ev.kind === 'shootArrow') {
           // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
           this.arrows.push(
@@ -1163,13 +1173,14 @@ export class Game {
       let room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
       if (hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const rk = this.mobRng();
-        const kind: MobKind = rk < 0.4 ? 'zombie' : rk < 0.75 ? 'skeleton' : 'creeper';
+        const biome = biomeAt(px, pz, this.save.seed);
+        const kind: MobKind = hostileKindFor(biome, rk);
         // 矿洞：玩家附近地下暗洞，不分昼夜（同 MC）
         const cave = spawnHostileCave(kind, px, this.player.pos.y, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room);
         this.mobs.push(...cave);
         room -= cave.length;
-        // 夜晚：地表暗处也刷一小群
-        if (room > 0 && skyStateAt(this.worldTime).isNight) {
+        // 夜晚：地表暗处也刷一小群（尸壳 sunImmune，沙漠白天地表也刷）
+        if (room > 0 && (skyStateAt(this.worldTime).isNight || MOB_DEFS[kind].sunImmune)) {
           this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
         }
       }

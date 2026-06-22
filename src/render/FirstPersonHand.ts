@@ -45,7 +45,7 @@ export function mcSwingPose(t: number): SwingPose {
 }
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 5; // 4×5=20 槽（tile 16=gravel 在第 5 行）；与 gen_textures.py、mesher、DropRenderer 同步
+const ATLAS_ROWS = 9; // 4×9=36 槽（18-25 下界, 26-31 沙漠/雪原, 32-34 合成储存）；与 gen_textures.py、mesher、DropRenderer 同步
 const TILE_PX = 16;
 const EPS = 0.01 / (TILE_PX * ATLAS_COLS);
 // 面亮度（同方块）：+X,-X,+Y,-Y,+Z,-Z

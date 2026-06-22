@@ -2,7 +2,12 @@ import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2, valueNoise3 } from '../math/noise';
-import { WATER, OAK_LOG, OAK_LEAVES, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND } from '../blocks/registry';
+import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, isSolidId, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND } from '../blocks/registry';
+import { biomeAt, biomeForest as _biomeForest } from './biome';
+
+// Re-export biomeForest so existing callers (incl. biome.test.ts if any) still work.
+// biomeForest now lives in biome.ts to avoid a circular import.
+export { biomeForest } from './biome';
 
 // 方块 id（见 core/blocks/registry）
 const STONE = 1;
@@ -102,14 +107,9 @@ export function columnHeight(wx: number, wz: number, seed: number): number {
 const TREE_MARGIN = 2;
 const TREE_MAX_DENSITY = 0.08; // 便宜的快速剔除上限（须 ≥ treeDensity 最大值=森林密度）
 
-// 生物群系：大尺度噪声把世界分成平原(开阔、几乎无树)与森林(密树)，中间平滑过渡。
-// 返回 0..1：<0.45 平原，>0.62 森林，之间过渡带。
-export function biomeForest(wx: number, wz: number, seed: number): number {
-  return fbm2(wx / 130, wz / 130, seed + 4321, 2);
-}
 // 某列长树的概率：平原极稀疏(开阔)、森林茂密(树冠近乎相连)。
 function treeDensity(wx: number, wz: number, seed: number): number {
-  const f = biomeForest(wx, wz, seed);
+  const f = _biomeForest(wx, wz, seed);
   if (f < 0.45) return 0.003; // 平原：几乎无树
   if (f > 0.62) return 0.08; // 森林：密树
   return 0.003 + ((f - 0.45) / 0.17) * 0.077; // 过渡带
@@ -120,8 +120,9 @@ function treeHeight(wx: number, wz: number, seed: number): number {
   return 4 + Math.floor(hash2(wx, wz, seed * 31 + 5) * 3);
 }
 
-// 在本区块放一棵根在世界列 (rootWx,rootWz) 的橡树；只写落在本区块内的方块。
+// 在本区块放一棵根在世界列 (rootWx,rootWz) 的树；只写落在本区块内的方块。
 // ground = 该列草块 y。先放叶后放干，保证树干中心不被叶子盖住。
+// logId/leavesId 可选，默认橡树；传入 SPRUCE_LOG/SPRUCE_LEAVES 即变成云杉（树冠形状复用橡树）。
 function placeTree(
   c: Chunk,
   cx: number,
@@ -130,6 +131,8 @@ function placeTree(
   rootWz: number,
   ground: number,
   seed: number,
+  logId: number = OAK_LOG,
+  leavesId: number = OAK_LEAVES,
 ): void {
   const topY = ground + treeHeight(rootWx, rootWz, seed); // 最高那块原木
 
@@ -147,14 +150,14 @@ function placeTree(
     for (let dx = -2; dx <= 2; dx++) {
       for (let dz = -2; dz <= 2; dz++) {
         if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue; // 去角
-        put(rootWx + dx, topY + dy, rootWz + dz, OAK_LEAVES, true);
+        put(rootWx + dx, topY + dy, rootWz + dz, leavesId, true);
       }
     }
   }
   // 顶层 3×3
   for (let dx = -1; dx <= 1; dx++) {
     for (let dz = -1; dz <= 1; dz++) {
-      put(rootWx + dx, topY, rootWz + dz, OAK_LEAVES, true);
+      put(rootWx + dx, topY, rootWz + dz, leavesId, true);
     }
   }
   // 树冠顶：十字小帽
@@ -165,9 +168,9 @@ function placeTree(
     [0, 1],
     [0, -1],
   ];
-  for (const [dx, dz] of cap) put(rootWx + dx, topY + 1, rootWz + dz, OAK_LEAVES, true);
+  for (const [dx, dz] of cap) put(rootWx + dx, topY + 1, rootWz + dz, leavesId, true);
   // 树干（覆盖中心叶子/空气）
-  for (let y = ground + 1; y <= topY; y++) put(rootWx, y, rootWz, OAK_LOG, false);
+  for (let y = ground + 1; y <= topY; y++) put(rootWx, y, rootWz, logId, false);
 }
 
 // 下界生成参数
@@ -232,33 +235,56 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
       );
       const flat = isFlat(wx, wz, seed);
       const beach = height <= SEA_LEVEL + 1; // 海平面附近用沙
+      const biome = biomeAt(wx, wz, seed); // 群系（仅影响陆地非沙滩列）
       for (let y = 0; y <= height; y++) {
         // 露天竖井：平坦地形的稀疏大竖井，【连草顶一起挖穿】→ 地面可见的露天矿洞口(否则草顶封住、地面看不到洞)
         const shaft = flat && valueNoise3((wx + y * 0.8) / 8, y / 120, (wz + y * 0.6) / 8, seed + 888) > 0.9;
         // 竖井破到地表(y<=height)；矿洞只在 y<height(草顶保留、不破地表)。底2层(y<=1)实心。
         if (y > 1 && (shaft || (y < height && caveAt(wx, y, wz, hmin, seed)))) {
-          // 水下/沿海的洞穴灌满水：本格在海平面以下(y<SEA) 且 近水(周围±4 内有水下地表 hmin<SEA) → 注满量源头水。
-          //   这样海底洞、岸边/水下崖壁里的洞都是水的(不再是干的隔绝空腔)；远离水的深内陆洞仍留空气(可点火把探)。
-          if (hmin < SEA_LEVEL && y < SEA_LEVEL) {
-            c.set(lx, y, lz, WATER);
-            c.setFluid(lx, y, lz, SEA_FLUID);
-          }
+          // 洞穴/竖井生成时【留空气，不预灌水】。水下的洞由流体模拟从开口(竖井/破口)自然流入——
+          // 能流到的灌进去、流完自行 settle；流不到的封闭腔保持干燥。(原来预灌满量水，改为按需自然流入。)
           continue;
         }
         let id = STONE;
-        if (y === height) id = beach ? SAND : GRASS;
-        else if (y >= height - 3) id = beach ? SAND : DIRT;
-        else id = oreAt(wx, y, wz, height, seed); // 石层：矿脉/石
+        if (beach) {
+          // 沙滩/水边：沙覆盖，不受群系影响（保持原行为）
+          if (y === height) id = SAND;
+          else if (y >= height - 3) id = SAND;
+          else id = oreAt(wx, y, wz, height, seed);
+        } else if (biome === 'desert') {
+          // 沙漠：地表~3格沙 + 下方~4格沙石 + 再下石/矿
+          if (y === height) id = SAND;
+          else if (y >= height - 3) id = SAND;
+          else if (y >= height - 7) id = SANDSTONE;
+          else id = oreAt(wx, y, wz, height, seed);
+        } else {
+          // 温带(plains/forest) + 雪原：草顶 + 土填充（雪原地表草，Task 3.2 再加雪层）
+          if (y === height) id = GRASS;
+          else if (y >= height - 3) id = DIRT;
+          else id = oreAt(wx, y, wz, height, seed);
+        }
         c.set(lx, y, lz, id);
       }
       for (let y = height + 1; y <= SEA_LEVEL; y++) {
         c.set(lx, y, lz, WATER); // 注水到海平面
         c.setFluid(lx, y, lz, SEA_FLUID); // 海/湖/河皆为稳定源头(满量)
       }
+      // 结冰：雪原群系水面顶格（SEA_LEVEL）改为冰
+      if (height < SEA_LEVEL && biome === 'snow') {
+        c.set(lx, SEA_LEVEL, lz, ICE);
+      }
+      // 雪层：雪原陆地草顶上方，约 85% 概率铺雪层（hash 确定性，留少量空缺自然感）
+      if (!beach && height > SEA_LEVEL + 1 && biome === 'snow') {
+        const surfaceBlock = c.get(lx, height, lz);
+        const above = c.get(lx, height + 1, lz);
+        if (surfaceBlock === GRASS && above === 0 && hash2(wx + 1, wz + 3, seed * 19 + 41) < 0.85) {
+          c.set(lx, height + 1, lz, SNOW_LAYER);
+        }
+      }
     }
   }
 
-  // 装饰：种树。外扩 TREE_MARGIN 遍历，让邻列的树把枝叶探进本区块（接缝处不断树）。
+  // 装饰：种橡树（仅平原/森林群系）。外扩 TREE_MARGIN 遍历，让邻列的树把枝叶探进本区块（接缝处不断树）。
   const x0 = cx * CHUNK_W;
   const z0 = cz * CHUNK_W;
   for (let wx = x0 - TREE_MARGIN; wx < x0 + CHUNK_W + TREE_MARGIN; wx++) {
@@ -267,15 +293,66 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
       if (r >= TREE_MAX_DENSITY) continue; // 便宜地剔除绝大多数列
       const g = columnHeight(wx, wz, seed);
       if (g <= SEA_LEVEL + 1) continue; // 只在草地（避开沙滩/水）
+      // 守卫：橡树只在温带（平原/森林）生长，不进沙漠/雪原
+      const bm = biomeAt(wx, wz, seed);
+      if (bm !== 'plains' && bm !== 'forest') continue;
       if (r < treeDensity(wx, wz, seed)) placeTree(c, cx, cz, wx, wz, g, seed);
     }
   }
 
-  // 装饰：草地上撒草丛/长草(cross billboard，可穿过、瞬破)。在种树之后——只放进空气格、避开树干。
+  // 装饰：云杉（雪原）。仿橡树逻辑，外扩 TREE_MARGIN，只在 snow 群系且地表是草的列种树。
+  for (let wx = x0 - TREE_MARGIN; wx < x0 + CHUNK_W + TREE_MARGIN; wx++) {
+    for (let wz = z0 - TREE_MARGIN; wz < z0 + CHUNK_W + TREE_MARGIN; wz++) {
+      if (biomeAt(wx, wz, seed) !== 'snow') continue;
+      const g = columnHeight(wx, wz, seed);
+      if (g <= SEA_LEVEL + 1) continue; // 只在陆地
+      // 稀疏密度：约 3%（比平原橡树稍多，雪原景观感）
+      const r = hash2(wx, wz, seed * 17 + 3);
+      if (r >= 0.03) continue;
+      placeTree(c, cx, cz, wx, wz, g, seed, SPRUCE_LOG, SPRUCE_LEAVES);
+    }
+  }
+
+  // 装饰：仙人掌（沙漠，沙地上）。在本区块内扫描，直接写本区块格。
   for (let lz = 0; lz < CHUNK_W; lz++) {
     for (let lx = 0; lx < CHUNK_W; lx++) {
       const wx = x0 + lx;
       const wz = z0 + lz;
+      if (biomeAt(wx, wz, seed) !== 'desert') continue;
+      const h = columnHeight(wx, wz, seed);
+      if (h <= SEA_LEVEL + 1) continue; // 只在陆地
+      if (c.get(lx, h, lz) !== SAND) continue; // 地表须为沙
+      if (c.get(lx, h + 1, lz) !== 0) continue; // 上方须为空气（未被他物占据）
+      // 低密度：约 2% → 不密集，避免连片
+      const r = hash2(wx, wz, seed * 11 + 53);
+      if (r >= 0.02) continue;
+      // MC 1.12：仙人掌底格(h+1)的 4 个水平邻格不能是仙人掌或实心方块，否则弹出。
+      // 只检查本区块内的邻格；跨区块边界是已接受的限制（极少数情形，注释说明）。
+      const baseY = h + 1;
+      if (
+        (lx > 0  && (c.get(lx - 1, baseY, lz) === CACTUS || isSolidId(c.get(lx - 1, baseY, lz)))) ||
+        (lx < CHUNK_W - 1 && (c.get(lx + 1, baseY, lz) === CACTUS || isSolidId(c.get(lx + 1, baseY, lz)))) ||
+        (lz > 0  && (c.get(lx, baseY, lz - 1) === CACTUS || isSolidId(c.get(lx, baseY, lz - 1)))) ||
+        (lz < CHUNK_W - 1 && (c.get(lx, baseY, lz + 1) === CACTUS || isSolidId(c.get(lx, baseY, lz + 1))))
+      ) continue; // 有邻格阻挡 → 跳过此列，对齐 MC 1.12 行为
+      // 高度 1~3（hash 确定性）
+      const cactusH = 1 + Math.floor(hash2(wx * 3, wz * 3, seed * 7 + 13) * 3);
+      for (let dy = 1; dy <= cactusH; dy++) {
+        const cy = h + dy;
+        if (cy >= CHUNK_H) break;
+        c.set(lx, cy, lz, CACTUS);
+      }
+    }
+  }
+
+  // 装饰：草地上撒草丛/长草（仅平原/森林，cross billboard，可穿过、瞬破）。在种树之后——只放进空气格、避开树干。
+  for (let lz = 0; lz < CHUNK_W; lz++) {
+    for (let lx = 0; lx < CHUNK_W; lx++) {
+      const wx = x0 + lx;
+      const wz = z0 + lz;
+      // 守卫：草丛只在温带（平原/森林）长，沙漠/雪原不长草丛
+      const bm = biomeAt(wx, wz, seed);
+      if (bm !== 'plains' && bm !== 'forest') continue;
       const h = columnHeight(wx, wz, seed);
       if (h <= SEA_LEVEL + 1) continue; // 沙滩/水下不长草
       if (c.get(lx, h, lz) !== GRASS || c.get(lx, h + 1, lz) !== 0) continue; // 表层须草方块、其上须空气(避树干/竖井)

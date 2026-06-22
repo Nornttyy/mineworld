@@ -373,6 +373,245 @@ def grass_plant(rng):
     return im
 
 
+# —— 经典风新增 6 块（沙漠/雪原/云杉，对齐 gen_textures.py ATLAS_ORDER 槽 18-23）——
+
+def sandstone(rng):
+    # 经典沙石：米黄底 + 平铺细噪 + 水平沉积纹（横线每 4 行），顶底不提亮保持经典扁平。
+    im = new()
+    fill(im, "#c8b882")  # 经典沙石米黄（比 vanilla 地图色 #ded39f 略沉）
+    speck(im, ["#bfaf78", "#d2c28c"], 0.18, rng)  # 经典感细噪
+    px = im.load()
+    # 水平沉积纹：每隔 4 行一条略深横线（经典沙石标志）
+    for ly in (3, 7, 11):
+        for x in range(S):
+            px[x, ly] = hx("#b0a06c")
+    # 顶底各一条更深线，强化层次感
+    for x in range(S):
+        px[x, 0] = hx("#d8c890")
+        px[x, S - 1] = hx("#a89060")
+    return im
+
+
+def cactus(rng):
+    # 经典仙人掌：中等饱和绿 + 左右暗边（圆柱轮廓）+ 稀疏白刺点，经典低调调色。
+    im = new()
+    fill(im, "#567d36")  # 经典 MC 仙人掌绿（偏橄榄，不鲜艳）
+    speck(im, ["#4d7030", "#60893e"], 0.12, rng)
+    px = im.load()
+    # 左右两列暗边
+    for y in range(S):
+        px[0, y] = hx("#3a5822")
+        px[1, y] = hx("#456628")
+        px[S - 2, y] = hx("#456628")
+        px[S - 1, y] = hx("#3a5822")
+    # 中心略亮条（受顶光，低对比）
+    for y in range(S):
+        px[7, y] = hx("#658e3e")
+        px[8, y] = hx("#618a3c")
+    # 白刺点（稀疏，2px 小点）
+    for _ in range(5):
+        sx = rng.choice([2, 3, 12, 13])
+        sy = rng.randrange(2, S - 2)
+        px[sx, sy] = hx("#d0ceb0")
+    return im
+
+
+def ice(rng):
+    # 经典冰：冷浅蓝 + 平铺细噪 + 斜向亮条（低对比折射感），颜色接近 vanilla 1.12 冰（#7eb8ff tint）。
+    im = new()
+    fill(im, "#8bb8d4")  # 经典冰底（比卡通版更沉、偏灰蓝）
+    speck(im, ["#80aec8", "#96c2de"], 0.14, rng)
+    px = im.load()
+    # 低对比斜向亮条（左上→右下，模拟冰面光泽，不夸张）
+    for i in range(0, S, 4):
+        for j in range(max(0, i - 1), min(S, i + 2)):
+            if rng.random() < 0.5:
+                px[j, i] = hx("#a8cce0")
+    # 顶底微差，不做 AO（经典扁平风）
+    for x in range(S):
+        px[x, 0] = hx("#a0c8dc")
+        px[x, S - 1] = hx("#78a8c0")
+    return im
+
+
+def snow(rng):
+    # 经典雪：近白底 + 极淡冷灰细噪，经典 MC 雪色（map #ffffff，纹理本体偏冷白）。
+    im = new()
+    fill(im, "#e8eef4")  # 经典冷白（略带蓝调，比卡通版更冷暗）
+    speck(im, ["#dce4ec", "#f0f4f8"], 0.18, rng)
+    px = im.load()
+    # 少量淡蓝阴影小点（雪坑感，经典低调）
+    for _ in range(6):
+        x, y = rng.randrange(S), rng.randrange(1, S - 1)
+        px[x, y] = hx("#ccd6e0")
+    # 顶行最亮（纯白日光），底行淡阴影
+    for x in range(S):
+        px[x, 0] = hx("#f8fafc")
+        px[x, S - 1] = hx("#c4d0dc")
+    return im
+
+
+def spruce_log(rng):
+    # 经典云杉原木侧：深红褐冷调竖条树皮（比橡木 oak_log_side 更暗更冷），经典 MC 云杉风格。
+    im = new()
+    bark = ["#4a3828", "#3e3022", "#52402e", "#342a1e"]  # 深红褐冷调（比橡木更深）
+    w = [3, 3, 2, 2]
+    px = im.load()
+    for x in range(S):  # 竖向树皮条
+        cb = rng.choices(bark, w)[0]
+        groove = rng.random() < 0.22
+        for y in range(S):
+            if groove and rng.random() < 0.6:
+                px[x, y] = hx("#261a10")  # 深沟槽（比橡木更深）
+            else:
+                px[x, y] = hx(rng.choices([cb, "#5e4432", "#261a10"], [7, 1, 1])[0])
+    return im
+
+
+def spruce_leaves(rng):
+    # 经典云杉叶：深蓝绿 + 镂空 cutout（比橡树叶更深更冷），alpha 纹理。
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    cols = ["#2a4a30", "#304f36", "#234028", "#38563e", "#1e3824"]  # 经典深蓝绿
+    wts = [3, 3, 2, 2, 2]
+    for y in range(S):
+        for x in range(S):
+            if rng.random() < 0.13:
+                px[x, y] = (0, 0, 0, 0)  # 镂空（针叶比橡树叶略稀）
+            else:
+                r, g, b = hx(rng.choices(cols, wts)[0])
+                px[x, y] = (r, g, b, 255)
+    # 简单软明暗（低对比，经典扁平感）
+    for _ in range(3):
+        cx, cy = rng.randrange(S), rng.randrange(S)
+        for dy in range(-1, 2):
+            for dx in range(-1, 2):
+                if rng.random() < 0.5:
+                    r, g, b = hx("#38563e") if rng.random() < 0.5 else hx("#1e3824")
+                    px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
+    return im
+
+
+# ── 下界方块（经典闷色风）──────────────────────────────────────────────────────
+def obsidian(rng):
+    im = new()
+    fill(im, "#140c1c")
+    speck(im, ["#1f1430", "#2c1d44"], 0.06, rng)
+    px = im.load()
+    for _ in range(4):
+        px[rng.randrange(S), rng.randrange(S)] = hx("#4a2f78")
+    return im
+
+
+def netherrack(rng):
+    im = new()
+    fill(im, "#5e2828")
+    speck(im, ["#4d2020", "#6e3232", "#5a2626"], 0.2, rng)
+    px = im.load()
+    for _ in range(4):
+        streak(px, "#401a1a", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
+    return im
+
+
+def soul_sand(rng):
+    im = new()
+    fill(im, "#443226")
+    speck(im, ["#382a1f", "#4e3a2c"], 0.18, rng)
+    for cx, cy in [(4, 5), (11, 6), (7, 11)]:
+        pebble(im, cx, cy, 2, "#443226", "#352820", "#221913", rng, 0.1)
+    return im
+
+
+def glowstone(rng):
+    im = new()
+    fill(im, "#cba85a")
+    speck(im, ["#d8bd78", "#b8943e"], 0.2, rng)
+    for _ in range(6):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#cba85a", "#e6cf8e", "#a87f34", rng)
+    return im
+
+
+def nether_quartz_ore(rng):
+    im = netherrack(rng)
+    for _ in range(7):
+        pebble(im, rng.randrange(S), rng.randrange(S), 1, "#d8d2cc", "#efe9e2", "#b8afa6", rng, 0.1)
+    return im
+
+
+def lava(rng):
+    im = new()
+    fill(im, "#c84e10")
+    speck(im, ["#b2440c", "#d8641c"], 0.18, rng)
+    px = im.load()
+    for _ in range(5):
+        streak(px, "#e8b833", rng.randrange(S), rng.randrange(S), rng.randint(3, 5), rng)
+    for _ in range(3):
+        streak(px, "#963205", rng.randrange(S), rng.randrange(S), rng.randint(2, 3), rng)
+    return im
+
+
+def bedrock(rng):
+    im = new()
+    fill(im, "#2b2b2c")
+    speck(im, ["#202021", "#383839"], 0.3, rng)
+    for _ in range(6):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#2b2b2c", "#424244", "#161617", rng)
+    return im
+
+
+def nether_portal(rng):
+    im = new()
+    fill(im, "#4e2682")
+    px = im.load()
+    for x in range(S):
+        for y in range(S):
+            w = (x * 3 + y * 2 + rng.randrange(4)) % 7
+            if w < 2:
+                px[x, y] = hx("#7a4cb0")
+            elif w > 5:
+                px[x, y] = hx("#37185e")
+    return im
+
+
+def coal_block(rng):
+    # 煤炭块：经典暗黑，低饱和、平实噪点。
+    im = new()
+    fill(im, "#19191c")
+    speck(im, ["#121214", "#262629"], 0.25, rng)
+    for _ in range(4):
+        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#1f1f23", "#303035", "#0e0e10", rng)
+    return im
+
+
+def iron_block(rng):
+    # 铁块：经典金属灰 + 倒角边。
+    im = new()
+    fill(im, "#cfcfd2")
+    speck(im, ["#c2c2c6", "#dcdce0"], 0.18, rng)
+    px = im.load()
+    for i in range(S):
+        px[i, 0] = hx("#e8e8eb")
+        px[0, i] = hx("#e2e2e6")
+        px[i, S - 1] = hx("#a6a6ac")
+        px[S - 1, i] = hx("#b0b0b6")
+    return im
+
+
+def quartz_block(rng):
+    # 石英块：经典米白 + 顶亮带 + 淡竖纹。
+    im = new()
+    fill(im, "#e6e3da")
+    speck(im, ["#dcd8ce", "#efece4"], 0.18, rng)
+    px = im.load()
+    for x in range(S):
+        px[x, 0] = hx("#f2f0ea")
+        px[x, S - 1] = hx("#cbc6b9")
+    for x in range(2, S, 5):
+        for y in range(2, S - 1):
+            px[x, y] = hx("#dad6cb")
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -392,6 +631,23 @@ BLOCKS = [
     ("furnace_front", furnace_front),
     ("gravel", gravel),
     ("grass_plant", grass_plant),
+    ("sandstone", sandstone),
+    ("cactus", cactus),
+    ("ice", ice),
+    ("snow", snow),
+    ("spruce_log", spruce_log),
+    ("spruce_leaves", spruce_leaves),
+    ("obsidian", obsidian),
+    ("netherrack", netherrack),
+    ("soul_sand", soul_sand),
+    ("glowstone", glowstone),
+    ("nether_quartz_ore", nether_quartz_ore),
+    ("lava", lava),
+    ("bedrock", bedrock),
+    ("nether_portal", nether_portal),
+    ("coal_block", coal_block),
+    ("iron_block", iron_block),
+    ("quartz_block", quartz_block),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -458,15 +714,21 @@ def main():
     tex = {}
     for i, (name, fn) in enumerate(BLOCKS):
         tex[name] = fn(random.Random(BASE_SEED + i * 1000))
-    # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。tile 16=gravel 占第 5 行(图集 4×4→4×5)。
+    # 顺序/行数必须与 gen_textures.py 及 src/core/blocks/registry.ts 一致。
+    # 4×9=36 槽: 0-17 基础, 18-25 下界(占位透明), 26-31 沙漠/雪原, 32-34 合成储存方块
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
                    'oak_leaves', 'crafting_table_top', 'crafting_table_side', 'iron_ore', 'furnace_front',
-                   'gravel', 'grass_plant']
-    COLS, ROWS = 4, 5
+                   'gravel', 'grass_plant',
+                   'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
+                   'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
+                   'coal_block', 'iron_block', 'quartz_block']
+    COLS, ROWS = 4, 9
     atlas = Image.new('RGBA', (S * COLS, S * ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
-        atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))
+        if nm in tex:
+            atlas.paste(tex[nm].convert('RGBA'), ((i % COLS) * S, (i // COLS) * S))
+        # 下界占位名（无 draw fn）→ 保持透明，下界会话补贴图
     out = os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'textures', 'atlas_classic.png')
     atlas.save(out)
     print('wrote', out, atlas.size)
