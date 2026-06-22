@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
 import { GodRays } from './GodRays';
+import { Bloom } from './Bloom';
+import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
@@ -38,16 +40,22 @@ export class Renderer {
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
 
+  // Bloom 后处理（1/4 分辨率内部缓冲）
+  private bloom: Bloom | null = null;
+
+  // SSAO 后处理（1/2 分辨率）
+  private ssao: SSAO | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     // 分辨率恒为设备原生(用户要求保清晰)；高 DPI 屏更费但更锐。卡顿改走区块加载/渲染距离优化，不降分辨率。
     // ⚠️ 曾加过动态降分辨率(adaptResolution 自动降到 0.6×)，画面发糊被用户否决、已移除——不要再加回来。
     // ⚠️ 不要加 powerPreference:'high-performance' —— 某些集显/混合显卡机器会创建上下文失败 → 进不了游戏。
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    // 电影级色调映射(ACES)：把"生平"的原始色分级成胶片观感——高光柔和滚降(天空不再死白)、中间调更润。
-    // 后处理栈第一步(最便宜、几乎零开销、不会白屏);bloom/SSAO 随后。曝光可调。
-    this.gl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.gl.toneMappingExposure = 1.1;
+    // ⚠️ 曾加 ACES 色调映射想给颜色"分级",但它把方块中间调压暗了——ACES 是给写实 HDR 的，
+    // 套在我们这种亮色卡通上显暗显闷，用户反馈"方块变暗"，已移除。保持无色调映射=原始亮度。
+    // 高级感改只靠 bloom(给亮处加光、不压暗)。若以后想要分级，得用更轻、不压暗中间调的方式。
+    this.gl.toneMapping = THREE.NoToneMapping;
     // 真实投影阴影：开启 shadow map（太阳 DirectionalLight 投影到地面，见 ChunkMeshManager）
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -86,6 +94,22 @@ export class Renderer {
       this.rt.dispose();
       this.rt = this.buildRT(w, h);
     }
+    // Bloom RT 重建为 1/4 分辨率（CSS 像素，Bloom 内部乘 pr）。
+    if (this.bloom !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.bloom.setSize(
+        Math.max(1, Math.round((w * pr) / 4)),
+        Math.max(1, Math.round((h * pr) / 4)),
+      );
+    }
+    // SSAO RT 重建为 1/2 物理分辨率。
+    if (this.ssao !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.ssao.setSize(
+        Math.max(1, Math.round((w * pr) / 2)),
+        Math.max(1, Math.round((h * pr) / 2)),
+      );
+    }
   }
 
   /** 节流重渲一次 shadow map（autoUpdate 关、靠这个触发；昼夜/玩家移动时由 Game 调）。 */
@@ -99,10 +123,18 @@ export class Renderer {
    */
   setGodRays(opts: GodRayOpts | null): void {
     if (opts === null || opts.quality === 'off') {
-      // 关闭后处理：销毁 RT，清空 opts。
+      // 关闭后处理：销毁 RT + Bloom + SSAO，清空 opts。
       if (this.rt !== null) {
         this.rt.dispose();
         this.rt = null;
+      }
+      if (this.bloom !== null) {
+        this.bloom.dispose();
+        this.bloom = null;
+      }
+      if (this.ssao !== null) {
+        this.ssao.dispose();
+        this.ssao = null;
       }
       this.god = null;
       return;
@@ -110,6 +142,27 @@ export class Renderer {
     // 确保 RT 已建（首次开启或 resize 中途重建）。
     if (this.rt === null) {
       this.rt = this.buildRT(window.innerWidth, window.innerHeight);
+    }
+    // 确保 Bloom 已建。
+    if (this.bloom === null) {
+      const pr = this.gl.getPixelRatio();
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.bloom = new Bloom(
+        Math.max(1, Math.round((w * pr) / 4)),
+        Math.max(1, Math.round((h * pr) / 4)),
+      );
+    }
+    // 确保 SSAO 已建。
+    if (this.ssao === null) {
+      const pr = this.gl.getPixelRatio();
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.ssao = new SSAO();
+      this.ssao.setSize(
+        Math.max(1, Math.round((w * pr) / 2)),
+        Math.max(1, Math.round((h * pr) / 2)),
+      );
     }
     this.god = opts;
   }
@@ -121,9 +174,10 @@ export class Renderer {
    * renderOverlay（第一人称手臂）始终在此之后由 Game 调用，直接上屏（不经 RT）。
    */
   render(): void {
-    if (this.god === null || this.rt === null || this.god.intensity <= 0.001) {
-      // ★ off 路径 / 太阳不可见(夜晚/出屏，intensity≈0)：等价于改动前的单行 render，零后处理开销。
-      // 既省性能(光束本就看不见时不跑 RT)，也让绝大多数情形走这条最稳的直渲路径。
+    // ★ off 路径（god===null 或 RT 未就绪）：直接渲染，零后处理开销，与改动前完全一致。
+    // bloom 必须依赖 RT（需要场景颜色纹理），故只看 god===null / rt===null 决定直渲。
+    // 不再用 intensity<=0.001 做早出（否则太阳不可见时 bloom 也会消失）。
+    if (this.god === null || this.rt === null || this.bloom === null) {
       this.gl.render(this.scene, this.camera);
       return;
     }
@@ -132,16 +186,43 @@ export class Renderer {
     this.gl.setRenderTarget(this.rt);
     this.gl.clear(); // 清颜色 + 深度（autoClear 默认 true）
     this.gl.render(this.scene, this.camera);
+    // renderTarget 此时仍是 this.rt（Step 2 会重置）
 
-    // ── Step 2: God-ray quad 合成到屏幕 ──
-    this.gl.setRenderTarget(null); // 切回屏幕
+    // ── Step 2: Bloom（1/4 res，3 个 pass，结果在 bloom.texture）──
+    // bloom.render() 内部会 setRenderTarget 到 bloomA/bloomB，
+    // 结束后调用 setRenderTarget(null)，render() 退出时 renderTarget 已为 null。
+    this.bloom.render(this.gl, this.rt.texture);
+    // 此时 renderTarget = null（由 bloom.render 还原）。
+
+    // ── Step 2.5: SSAO（1/2 res，2 个 pass，结果在 ssao.texture）──
+    // ssao.render() 内部保证 setRenderTarget(null) 还原，且出错时静默兜底。
+    if (this.ssao !== null) {
+      this.ssao.render(this.gl, this.rt.depthTexture, this.camera);
+    }
+    // 此时 renderTarget = null（由 ssao.render 还原）。
+
+    // ── Step 3: God-ray + bloom + AO 合成到屏幕 ──
+    // renderTarget 已是 null（屏幕）。
     const gr = this.god.quality === 'high' ? this.godHigh : this.godStd;
     const u = gr.material.uniforms;
     u['tColor'].value = this.rt.texture;
     u['tDepth'].value = this.rt.depthTexture;
+    u['tBloom'].value = this.bloom.texture;
     u['uSunUV'].value.copy(this.god.sunUV);
-    u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 早返回
+    u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 跳过体积光但保留 bloom
     u['uSunColor'].value.copy(this.god.sunColor);
+    // bloom 强度按档位
+    u['uBloom'].value = this.god.quality === 'high' ? 1.0 : 0.6;
+    // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
+    if (this.ssao !== null) {
+      u['tAO'].value = this.ssao.texture;
+      // 保守起步：AO 只压暗凹角/接缝(不动平面)，但 shader 里还叠了 pow(ao,1.5) 加深，
+      // 0.7 易过暗(用户多次反馈"太暗")。先 0.55/0.4，看截图再按需调高。
+      u['uAO'].value = this.god.quality === 'high' ? 0.55 : 0.4;
+    } else {
+      u['tAO'].value = null;
+      u['uAO'].value = 0.0;
+    }
     gr.render(this.gl);
     // renderOverlay（手臂）由 Game 在此方法之后调用，直接画到屏幕，不经过 RT。
   }

@@ -44,6 +44,26 @@ describe('水面高度·头顶有方块（修：放方块后水不再变整块 /
     expect(level(true)).toBeLessThan(Y + 0.95); // 且确实不是满格
   });
 
+  it('水柱深度 attribute：浅水(1格)depth=1、深水(5格)depth=5（光影按深度调透明:浅→透深→实）', () => {
+    const maxDepth = (w: ChunkWorld): number => {
+      const d = meshChunk(w, 0, 0).water.depth;
+      if (!d || !d.length) return 0;
+      let m = 0;
+      for (let i = 0; i < d.length; i++) if (d[i] > m) m = d[i];
+      return m;
+    };
+    // 浅：单格水，头顶空气 → 顶面 depth=1
+    const shallow = new ChunkWorld(99);
+    shallow.setBlock(5, Y - 1, 5, STONE);
+    shallow.setWater(5, Y, 5, 7, false, false);
+    expect(maxDepth(shallow)).toBeCloseTo(1, 5);
+    // 深：5 格水柱（Y..Y+4，顶上空气）→ 顶面 depth=5
+    const deep = new ChunkWorld(99);
+    deep.setBlock(5, Y - 1, 5, STONE);
+    for (let dy = 0; dy < 5; dy++) deep.setWater(5, Y + dy, 5, 7, false, false);
+    expect(maxDepth(deep)).toBeCloseTo(5, 5);
+  });
+
   it('bug1: 头顶有方块的水仍画出顶面(覆盖格的水看得见，不是隐形空洞)', () => {
     // 四周/下方全封死、仅头顶是方块：唯一可能画的面就是顶面。旧代码顶面被跳过 → 水网格为空(水隐形=bug1)。
     const w = new ChunkWorld(99);

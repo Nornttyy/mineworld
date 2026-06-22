@@ -1410,7 +1410,10 @@ export class Game {
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。
     const t = s.worldTint;
     const mx = Math.max(t[0], t[1], t[2], 0.001);
-    this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
+    // 白天把天光色调暖 → 阳光照到的地面/开阔处泛暖金(MC 光影感)；夜晚不动(保留冷蓝)。
+    // day=1 白天→0 午夜；暖到 (1, 0.95, 0.85)。仅染受天光的面(洞内/夜晚不暖)。
+    const day = 1 - skyDarkenAt(this.worldTime) / 11;
+    this.chunks.setTint([t[0] / mx, (t[1] / mx) * (1 - day * 0.05), (t[2] / mx) * (1 - day * 0.15)]);
     // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
     const darken = skyDarkenAt(this.worldTime);
     this.chunks.setSkyDarken(darken);
