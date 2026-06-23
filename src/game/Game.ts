@@ -19,6 +19,8 @@ import {
   CRAFTING_TABLE,
   FURNACE,
   GRAVEL,
+  OBSIDIAN,
+  NETHER_PORTAL,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -77,7 +79,8 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
+import { APPLE, EGG, FLINT, ARROW, BOW, FLINT_AND_STEEL, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
+import { ignitePortal } from '../core/world/portalFill';
 import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
@@ -855,6 +858,11 @@ export class Game {
       return;
     }
     const stack = this.inv[this.hotbar.index];
+    // 手持打火石命中黑曜石 → 点燃下界传送门
+    if (hit && stack && stack.id === FLINT_AND_STEEL && this.world.getBlock(hit.x, hit.y, hit.z) === OBSIDIAN) {
+      const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z);
+      if (inner) { for (const [x, y, z] of inner) this.edit(x, y, z, NETHER_PORTAL); return; }
+    }
     // 手持弓且有箭 → 拉弓蓄力（松开右键时发射）
     if (stack && stack.id === BOW && countItem(this.inv, ARROW) > 0) {
       this.drawingBow = true;
