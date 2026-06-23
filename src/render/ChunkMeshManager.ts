@@ -220,7 +220,8 @@ export class ChunkMeshManager {
             'float mwShadow(vec4 sc){\n' +
             '  vec3 c = sc.xyz / sc.w;\n' +
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
-            '  float bias = 0.0018;\n' +
+            '  float bias = 0.004;\n' + // 加大深度偏移消"方块表面细条纹"(shadow acne 自遮挡)；体素面轴对齐,适度 peter-panning 可接受
+
             '  float s = 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
