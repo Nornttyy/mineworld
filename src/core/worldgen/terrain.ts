@@ -133,6 +133,7 @@ function placeTree(
   seed: number,
   logId: number = OAK_LOG,
   leavesId: number = OAK_LEAVES,
+  conical: boolean = false, // 云杉=true：尖锥形树冠(分层圆盘自顶向下变宽),区别于橡树圆冠
 ): void {
   const topY = ground + treeHeight(rootWx, rootWz, seed); // 最高那块原木
 
@@ -145,32 +146,41 @@ function placeTree(
     c.set(lx, wy, lz, id);
   };
 
-  // 下两层 5×5（去四角→八边形），围住上部树干
-  for (const dy of [-2, -1]) {
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
-        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue; // 去角
-        put(rootWx + dx, topY + dy, rootWz + dz, leavesId, true);
+  if (conical) {
+    // 云杉：尖锥形树冠——分层菱形圆盘，自尖顶向下半径阶梯递增(0,1,1,2,2)，裸露下段树干（同 MC 云杉）
+    const yTip = topY + 2;
+    const yBot = ground + 3;
+    for (let y = yBot; y <= yTip; y++) {
+      const fromTop = yTip - y;
+      const r = fromTop === 0 ? 0 : Math.min(2, Math.floor((fromTop + 1) / 2));
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dz = -r; dz <= r; dz++) {
+          if (Math.abs(dx) + Math.abs(dz) > r) continue; // 菱形圆盘 → 锥面
+          put(rootWx + dx, y, rootWz + dz, leavesId, true);
+        }
       }
     }
-  }
-  // 顶层 3×3
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dz = -1; dz <= 1; dz++) {
-      put(rootWx + dx, topY, rootWz + dz, leavesId, true);
+  } else {
+    // 橡树：圆冠 —— 下两层 5×5(去角→八边形) + 顶层 3×3 + 十字小帽
+    for (const dy of [-2, -1]) {
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue; // 去角
+          put(rootWx + dx, topY + dy, rootWz + dz, leavesId, true);
+        }
+      }
     }
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        put(rootWx + dx, topY, rootWz + dz, leavesId, true);
+      }
+    }
+    const cap: ReadonlyArray<readonly [number, number]> = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const [dx, dz] of cap) put(rootWx + dx, topY + 1, rootWz + dz, leavesId, true);
   }
-  // 树冠顶：十字小帽
-  const cap: ReadonlyArray<readonly [number, number]> = [
-    [0, 0],
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ];
-  for (const [dx, dz] of cap) put(rootWx + dx, topY + 1, rootWz + dz, leavesId, true);
-  // 树干（覆盖中心叶子/空气）
-  for (let y = ground + 1; y <= topY; y++) put(rootWx, y, rootWz, logId, false);
+  // 树干（覆盖中心叶子/空气）；云杉树干更高，顶到尖下一格
+  const trunkTop = conical ? topY + 1 : topY;
+  for (let y = ground + 1; y <= trunkTop; y++) put(rootWx, y, rootWz, logId, false);
 }
 
 // 下界生成参数
@@ -311,7 +321,7 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
       // 稀疏密度：约 3%（比平原橡树稍多，雪原景观感）
       const r = hash2(wx, wz, seed * 17 + 3);
       if (r >= 0.03) continue;
-      placeTree(c, cx, cz, wx, wz, g, seed, SPRUCE_LOG, SPRUCE_LEAVES);
+      placeTree(c, cx, cz, wx, wz, g, seed, SPRUCE_LOG, SPRUCE_LEAVES, true); // 云杉=尖锥树冠
     }
   }
 
