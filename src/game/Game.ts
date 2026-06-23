@@ -197,6 +197,7 @@ export class Game {
   private dimension: 'overworld' | 'nether' = 'overworld'; // 当前维度（Task 9 接真实切换）
   private portalCooldown = 0; // 过传送门后的冷却(刻)，>0 期间不再触发切维度，防站门里来回弹
   private portalTimer = 0; // 站在传送门里的累计秒数；满 4s 触发传送，离开传送门即清零
+  private portalArmed = true; // Fix2: 需离开传送门后再进才能触发下一次传送，防 AFK 在到达门口来回弹
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -1081,16 +1082,30 @@ export class Game {
   }
 
   // 读「任意维度」某格：当前维度走活的 world；其它维度优先读存档 delta，否则同步生成该列采样一次(仅造门用,量小)。
-  private worldAt(dim: 'overworld' | 'nether', x: number, y: number, z: number): number {
+  // buildChunkCache: Fix1 临时缓存注入——造目的地门期间避免同列重复 generateChunk（每列仅生成一次）。
+  private worldAt(
+    dim: 'overworld' | 'nether',
+    x: number,
+    y: number,
+    z: number,
+    buildChunkCache?: Map<string, ReturnType<typeof generateChunk>>,
+  ): number {
     if (dim === this.dimension) return this.world.getBlock(x, y, z);
     const e = this.save.edits[dimEditKey(dim, x, y, z)];
     if (e !== undefined) return e;
     if (y < 0 || y >= CHUNK_H) return 0;
-    const chunk = generateChunk(worldToChunk(x), worldToChunk(z), this.save.seed, dim);
+    const cx = worldToChunk(x);
+    const cz = worldToChunk(z);
+    const cacheKey = `${dim}:${cx},${cz}`;
+    let chunk = buildChunkCache?.get(cacheKey);
+    if (!chunk) {
+      chunk = generateChunk(cx, cz, this.save.seed, dim);
+      buildChunkCache?.set(cacheKey, chunk);
+    }
     return chunk.get(localCoord(x), y, localCoord(z));
   }
 
-  // 站在传送门里计时；满 4 秒(且不在冷却)→ 传送到对侧维度。首次去某门时按 1:8 映射造目的地门并双向记链接。
+  // 站在传送门里计时；满 4 秒(且不在冷却且 portalArmed)→ 传送到对侧维度。首次去某门时按 1:8 映射造目的地门并双向记链接。
   private tickPortalTravel(): void {
     const pos = this.player.pos;
     const bx = Math.floor(pos.x);
@@ -1098,21 +1113,26 @@ export class Game {
     const bz = Math.floor(pos.z);
     const inPortal = isNetherPortalId(this.world.getBlock(bx, by, bz));
     this.portalTimer = inPortal ? this.portalTimer + TICK_MS / 1000 : 0; // 离开传送门即清零
-    if (!inPortal || this.portalCooldown !== 0 || this.portalTimer < 4) return; // 1:1 生存：站门 4 秒才传送
+    if (!inPortal) this.portalArmed = true; // Fix2: 离开传送门后重新 arm，需再走进去才能触发下一次传送
+    if (!inPortal || !this.portalArmed || this.portalCooldown !== 0 || this.portalTimer < 4) return; // 1:1 生存：站门 4 秒才传送
 
     const target: 'overworld' | 'nether' = this.dimension === 'overworld' ? 'nether' : 'overworld';
     const srcKey = `${this.dimension}:${bx},${by},${bz}`;
     const links = (this.save.portalLinks ??= {});
     let dest = links[srcKey];
     if (!dest) {
+      // Fix1: 每次 buildDestinationPortal 前创建本次专用缓存，确保同列 chunk 只 generateChunk 一次，用完即弃。
+      const buildChunkCache = new Map<string, ReturnType<typeof generateChunk>>();
       const [tx, tz] = mapPortalCoord(this.dimension, pos.x, pos.z);
-      const built = buildDestinationPortal((x, y, z) => this.worldAt(target, x, y, z), target, tx, tz);
+      const built = buildDestinationPortal((x, y, z) => this.worldAt(target, x, y, z, buildChunkCache), target, tx, tz);
+      buildChunkCache.clear(); // 释放临时缓存，不跨次传送保留
       for (const [x, y, z, id] of built.edits) this.editDim(target, x, y, z, id); // 写进目标维度 edits(前缀键)
       dest = [built.spawn.x, built.spawn.y, built.spawn.z];
       links[srcKey] = dest; // 去程链接
       // 回程链接：目标门落点 → 当前站位（双向，回去复用同一对门）
       links[`${target}:${Math.floor(dest[0])},${Math.floor(dest[1])},${Math.floor(dest[2])}`] = [pos.x, pos.y, pos.z];
     }
+    this.portalArmed = false; // Fix2: 传送后 disarm，到达门里必须先走出再走进才能再次触发
     this.portalTimer = 0; // 传送后清零：到达对侧门里需重新站满 4s 才再触发(配合 cooldown 防 AFK 来回弹)
     this.switchDimension(target, { x: dest[0], y: dest[1], z: dest[2] }); // 内部会把 portalCooldown 置 60，防到点立刻弹回
   }
