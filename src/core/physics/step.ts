@@ -18,7 +18,7 @@ import {
   FLY_SPRINT_PER_TICK,
   FLY_VERT_PER_TICK,
 } from './player';
-import { blockSlipperiness } from '../blocks/registry';
+import { blockSlipperiness, SOUL_SAND } from '../blocks/registry';
 
 const HW = WIDTH / 2;
 type Axis = 'x' | 'y' | 'z';
@@ -132,8 +132,17 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const hasHorizIntent = Math.hypot(wish.x, wish.z) > 1e-9;
   if (hasHorizIntent || !grounded || inWater) {
     // 有输入 / 在水中 / 空中：直接设定速度（保持原行为）
-    vel.x = wish.x * speed + kbx;
-    vel.z = wish.z * speed + kbz;
+    // 灵魂沙减速：贴地且有输入时，脚下灵魂沙(id 20)→ 移动速度 ×0.5（MC 1:1）
+    let activeSpeed = speed;
+    if (hasHorizIntent && grounded && !inWater) {
+      const floorBx = Math.floor(pos.x);
+      const floorBy = Math.floor(pos.y - 0.1);
+      const floorBz = Math.floor(pos.z);
+      const floorId = world.getBlock?.(floorBx, floorBy, floorBz) ?? 0;
+      if (floorId === SOUL_SAND) activeSpeed *= 0.5;
+    }
+    vel.x = wish.x * activeSpeed + kbx;
+    vel.z = wish.z * activeSpeed + kbz;
   } else {
     // 无输入且贴地：按脚下方块滑度保留水平速度（冰面惯性滑行）
     const floorBx = Math.floor(pos.x);
