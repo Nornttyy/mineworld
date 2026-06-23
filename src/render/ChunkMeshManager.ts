@@ -31,7 +31,8 @@ const MC_BRIGHT_GLSL = 'float mcBright(float lv){ float f = clamp(lv,0.0,15.0)/1
 const MC_LIGHT_GLSL =
   '{ float skyLv = aLight.x*15.0; float blkLv = aLight.y*15.0;' +
   ' float bs = mcBright(max(skyLv - uSkyDarken, 0.0)); float bb = mcBright(blkLv);' +
-  ' vLF = max(bs, bb) * 0.96 + 0.04;' +
+  ' float drkFloor = (skyLv < 0.5) ? 0.012 : 0.04;' + // 纯无天光(洞穴/地下)压更暗→需火把(MC感);露天含夜晚 skyLv=15 保持 0.04 不动
+  ' vLF = max(bs, bb) * 0.96 + drkFloor;' +
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
 
