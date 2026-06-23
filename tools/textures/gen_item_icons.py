@@ -27,6 +27,21 @@ OUTLINE_STONE = "#272727"
 COAL = "#2b2b2b"
 COAL_HI = "#4c4c4c"
 COAL_LO = "#161616"
+# 火药：灰粉堆
+GP = "#5e5e5e"
+GP_HI = "#808080"
+GP_LO = "#383838"
+# 下界石英：暖白晶体（仿 MC 略带粉白）
+QZ = "#ece2d6"
+QZ_HI = "#fffaf4"
+QZ_LO = "#d2c2b2"
+# 打火石：钢条(银) + 燧石(深灰角块)
+STEEL = "#b6b6c0"
+STEEL_HI = "#dcdce4"
+STEEL_LO = "#7e7e8a"
+FLINT = "#4a4a50"
+FLINT_HI = "#66666c"
+FLINT_LO = "#2c2c32"
 
 
 def hx(s):
@@ -283,6 +298,67 @@ def make_torch():
     return im
 
 
+def make_gunpowder():
+    """火药：底部一堆灰粉，掺暗色颗粒。"""
+    im, px = blank()
+    pile = [
+        (6, 7), (7, 7), (8, 7), (9, 7),
+        (5, 8), (6, 8), (7, 8), (8, 8), (9, 8), (10, 8),
+        (4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (10, 9), (11, 9),
+        (4, 10), (5, 10), (6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10),
+        (5, 11), (6, 11), (7, 11), (8, 11), (9, 11), (10, 11),
+    ]
+    shade_head(px, pile, GP, GP_HI, GP_LO)
+    for (x, y) in [(6, 8), (9, 9), (7, 10), (5, 10), (10, 10), (8, 11)]:
+        px[x, y] = hx(GP_LO)  # 暗色火药粒
+    add_outline(px, OUTLINE_STONE)
+    return im
+
+
+def make_nether_quartz():
+    """下界石英：居中六角白晶 + 中央竖向亮棱。"""
+    im, px = blank()
+    crystal = [
+        (8, 2),
+        (7, 3), (8, 3), (9, 3),
+        (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+        (6, 5), (7, 5), (8, 5), (9, 5), (10, 5),
+        (6, 6), (7, 6), (8, 6), (9, 6), (10, 6),
+        (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+        (7, 8), (8, 8), (9, 8),
+        (8, 9),
+    ]
+    shade_head(px, crystal, QZ, QZ_HI, QZ_LO)
+    for y in (4, 5, 6, 7):
+        px[8, y] = hx(QZ_HI)  # 中央亮棱
+    add_outline(px, OUTLINE_STONE)
+    return im
+
+
+def make_flint_and_steel():
+    """打火石：左上深灰燧石 + 右侧银钢条(带底钩)，斜置。"""
+    im, px = blank()
+    steel = [
+        (10, 4), (11, 4), (11, 5), (10, 5),
+        (9, 6), (10, 6),
+        (8, 7), (9, 7),
+        (7, 8), (8, 8),
+        (6, 9), (7, 9),
+        (5, 10), (6, 10),
+        (5, 11), (6, 11), (5, 12), (6, 12), (7, 12),  # 底钩
+    ]
+    shade_head(px, steel, STEEL, STEEL_HI, STEEL_LO)
+    flint = [
+        (3, 4), (4, 4), (5, 4),
+        (2, 5), (3, 5), (4, 5), (5, 5),
+        (2, 6), (3, 6), (4, 6),
+        (3, 7),
+    ]
+    shade_head(px, flint, FLINT, FLINT_HI, FLINT_LO)
+    add_outline(px, OUTLINE_STONE)
+    return im
+
+
 def recolor(wood_name, table):
     """从木质工具整体换色(石/铁)：每个木色像素按 table 映射，形状沿用用户手绘。"""
     im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
@@ -333,7 +409,11 @@ def main():
     for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel", "stick"]:
         center_png(n)
     # 基础(脚本生成的)先存盘，供下面 recolor 读取
-    base = {"coal": make_coal(), "wooden_hoe": make_hoe(False), "torch": make_torch()}  # stick 由用户手绘，不在此生成
+    base = {
+        "coal": make_coal(), "wooden_hoe": make_hoe(False), "torch": make_torch(),
+        "gunpowder": make_gunpowder(), "flint_and_steel": make_flint_and_steel(),
+        "nether_quartz": make_nether_quartz(),
+    }  # stick 由用户手绘，不在此生成
     for name, im in base.items():
         im.save(os.path.join(ICON, f"{name}.png"))
     # 石质=整体换石、铁质=整体换银(都从木质换色)，加铁锭
