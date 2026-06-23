@@ -190,6 +190,7 @@ export class Game {
   private readonly hand: FirstPersonHand;
   private readonly particleFx: ParticleRenderer;
   private readonly skyObjects: SkyObjects;
+  private dimension: 'overworld' | 'nether' = 'overworld'; // 当前维度（Task 9 接真实切换）
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -314,6 +315,7 @@ export class Game {
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
     this.skyObjects.setLightingQuality(loadSettings().lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
+    this.skyObjects.setDimension(this.dimension); // 初始维度同步（默认 overworld，Task 9 接真实切换）
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.coordEl = document.createElement('div');
@@ -1466,7 +1468,7 @@ export class Game {
   // 昼夜更替：按世界时间套用天空渐变、雾色、世界亮度着色。水下时雾被 updateWater 换成蓝雾，
   //   这里只改“正常雾”的颜色，故两者不冲突。
   private updateDayNight(): void {
-    const s = skyStateAt(this.worldTime);
+    const s = skyStateAt(this.worldTime, this.dimension);
     this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
