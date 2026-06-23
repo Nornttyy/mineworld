@@ -848,6 +848,17 @@ def main():
         'coal_block': ('coal_block', 'coal_block'),
         'iron_block': ('iron_block', 'iron_block'),
         'quartz_block': ('quartz_block', 'quartz_block'),
+        # 生物群系/下界方块的等距图标(之前漏了→快捷栏/背包没图标)
+        'obsidian': ('obsidian', 'obsidian'),
+        'netherrack': ('netherrack', 'netherrack'),
+        'soul_sand': ('soul_sand', 'soul_sand'),
+        'glowstone': ('glowstone', 'glowstone'),
+        'nether_quartz_ore': ('nether_quartz_ore', 'nether_quartz_ore'),
+        'cactus': ('cactus', 'cactus'),
+        'ice': ('ice', 'ice'),
+        'spruce_log': ('oak_log_top', 'spruce_log'),
+        'spruce_leaves': ('spruce_leaves', 'spruce_leaves'),
+        'bedrock': ('bedrock', 'bedrock'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
