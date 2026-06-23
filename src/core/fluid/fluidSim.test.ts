@@ -38,6 +38,12 @@ class Grid implements FluidGrid {
   solid(x: number, y: number, z: number): void {
     this.solids.add(this.k(x, y, z));
   }
+  getBlock(): number {
+    return 0; // no lava in these tests
+  }
+  setBlock(): void {
+    // no-op: these tests don't exercise lava→obsidian
+  }
 }
 
 function run(sim: FluidSim, g: FluidGrid, ticks: number): void {

@@ -277,6 +277,8 @@ export class Game {
       isSource: (x, y, z) => this.world.isWaterSource(x, y, z),
       isFalling: (x, y, z) => this.world.isWaterFalling(x, y, z),
       setWater: (x, y, z, a, s, f) => this.world.setWater(x, y, z, a, s, f),
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+      setBlock: (x, y, z, id) => this.edit(x, y, z, id),
     };
     // 应用存档里玩家改过的方块（delta），并激活其周围的水（重新流入/退去）
     for (const key of Object.keys(save.edits)) {
