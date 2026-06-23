@@ -13,6 +13,8 @@ function gridFor(w: ChunkWorld): FluidGrid {
     isSource: (x, y, z) => w.isWaterSource(x, y, z),
     isFalling: (x, y, z) => w.isWaterFalling(x, y, z),
     setWater: (x, y, z, a, s, f) => w.setWater(x, y, z, a, s, f),
+    getBlock: (x, y, z) => w.getBlock(x, y, z),
+    setBlock: (x, y, z, id) => w.setBlock(x, y, z, id),
   };
 }
 

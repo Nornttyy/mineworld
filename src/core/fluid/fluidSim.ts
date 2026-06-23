@@ -17,6 +17,8 @@ export interface FluidGrid {
   isSource(x: number, y: number, z: number): boolean;
   isFalling(x: number, y: number, z: number): boolean;
   setWater(x: number, y: number, z: number, amount: number, source: boolean, falling: boolean): void;
+  getBlock(x: number, y: number, z: number): number;
+  setBlock(x: number, y: number, z: number, id: number): void;
 }
 
 const FULL = 8;
@@ -101,6 +103,21 @@ export class FluidSim {
     }
     const isWater = g.amount(x, y, z) > 0 || g.isSource(x, y, z);
     if (!isWater) return; // 空气：自身不动，靠邻格扩散进来
+
+    // 流动水（非源）接触岩浆(23) → 岩浆变黑曜石(18)，水被消耗
+    if (g.amount(x, y, z) > 0 && !g.isSource(x, y, z)) {
+      const neighbors: [number, number, number][] = [
+        [x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
+        [x, y + 1, z], [x, y - 1, z],
+      ];
+      for (const [nx, ny, nz] of neighbors) {
+        if (g.getBlock(nx, ny, nz) === 23) {
+          g.setBlock(nx, ny, nz, 18);
+          propose(x, y, z, EMPTY);
+          return;
+        }
+      }
+    }
 
     const self: Cell = g.isSource(x, y, z)
       ? { amount: FULL, source: true, falling: false }
