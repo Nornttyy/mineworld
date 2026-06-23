@@ -66,6 +66,30 @@ describe('ChunkWorld', () => {
   });
 });
 
+describe('ChunkWorld dimension', () => {
+  it('nether 维度生成地狱岩、与主世界同坐标不同', () => {
+    const ov = new ChunkWorld(123, 'overworld');
+    const ne = new ChunkWorld(123, 'nether');
+    const cOv = ov.getChunk(0, 0);
+    const cNe = ne.getChunk(0, 0);
+    // 下界某填充层应是地狱岩(19)，主世界不是
+    let netherrackInNe = 0;
+    for (let y = 5; y < 120; y++) if (cNe.get(0, y, 0) === 19) netherrackInNe++;
+    expect(netherrackInNe).toBeGreaterThan(0);
+    expect(ne.dimension).toBe('nether');
+    expect(ov.dimension).toBe('overworld');
+    // 主世界同坐标不全是地狱岩
+    const netherrackInOv = Array.from({ length: 115 }, (_, i) => cOv.get(0, i + 5, 0)).filter((b) => b === 19)
+      .length;
+    expect(netherrackInNe).toBeGreaterThan(netherrackInOv);
+  });
+
+  it('单参构造默认 overworld（旧调用方不变）', () => {
+    const w = new ChunkWorld(42);
+    expect(w.dimension).toBe('overworld');
+  });
+});
+
 describe('meshChunk', () => {
   it('produces geometry; every face is a quad (4 verts / 6 indices)', () => {
     const w = new ChunkWorld(7);
