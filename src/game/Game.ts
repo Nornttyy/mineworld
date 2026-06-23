@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_H, CHUNK_W } from '../core/world/chunk';
-import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
-import { worldToChunk } from '../core/world/coords';
+import { columnHeight, SEA_LEVEL, generateChunk } from '../core/worldgen/terrain';
+import { worldToChunk, localCoord } from '../core/world/coords';
 import {
   isSolidId,
   isWaterId,
@@ -19,6 +19,9 @@ import {
   CRAFTING_TABLE,
   FURNACE,
   GRAVEL,
+  OBSIDIAN,
+  NETHER_PORTAL,
+  isNetherPortalId,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -77,12 +80,13 @@ import {
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, EGG, FLINT, ARROW, BOW, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
+import { APPLE, EGG, FLINT, ARROW, BOW, FLINT_AND_STEEL, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
+import { ignitePortal, mapPortalCoord, buildDestinationPortal } from '../core/world/portalFill';
 import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
-import type { WorldSave } from '../save/worldStore';
+import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
 
 const TICK_MS = 50; // 20 TPS 固定步长
@@ -174,9 +178,9 @@ export class Game {
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
   private readonly look: PointerLookControls;
-  private readonly world: ChunkWorld;
+  private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   private readonly physWorld: VoxelWorld;
-  private readonly chunks: ChunkMeshManager;
+  private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
   private readonly highlight: THREE.LineSegments;
   private readonly underwaterEl: HTMLElement | null;
   private readonly normalFog: THREE.FogBase | null;
@@ -190,6 +194,10 @@ export class Game {
   private readonly hand: FirstPersonHand;
   private readonly particleFx: ParticleRenderer;
   private readonly skyObjects: SkyObjects;
+  private dimension: 'overworld' | 'nether' = 'overworld'; // 当前维度（Task 9 接真实切换）
+  private portalCooldown = 0; // 过传送门后的冷却(刻)，>0 期间不再触发切维度，防站门里来回弹
+  private portalTimer = 0; // 站在传送门里的累计秒数；满 4s 触发传送，离开传送门即清零
+  private portalArmed = true; // Fix2: 需离开传送门后再进才能触发下一次传送，防 AFK 在到达门口来回弹
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -270,9 +278,9 @@ export class Game {
     this.statusBar.render(this.survival);
     this.worldTime = save.worldTime ?? DAY_START; // 昼夜：续存档时刻，新世界从清晨开始
 
-    this.world = new ChunkWorld(save.seed);
     this.fluidGrid = {
       // 世界顶/底之外视作固体：水不会灌进虚空(否则到 y=0 会无限提议下落、永不收敛)
+      // 注意：读 this.world（非捕获局部），切维度替换 world 后这些闭包自动指向新世界。
       isSolid: (x, y, z) => y < 0 || y >= CHUNK_H || isSolidId(this.world.getBlock(x, y, z)),
       amount: (x, y, z) => this.world.waterAmount(x, y, z),
       isSource: (x, y, z) => this.world.isWaterSource(x, y, z),
@@ -281,22 +289,9 @@ export class Game {
       getBlock: (x, y, z) => this.world.getBlock(x, y, z),
       setBlock: (x, y, z, id) => this.edit(x, y, z, id),
     };
-    // 应用存档里玩家改过的方块（delta），并激活其周围的水（重新流入/退去）
-    for (const key of Object.keys(save.edits)) {
-      const [x, y, z] = key.split(',').map(Number);
-      this.world.setBlock(x, y, z, save.edits[key]);
-      this.fluidSim.activate(x, y, z);
-    }
-    // 远处区块被驱逐释放内存(治越走越卡)，走回来重生成是纯地形 → 用此 hook 把该区块的玩家改动贴回。
-    this.world.editHook = (cx, cz, c): void => {
-      for (const key in this.save.edits) {
-        const ci = key.indexOf(',');
-        const cj = key.indexOf(',', ci + 1);
-        const x = +key.slice(0, ci);
-        const z = +key.slice(cj + 1);
-        if ((x >> 4) === cx && (z >> 4) === cz) c.set(x & 15, +key.slice(ci + 1, cj), z & 15, this.save.edits[key]);
-      }
-    };
+    // 维度：续存档维度，新档/旧档默认主世界。buildDimension 建对应维度的世界 + 只贴该维度的玩家改动。
+    this.dimension = save.currentDimension ?? 'overworld';
+    this.buildDimension(this.dimension);
     this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
     this.lightingQuality = loadSettings().lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
     this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
@@ -314,6 +309,7 @@ export class Game {
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
     this.skyObjects.setLightingQuality(loadSettings().lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
+    this.skyObjects.setDimension(this.dimension); // 初始维度同步（默认 overworld，Task 9 接真实切换）
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.coordEl = document.createElement('div');
@@ -328,16 +324,20 @@ export class Game {
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
     };
 
-    // 出生：worldSpawn 始终为世界出生点（死亡重生用）；有存档位置则从那里继续
-    const p = save.player;
+    // 出生：worldSpawn 始终为【主世界】出生点（死亡重生用）；
+    //   有存档位置则从那里继续——优先用当前维度的存档位(playerByDimension[dim])，
+    //   这样在下界存档重开仍落回下界；否则退回 save.player（旧档/未分维度）。
+    const p = save.playerByDimension?.[this.dimension] ?? save.player;
     this.worldSpawn = this.findSpawn(save.seed);
     const spawn = p ? { x: p.x, y: p.y, z: p.z } : this.worldSpawn;
     this.player = { pos: { ...spawn }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     this.prev = this.player;
     this.chunks.update(worldToChunk(Math.floor(spawn.x)), worldToChunk(Math.floor(spawn.z)), 2, 999);
     // 生物：有存档就还原玩家上次离开时附近的（动物/敌对）；否则（新世界/旧档）出生周边撒几群
-    if (save.mobs && save.mobs.length) {
-      for (const sm of save.mobs) this.mobs.push(deserializeMob(sm));
+    //   优先取当前维度的生物群（mobsByDimension[dim]），退回 save.mobs（旧档/未分维度）。
+    const savedMobs = save.mobsByDimension?.[this.dimension] ?? save.mobs;
+    if (savedMobs && savedMobs.length) {
+      for (const sm of savedMobs) this.mobs.push(deserializeMob(sm));
     } else {
       for (let i = 0; i < 4; i++) {
         this.mobs.push(...spawnRingGroup(MOB_KINDS[i % 4], spawn.x, spawn.z, this.mobRng, this.spawnWorld, this.surfaceY, 6, 26));
@@ -431,6 +431,74 @@ export class Game {
     );
   }
 
+  /**
+   * 建/换当前维度的世界（不动 chunks 网格管理器——构造时建一次、切维度复用）：
+   *   ① new ChunkWorld(seed, dim)（原始种子；下界 +70000 偏移在 generateNetherChunk 内按 dim 加，这里不重复加）
+   *   ② editHook：远处区块被驱逐后重生成是纯地形，用此 hook 贴回本维度的玩家改动
+   *   ③ 应用本维度已有的玩家改动（delta）并激活其周围的水
+   * 关键：edits 是按维度前缀键存的（主世界无前缀 "x,y,z"、下界 "nether:x,y,z"），
+   *   读写两侧都按 parseEditKey(key).dim === dim 过滤，确保下界改的块只在下界生效/恢复、不污染主世界。
+   */
+  private buildDimension(dim: 'overworld' | 'nether'): void {
+    this.world = new ChunkWorld(this.save.seed, dim);
+    // 驱逐后重生成时贴回本维度的玩家改动（只贴 dim 匹配 + 该区块内的）
+    this.world.editHook = (cx, cz, c): void => {
+      for (const key in this.save.edits) {
+        const e = parseEditKey(key);
+        if (e.dim !== dim) continue;
+        if ((e.x >> 4) === cx && (e.z >> 4) === cz) c.set(e.x & 15, e.y, e.z & 15, this.save.edits[key]);
+      }
+    };
+    // 应用本维度玩家改过的方块（delta），并激活其周围的水（重新流入/退去）
+    for (const key of Object.keys(this.save.edits)) {
+      const e = parseEditKey(key);
+      if (e.dim !== dim) continue;
+      this.world.setBlock(e.x, e.y, e.z, this.save.edits[key]);
+      this.fluidSim.activate(e.x, e.y, e.z);
+    }
+  }
+
+  /**
+   * 切维度（过传送门时调用）：复用同一个 ChunkMeshManager，只换世界引用 + 各维度独立的玩家位/生物。
+   *   1) 存当前维度的玩家位置 + 生物到 save.playerByDimension / mobsByDimension
+   *   2) 建目标维度的 world（buildDimension），把 chunks 指向它（setWorld 清旧网格），再 dispose 旧 world
+   *      —— 顺序关键：先 setWorld 再 old.dispose()，否则 dispose 会 terminate 旧 worker 留下半成品网格。
+   *   3) 落点 + 还原目标维度生物 + 天空切换 + 预加载落点周围 + 冷却防来回弹
+   * 触发方（站在传送门里检测 + 目标坐标映射）由 Task 10 在游戏循环里接上并调用本方法。
+   * 非 private：供 Task 10 的传送门触发逻辑（同在 Game 内）调用；当前任务只提供切换机制本身。
+   */
+  switchDimension(target: 'overworld' | 'nether', pos: { x: number; y: number; z: number }): void {
+    // 1) 存当前维度玩家位 + 生物
+    (this.save.playerByDimension ??= {})[this.dimension] = {
+      x: this.player.pos.x,
+      y: this.player.pos.y,
+      z: this.player.pos.z,
+      yaw: this.look.yaw,
+      pitch: this.look.pitch,
+    };
+    (this.save.mobsByDimension ??= {})[this.dimension] = this.mobs.map(serializeMob);
+    // 2) 切维度：建新世界 → 换 chunks 世界引用 → dispose 旧世界(terminate 旧 gen worker，防双世界常驻)
+    const old = this.world;
+    this.dimension = target;
+    this.save.currentDimension = target;
+    this.buildDimension(target);
+    this.chunks.setWorld(this.world);
+    old.dispose();
+    // 流体活跃集：FluidSim 无公开 clear（其 active 集每刻 tick 后自动清空），故无需手动重置——非致命，跳过。
+    // 还原目标维度的生物（清掉来源维度的）
+    this.mobs.length = 0;
+    for (const sm of this.save.mobsByDimension?.[target] ?? []) this.mobs.push(deserializeMob(sm));
+    // 3) 落点 + 天空 + 预加载落点周围区块
+    this.player = { pos: { ...pos }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    this.prev = this.player;
+    this.skyObjects.setDimension(target);
+    const cx = worldToChunk(Math.floor(pos.x));
+    const cz = worldToChunk(Math.floor(pos.z));
+    this.chunks.update(cx, cz, 2, 999); // 派发落点周围网格化（后台 worker 算）
+    this.chunks.flushMesh(64); // 把已就绪的尽量上屏（其余由游戏循环逐帧续上）
+    this.portalCooldown = 60; // ~过门后 60 刻冷却，防来回弹
+  }
+
   // 当前世界状态快照（写回存档对象，供持久化）
   snapshot(): WorldSave {
     this.save.player = {
@@ -451,6 +519,11 @@ export class Game {
     this.save.worldTime = this.worldTime; // 昼夜：存当前时刻，下次续上
     this.save.mobs = this.mobs.map(serializeMob); // 附近生物（动物/敌对）随档保存
     this.save.furnaces = Object.fromEntries(this.furnaces); // 熔炉状态(炉内料/燃料/进度)随档保存，否则重开就丢
+    // 维度：记当前维度 + 把当前维度的玩家位/生物镜像进各维度表（与 switchDimension 一致），
+    //   这样在下界存档→重开仍落回下界（构造按 currentDimension + playerByDimension 恢复）。
+    this.save.currentDimension = this.dimension;
+    (this.save.playerByDimension ??= {})[this.dimension] = { ...this.save.player };
+    (this.save.mobsByDimension ??= {})[this.dimension] = this.save.mobs;
     this.save.lastPlayed = Date.now();
     return this.save;
   }
@@ -628,6 +701,8 @@ export class Game {
         this.tickMobs(); // 生物 AI/物理/掉蛋/周期刷新（每刻）
         this.tickArrows(); // 飞行的箭：推进 + 命中判定 + 拾取
         this.tickLeafDecay(); // 失去支撑的树叶慢慢腐烂
+        if (this.portalCooldown > 0) this.portalCooldown--; // 过传送门冷却倒计时
+        this.tickPortalTravel(); // 站门 4s → 传送到对侧维度(必要时造目的地门)
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -853,6 +928,11 @@ export class Game {
       return;
     }
     const stack = this.inv[this.hotbar.index];
+    // 手持打火石命中黑曜石 → 点燃下界传送门
+    if (hit && stack && stack.id === FLINT_AND_STEEL && this.world.getBlock(hit.x, hit.y, hit.z) === OBSIDIAN) {
+      const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z);
+      if (inner) { for (const [x, y, z] of inner) this.edit(x, y, z, NETHER_PORTAL); return; }
+    }
     // 手持弓且有箭 → 拉弓蓄力（松开右键时发射）
     if (stack && stack.id === BOW && countItem(this.inv, ARROW) > 0) {
       this.drawingBow = true;
@@ -991,9 +1071,70 @@ export class Game {
   // 记录方块改动到存档 delta
   private edit(x: number, y: number, z: number, id: number): void {
     this.world.setBlock(x, y, z, id);
-    this.save.edits[`${x},${y},${z}`] = id;
+    this.save.edits[dimEditKey(this.dimension, x, y, z)] = id; // 按维度前缀键存(下界 "nether:" 前缀)，避免跨维度污染
     this.fluidSim.activate(x, y, z); // 让相邻的水流进/退去
     this.chunks.remeshDirty();
+  }
+
+  // 只写存档 delta（不动当前世界——给「另一个未加载维度」写方块用：切过去 buildDimension 时应用）。
+  private editDim(dim: 'overworld' | 'nether', x: number, y: number, z: number, id: number): void {
+    this.save.edits[dimEditKey(dim, x, y, z)] = id;
+  }
+
+  // 读「任意维度」某格：当前维度走活的 world；其它维度优先读存档 delta，否则同步生成该列采样一次(仅造门用,量小)。
+  // buildChunkCache: Fix1 临时缓存注入——造目的地门期间避免同列重复 generateChunk（每列仅生成一次）。
+  private worldAt(
+    dim: 'overworld' | 'nether',
+    x: number,
+    y: number,
+    z: number,
+    buildChunkCache?: Map<string, ReturnType<typeof generateChunk>>,
+  ): number {
+    if (dim === this.dimension) return this.world.getBlock(x, y, z);
+    const e = this.save.edits[dimEditKey(dim, x, y, z)];
+    if (e !== undefined) return e;
+    if (y < 0 || y >= CHUNK_H) return 0;
+    const cx = worldToChunk(x);
+    const cz = worldToChunk(z);
+    const cacheKey = `${dim}:${cx},${cz}`;
+    let chunk = buildChunkCache?.get(cacheKey);
+    if (!chunk) {
+      chunk = generateChunk(cx, cz, this.save.seed, dim);
+      buildChunkCache?.set(cacheKey, chunk);
+    }
+    return chunk.get(localCoord(x), y, localCoord(z));
+  }
+
+  // 站在传送门里计时；满 4 秒(且不在冷却且 portalArmed)→ 传送到对侧维度。首次去某门时按 1:8 映射造目的地门并双向记链接。
+  private tickPortalTravel(): void {
+    const pos = this.player.pos;
+    const bx = Math.floor(pos.x);
+    const by = Math.floor(pos.y);
+    const bz = Math.floor(pos.z);
+    const inPortal = isNetherPortalId(this.world.getBlock(bx, by, bz));
+    this.portalTimer = inPortal ? this.portalTimer + TICK_MS / 1000 : 0; // 离开传送门即清零
+    if (!inPortal) this.portalArmed = true; // Fix2: 离开传送门后重新 arm，需再走进去才能触发下一次传送
+    if (!inPortal || !this.portalArmed || this.portalCooldown !== 0 || this.portalTimer < 4) return; // 1:1 生存：站门 4 秒才传送
+
+    const target: 'overworld' | 'nether' = this.dimension === 'overworld' ? 'nether' : 'overworld';
+    const srcKey = `${this.dimension}:${bx},${by},${bz}`;
+    const links = (this.save.portalLinks ??= {});
+    let dest = links[srcKey];
+    if (!dest) {
+      // Fix1: 每次 buildDestinationPortal 前创建本次专用缓存，确保同列 chunk 只 generateChunk 一次，用完即弃。
+      const buildChunkCache = new Map<string, ReturnType<typeof generateChunk>>();
+      const [tx, tz] = mapPortalCoord(this.dimension, pos.x, pos.z);
+      const built = buildDestinationPortal((x, y, z) => this.worldAt(target, x, y, z, buildChunkCache), target, tx, tz);
+      buildChunkCache.clear(); // 释放临时缓存，不跨次传送保留
+      for (const [x, y, z, id] of built.edits) this.editDim(target, x, y, z, id); // 写进目标维度 edits(前缀键)
+      dest = [built.spawn.x, built.spawn.y, built.spawn.z];
+      links[srcKey] = dest; // 去程链接
+      // 回程链接：目标门落点 → 当前站位（双向，回去复用同一对门）
+      links[`${target}:${Math.floor(dest[0])},${Math.floor(dest[1])},${Math.floor(dest[2])}`] = [pos.x, pos.y, pos.z];
+    }
+    this.portalArmed = false; // Fix2: 传送后 disarm，到达门里必须先走出再走进才能再次触发
+    this.portalTimer = 0; // 传送后清零：到达对侧门里需重新站满 4s 才再触发(配合 cooldown 防 AFK 来回弹)
+    this.switchDimension(target, { x: dest[0], y: dest[1], z: dest[2] }); // 内部会把 portalCooldown 置 60，防到点立刻弹回
   }
 
   // 砍木后：把此处附近"失去原木支撑"的树叶排入腐烂队列（去重），给每片一个随机倒计时 → 慢慢腐烂。
@@ -1267,7 +1408,7 @@ export class Game {
           const b = this.world.getBlock(bx, by, bz);
           if (!isSolidId(b) && !isPlantId(b)) continue; // 空气/水不炸；实心 + 草丛都炸(免得炸完草浮空)
           this.world.setBlock(bx, by, bz, AIR);
-          this.save.edits[`${bx},${by},${bz}`] = AIR; // 坑随存档保留
+          this.save.edits[dimEditKey(this.dimension, bx, by, bz)] = AIR; // 坑随存档保留(按维度前缀键)
           this.fluidSim.activate(bx, by, bz); // 让周围的水流进坑
         }
     this.chunks.remeshDirty(); // 一次性重建被波及的脏区块
@@ -1466,7 +1607,7 @@ export class Game {
   // 昼夜更替：按世界时间套用天空渐变、雾色、世界亮度着色。水下时雾被 updateWater 换成蓝雾，
   //   这里只改“正常雾”的颜色，故两者不冲突。
   private updateDayNight(): void {
-    const s = skyStateAt(this.worldTime);
+    const s = skyStateAt(this.worldTime, this.dimension);
     this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);

@@ -210,6 +210,8 @@ export class SkyObjects {
   private drift = 0; // 云缓飘累计（格）
   private cloudOriginX = NaN; // 立体云已建网格的格原点（变了才重建）
   private cloudOriginZ = NaN;
+  private lq: LightingQuality = 'off'; // 当前光影档（供 setDimension('overworld') 恢复）
+  private dim: 'overworld' | 'nether' = 'overworld'; // 当前维度
 
   constructor(scene: THREE.Scene) {
     const sky = (tex: THREE.Texture): THREE.MeshBasicMaterial =>
@@ -255,8 +257,21 @@ export class SkyObjects {
     scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds);
   }
 
+  /** 维度切换：下界隐藏日月云；主世界按当前光影档恢复。 */
+  setDimension(dim: 'overworld' | 'nether'): void {
+    this.dim = dim;
+    if (dim === 'nether') {
+      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds]) {
+        m.visible = false;
+      }
+    } else {
+      this.setLightingQuality(this.lq); // 恢复主世界显隐（按当前光影档）
+    }
+  }
+
   /** 光影画质：off → MC 立体方块云 + 方块日月；standard/high → 柔和真实云 + 真实日月。 */
   setLightingQuality(q: LightingQuality): void {
+    this.lq = q;
     const on = q !== 'off';
     this.shaders = on;
     if (on) this.ensureSoftCloud(); // 光影开才建 512² 柔云贴图(延迟分配；光影关不付这块内存)
@@ -306,6 +321,7 @@ export class SkyObjects {
 
   /** 每帧：太阳/月亮按世界时间走天球；云层跟玩家、缓飘（立体云世界固定可走出云底）。 */
   update(worldTime: number, camPos: THREE.Vector3): void {
+    if (this.dim === 'nether') return; // 下界无日月云，跳过所有定位与云重建
     const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 0=日出
     this.dir.set(Math.cos(th), Math.sin(th), 0.28).normalize();
     const R = 280;
