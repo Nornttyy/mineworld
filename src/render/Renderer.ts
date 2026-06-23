@@ -153,17 +153,9 @@ export class Renderer {
         Math.max(1, Math.round((h * pr) / 4)),
       );
     }
-    // 确保 SSAO 已建。
-    if (this.ssao === null) {
-      const pr = this.gl.getPixelRatio();
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      this.ssao = new SSAO();
-      this.ssao.setSize(
-        Math.max(1, Math.round((w * pr) / 2)),
-        Math.max(1, Math.round((h * pr) / 2)),
-      );
-    }
+    // SSAO 暂停用：半分辨率 + 粗糙深度重建在平面方块上产生"网格/细条纹"伪影(用户报"开光影有条纹"),
+    // 且体素地形已有【烤进顶点的体素 AO】(干净无伪影)给立体感,SSAO 收益有限还吃显存(本机内存吃紧)。
+    // 保留 SSAO.ts 备用;此处不构建 → ssao 恒 null → render() 跳过 AO pass、合成 uAO=0(无暗化)。
     this.god = opts;
   }
 
