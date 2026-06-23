@@ -246,7 +246,9 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
           continue;
         }
         let id = STONE;
-        if (beach) {
+        if (y === 0 || (y === 1 && valueNoise3(wx * 0.9, 1.5, wz * 0.9, seed + 4242) > 0.5)) {
+          id = BEDROCK; // 世界底基岩：y=0 满铺 + y=1 噪声层(MC 风,不可破,防玩家穿到虚空)——修"基岩消失"(主世界之前只铺石头)
+        } else if (beach) {
           // 沙滩/水边：沙覆盖，不受群系影响（保持原行为）
           if (y === height) id = SAND;
           else if (y >= height - 3) id = SAND;
