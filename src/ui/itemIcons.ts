@@ -70,6 +70,9 @@ const ICON: Record<number, string> = {
   290: 'string',
   291: 'arrow',
   292: 'bow',
+  293: 'gunpowder',
+  294: 'flint_and_steel',
+  295: 'nether_quartz',
 };
 
 // 显示名（无图标时文字占位 + hover 提示）
@@ -129,6 +132,9 @@ const ZH: Record<number, string> = {
   290: '线',
   291: '箭',
   292: '弓',
+  293: '火药',
+  294: '打火石',
+  295: '下界石英',
 };
 
 export const iconUrl = (id: number): string | null =>
