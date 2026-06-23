@@ -209,6 +209,7 @@ export class Game {
   private readonly surfaceY = (x: number, z: number): number => columnHeight(x, z, this.save.seed);
   private mobSpawnTick = 0; // 补刷计时
   private digging = false; // 是否按住左键挖掘
+  private lastMeleeMs = 0; // 上次近战命中时刻(ms)：加 ~0.5s 攻击冷却，防疯狂点击=无限伤害(同 MC 1.9+)
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
   private readonly fluidSim = new FluidSim();
@@ -361,7 +362,12 @@ export class Game {
       if (e.button === 0) {
         const target = this.mobUnderCrosshair();
         if (target) {
-          this.attackMob(target); // 准星对着生物 → 打它（不挖方块）
+          // 攻击冷却 ~0.5s(同 MC 1.9+)：冷却内的点击不再造成伤害 → 杜绝疯点=无限 DPS。对着生物即便在冷却中也不挖方块。
+          const nowMs = performance.now();
+          if (nowMs - this.lastMeleeMs >= 500) {
+            this.attackMob(target); // 准星对着生物 → 打它（不挖方块）
+            this.lastMeleeMs = nowMs;
+          }
           return;
         }
         this.digging = true; // 按住左键持续挖掘（按硬度耗时）

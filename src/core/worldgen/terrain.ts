@@ -57,7 +57,7 @@ function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number):
     return valueNoise3(wxw / 22, wyw / 22, wzw / 22, seed + 700) < 0.07;
   }
   // 深层：大矿洞为主 + 连通中隧道
-  if (valueNoise3(wxw / 26, wyw / 26, wzw / 26, seed + 700) < 0.16) return true;
+  if (valueNoise3(wxw / 26, wyw / 26, wzw / 26, seed + 700) < 0.07) return true; // 0.16→0.07:深层别挖成瑞士奶酪(原~16%岩石成空腔,远超 MC)
   return Math.abs(valueNoise3(wxw / 18, wyw / 18, wzw / 18, seed + 333) - 0.5) < 0.04;
 }
 
@@ -246,8 +246,8 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
           continue;
         }
         let id = STONE;
-        if (y === 0 || (y === 1 && valueNoise3(wx * 0.9, 1.5, wz * 0.9, seed + 4242) > 0.5)) {
-          id = BEDROCK; // 世界底基岩：y=0 满铺 + y=1 噪声层(MC 风,不可破,防玩家穿到虚空)——修"基岩消失"(主世界之前只铺石头)
+        if (y === 0 || (y <= 4 && valueNoise3(wx * 0.7, y * 3.3, wz * 0.7, seed + 4242) < (5 - y) / 5)) {
+          id = BEDROCK; // 世界底基岩 5 层(同 MC y0-4)：y=0 满铺，y1-4 概率递减的噪声基岩(不可破,防穿到虚空)
         } else if (beach) {
           // 沙滩/水边：沙覆盖，不受群系影响（保持原行为）
           if (y === height) id = SAND;
