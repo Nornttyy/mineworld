@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_H, CHUNK_W } from '../core/world/chunk';
-import { columnHeight, SEA_LEVEL } from '../core/worldgen/terrain';
-import { worldToChunk } from '../core/world/coords';
+import { columnHeight, SEA_LEVEL, generateChunk } from '../core/worldgen/terrain';
+import { worldToChunk, localCoord } from '../core/world/coords';
 import {
   isSolidId,
   isWaterId,
@@ -21,6 +21,7 @@ import {
   GRAVEL,
   OBSIDIAN,
   NETHER_PORTAL,
+  isNetherPortalId,
   type HeldTool,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -80,7 +81,7 @@ import {
   type Survival,
 } from '../core/survival/survival';
 import { APPLE, EGG, FLINT, ARROW, BOW, FLINT_AND_STEEL, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
-import { ignitePortal } from '../core/world/portalFill';
+import { ignitePortal, mapPortalCoord, buildDestinationPortal } from '../core/world/portalFill';
 import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
@@ -195,6 +196,7 @@ export class Game {
   private readonly skyObjects: SkyObjects;
   private dimension: 'overworld' | 'nether' = 'overworld'; // 当前维度（Task 9 接真实切换）
   private portalCooldown = 0; // 过传送门后的冷却(刻)，>0 期间不再触发切维度，防站门里来回弹
+  private portalTimer = 0; // 站在传送门里的累计秒数；满 4s 触发传送，离开传送门即清零
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -699,6 +701,7 @@ export class Game {
         this.tickArrows(); // 飞行的箭：推进 + 命中判定 + 拾取
         this.tickLeafDecay(); // 失去支撑的树叶慢慢腐烂
         if (this.portalCooldown > 0) this.portalCooldown--; // 过传送门冷却倒计时
+        this.tickPortalTravel(); // 站门 4s → 传送到对侧维度(必要时造目的地门)
         this.acc -= TICK_MS;
       }
       if (!playing) this.acc = 0; // 暂停：冻结物理，不累积
@@ -1070,6 +1073,48 @@ export class Game {
     this.save.edits[dimEditKey(this.dimension, x, y, z)] = id; // 按维度前缀键存(下界 "nether:" 前缀)，避免跨维度污染
     this.fluidSim.activate(x, y, z); // 让相邻的水流进/退去
     this.chunks.remeshDirty();
+  }
+
+  // 只写存档 delta（不动当前世界——给「另一个未加载维度」写方块用：切过去 buildDimension 时应用）。
+  private editDim(dim: 'overworld' | 'nether', x: number, y: number, z: number, id: number): void {
+    this.save.edits[dimEditKey(dim, x, y, z)] = id;
+  }
+
+  // 读「任意维度」某格：当前维度走活的 world；其它维度优先读存档 delta，否则同步生成该列采样一次(仅造门用,量小)。
+  private worldAt(dim: 'overworld' | 'nether', x: number, y: number, z: number): number {
+    if (dim === this.dimension) return this.world.getBlock(x, y, z);
+    const e = this.save.edits[dimEditKey(dim, x, y, z)];
+    if (e !== undefined) return e;
+    if (y < 0 || y >= CHUNK_H) return 0;
+    const chunk = generateChunk(worldToChunk(x), worldToChunk(z), this.save.seed, dim);
+    return chunk.get(localCoord(x), y, localCoord(z));
+  }
+
+  // 站在传送门里计时；满 4 秒(且不在冷却)→ 传送到对侧维度。首次去某门时按 1:8 映射造目的地门并双向记链接。
+  private tickPortalTravel(): void {
+    const pos = this.player.pos;
+    const bx = Math.floor(pos.x);
+    const by = Math.floor(pos.y);
+    const bz = Math.floor(pos.z);
+    const inPortal = isNetherPortalId(this.world.getBlock(bx, by, bz));
+    this.portalTimer = inPortal ? this.portalTimer + TICK_MS / 1000 : 0; // 离开传送门即清零
+    if (!inPortal || this.portalCooldown !== 0 || this.portalTimer < 4) return; // 1:1 生存：站门 4 秒才传送
+
+    const target: 'overworld' | 'nether' = this.dimension === 'overworld' ? 'nether' : 'overworld';
+    const srcKey = `${this.dimension}:${bx},${by},${bz}`;
+    const links = (this.save.portalLinks ??= {});
+    let dest = links[srcKey];
+    if (!dest) {
+      const [tx, tz] = mapPortalCoord(this.dimension, pos.x, pos.z);
+      const built = buildDestinationPortal((x, y, z) => this.worldAt(target, x, y, z), target, tx, tz);
+      for (const [x, y, z, id] of built.edits) this.editDim(target, x, y, z, id); // 写进目标维度 edits(前缀键)
+      dest = [built.spawn.x, built.spawn.y, built.spawn.z];
+      links[srcKey] = dest; // 去程链接
+      // 回程链接：目标门落点 → 当前站位（双向，回去复用同一对门）
+      links[`${target}:${Math.floor(dest[0])},${Math.floor(dest[1])},${Math.floor(dest[2])}`] = [pos.x, pos.y, pos.z];
+    }
+    this.portalTimer = 0; // 传送后清零：到达对侧门里需重新站满 4s 才再触发(配合 cooldown 防 AFK 来回弹)
+    this.switchDimension(target, { x: dest[0], y: dest[1], z: dest[2] }); // 内部会把 portalCooldown 置 60，防到点立刻弹回
   }
 
   // 砍木后：把此处附近"失去原木支撑"的树叶排入腐烂队列（去重），给每片一个随机倒计时 → 慢慢腐烂。
