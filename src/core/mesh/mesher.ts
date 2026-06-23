@@ -2,7 +2,7 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS, SNOW_LAYER, ICE } from '../blocks/registry';
+import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS, SNOW_LAYER, ICE, LAVA } from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
@@ -489,6 +489,15 @@ export function meshChunkData(
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            emit(op, lx, ly, lz, id, f);
+          }
+        } else if (id === LAVA) {
+          // 岩浆：solid:false+transparent，但必须渲染——否则洞穴里隐身、玩家会掉进看不见的岩浆(致命)。
+          // 走不透明批；自带 light:15 → 邻空气面取到强方块光，渲成亮橙发光面。对不透明邻 + 岩浆邻剔面(池内不画)。
+          for (let f = 0; f < 6; f++) {
+            const d = DIRS[f];
+            const nb = getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]);
+            if (isOpaque(nb) || nb === LAVA) continue;
             emit(op, lx, ly, lz, id, f);
           }
         }
