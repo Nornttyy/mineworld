@@ -3,7 +3,7 @@ import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W } from '../core/world/chunk';
 import { meshChunk, type ChunkMesh, type MeshData } from '../core/mesh/mesher';
 import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
-import { loadWaterFrames } from './atlas';
+import { loadWaterFrames, loadTorchTexture } from './atlas';
 import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
@@ -117,8 +117,13 @@ export class ChunkMeshManager {
     this.installLight(this.opaqueMat);
     this.installLight(this.cutoutMat, true); // 树叶(cutout)随风轻摆
     this.installWaterShader(this.waterMat);
-    // 火把：自发光暖色十字，不参与天光(始终全亮)，双面可见
-    this.torchMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    // 火把：贴火把纹理的交叉 billboard，自发光(不参与天光,始终全亮)，alpha-test 抠出火把形、双面可见
+    this.torchMat = new THREE.MeshBasicMaterial({
+      map: loadTorchTexture(),
+      transparent: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
 
     // 太阳光(投影阴影)：castShadow 让 three.js 每帧把 castShadow 物体渲进 shadow map(深度)；
     // 材质用 RGBA 打包深度，方块 shader 自己采样。正交相机只覆盖玩家附近 ±SHADOW_HALF。

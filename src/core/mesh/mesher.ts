@@ -300,26 +300,21 @@ export function meshChunkData(
   const emitTorch = (lx: number, lz: number, ly: number): void => {
     const cx = lx + 0.5;
     const cz = lz + 0.5;
-    const r = 0.09; // 细杆(原 0.34 太粗→像个大X,不像火把)；细十字билборд=任意角度都是一根细棍
-    const h = 0.62;
-    const body = [0.42, 0.28, 0.13]; // 棍身棕
-    const tip = [1.0, 0.8, 0.32]; // 顶端火光暖橙黄
+    const w = 0.28; // 交叉 billboard 半宽(贴图含透明边,可见火把更细)
+    const h = 0.92; // 高(从地面往上)
+    // 两片轴对齐交叉 billboard(朝 Z + 朝 X),贴 torch_block 纹理,任意角度都看得见。
+    // UV: 底→V0(木棍)、顶→V1(火焰); torchMat 用 alpha-test 抠出火把形。改前是顶点色渐变十字,不像火把。
     const quads = [
-      [cx - r, cz - r, cx + r, cz + r], // 对角片
-      [cx - r, cz + r, cx + r, cz - r], // 反对角片
+      [[cx - w, ly, cz], [cx + w, ly, cz], [cx + w, ly + h, cz], [cx - w, ly + h, cz]], // 朝 ±Z
+      [[cx, ly, cz - w], [cx, ly, cz + w], [cx, ly + h, cz + w], [cx, ly + h, cz - w]], // 朝 ±X
     ];
-    for (const [x0, z0, x1, z1] of quads) {
+    const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    for (const q of quads) {
       const base = to.P.length / 3;
-      const verts = [
-        [x0, ly, z0, ...body],
-        [x1, ly, z1, ...body],
-        [x1, ly + h, z1, ...tip],
-        [x0, ly + h, z0, ...tip],
-      ];
-      for (const v of verts) {
-        to.P.push(v[0], v[1], v[2]);
-        to.U.push(0, 0);
-        to.C.push(v[3], v[4], v[5]);
+      for (let k = 0; k < 4; k++) {
+        to.P.push(q[k][0], q[k][1], q[k][2]);
+        to.U.push(uv[k][0], uv[k][1]);
+        to.C.push(1, 1, 1);
       }
       to.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }

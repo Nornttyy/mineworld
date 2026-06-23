@@ -31,6 +31,16 @@ export function loadWaterTexture(): THREE.Texture {
   return tex;
 }
 
+/** 火把贴图（立牌 billboard 用）：细木棍 + 顶端火焰，透明背景、像素硬边。 */
+export function loadTorchTexture(): THREE.Texture {
+  const tex = new THREE.TextureLoader().load(asset('textures/torch_block.png'));
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 /** 加载 N 帧水动画纹理（water_0..N-1.png）；渲染层按时间切 material.map 播放。 */
 export function loadWaterFrames(n: number): THREE.Texture[] {
   const loader = new THREE.TextureLoader();
