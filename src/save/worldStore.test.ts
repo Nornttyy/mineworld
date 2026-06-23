@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createWorld, getWorld, parseSeed } from './worldStore';
+import { createWorld, getWorld, parseSeed, dimEditKey, parseEditKey } from './worldStore';
 
 // node 测试环境无 localStorage → 内存桩
 const mem = new Map<string, string>();
@@ -44,5 +44,20 @@ describe('parseSeed', () => {
     expect(parseSeed('hello')).toBe(parseSeed('hello'));
     expect(parseSeed('hello')).not.toBe(parseSeed('world'));
     expect(Number.isInteger(parseSeed('hello') as number)).toBe(true);
+  });
+});
+
+describe('维度前缀键', () => {
+  it('主世界无前缀(兼容老档)、下界有前缀、不撞', () => {
+    expect(dimEditKey('overworld', 1, 2, 3)).toBe('1,2,3');
+    expect(dimEditKey('nether', 1, 2, 3)).toBe('nether:1,2,3');
+    expect(dimEditKey('overworld', 1, 2, 3)).not.toBe(dimEditKey('nether', 1, 2, 3));
+  });
+});
+
+describe('parseEditKey 反解维度与坐标', () => {
+  it('解析无前缀 = 主世界、有前缀 = 下界', () => {
+    expect(parseEditKey('1,2,3')).toEqual({ dim: 'overworld', x: 1, y: 2, z: 3 });
+    expect(parseEditKey('nether:1,2,3')).toEqual({ dim: 'nether', x: 1, y: 2, z: 3 });
   });
 });

@@ -12,13 +12,17 @@ export interface WorldSave {
   seed: number;
   gameMode?: GameMode; // 不存=survival（老档迁移）
   lastPlayed: number;
-  edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）
+  edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）；维度前缀："nether:x,y,z" = 下界，无前缀 = 主世界
   player?: { x: number; y: number; z: number; yaw: number; pitch: number };
   inv?: ({ id: number; count: number; dur?: number } | null)[]; // 背包；dur=工具剩余耐久
   survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
   worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
   mobs?: SerializedMob[]; // 玩家附近的生物（动物/敌对）；不存则新世界/旧档进场时撒新群
   furnaces?: Record<string, FurnaceState>; // 熔炉状态("x,y,z"→炉内料/燃料/进度)，否则重开炉内物+进度全丢失
+  currentDimension?: 'overworld' | 'nether'; // 玩家当前维度；不存则主世界
+  playerByDimension?: Partial<Record<'overworld' | 'nether', { x: number; y: number; z: number; yaw: number; pitch: number }>>; // 各维度玩家位置（可选）
+  mobsByDimension?: Partial<Record<'overworld' | 'nether', SerializedMob[]>>; // 各维度生物群（可选）
+  portalLinks?: Record<string, [number, number, number]>; // 传送门映射(待扩展)
 }
 
 const KEY = 'mineworld.saves';
@@ -83,4 +87,19 @@ export function saveWorld(world: WorldSave): void {
 
 export function deleteWorld(id: string): void {
   writeAll(readAll().filter((w) => w.id !== id));
+}
+
+// 按维度生成编辑键：主世界无前缀(向后兼容老档)、下界有 "nether:" 前缀。
+export function dimEditKey(dim: 'overworld' | 'nether', x: number, y: number, z: number): string {
+  return dim === 'nether' ? `nether:${x},${y},${z}` : `${x},${y},${z}`;
+}
+
+// 反解编辑键：有 "nether:" 前缀=下界，否则主世界。
+export function parseEditKey(key: string): { dim: 'overworld' | 'nether'; x: number; y: number; z: number } {
+  if (key.startsWith('nether:')) {
+    const [x, y, z] = key.slice(7).split(',').map(Number);
+    return { dim: 'nether', x, y, z };
+  }
+  const [x, y, z] = key.split(',').map(Number);
+  return { dim: 'overworld', x, y, z };
 }
