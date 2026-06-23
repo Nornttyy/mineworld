@@ -132,3 +132,11 @@ describe('合成储存方块 (32-34)', () => {
     expect(BLOCKS[IRON_BLOCK].minTier).toBe(2); // 铁块需石镐及以上（同 MC）
   });
 });
+
+describe('isLavaId', () => {
+  it('isLavaId 只认岩浆(23)', () => {
+    expect(isLavaId(23)).toBe(true);
+    expect(isLavaId(0)).toBe(false);
+    expect(isLavaId(19)).toBe(false);
+  });
+});

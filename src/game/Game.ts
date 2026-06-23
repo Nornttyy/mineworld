@@ -7,6 +7,7 @@ import { worldToChunk } from '../core/world/coords';
 import {
   isSolidId,
   isWaterId,
+  isLavaId,
   isReplaceableId,
   isPlantId,
   isTargetableId,
@@ -730,6 +731,10 @@ export class Game {
     if (touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z, (x, y, z) => this.world.getBlock(x, y, z))) {
       this.hurtPlayer(1, 0, 0);
     }
+    // 岩浆接触伤害(MC 1.12：4HP/0.5s，复用 hurtCd 无敌帧——每刻都调 hurtPlayer，被 hurtCd 自然节流为 0.5s 一次)
+    const feetLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y), pz));
+    const bodyLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y + 0.9), pz));
+    if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0); // MC 1.12 岩浆 4HP/0.5s
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
     const hpBefore = this.survival.health;
