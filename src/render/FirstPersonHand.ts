@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCKS } from '../core/blocks/registry';
+import { BLOCKS, TORCH } from '../core/blocks/registry';
 import { iconUrl } from '../ui/itemIcons';
 
 // 第一人称手臂 + 手持物：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
@@ -10,6 +10,8 @@ export type HeldKind = 'block' | 'sprite' | 'none';
 // 手持物如何渲染：注册表里的方块画 3D 立方体；有图标的物品(id≥256)画平面精灵；其余只露手臂。
 export function heldRenderKind(id: number | null): HeldKind {
   if (id === null || id <= 0) return 'none';
+  // 火把不是立方体(世界里画成细十字),手持也用图标精灵——别走方块分支画成 3D 立方体(火把无图集面→采错纹理,"拿着的贴图不对")
+  if (id === TORCH) return iconUrl(id) ? 'sprite' : 'none';
   if (BLOCKS[id]) return 'block';
   if (iconUrl(id)) return 'sprite';
   return 'none';

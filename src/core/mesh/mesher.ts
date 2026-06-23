@@ -300,10 +300,10 @@ export function meshChunkData(
   const emitTorch = (lx: number, lz: number, ly: number): void => {
     const cx = lx + 0.5;
     const cz = lz + 0.5;
-    const r = 0.34;
+    const r = 0.09; // 细杆(原 0.34 太粗→像个大X,不像火把)；细十字билборд=任意角度都是一根细棍
     const h = 0.62;
-    const body = [0.5, 0.32, 0.14]; // 棍身棕
-    const tip = [1.0, 0.74, 0.24]; // 顶端火光暖橙
+    const body = [0.42, 0.28, 0.13]; // 棍身棕
+    const tip = [1.0, 0.8, 0.32]; // 顶端火光暖橙黄
     const quads = [
       [cx - r, cz - r, cx + r, cz + r], // 对角片
       [cx - r, cz + r, cx + r, cz - r], // 反对角片
