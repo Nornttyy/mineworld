@@ -263,8 +263,10 @@ export const BLOCKS: BlockDef[] = [
   // transparent:false → isOpaque=true → 走 opaque 渲染批(贴图为不透明纯绿、无 alpha)；
   // 若设 transparent:true 则不属任何 mesher 分支 → 不可见(曾踩)。叠柱内部面也能正确剔除。
   { id: 27, name: 'cactus', solid: true, transparent: false, faces: all(T.cactus), hardness: 0.4, drop: 27, needsTool: false, tool: null },
-  // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。半透明渲染。
-  { id: 28, name: 'ice', solid: true, transparent: true, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
+  // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。
+  // ⚠️ transparent 必须 false：true 时 isOpaque=false 且非 cutout/water/plant → 不进任何网格分支 → 冰整块不渲染/有缝(用户报"连接不流畅")。
+  // false → 进不透明批、冰-冰互相剔面 = 平滑连接的冰面(渲成实心冰蓝块,牺牲透视换正确渲染)。
+  { id: 28, name: 'ice', solid: true, transparent: false, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
   // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。
   { id: 29, name: 'snow_layer', solid: false, transparent: true, faces: all(T.snow), hardness: 0, drop: null, needsTool: false, tool: 'shovel' },
   // 云杉原木：同橡木原木数值，斧更快。顶/底复用 oak_log_top。

@@ -344,7 +344,7 @@ export class ChunkMeshManager {
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  float dN = clamp((vWaterDepth - 1.0) / 5.0, 0.0, 1.0);\n' + // 水深归一:≤1格=0(浅,见底),≥6格=1(深)
+            '  float dN = smoothstep(0.0, 1.0, clamp((vWaterDepth - 0.5) / 6.5, 0.0, 1.0));\n' + // 水深平滑归一:更宽(0.5→7格)+ smoothstep S曲线 → 浅↔深过渡柔和自然,不是硬边
             '  vec3 base = mix(vec3(0.10, 0.58, 0.92), vec3(0.0, 0.34, 0.70), dN) * vLF * vTint;\n' + // 浅水亮青→深水暗蓝
             '  vec3 col = mix(base, skyR, fres * above);\n' + // 反射仅水面上方有(水下看上来只显平滑水色,无条纹)
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
