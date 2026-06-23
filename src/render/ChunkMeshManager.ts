@@ -90,7 +90,7 @@ export class ChunkMeshManager {
 
   constructor(
     private readonly scene: THREE.Scene,
-    private readonly world: ChunkWorld,
+    private world: ChunkWorld,
     atlas: THREE.Texture,
   ) {
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
@@ -426,6 +426,18 @@ export class ChunkMeshManager {
 
   private key(cx: number, cz: number): string {
     return `${cx},${cz}`;
+  }
+
+  /** 切维度：卸载当前所有区块网格、清队列与在途标记、换内部 world 引用。保留 worker 池(不重建)。 */
+  setWorld(world: ChunkWorld): void {
+    for (const k of [...this.meshes.keys()]) this.unload(k); // 释放 geometry + 从 scene 移除
+    this.meshQueue.length = 0;
+    this.priorityQueue.length = 0;
+    this.meshPending.clear();
+    this.meshPendingSince.clear();
+    this.meshFails.clear();
+    this.editKeys.clear();
+    this.world = world;
   }
 
   /**
