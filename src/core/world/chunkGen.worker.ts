@@ -7,12 +7,13 @@ interface GenRequest {
   cx: number;
   cz: number;
   seed: number;
+  dimension: 'overworld' | 'nether';
 }
 
 self.onmessage = (e: MessageEvent<GenRequest>): void => {
-  const { cx, cz, seed } = e.data;
+  const { cx, cz, seed, dimension } = e.data;
   try {
-    const c = generateChunk(cx, cz, seed);
+    const c = generateChunk(cx, cz, seed, dimension);
     const blocks = c.blocks.buffer;
     const fluid = c.fluid.buffer;
     // 第三参数 transfer 列表：零拷贝移交所有权(传完主线程拿，worker 这边失效)

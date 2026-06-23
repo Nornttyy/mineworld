@@ -18,7 +18,7 @@ export class ChunkWorld {
   // 走回来重新生成的是纯地形，必须靠这个 hook 复原改动，否则建筑/挖洞会"走远再回来就没了"。
   editHook: ((cx: number, cz: number, c: Chunk) => void) | null = null;
 
-  constructor(readonly seed: number) {
+  constructor(readonly seed: number, readonly dimension: 'overworld' | 'nether' = 'overworld') {
     // 浏览器：开多个后台 Worker 并行生成(深世界生成重)，数量按 CPU 核数(上限4)；
     // node/测试环境没有 Worker → workers 为空，request 回退同步生成。
     if (typeof Worker !== 'undefined') {
@@ -89,7 +89,7 @@ export class ChunkWorld {
     }
     this.pending.add(k);
     this.pendingSince.set(k, now());
-    this.workers[this.rr].postMessage({ cx, cz, seed: this.seed });
+    this.workers[this.rr].postMessage({ cx, cz, seed: this.seed, dimension: this.dimension });
     this.rr = (this.rr + 1) % this.workers.length;
   }
 
@@ -128,7 +128,7 @@ export class ChunkWorld {
     const k = this.key(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      c = generateChunk(cx, cz, this.seed);
+      c = generateChunk(cx, cz, this.seed, this.dimension);
       this.editHook?.(cx, cz, c); // 复原该区块的玩家改动
       this.chunks.set(k, c);
       this.pending.delete(k);
