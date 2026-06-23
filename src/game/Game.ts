@@ -633,6 +633,8 @@ export class Game {
         worldToChunk(Math.floor(this.player.pos.z)),
         this.renderDistance,
         loadBudget, // 每帧最多【派发】给 worker 网格化(后台算，不卡主线程)
+        Math.cos(this.look.yaw), // 前方优先：把预算先砸向玩家正走向/看得见的区块(根治"前面加载不出来")
+        Math.sin(this.look.yaw),
       );
       // 上屏按【时间预算】而非固定个数：buildGeo + GPU 上传是加载卡帧的大头，且每个网格大小不一。
       // 本帧最多花 ~6ms 在上屏上，到点即停、剩下的下帧继续 → 区块加载更顺、不再一帧塞太多撑爆帧时间。
@@ -690,7 +692,10 @@ export class Game {
       }
       if (this.coordOn) {
         const p = this.player.pos;
-        this.coordEl.textContent = `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}`;
+        const cs = this.chunks.pipelineStats(); // 区块管线：再现"加载不出来"时看哪阶段堵
+        this.coordEl.textContent =
+          `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}\n` +
+          `区块 已上屏${cs.meshed} 可见${cs.visible} 派发中${cs.pending} 待上屏${cs.queued}`;
       }
       this.updateGodRays(); // 体积光：每帧喂太阳屏幕 UV + 档位给 Renderer
       this.renderer.render();
