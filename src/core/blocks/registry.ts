@@ -249,7 +249,7 @@ export const BLOCKS: BlockDef[] = [
   },
   // ── 下界方块 (18-25) ─────────────────────────────────────────────────────
   { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 12, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 2 },
-  { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: false, tool: 'pickaxe' },
+  { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: true, tool: 'pickaxe' }, // MC:地狱岩需镐才掉
   { id: 20, name: 'soul_sand', solid: true, transparent: false, faces: all(T.soul_sand), hardness: 0.5, drop: 20, needsTool: false, tool: 'shovel' },
   { id: 21, name: 'glowstone', solid: true, transparent: false, faces: all(T.glowstone), hardness: 0.3, drop: 21, needsTool: false, tool: null, light: 15 },
   { id: 22, name: 'nether_quartz_ore', solid: true, transparent: false, faces: all(T.nether_quartz_ore), hardness: 3, drop: 295 /* NETHER_QUARTZ item(Task2) */, needsTool: true, tool: 'pickaxe', minTier: 1 },
@@ -266,7 +266,7 @@ export const BLOCKS: BlockDef[] = [
   // 冰：雪原水面冻结；打滑(物理层)；MC 硬度 0.5，无精准采集→不掉(drop:null)。
   // ⚠️ transparent 必须 false：true 时 isOpaque=false 且非 cutout/water/plant → 不进任何网格分支 → 冰整块不渲染/有缝(用户报"连接不流畅")。
   // false → 进不透明批、冰-冰互相剔面 = 平滑连接的冰面(渲成实心冰蓝块,牺牲透视换正确渲染)。
-  { id: 28, name: 'ice', solid: true, transparent: false, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: true, tool: 'pickaxe' },
+  { id: 28, name: 'ice', solid: true, transparent: false, faces: all(T.ice), hardness: 0.5, drop: null, needsTool: false, tool: 'pickaxe' }, // MC:任何工具/徒手都能破冰(无精准采集→drop:null);needsTool 应为 false
   // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。
   { id: 29, name: 'snow_layer', solid: false, transparent: true, faces: all(T.snow), hardness: 0, drop: null, needsTool: false, tool: 'shovel' },
   // 云杉原木：同橡木原木数值，斧更快。顶/底复用 oak_log_top。
@@ -358,7 +358,7 @@ export const canHarvest = (id: number, tool: HeldTool | null = null): boolean =>
 // tool=null 即徒手(速度 1)。例(徒手)：土 0.75s、原木 3s、石 7.5s；木镚挖石 ≈1.15s。
 export const breakTimeMs = (id: number, tool: HeldTool | null = null): number => {
   if (isPlantId(id)) return 0; // 草丛/长草：任何手持(含剑/空手)都瞬破，同 MC——否则握剑时草打不掉
-  if (tool && tool.kind === 'sword') return Infinity; // 剑不破坏方块（同 MC 不同：这里完全挖不动）
+  // 剑能挖方块（同 MC：慢挖、不享工具加成，对石/矿仍不掉落）。之前 return Infinity 让握剑完全挖不动，是错误偏差。
   const h = Math.max(0, blockHardness(id));
   if (h === 0) return 0;
   const speed = toolMatches(id, tool) ? tool.speed : 1;

@@ -365,6 +365,7 @@ export function meshChunkData(
     cut.U.push(u0, vB,  u0, vT,  u1, vT,  u1, vB);
     cut.C.push(sh, sh, sh,  sh, sh, sh,  sh, sh, sh,  sh, sh, sh);
     cut.L.push(sky, blk,  sky, blk,  sky, blk,  sky, blk);
+    cut.SW.push(0, 0, 0, 0); // 雪层不摆动；但必须补齐 cut.SW(否则 cutout 网格 aSway 比顶点数短→属性长度不匹配,树叶/雪摆动错乱)
     cut.I.push(base, base + 1, base + 2,  base, base + 2, base + 3);
   };
 

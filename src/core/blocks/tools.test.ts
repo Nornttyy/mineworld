@@ -48,10 +48,12 @@ describe('工具采集 1:1 MC', () => {
     expect(breakTimeMs(IRON, stonePick)).toBeLessThan(breakTimeMs(IRON, woodPick)); // 石镐更快
   });
 
-  it('剑不破坏任何方块（破坏耗时 = Infinity）', () => {
+  it('剑能挖方块（慢挖、不享工具加成；之前错误地完全挖不动=Infinity，已按 MC 修正）', () => {
     const sword: HeldTool = { kind: 'sword', tier: 1, speed: 1.5 };
-    expect(breakTimeMs(STONE, sword)).toBe(Infinity);
-    expect(breakTimeMs(DIRT, sword)).toBe(Infinity);
-    expect(breakTimeMs(8 /* coal_ore */, sword)).toBe(Infinity);
+    // MC：剑能挖所有方块(慢)，对石/矿不掉落但仍可破坏。不再是 Infinity。
+    expect(breakTimeMs(STONE, sword)).toBeGreaterThan(0);
+    expect(breakTimeMs(STONE, sword)).toBeLessThan(Infinity);
+    expect(breakTimeMs(DIRT, sword)).toBeLessThan(Infinity);
+    expect(breakTimeMs(8 /* coal_ore */, sword)).toBeLessThan(Infinity);
   });
 });

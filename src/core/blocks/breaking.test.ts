@@ -38,9 +38,10 @@ describe('草丛/长草瞬破（任何手持都打得掉）', () => {
     expect(breakTimeMs(GRASS_PLANT)).toBe(0);
     expect(breakTimeMs(TALL_GRASS)).toBe(0);
   });
-  it('握剑也瞬破（普通方块握剑挖不动，草是例外）', () => {
+  it('握剑：草瞬破，普通方块也能挖（慢，不再是挖不动）', () => {
     expect(breakTimeMs(GRASS_PLANT, sword)).toBe(0);
-    expect(breakTimeMs(STONE, sword)).toBe(Infinity); // 对照：剑挖不动石头
+    expect(breakTimeMs(STONE, sword)).toBeGreaterThan(0); // 剑能挖石头(慢)；之前错误地 Infinity，已按 MC 修正
+    expect(breakTimeMs(STONE, sword)).toBeLessThan(Infinity);
   });
 });
 

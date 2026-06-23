@@ -40,10 +40,11 @@ export const MOB_DEFS: Record<MobKind, MobDef> = {
   cow: { hp: 10, width: 0.9, height: 1.4, moveSpeed: 0.08, fallImmune: false },
   sheep: { hp: 8, width: 0.9, height: 1.3, moveSpeed: 0.08, fallImmune: false },
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
-  zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16 },
-  skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.052, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
-  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.05, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害，按距离衰减
-  husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.048, fallImmune: false, hostile: true, attack: 3, sense: 16, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
+  // 敌对怪移速：原 ~0.05 只有玩家走速(~0.216)的 1/4 → 永远追不上你。提到 ~0.15(≈0.7×走速)：能贴身威胁、疾跑仍可甩开(同 MC 感觉)。
+  zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 3, sense: 16 },
+  skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.14, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
+  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害，按距离衰减
+  husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 3, sense: 16, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
 };
 
 export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
