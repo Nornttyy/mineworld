@@ -239,8 +239,9 @@ export class SkyObjects {
     this.voxelClouds.frustumCulled = false;
 
     // 真实云（光影）：高空大平面 + 柔和 fbm 云贴图，UV 缓飘。
+    // ⚠️ 512² 柔云贴图(createImageData≈1MB)【延迟】到光影开时才建——光影关根本不显示柔云，不该为它付内存。
+    //    它本是无条件在此创建，在低内存机上成了压垮 `new SkyObjects` 的那次 createImageData OOM(用户"进不去世界"根因)。
     this.softMat = new THREE.MeshBasicMaterial({
-      map: makeSoftCloudTex(),
       transparent: true,
       depthWrite: false,
       opacity: 0.8,
@@ -250,10 +251,6 @@ export class SkyObjects {
     this.softClouds = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), this.softMat);
     this.softClouds.rotation.x = -Math.PI / 2;
     this.softClouds.visible = false;
-    if (this.softMat.map) {
-      this.softMat.map.wrapS = this.softMat.map.wrapT = THREE.RepeatWrapping;
-      this.softMat.map.repeat.set(3, 3); // 少而大的柔云团
-    }
 
     scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds);
   }
@@ -262,13 +259,29 @@ export class SkyObjects {
   setLightingQuality(q: LightingQuality): void {
     const on = q !== 'off';
     this.shaders = on;
-    this.voxelClouds.visible = !on;
-    this.softClouds.visible = on;
+    if (on) this.ensureSoftCloud(); // 光影开才建 512² 柔云贴图(延迟分配；光影关不付这块内存)
+    const softReady = this.softMat.map !== null;
+    this.softClouds.visible = on && softReady;
+    this.voxelClouds.visible = !on || !softReady; // 光影关→立体云；光影开但柔云没建成(内存不足)→回退立体云,不至于没云
     this.sun.visible = !on;
     this.moon.visible = !on;
     this.realSun.visible = on;
     this.sunGlow.visible = on;
     this.realMoon.visible = on;
+  }
+
+  /** 延迟创建 512² 柔云贴图(≈1MB)。仅光影开时调用；内存不足时 catch 降级(跳过柔云→回退立体云)，绝不让整局崩。 */
+  private ensureSoftCloud(): void {
+    if (this.softMat.map) return; // 已建过
+    try {
+      const tex = makeSoftCloudTex();
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 3); // 少而大的柔云团
+      this.softMat.map = tex;
+      this.softMat.needsUpdate = true;
+    } catch (err) {
+      console.warn('[SkyObjects] 柔云贴图创建失败(内存紧张),降级为立体云:', err);
+    }
   }
 
   // 重建以 (originX,originZ) 云格为左下角、CLOUD_GRID² 范围的立体云网格（世界固定 pattern）。
