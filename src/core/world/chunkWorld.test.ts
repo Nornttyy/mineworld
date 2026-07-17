@@ -26,6 +26,19 @@ describe('ChunkWorld', () => {
     expect(c.dirty).toBe(true);
   });
 
+  it('setBlock 距边界 8 格内标脏对应邻区(光照渗透)，另一侧不标(回归：光照卡在区块边界)', () => {
+    const w = new ChunkWorld(1);
+    const cells: [number, number][] = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, 1]];
+    for (const [cx, cz] of cells) w.getChunk(cx, cz).dirty = false;
+    // lx=5(<8 → 西邻要重建光照)、lz=8(>7 → 南邻)；东/北邻在 8 格外不标
+    w.setBlock(5, 100, 8, 1);
+    expect(w.getChunk(-1, 0).dirty).toBe(true); // 西
+    expect(w.getChunk(0, 1).dirty).toBe(true); // 南
+    expect(w.getChunk(-1, 1).dirty).toBe(true); // 西南角(斜向渗光)
+    expect(w.getChunk(1, 0).dirty).toBe(false); // 东(11 格外)
+    expect(w.getChunk(0, -1).dirty).toBe(false); // 北(8 格外)
+  });
+
   it('evictBeyond 驱逐远处区块、保留近处（治越走越卡的内存泄漏）', () => {
     const w = new ChunkWorld(1);
     w.getChunk(0, 0); // 近

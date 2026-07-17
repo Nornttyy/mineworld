@@ -1608,7 +1608,14 @@ export class Game {
   //   这里只改“正常雾”的颜色，故两者不冲突。
   private updateDayNight(): void {
     const s = skyStateAt(this.worldTime, this.dimension);
-    this.renderer.setSkyColors(s.skyTop, s.skyHorizon);
+    // 晨昏暖染：太阳贴近地平线(仰角 -0.15..0.3)时,穹顶太阳侧染暖、背侧偏冷。下界无太阳=0。
+    const sunPhi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
+    const sunElev = Math.sin(sunPhi);
+    let warmth = 0;
+    if (this.dimension === 'overworld' && sunElev > -0.15) {
+      warmth = Math.max(0, 1 - Math.abs(sunElev) / 0.3) * Math.min(1, (sunElev + 0.15) / 0.15);
+    }
+    this.renderer.setSkyColors(s.skyTop, s.skyHorizon, Math.atan2(0.28, Math.cos(sunPhi)), warmth);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。

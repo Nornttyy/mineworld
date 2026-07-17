@@ -152,7 +152,7 @@ export class ChunkWorld {
     c.set(lx, wy, lz, id);
     if (id !== WATER) c.setFluid(lx, wy, lz, 0); // 放固体/挖空 → 清掉该格水数据
     c.dirty = true;
-    this.markNeighborsDirty(cx, cz, lx, lz);
+    this.markNeighborsDirty(cx, cz, lx, lz, 8); // reach=8：挖/放的光照变化要渗进邻区(见函数注释)
   }
 
   // —— 流体读写（供流动水模拟与网格化）——
@@ -193,16 +193,24 @@ export class ChunkWorld {
     this.markNeighborsDirty(cx, cz, lx, lz);
   }
 
-  private markNeighborsDirty(cx: number, cz: number, lx: number, lz: number): void {
-    if (lx === 0) this.markDirty(cx - 1, cz);
-    if (lx === 15) this.markDirty(cx + 1, cz);
-    if (lz === 0) this.markDirty(cx, cz - 1);
-    if (lz === 15) this.markDirty(cx, cz + 1);
-    // 角格：网格化时角高度(cornerH)/AO 会采样对角邻块，故对角块也要标脏，否则角处水面/光照留旧缝
-    if (lx === 0 && lz === 0) this.markDirty(cx - 1, cz - 1);
-    if (lx === 0 && lz === 15) this.markDirty(cx - 1, cz + 1);
-    if (lx === 15 && lz === 0) this.markDirty(cx + 1, cz - 1);
-    if (lx === 15 && lz === 15) this.markDirty(cx + 1, cz + 1);
+  // reach=1(默认,水流用)：仅贴边格(0/15)标脏邻区——覆盖 AO/角高度采样。
+  // reach=8(玩家挖/放用,=mesher 光照 HALO)：距边界 8 格内都标脏邻区——放火把/挖洞的【光照】
+  //   会渗进邻区顶点光，只标贴边会让光"卡在区块边界"直到邻区因别的原因重建(用户报的光照 bug)。
+  //   水流不用 8：流水每 5 刻大量格子变动,×4 重建量会灌爆 mesh worker(挖放是低频操作,没这问题)。
+  private markNeighborsDirty(cx: number, cz: number, lx: number, lz: number, reach = 1): void {
+    const west = lx < reach;
+    const east = lx > 15 - reach;
+    const north = lz < reach;
+    const south = lz > 15 - reach;
+    if (west) this.markDirty(cx - 1, cz);
+    if (east) this.markDirty(cx + 1, cz);
+    if (north) this.markDirty(cx, cz - 1);
+    if (south) this.markDirty(cx, cz + 1);
+    // 角块：AO/角高度/斜向渗光会跨对角邻块
+    if (west && north) this.markDirty(cx - 1, cz - 1);
+    if (west && south) this.markDirty(cx - 1, cz + 1);
+    if (east && north) this.markDirty(cx + 1, cz - 1);
+    if (east && south) this.markDirty(cx + 1, cz + 1);
   }
 
   private markDirty(cx: number, cz: number): void {

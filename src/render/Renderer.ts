@@ -84,10 +84,11 @@ export class Renderer {
     window.addEventListener('resize', () => this.resize());
   }
 
-  // 昼夜更替：重算穹顶顶点色（配色不变则跳过）。渐变按【视线仰角】走：
+  // 昼夜更替：重算穹顶顶点色（配色/太阳方位不变则跳过）。渐变按【视线仰角】走：
   // 地平线亮带 → 仰角 ~0.45 以上为天顶色（近似 MC：亮带贴住真地平线，与雾色衔接）。
-  setSkyColors(top: RGB, horizon: RGB): void {
-    const sig = `${top.join()}|${horizon.join()}`;
+  // sunAz/warmth(0..1)：日出日落时太阳方位一侧地平线暖亮、背侧偏冷——真实大气的晨昏渐变。
+  setSkyColors(top: RGB, horizon: RGB, sunAz = 0, warmth = 0): void {
+    const sig = `${top.join()}|${horizon.join()}|${Math.round(sunAz * 50)}|${Math.round(warmth * 25)}`;
     if (sig === this.lastSky) return;
     this.lastSky = sig;
     const cTop = new THREE.Color().setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
@@ -98,9 +99,24 @@ export class Renderer {
       const ny = pos.getY(i) / 750; // -1..1 仰角
       const t = ny <= 0 ? 0 : Math.min(1, ny / 0.45);
       const s = t * t * (3 - 2 * t); // smoothstep
-      arr[i * 3] = cHor.r + (cTop.r - cHor.r) * s;
-      arr[i * 3 + 1] = cHor.g + (cTop.g - cHor.g) * s;
-      arr[i * 3 + 2] = cHor.b + (cTop.b - cHor.b) * s;
+      let r = cHor.r + (cTop.r - cHor.r) * s;
+      let g = cHor.g + (cTop.g - cHor.g) * s;
+      let b = cHor.b + (cTop.b - cHor.b) * s;
+      if (warmth > 0.01) {
+        // 太阳方位夹角 → 暖染集中在太阳侧(^2.5)；只染地平线带(1-s)
+        const az = Math.atan2(pos.getZ(i), pos.getX(i));
+        const azFac = Math.pow(Math.max(0, Math.cos(az - sunAz) * 0.5 + 0.5), 2.5);
+        const k = warmth * (1 - s);
+        const shR = 0.88 + (1.24 - 0.88) * azFac; // 背侧偏冷(×0.88) ↔ 太阳侧暖亮(×1.24)
+        const shG = 0.9 + (0.97 - 0.9) * azFac;
+        const shB = 1.05 + (0.75 - 1.05) * azFac;
+        r *= 1 + (shR - 1) * k;
+        g *= 1 + (shG - 1) * k;
+        b *= 1 + (shB - 1) * k;
+      }
+      arr[i * 3] = r;
+      arr[i * 3 + 1] = g;
+      arr[i * 3 + 2] = b;
     }
     this.skyDomeColors.needsUpdate = true;
   }

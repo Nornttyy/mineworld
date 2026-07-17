@@ -1,6 +1,97 @@
 import * as THREE from 'three';
-import { DAY_LENGTH } from '../core/world/dayNight';
+import { DAY_LENGTH, skyStateAt, skyDarkenAt } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
+
+// —— 真实云(光影档)：程序化 shader 云平面 ——
+// 纯片元程序噪声，无贴图(旧 512² 贴图云既糊又是低内存机 OOM 稻草)：任意距离清晰、云形缓慢演变。
+// 形状=4 octave 值噪声 + domain warp(菜花状积云边缘)；体积感=朝太阳方向偏移采样密度差(向阳亮/背阳暗)；
+// 颜色=uTint 随昼夜(白天白/黄昏暖橙/夜暗蓝灰)；世界坐标锚定(平面跟随相机,噪声用世界 XZ→云不跟人跑)。
+const CLOUD_VERT = /* glsl */ `
+varying vec3 vW;
+void main() {
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vW = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`.trim();
+
+const CLOUD_FRAG = /* glsl */ `
+uniform float uTime;
+uniform vec3 uTint;
+uniform vec3 uSunDir;
+varying vec3 vW;
+float mwH2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mwVN(vec2 p){
+  vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = mwH2(i); float b = mwH2(i + vec2(1.0, 0.0)); float c = mwH2(i + vec2(0.0, 1.0)); float d = mwH2(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float mwFBM(vec2 p){
+  float n = 0.0; float amp = 0.5;
+  for (int o = 0; o < 4; o++) { n += mwVN(p) * amp; p = p * 2.13 + vec2(17.3, 9.1); amp *= 0.5; }
+  return n / 0.9375;
+}
+void main() {
+  vec2 p = vW.xz * 0.006;
+  // domain warp(一次,两处 fbm 共用)：云缘卷曲成团,不是均匀雾斑；第二时间尺度让云形慢慢演变
+  vec2 q = p + 0.3 * vec2(mwFBM(p * 1.7 + vec2(0.0, uTime * 0.0020)), mwFBM(p * 1.7 + vec2(5.2, uTime * 0.0017)));
+  vec2 drift = vec2(uTime * 0.0110, uTime * 0.0032); // 整体缓飘
+  float d = mwFBM(q + drift);
+  float cov = smoothstep(0.52, 0.62, d); // 云形有边界(不糊成一片)
+  if (cov < 0.004) discard;
+  // 体积感：朝太阳水平方向偏移再采一次,密度差→向阳侧亮、厚处底部暗(白天云要白,暗部别压狠)
+  vec2 sunXZ = normalize(uSunDir.xz + vec2(1e-4, 0.0));
+  float d2 = mwFBM(q + drift + sunXZ * 0.05);
+  float lit = clamp(0.74 + (d2 - d) * 4.0, 0.58, 1.08);
+  float dense = smoothstep(0.50, 0.88, d); // 厚处更白亮
+  vec3 col = uTint * mix(0.86, 1.12, dense) * lit;
+  float dist = length(vW.xz - cameraPosition.xz);
+  float fade = 1.0 - smoothstep(360.0, 620.0, dist); // 远处淡出融进地平线雾
+  gl_FragColor = vec4(col, cov * 0.9 * fade);
+  #include <colorspace_fragment>
+}
+`.trim();
+
+// 星空：确定性伪随机分布在天球上，随天球一起转(与日月同角速)，夜里渐显。MC 原版就有星星。
+function makeStars(): THREE.Points {
+  const N = 850;
+  const pos = new Float32Array(N * 3);
+  const col = new Float32Array(N * 3);
+  const R = 310;
+  let s = 12345;
+  const rnd = (): number => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  for (let i = 0; i < N; i++) {
+    // 均匀球面分布
+    const z = rnd() * 2 - 1;
+    const a = rnd() * Math.PI * 2;
+    const r = Math.sqrt(1 - z * z);
+    pos[i * 3] = Math.cos(a) * r * R;
+    pos[i * 3 + 1] = Math.sin(a) * r * R;
+    pos[i * 3 + 2] = z * R;
+    const b = 0.35 + rnd() * 0.65; // 亮度差异
+    col[i * 3] = b;
+    col[i * 3 + 1] = b;
+    col[i * 3 + 2] = Math.min(1, b * (0.92 + rnd() * 0.16)); // 少数偏暖/偏冷
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.PointsMaterial({
+    size: 1.7,
+    sizeAttenuation: false,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false,
+  });
+  const p = new THREE.Points(g, m);
+  p.frustumCulled = false;
+  return p;
+}
 
 // 像素太阳：亮黄方块 + 暖芯（MC 风方块太阳）
 function makeSunTex(): THREE.CanvasTexture {
@@ -197,16 +288,21 @@ function addBox(P: number[], C: number[], I: number[], cx: number, cy: number, c
   }
 }
 
-/** 天空对象：方块太阳 + 方块月亮(随昼夜东升西落、对侧) + MC 立体方块云(所有画质档共用)。
- *  ⚠️ 云曾按光影档切换：光影开 = 512² fbm"柔和真实云"平面——实际效果是天上几团模糊白斑，
- *  是"不像 MC"最扎眼的元素(用户截图)。MC 光影包也大多保留原版方块云；已整体删除软云路径。 */
+/** 天空对象：日月(随昼夜东升西落、对侧) + 云 + 星空。
+ *  云按光影档切换：off = MC 立体方块云；standard/high = 程序化真实云(shader 平面,有形有影会演变)。
+ *  ⚠️ 旧"真实云"是 512² fbm 贴图平面——糊斑 + OOM 稻草,已删；新版纯片元程序噪声(无贴图),
+ *  云有清晰边界、向阳亮背阳暗、随昼夜染色。星空两档都有(MC 原版就有星星)。 */
 export class SkyObjects {
   private readonly sun: THREE.Mesh;
   private readonly moon: THREE.Mesh;
   private readonly realSun: THREE.Mesh;  // 真实发光太阳（光影开）
   private readonly sunGlow: THREE.Mesh;  // 太阳柔和光晕（光影开，加法混合）
   private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
-  private readonly voxelClouds: THREE.Mesh; // 立体方块云（所有档）
+  private readonly voxelClouds: THREE.Mesh; // 立体方块云（光影关）
+  private readonly realClouds: THREE.Mesh; // 程序化真实云（光影开）
+  private readonly cloudUniforms: { uTime: { value: number }; uTint: { value: THREE.Color }; uSunDir: { value: THREE.Vector3 } };
+  private readonly stars: THREE.Points; // 星空（夜里渐显，随天球转）
+  private readonly starGroup: THREE.Group;
   private readonly dir = new THREE.Vector3();
   private drift = 0; // 云缓飘累计（格）
   private cloudOriginX = NaN; // 立体云已建网格的格原点（变了才重建）
@@ -241,26 +337,57 @@ export class SkyObjects {
     this.voxelClouds = new THREE.Mesh(new THREE.BufferGeometry(), voxelMat);
     this.voxelClouds.frustumCulled = false;
 
-    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds);
+    // 真实云(光影档)：程序化 shader 云平面，跟随相机、噪声用世界坐标(云世界锚定)。
+    this.cloudUniforms = {
+      uTime: { value: 0 },
+      uTint: { value: new THREE.Color(1, 1, 1) },
+      uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.28) },
+    };
+    const cloudMat = new THREE.ShaderMaterial({
+      uniforms: this.cloudUniforms,
+      vertexShader: CLOUD_VERT,
+      fragmentShader: CLOUD_FRAG,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.realClouds = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), cloudMat);
+    this.realClouds.rotation.x = -Math.PI / 2;
+    this.realClouds.frustumCulled = false;
+    this.realClouds.visible = false;
+
+    // 星空：夜里渐显。renderOrder: 穹顶(-1000) < 星(-900) < 日月(-850) < 云(-800) < 地形/水
+    // ——透明物按 renderOrder 排序,云画在星和日月之上(云能遮日月/星),都不写深度、被地形正常遮挡。
+    this.stars = makeStars();
+    this.starGroup = new THREE.Group();
+    this.starGroup.add(this.stars);
+    this.stars.renderOrder = -900;
+    for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon]) m.renderOrder = -850;
+    this.realClouds.renderOrder = -800;
+    this.voxelClouds.renderOrder = -800;
+
+    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.realClouds, this.starGroup);
   }
 
-  /** 维度切换：下界隐藏日月云；主世界按当前光影档恢复。 */
+  /** 维度切换：下界隐藏日月云星；主世界按当前光影档恢复。 */
   setDimension(dim: 'overworld' | 'nether'): void {
     this.dim = dim;
     if (dim === 'nether') {
-      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds]) {
+      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.realClouds, this.starGroup]) {
         m.visible = false;
       }
     } else {
+      this.starGroup.visible = true;
       this.setLightingQuality(this.lq); // 恢复主世界显隐（按当前光影档）
     }
   }
 
-  /** 光影画质：只切日月风格(off=方块像素日月；standard/high=真实日月+光晕)。云恒为 MC 立体方块云。 */
+  /** 光影画质：off=方块像素日月+MC 体素云；standard/high=真实日月+光晕+程序化真实云。 */
   setLightingQuality(q: LightingQuality): void {
     this.lq = q;
     const on = q !== 'off';
-    this.voxelClouds.visible = true;
+    this.voxelClouds.visible = !on;
+    this.realClouds.visible = on;
     this.sun.visible = !on;
     this.moon.visible = !on;
     this.realSun.visible = on;
@@ -309,6 +436,24 @@ export class SkyObjects {
 
     this.drift += CLOUD_DRIFT; // 缓风（单调，不随昼夜回绕跳变）
 
+    // 星空：随天球转(与日月同角速)、夜里渐显(白天 0)。skyDarken 0(白天)..11(半夜)。
+    this.starGroup.position.copy(camPos);
+    this.starGroup.rotation.z = th;
+    const night = skyDarkenAt(worldTime) / 11;
+    (this.stars.material as THREE.PointsMaterial).opacity = Math.pow(night, 1.5) * 0.9;
+
+    if (this.realClouds.visible) {
+      // 真实云：平面跟随相机(噪声用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
+      // (白天白/黎明黄昏暖/夜暗蓝灰,与方块天光同一套关键帧,天色一致)。
+      this.realClouds.position.set(camPos.x, CLOUD_Y, camPos.z);
+      // uTime=drift(≈0.72/s @60fps)：×shader 内 0.011 → ~1.3 格/s 的缓飘(MC 云速量级)
+      this.cloudUniforms.uTime.value = this.drift;
+      const wt = skyStateAt(worldTime).worldTint;
+      this.cloudUniforms.uTint.value.setRGB(wt[0], wt[1], wt[2], THREE.SRGBColorSpace);
+      this.cloudUniforms.uSunDir.value.copy(this.dir);
+      return; // 光影档不用重建体素云
+    }
+
     // 立体云：云格世界固定 + 飘移；玩家跨云格才重建网格，网格本地坐标 + position 补偿 → 飘移顺滑无跳。
     const originX = Math.floor((camPos.x - this.drift) / CLOUD_CS) - CLOUD_GRID / 2;
     const originZ = Math.floor(camPos.z / CLOUD_CS) - CLOUD_GRID / 2;
@@ -321,6 +466,3 @@ export class SkyObjects {
     this.voxelClouds.position.set(originX * CLOUD_CS + this.drift, CLOUD_Y, originZ * CLOUD_CS);
   }
 }
-
-// （软云贴图路径已删：光影档也用 MC 立体方块云——512² fbm 云平面渲出来是糊斑、不像 MC，
-//   还额外吃 ~1MB 贴图内存，低内存机曾因它 OOM。）

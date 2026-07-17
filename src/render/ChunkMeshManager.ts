@@ -94,6 +94,10 @@ export class ChunkMeshManager {
     atlas: THREE.Texture,
   ) {
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
+    // 投影阴影深度 pass 渲【背面】：体素地形是闭合壳，受光面永远拿不到与自身相等的深度
+    // → 平地/受光面零自阴影(shadow acne)。曾用正面+bias=0.004 仍在"高"档把玩家周围
+    // ±36 格窗口内整片压暗 27%(假自阴影)，窗口外没阴影 → "玩家周围比远处暗"(用户报)。
+    this.opaqueMat.shadowSide = THREE.BackSide;
     // 镂空(树叶)：alpha-test 裁切 + 双面渲染（透过近处孔能看到远端叶面，茂密感）
     this.cutoutMat = new THREE.MeshBasicMaterial({
       map: atlas,
@@ -222,18 +226,25 @@ export class ChunkMeshManager {
           '#include <common>',
           '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uSunUp;\n' +
-            'float mwUnpackDepth(vec4 v){ const vec4 f = (255.0/256.0)/vec4(16777216.0,65536.0,256.0,256.0); return dot(v,f); }\n' +
+            // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
+            // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
+            // 【整片永远判成阴影、全场 50% 压暗】,窗口外正常 → 用户报"开光影后玩家周围比远处暗"。
+            'float mwUnpackDepth(vec4 v){ const vec4 f = (255.0/256.0)/vec4(16777216.0,65536.0,256.0,1.0); return dot(v,f); }\n' +
             'float mwShadow(vec4 sc){\n' +
             '  vec3 c = sc.xyz / sc.w;\n' +
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
-            '  float bias = 0.004;\n' + // 加大深度偏移消"方块表面细条纹"(shadow acne 自遮挡)；体素面轴对齐,适度 peter-panning 可接受
-
+            // depth pass 渲背面(shadowSide=BackSide)后受光面无自遮挡，bias 只需盖住数值误差。
+            '  float bias = 0.0015;\n' +
             '  float s = 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.9,-0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  return s / 4.0;\n' + // 4 抽样(原9)旋转偏移→省采样,边缘仍柔
+            '  s /= 4.0;\n' + // 4 抽样(原9)旋转偏移→省采样,边缘仍柔
+            // 阴影相机窗口(玩家±36格)边缘渐隐：到边界 12% 内阴影淡出为无 —— 窗口外本就无阴影，
+            // 不渐隐会形成一圈"里暗外亮"的硬边亮环("玩家周围比远处暗"观感的一部分)。
+            '  float m = min(min(c.x, 1.0 - c.x), min(c.y, 1.0 - c.y));\n' +
+            '  return mix(1.0, s, smoothstep(0.0, 0.12, m));\n' +
             '}',
         )
         .replace(
@@ -243,7 +254,7 @@ export class ChunkMeshManager {
             'if (uShadowOn > 0.5) {\n' +
             '  float sh = mwShadow(vShadowCoord);\n' +
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
-            '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%
+            '  vis = mix(1.0, mix(0.55, 1.0, sh), gate);\n' + // 阴影处降到 55%
             '}\n' +
             'diffuseColor.rgb *= vLF * vTint * vis;',
         );
