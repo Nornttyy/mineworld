@@ -376,25 +376,24 @@ def water_frames(n):
 
 
 def oak_leaves(rng):
-    # 1.12 橡叶：暗绿基调 + 成簇"叶撮"(亮叶尖 L + 深影 d/D) + ~25% 透明孔(精细模式蓬松感)。
-    # 关键特征=簇状结构和孔洞,不是均匀椒盐噪点。
+    # 1.12 橡叶：暗绿叶撮 + 【大块连片透明孔】(2~3px 豁口,~35%,双面渲染透出内层=蓬松)。
     rows = [
-        "l.  dLl.d  .Ll. ",
-        ".dD .l.dD .l.d d",
-        " .Ll  d.Ll  d. .",
-        "d.l.D  .l.D  lL.",
-        " d.  lL. d.  .l.",
-        ".Ll  .l.d Ll  dD",
-        "dl.d  D. .l.d . ",
-        " .  Ll.  d.  Ll.",
-        ".d .l.dD  .Ll.l.",
-        "Ll  d.  lL.dl. d",
-        ".l.d .Ll .l.  D.",
-        " D.  dl.d  . l. ",
-        ".Ll  . .Ll d.dD ",
-        "dl.dD .dl.  .l. ",
-        " .l.  L. d Ll  d",
-        "d.  .l.dD .l.d .",
+        "Ll.d  .Ll.  dl..",
+        ".l.   dl.   .l.d",
+        "d.Ll  ..    Ll..",
+        " .l.d Ll.  dl.  ",
+        "  ..  .l.d  ..  ",
+        "Ll  d  ..  Ll  d",
+        ".l.dD    .dl.d  ",
+        "..    Ll  ...   ",
+        " Ll.  .l.d   Ll.",
+        "dl..   ..  D.l..",
+        "..  Ll    Ll ..d",
+        "  d .l.dD.l.d   ",
+        "Ll.   ..  ..  Ll",
+        ".l.d    Ll.   dl",
+        "..  .Ll dl.d  ..",
+        "d   dl..  ..  d ",
     ]
     return from_map(rows, {".": "#37701a", "l": "#448a20", "L": "#55a82c", "d": "#2b5a13", "D": "#1e430c"}, rng, alpha_blank=True)
 
@@ -618,24 +617,24 @@ def spruce_log(rng):
 
 
 def spruce_leaves(rng):
-    # 1.12 云杉叶：深蓝绿冷调,同款叶撮结构,孔略少(~15%,针叶更密)。
+    # 1.12 云杉叶：深蓝绿冷调,大孔略少(~25%,针叶更密)。
     rows = [
-        "l..dLl.d  .Ll..d",
-        ".dD.l..dD.l..d.d",
-        "..Ll .d.Ll .d...",
-        "d.l.D ..l.D .lL.",
-        ".d.. lL..d.  .l.",
-        ".Ll ..l.d.Ll  dD",
-        "dl.d .D...l.d...",
-        "....Ll.. d.  Ll.",
-        ".d..l.dD ..Ll.l.",
-        "Ll .d.. lL.dl..d",
-        ".l.d..Ll .l.. D.",
-        ".D.. dl.d ...l..",
-        ".Ll ....Ll d.dD.",
-        "dl.dD .dl.. .l..",
-        "..l.. L..d.Ll..d",
-        "d.. .l.dD .l.d..",
+        "Ll.d ..Ll.  dl..",
+        ".l..  dl..  .l.d",
+        "d.Ll  ...  Ll...",
+        "..l.d Ll.  dl. .",
+        ".d..  .l.d  ...d",
+        "Ll .d  ..  Ll  d",
+        ".l.dD .. .dl.d..",
+        "...  Ll.  ....  ",
+        ".Ll. .l.d  .Ll..",
+        "dl..  ...  D.l..",
+        "..  Ll. . Ll ..d",
+        ". d .l.dD.l.d  .",
+        "Ll..  ..  ..  Ll",
+        ".l.d  . Ll..  dl",
+        "...  Ll dl.d  ..",
+        "d.  dl...  ..  d",
     ]
     return from_map(rows, {".": "#2c4f31", "l": "#35603b", "L": "#427548", "d": "#213f26", "D": "#16301b"}, rng, alpha_blank=True)
 
