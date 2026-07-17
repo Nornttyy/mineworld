@@ -376,26 +376,27 @@ def water_frames(n):
 
 
 def oak_leaves(rng):
-    # 1.12 橡叶：手绘叶簇纹样(四色绿) + 固定镂空孔位。
+    # 1.12 橡叶：暗绿基调 + 成簇"叶撮"(亮叶尖 L + 深影 d/D) + ~25% 透明孔(精细模式蓬松感)。
+    # 关键特征=簇状结构和孔洞,不是均匀椒盐噪点。
     rows = [
-        ".lD.d L..dl.Dd.l",
-        "dL.l.dD.l .l.dD.",
-        ".d Dl.l.dLl.d .d",
-        "l.dl.D d..D.l.Ld",
-        "D.l.dLl.l.d.D.l.",
-        ".dD.l.d.Dl.lD.dl",
-        "l. l.Dd.l.dl. d.",
-        ".dl.d.lL.D.d.lD.",
-        "D.Ld.D.l.dl.L.ld",
-        ".l.dl.dD. l.d.D.",
-        "d.D.lL.l.dD.ld.l",
-        ".ld.d.D l..l.D d",
-        "L. l.dl.Dd.D.l..",
-        ".dD.L.d.l.lD.dLl",
-        "d.l.dD.ld. l.d.D",
-        ".D.ld.l.D.dl.lD.",
+        "l.  dLl.d  .Ll. ",
+        ".dD .l.dD .l.d d",
+        " .Ll  d.Ll  d. .",
+        "d.l.D  .l.D  lL.",
+        " d.  lL. d.  .l.",
+        ".Ll  .l.d Ll  dD",
+        "dl.d  D. .l.d . ",
+        " .  Ll.  d.  Ll.",
+        ".d .l.dD  .Ll.l.",
+        "Ll  d.  lL.dl. d",
+        ".l.d .Ll .l.  D.",
+        " D.  dl.d  . l. ",
+        ".Ll  . .Ll d.dD ",
+        "dl.dD .dl.  .l. ",
+        " .l.  L. d Ll  d",
+        "d.  .l.dD .l.d .",
     ]
-    return from_map(rows, {".": "#3a7a1e", "l": "#449024", "L": "#4f9e2c", "d": "#2f6519", "D": "#275413"}, rng, alpha_blank=True)
+    return from_map(rows, {".": "#37701a", "l": "#448a20", "L": "#55a82c", "d": "#2b5a13", "D": "#1e430c"}, rng, alpha_blank=True)
 
 def crack_strip():
     """10 段挖掘裂纹（destroy_stage_0..9），横排成 160x16 RGBA。
@@ -617,27 +618,26 @@ def spruce_log(rng):
 
 
 def spruce_leaves(rng):
-    # 1.12 云杉叶：蓝绿冷调 + 镂空。
-    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    px = im.load()
-    cols = ["#2c542c", "#244824", "#346034", "#1d3c1d", "#3c6e3c"]
-    wts = [3, 3, 2, 2, 1]
-    for y in range(S):
-        for x in range(S):
-            if rng.random() < 0.10:
-                px[x, y] = (0, 0, 0, 0)
-            else:
-                r, g, b = hx(rng.choices(cols, wts)[0])
-                px[x, y] = (r, g, b, 255)
-    for _ in range(4):
-        cx, cy = rng.randrange(S), rng.randrange(S)
-        for dy in range(-1, 2):
-            for dx in range(-1, 2):
-                if rng.random() < 0.6:
-                    r, g, b = hx("#3c6e3c") if rng.random() < 0.5 else hx("#1d3c1d")
-                    px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
-    return im
-
+    # 1.12 云杉叶：深蓝绿冷调,同款叶撮结构,孔略少(~15%,针叶更密)。
+    rows = [
+        "l..dLl.d  .Ll..d",
+        ".dD.l..dD.l..d.d",
+        "..Ll .d.Ll .d...",
+        "d.l.D ..l.D .lL.",
+        ".d.. lL..d.  .l.",
+        ".Ll ..l.d.Ll  dD",
+        "dl.d .D...l.d...",
+        "....Ll.. d.  Ll.",
+        ".d..l.dD ..Ll.l.",
+        "Ll .d.. lL.dl..d",
+        ".l.d..Ll .l.. D.",
+        ".D.. dl.d ...l..",
+        ".Ll ....Ll d.dD.",
+        "dl.dD .dl.. .l..",
+        "..l.. L..d.Ll..d",
+        "d.. .l.dD .l.d..",
+    ]
+    return from_map(rows, {".": "#2c4f31", "l": "#35603b", "L": "#427548", "d": "#213f26", "D": "#16301b"}, rng, alpha_blank=True)
 
 # ── 下界方块(1.12 原版风) ────────────────────────────────────────────────────
 def obsidian(rng):
