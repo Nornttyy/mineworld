@@ -81,6 +81,7 @@ export class ChunkMeshManager {
   private readonly uShadowMatrix = { value: new THREE.Matrix4() };
   private readonly uShadowTexel = { value: new THREE.Vector2(1 / SHADOW_MAP_SIZE, 1 / SHADOW_MAP_SIZE) };
   private readonly uShadowOn = { value: 0 }; // shadow map 就绪前为 0
+  private readonly uHq = { value: 0 }; // 高档=1(4抽样软影),标准=0(2抽样,省一半阴影采样)
   private readonly uSunUp = { value: 0 }; // 白昼系数(太阳高度)：夜里/地平线 0 → 不投影，白天 1
   private leafDepthMat: THREE.MeshDepthMaterial | null = null; // 树叶投影用：带 alphaTest 的深度材质 → 镂空叶影
   // 网格化 Worker 池：把 ~81ms/区块的 meshChunk(光照BFS+greedy)挪后台，主线程只剩 buildGeo 上传。
@@ -203,6 +204,7 @@ export class ChunkMeshManager {
       shader.uniforms.uShadowMatrix = this.uShadowMatrix;
       shader.uniforms.uShadowTexel = this.uShadowTexel;
       shader.uniforms.uShadowOn = this.uShadowOn;
+      shader.uniforms.uHq = this.uHq;
       shader.uniforms.uSunUp = this.uSunUp;
       shader.uniforms.uShaders = this.uShaders; // 光影开关：阳光泽面/草木摆动门控
       shader.uniforms.uSunDirW = this.uSunDir; // 阳光方向(世界系,阳光泽面用;与水面共用)
@@ -235,7 +237,7 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\n' +
-            'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
+            'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
             // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
             // 【整片永远判成阴影、全场 50% 压暗】,窗口外正常 → 用户报"开光影后玩家周围比远处暗"。
@@ -247,10 +249,12 @@ export class ChunkMeshManager {
             '  float bias = 0.0015;\n' +
             '  float s = 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.9,-0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  s /= 4.0;\n' + // 4 抽样(原9)旋转偏移→省采样,边缘仍柔
+            '  if (uHq > 0.5) {\n' + // 高档再补 2 抽样(4-tap 软影);标准 2-tap 省采样(集显友好)
+            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '    s /= 4.0;\n' +
+            '  } else { s /= 2.0; }\n' +
             // 阴影相机窗口(玩家±36格)边缘渐隐：到边界 12% 内阴影淡出为无 —— 窗口外本就无阴影，
             // 不渐隐会形成一圈"里暗外亮"的硬边亮环("玩家周围比远处暗"观感的一部分)。
             '  float m = min(min(c.x, 1.0 - c.x), min(c.y, 1.0 - c.y));\n' +
@@ -266,7 +270,9 @@ export class ChunkMeshManager {
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
             '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%(更明确的影)
             '}\n' +
-            'diffuseColor.rgb *= vLF * vTint * vis;\n' +
+            // 暖阳冷影(光影包核心质感)：影子里偏蓝(天空光补光),而不是单纯变暗的灰
+            'vec3 shTint = mix(vec3(0.80, 0.88, 1.18), vec3(1.0), vis);\n' +
+            'diffuseColor.rgb *= vLF * vTint * vis * shTint;\n' +
             // 阳光泽面(光影开)：朝阳面暖色增亮 + 半角镜面高光——SEUS 那种"方块被太阳照得亮亮的"。
             // 法线=屏幕导数(免顶点法线),sign(dot(N,V)) 归正朝观察者(解旧"朝向未定"问题)；
             // 门控=受天光面×白天×阴影可见×光影开(影子里/洞里/夜里/关光影都没有)。
@@ -427,11 +433,14 @@ export class ChunkMeshManager {
     this.uSkyDarken.value = v;
   }
 
-  /** 光影画质：off=全关；standard=便宜效果(水/云/摆/体积光)；high=再加太阳阴影。 */
+  /** 光影画质：off=全关；standard=全套效果+2抽样阴影；high=4抽样软影+更强泛光/体积光。
+   *  投影阴影是光影包第一辨识度(满地树影/山影)——曾只给高档,标准档画面永远是平的
+   *  ("还是不像光影"主因之一)。标准用 2-tap 硬一点的影省采样,集显可担。 */
   setLightingQuality(q: LightingQuality): void {
     this.uShaders.value = q !== 'off' ? 1 : 0;
-    this.sun.castShadow = q === 'high'; // 阴影只在高档
-    if (q !== 'high') this.uShadowOn.value = 0;
+    this.sun.castShadow = q !== 'off';
+    this.uHq.value = q === 'high' ? 1 : 0;
+    if (q === 'off') this.uShadowOn.value = 0;
   }
 
   /** 雾剔除距离(随渲染距离)：超出此距离的区块完全在雾里 → 不网格化/不绘制。far 单位=格。 */
