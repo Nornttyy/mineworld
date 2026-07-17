@@ -243,9 +243,9 @@ export class Renderer {
     u['uSunUV'].value.copy(this.god.sunUV);
     u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 跳过体积光但保留 bloom
     u['uSunColor'].value.copy(this.god.sunColor);
-    // bloom 强度按档位。曾是 1.0/0.6：亮沙/雪/天空整片过阈值 → 全画面蒙白纱(用户"发白不像MC")。
-    // bloom 只该给太阳/岩浆/高光加辉光，压到 0.45/0.30 + 提高阈值(Bloom.ts 0.82)。
-    u['uBloom'].value = this.god.quality === 'high' ? 0.45 : 0.3;
+    // bloom 强度按档位。曾 1.0/0.6=全画面蒙白纱；0.45/0.3 用户嫌不够夸张 → 0.55/0.38
+    // (阈值 0.78 只筛真亮源,高光辉光更明显但亮沙/天空不再整片过阈值)。
+    u['uBloom'].value = this.god.quality === 'high' ? 0.55 : 0.38;
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;

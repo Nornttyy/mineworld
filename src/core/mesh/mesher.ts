@@ -382,7 +382,20 @@ export function meshChunkData(
   // 配合独立可滚动水纹理做流动动画。
   // 起伏权重：1=平静水面(湖/海,头顶是空气)→可大幅上下起伏；0=水柱内/瀑布体(头顶还是水)→不起伏，避免流水/瀑布撕缝。每个水格设一次。
   let waterWobble = 1;
-  let waterDepth = 1; // 当前水格所在水柱深度(格,封顶7)；每个水格设一次,emitWaterFace 写入每顶点
+  // 某列在 wy 层的水柱深度(向上+向下数连续水格,封顶 7)；非水=0。
+  const colDepth = (wx: number, wy: number, wz: number): number => {
+    if (waterAmount(wx, wy, wz) === 0) return 0;
+    let wd = 1;
+    for (let yy = wy + 1; wd < 7 && yy < CHUNK_H && waterAmount(wx, yy, wz) > 0; yy++) wd++;
+    for (let yy = wy - 1; wd < 7 && yy >= 0 && waterAmount(wx, yy, wz) > 0; yy--) wd++;
+    return wd;
+  };
+  // 逐【角】水深＝该角相邻 4 列水深平均(无水列计 0)。
+  // ⚠️ 曾是整格一个深度(4 顶点同值)：相邻水格深度不同 → 颜色/透明度按格【硬切成一块块】(用户报
+  // "透明度分割太直接")。逐角平均后 shader 里顶点间插值 → 深浅是连续渐变；岸边角(邻列无水)
+  // 平均被拉低 → 水在岸线处自然变透明淡出。
+  const cornerDepth = (cwx: number, wy: number, cwz: number): number =>
+    (colDepth(cwx - 1, wy, cwz - 1) + colDepth(cwx, wy, cwz - 1) + colDepth(cwx - 1, wy, cwz) + colDepth(cwx, wy, cwz)) / 4;
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
@@ -404,7 +417,7 @@ export function meshChunkData(
       // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)起伏权重=waterWobble；侧壁底沿/底面=0 不动(免穿帮露缝)。
       // 平静水(waterWobble=1)整面随涌浪起伏；瀑布/落水体(=0)不起伏 → 流水不撕缝。
       const wob = (topFace || yArr[k] > 0.01) ? waterWobble : 0; // 0/1 起伏 gate
-      wa.T.push((wob > 0 ? 1 : -1) * waterDepth); // aTop=带符号水深:|值|=水柱深度(片元调透明),符号=起伏 gate(复用现有属性,不新增=零额外显存)
+      wa.T.push((wob > 0 ? 1 : -1) * cornerDepth(wx, ly, wz)); // aTop=带符号【逐角】水深:|值|=深度(片元调透明),符号=起伏 gate
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -456,11 +469,7 @@ export function meshChunkData(
           const wz = oz + lz;
           // 头顶是空气=平静水面(可起伏)；头顶还是水=水柱内/瀑布体(不起伏，免流水/瀑布撕缝)。
           waterWobble = waterAmount(wx, ly + 1, wz) > 0 ? 0 : 1;
-          // 水柱深度:向上找到水面 + 向下找到底(封顶7格,够 shader 区分浅/深)。浅水透、深水实。
-          let wd = 1;
-          for (let yy = ly + 1; wd < 7 && yy < CHUNK_H && waterAmount(wx, yy, wz) > 0; yy++) wd++;
-          for (let yy = ly - 1; wd < 7 && yy >= 0 && waterAmount(wx, yy, wz) > 0; yy--) wd++;
-          waterDepth = wd;
+          // (水深改为 emitWaterFace 里逐角平均——cornerDepth，深浅渐变不再按格硬切)
           // 四角高度（取邻格平均 → 顺流斜面）。角命名 hAB：A=本格 x 侧(0/1)，B=z 侧(0/1)。
           const h00 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz - 1], [wx - 1, wz - 1]]);
           const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);

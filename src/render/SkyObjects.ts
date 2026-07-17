@@ -42,7 +42,7 @@ void main() {
   // 体积感：朝太阳水平方向偏移再采一次,密度差→向阳侧亮、厚处底部暗(白天云要白,暗部别压狠)
   vec2 sunXZ = normalize(uSunDir.xz + vec2(1e-4, 0.0));
   float d2 = mwFBM(q + drift + sunXZ * 0.05);
-  float lit = clamp(0.74 + (d2 - d) * 4.0, 0.58, 1.08);
+  float lit = clamp(0.72 + (d2 - d) * 4.5, 0.52, 1.12);
   float dense = smoothstep(0.50, 0.88, d); // 厚处更白亮
   vec3 col = uTint * mix(0.86, 1.12, dense) * lit;
   float dist = length(vW.xz - cameraPosition.xz);

@@ -117,8 +117,8 @@ export class Bloom {
     this.extractMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: null },
-        // 0.7 时白天亮沙/雪/整片天空都过阈值 → 画面蒙白纱。0.82 只留太阳/高光/岩浆等真亮源。
-        uThreshold: { value: 0.82 },
+        // 0.7 时白天亮沙/雪/整片天空都过阈值 → 画面蒙白纱。0.78 留太阳/高光/岩浆/粼光等真亮源(0.82 用户嫌淡)。
+        uThreshold: { value: 0.78 },
       },
       vertexShader: EXTRACT_VERT,
       fragmentShader: EXTRACT_FRAG,

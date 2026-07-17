@@ -44,8 +44,9 @@ describe('水面高度·头顶有方块（修：放方块后水不再变整块 /
     expect(level(true)).toBeLessThan(Y + 0.95); // 且确实不是满格
   });
 
-  it('水柱深度(编码进 aTop 符号)：浅水(1格)|aTop|=1、深水(5格)|aTop|=5（光影按深度调透明:浅→透深→实）', () => {
-    // aTop 现承载带符号水深：|值|=水柱深度(片元调透明)，符号=起伏 gate(正起伏/负不起伏)。复用属性,零额外显存。
+  it('逐角水深(编码进 aTop)：池心角=满深度、岸边角被平均拉低(深浅渐变+岸线淡出,不按格硬切)', () => {
+    // aTop=带符号【逐角】水深：|值|=角相邻4列水深平均(无水列计0)，符号=起伏 gate。
+    // 逐角平均 → 相邻水格深度不同时顶点间插值成渐变(曾整格同值→透明度按格硬切,用户报"分割太直接")。
     const maxDepth = (w: ChunkWorld): number => {
       const t = meshChunk(w, 0, 0).water.top;
       if (!t || !t.length) return 0;
@@ -56,16 +57,27 @@ describe('水面高度·头顶有方块（修：放方块后水不再变整块 /
       }
       return m;
     };
-    // 浅：单格水，头顶空气 → 顶面 depth=1
+    // 浅：3×3 一格深水池 → 池心角(4邻列全水,各深1)=1；岸角<1
     const shallow = new ChunkWorld(99);
-    shallow.setBlock(5, Y - 1, 5, STONE);
-    shallow.setWater(5, Y, 5, 7, false, false);
+    for (let dx = 0; dx < 3; dx++)
+      for (let dz = 0; dz < 3; dz++) {
+        shallow.setBlock(4 + dx, Y - 1, 4 + dz, STONE);
+        shallow.setWater(4 + dx, Y, 4 + dz, 7, false, false);
+      }
     expect(maxDepth(shallow)).toBeCloseTo(1, 5);
-    // 深：5 格水柱（Y..Y+4，顶上空气）→ 顶面 depth=5
+    // 深：3×3 五格深水柱 → 池心角=5(顶面画在最上层)
     const deep = new ChunkWorld(99);
-    deep.setBlock(5, Y - 1, 5, STONE);
-    for (let dy = 0; dy < 5; dy++) deep.setWater(5, Y + dy, 5, 7, false, false);
+    for (let dx = 0; dx < 3; dx++)
+      for (let dz = 0; dz < 3; dz++) {
+        deep.setBlock(4 + dx, Y - 1, 4 + dz, STONE);
+        for (let dy = 0; dy < 5; dy++) deep.setWater(4 + dx, Y + dy, 4 + dz, 7, false, false);
+      }
     expect(maxDepth(deep)).toBeCloseTo(5, 5);
+    // 孤立单格浅水：四角都只有本列有水 → |aTop|=1/4(岸线淡出,不再是整格 1)
+    const lone = new ChunkWorld(99);
+    lone.setBlock(9, Y - 1, 9, STONE);
+    lone.setWater(9, Y, 9, 7, false, false);
+    expect(maxDepth(lone)).toBeCloseTo(0.25, 5);
   });
 
   it('bug1: 头顶有方块的水仍画出顶面(覆盖格的水看得见，不是隐形空洞)', () => {

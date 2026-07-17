@@ -262,7 +262,7 @@ export class ChunkMeshManager {
             'if (uShadowOn > 0.5) {\n' +
             '  float sh = mwShadow(vShadowCoord);\n' +
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
-            '  vis = mix(1.0, mix(0.55, 1.0, sh), gate);\n' + // 阴影处降到 55%
+            '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%(更明确的影)
             '}\n' +
             'diffuseColor.rgb *= vLF * vTint * vis;',
         );
@@ -332,7 +332,7 @@ export class ChunkMeshManager {
             'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
             // 水面顶点起伏 ±0.08 格(aTop>0=平静水面;≤0=瀑布/侧壁底不动→不撕缝)。
             // ⚠️ 曾 ±0.3：远处海面被顶成一层层"白色冰架阶梯"(用户截图)。MC 光影的涌浪也只是轻微起伏。
-            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.16 * step(0.5, aTop) * uShaders;\n' +
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.2 * step(0.5, aTop) * uShaders;\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);\n' + // |aTop|=水柱深度,给片元按深度调透明
             'vSkyVis = aLight.x;', // 原始天光可见度(不随昼夜)：洞穴湖=0 → 不反射天空/无粼光/无焦散(暗处水发光 bug)
         );
@@ -368,20 +368,20 @@ export class ChunkMeshManager {
             '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
             '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
             '  float ns = nf * horiz;\n' +
-            '  vec3 N = normalize(vec3((h0 - hx) / e * ns, 1.0, (h0 - hz) / e * ns));\n' +
+            '  vec3 N = normalize(vec3((h0 - hx) / e * ns * 1.35, 1.0, (h0 - hz) / e * ns * 1.35));\n' +
             '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0) * horiz * vSkyVis;\n' + // 水下看上来/侧壁/洞穴湖(见不到天) → 无天空反射
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.85;\n' +
-            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.34);\n' + // Schlick,封顶→透底为主
+            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.38);\n' + // Schlick,封顶→透底为主
             '  float dN = smoothstep(0.0, 1.0, clamp((vWaterDepth - 0.5) / 6.5, 0.0, 1.0));\n' + // 浅↔深平滑过渡
             '  vec3 base = mix(vec3(0.10, 0.60, 0.76), vec3(0.01, 0.32, 0.60), dN) * vLF * vTint;\n' + // 浅水碧青→深水湛蓝
             // 焦散：浅水底游动的亮网纹(MC 光影签名效果)。波谷脊线→细亮纹；深水/夜晚/侧壁淡出。
             '  float cav = mwWave(wq * 1.6 + vec2(uTime * 0.12, -uTime * 0.09), uTime * 0.8);\n' +
             '  float caust = pow(1.0 - abs(cav - 0.5) * 2.0, 5.0);\n' +
-            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.5 * uSkyMul * horiz * vSkyVis) * vLF;\n' + // 焦散=阳光效应,洞穴湖(vSkyVis=0)没有
+            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.7 * uSkyMul * horiz * vSkyVis) * vLF;\n' + // 焦散=阳光效应,洞穴湖(vSkyVis=0)没有
             '  vec3 col = mix(base, skyR, fres * above);\n' +
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 140.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.6 * above * (0.3 + 0.7 * nf);\n' + // 太阳粼光
+            '  col += pow(max(dot(Rs, V), 0.0), 110.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.9 * above * (0.3 + 0.7 * nf);\n' + // 太阳粼光(pow110+0.9:大而亮,配合 bloom 出闪光感)
             '  diffuseColor.rgb = col;\n' +
             // 透明度：MC 感=一格浅水也明显偏蓝。⚠️ 曾 0.06≈隐形——沙滩浅海像没有水、只剩灰污渍(用户截图)。
             '  float depthA = mix(0.34, 0.80, dN);\n' +
