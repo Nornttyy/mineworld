@@ -63,7 +63,14 @@ void main() {
     wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
     float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
     outc = mix(vec3(lumc), wb, 1.18);
-  outc *= 1.08; // 曝光(用户三催"不够亮";仅此一处、无暖偏移,与旧洗白组合不同)
+    outc *= 1.08; // 曝光
+
+  // 高光软肩：>0.85 的分量平滑滚降(不再硬剪成死白,太阳周边天空保留层次)
+  vec3 ex = max(outc - vec3(0.85), vec3(0.0));
+  outc = min(outc, vec3(0.85)) + ex / (1.0 + ex * 1.8);
+  // 输出抖动：打散 8-bit 量化(天空渐变不再有色带)
+  float dn = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  outc += vec3((dn - 0.5) * (1.5 / 255.0));
     gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
     return;
   }
@@ -98,6 +105,13 @@ void main() {
   float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
   outc = mix(vec3(lumc), wb, 1.18);
   outc *= 1.08; // 曝光
+
+  // 高光软肩：>0.85 的分量平滑滚降(不再硬剪成死白,太阳周边天空保留层次)
+  vec3 ex = max(outc - vec3(0.85), vec3(0.0));
+  outc = min(outc, vec3(0.85)) + ex / (1.0 + ex * 1.8);
+  // 输出抖动：打散 8-bit 量化(天空渐变不再有色带)
+  float dn = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  outc += vec3((dn - 0.5) * (1.5 / 255.0));
   gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
 }
 `.trim();

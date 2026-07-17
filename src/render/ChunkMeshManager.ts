@@ -247,12 +247,17 @@ export class ChunkMeshManager {
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
             // depth pass 渲背面(shadowSide=BackSide)后受光面无自遮挡，bias 只需盖住数值误差。
             '  float bias = 0.0015;\n' +
+            // 逐像素随机旋转采样盘：把少抽样的"两段式硬边"打散成柔噪(免费软影)
+            '  float ra = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831;\n' +
+            '  vec2 rc = vec2(cos(ra), sin(ra));\n' +
+            '  vec2 o1 = vec2(0.9 * rc.x - 0.3 * rc.y, 0.9 * rc.y + 0.3 * rc.x);\n' +
             '  float s = 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.9, 0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.9,-0.3)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + o1 * uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy - o1 * uShadowTexel))) ? 1.0 : 0.0;\n' +
             '  if (uHq > 0.5) {\n' + // 高档再补 2 抽样(4-tap 软影);标准 2-tap 省采样(集显友好)
-            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2(-0.3, 0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + vec2( 0.3,-0.9)*uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '    vec2 o2 = vec2(-0.3 * rc.x - 0.9 * rc.y, -0.3 * rc.y + 0.9 * rc.x);\n' +
+            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + o2 * uShadowTexel))) ? 1.0 : 0.0;\n' +
+            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy - o2 * uShadowTexel))) ? 1.0 : 0.0;\n' +
             '    s /= 4.0;\n' +
             '  } else { s /= 2.0; }\n' +
             // 阴影相机窗口(玩家±36格)边缘渐隐：到边界 12% 内阴影淡出为无 —— 窗口外本就无阴影，

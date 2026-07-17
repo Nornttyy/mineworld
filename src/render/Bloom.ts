@@ -176,19 +176,20 @@ export class Bloom {
     gl.clear();
     gl.render(this.extractScene, this.extractCam);
 
-    // ── Pass 2：横向模糊，bloomA → bloomB ──
-    this.blurMat.uniforms['tBlur'].value = this.bloomA.texture;
-    this.blurMat.uniforms['uHorizontal'].value = 1;
-    gl.setRenderTarget(this.bloomB);
-    gl.clear();
-    gl.render(this.blurScene, this.blurCam);
-
-    // ── Pass 3：纵向模糊，bloomB → bloomA ──
-    this.blurMat.uniforms['tBlur'].value = this.bloomB.texture;
-    this.blurMat.uniforms['uHorizontal'].value = 0;
-    gl.setRenderTarget(this.bloomA);
-    gl.clear();
-    gl.render(this.blurScene, this.blurCam);
+    // ── Pass 2..5：横/纵分离模糊【两轮】(1/4 res 上 4 个 pass 很廉,半径×2 → 光晕大而柔,
+    //    不再是贴着亮源的小紧圈——"高级泛光"观感的关键) ──
+    for (let i = 0; i < 2; i++) {
+      this.blurMat.uniforms['tBlur'].value = this.bloomA.texture;
+      this.blurMat.uniforms['uHorizontal'].value = 1;
+      gl.setRenderTarget(this.bloomB);
+      gl.clear();
+      gl.render(this.blurScene, this.blurCam);
+      this.blurMat.uniforms['tBlur'].value = this.bloomB.texture;
+      this.blurMat.uniforms['uHorizontal'].value = 0;
+      gl.setRenderTarget(this.bloomA);
+      gl.clear();
+      gl.render(this.blurScene, this.blurCam);
+    }
 
     // 还原 renderTarget → null（屏幕），避免后续 pass 不知情地写入 RT。
     gl.setRenderTarget(null);

@@ -48,7 +48,10 @@ export class Renderer {
   private ssao: SSAO | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
+    // MSAA 4x：满屏几何锯齿是"劣质感"最大单项(光影包都带 AA)。MSAA 只平滑几何边缘,
+    // 像素贴图(NearestFilter)完全不糊——正适合 MC 风。直渲路径走 canvas 的 antialias,
+    // RT 路径走 rt.samples(见 buildRT)。
+    this.gl = new THREE.WebGLRenderer({ canvas, antialias: true });
     // 分辨率恒为设备原生(用户要求保清晰)；高 DPI 屏更费但更锐。卡顿改走区块加载/渲染距离优化，不降分辨率。
     // ⚠️ 曾加过动态降分辨率(adaptResolution 自动降到 0.6×)，画面发糊被用户否决、已移除——不要再加回来。
     // ⚠️ 不要加 powerPreference:'high-performance' —— 某些集显/混合显卡机器会创建上下文失败 → 进不了游戏。
@@ -289,6 +292,7 @@ export class Renderer {
       type: THREE.HalfFloatType,
       depthTexture: depthTex,
       depthBuffer: true,
+      samples: 4, // MSAA(three 自动 resolve;深度纹理照常给 god-ray)
     });
     return rt;
   }
