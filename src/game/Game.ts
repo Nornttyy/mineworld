@@ -1623,7 +1623,7 @@ export class Game {
     if (this.dimension === 'overworld' && sunElev > -0.15) {
       warmth = Math.max(0, 1 - Math.abs(sunElev) / 0.3) * Math.min(1, (sunElev + 0.15) / 0.15);
     }
-    this.renderer.setSkyColors(s.skyTop, s.skyHorizon, Math.atan2(0.28, Math.cos(sunPhi)), warmth);
+    this.renderer.setSkyColors(s.skyTop, s.skyHorizon, Math.atan2(0.1, Math.cos(sunPhi)), warmth);
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。
@@ -1641,7 +1641,7 @@ export class Game {
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光
-    this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.28); // z 同 SkyObjects/updateSun(0.28)，粼光对准太阳盘
+    this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.1); // z 同 SkyObjects/updateSun(0.1)，粼光对准太阳盘
   }
 
   /**
@@ -1668,7 +1668,7 @@ export class Game {
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
     const sx = Math.cos(phi);
     const sy = Math.sin(phi); // Y > 0 = 地平线以上
-    const sz = 0.28;
+    const sz = 0.1; // 同 SkyObjects/updateSun：MC 1.12 过天顶轨道
     const len = Math.hypot(sx, sy, sz) || 1;
 
     // 太阳在地平线以下 → intensity 0（仍传 setGodRays 以保持 RT active，shader 早返回）。
@@ -1699,9 +1699,9 @@ export class Game {
     // 强度：太阳高于地平线 + 在屏幕内才有光束；高度平滑过渡（tan-like 0..1）。
     let intensity = 0;
     if (sunUp > 0 && facing > 0 && onScreen) {
-      // 平滑渐入：太阳刚过地平线时强度 0，正午偏强。上限曾 0.6=半边天白纱、后压 0.32 用户嫌不够夸张
-      // → 0.45(光束醒目但不吞画面;光晕/泛光已各自收敛,不会叠成白斑)。
-      intensity = Math.min(0.45, sunUp * 2.2);
+      // 平滑渐入：太阳刚过地平线时强度 0，正午偏强。历史：0.6=白纱(当时光晕150+泛光1.0+×1.15 齐叠)
+      // →0.32 用户嫌淡 →0.45 仍嫌淡 →0.6(白纱三因子已各自治理,现在 0.6 只剩光束本体)。
+      intensity = Math.min(0.6, sunUp * 2.6);
     }
 
     // 太阳颜色：黎明/黄昏偏橙，正午白。用简化双线性近似，避免引入 skyStateAt 的开销。

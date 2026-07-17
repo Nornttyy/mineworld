@@ -58,8 +58,11 @@ void main() {
     // ⚠️ 不要在这里加全局提亮(曾有 ×1.15 暖偏移把画面洗白)。下面是【纯饱和度】提升：
     //    保持亮度不变、只把颜色往外推 → "光影包的浓郁感"，安全不洗白。
     vec3 outc = scene + bloomColor * uBloom;
-    float lumc = dot(outc, vec3(0.2126, 0.7152, 0.0722));
-    outc = mix(vec3(lumc), outc, 1.15);
+    // 暖色白平衡(SEUS 1.12 风)：先暖移再按亮度归一 → 只改色相不提亮(提亮=旧洗白教训)
+    vec3 wb = outc * vec3(1.07, 1.0, 0.88);
+    wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
+    outc = mix(vec3(lumc), wb, 1.22);
     gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
     return;
   }
@@ -89,8 +92,10 @@ void main() {
 
   // 体积光光束 + bloom 辉光叠加到场景色（AO 已乘到 scene 上）；纯饱和度提升(不提亮,见上)；末尾手动 sRGB 编码
   vec3 outc = scene + shaft * uSunColor * uIntensity + bloomColor * uBloom;
-  float lumc = dot(outc, vec3(0.2126, 0.7152, 0.0722));
-  outc = mix(vec3(lumc), outc, 1.15);
+  vec3 wb = outc * vec3(1.07, 1.0, 0.88);
+  wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+  float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
+  outc = mix(vec3(lumc), wb, 1.22);
   gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
 }
 `.trim();

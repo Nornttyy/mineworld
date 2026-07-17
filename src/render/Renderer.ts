@@ -245,7 +245,7 @@ export class Renderer {
     u['uSunColor'].value.copy(this.god.sunColor);
     // bloom 强度按档位。曾 1.0/0.6=全画面蒙白纱；0.45/0.3 用户嫌不够夸张 → 0.55/0.38
     // (阈值 0.78 只筛真亮源,高光辉光更明显但亮沙/天空不再整片过阈值)。
-    u['uBloom'].value = this.god.quality === 'high' ? 0.55 : 0.38;
+    u['uBloom'].value = this.god.quality === 'high' ? 0.68 : 0.5;
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;

@@ -118,7 +118,8 @@ export class Bloom {
       uniforms: {
         tScene: { value: null },
         // 0.7 时白天亮沙/雪/整片天空都过阈值 → 画面蒙白纱。0.78 留太阳/高光/岩浆/粼光等真亮源(0.82 用户嫌淡)。
-        uThreshold: { value: 0.78 },
+        // 0.74:亮沙(luma≈0.69)仍不过阈,但天空亮带/粼光/太阳有明显辉光(用户要更夸张)
+        uThreshold: { value: 0.74 },
       },
       vertexShader: EXTRACT_VERT,
       fragmentShader: EXTRACT_FRAG,

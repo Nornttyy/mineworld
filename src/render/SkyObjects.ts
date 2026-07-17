@@ -419,7 +419,8 @@ export class SkyObjects {
   update(worldTime: number, camPos: THREE.Vector3): void {
     if (this.dim === 'nether') return; // 下界无日月云，跳过所有定位与云重建
     const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 0=日出
-    this.dir.set(Math.cos(th), Math.sin(th), 0.28).normalize();
+    // 侧倾 0.1≈MC 1.12 celestial angle(正午过天顶,影子极短)；曾 0.28=太阳永到不了头顶,正午影子仍拖长
+    this.dir.set(Math.cos(th), Math.sin(th), 0.1).normalize();
     const R = 280;
     this.sun.position.copy(camPos).addScaledVector(this.dir, R);
     this.sun.lookAt(camPos);
