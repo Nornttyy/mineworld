@@ -221,30 +221,34 @@ export function meshChunkData(
 
   const occ = (x: number, y: number, z: number): boolean => isOpaque(getBlock(x, y, z));
 
-  // 光照：对本区块 + 1 格光晕(覆盖邻块边界，让边界面取到邻块的光)算每格天光 + 方块光，各 0..15。
+  // 光照：对本区块 + HALO 格光晕算每格天光 + 方块光，各 0..15。
   // 顶点存"该面朝向格"的 (天光, 方块光)，交给材质 shader 合成亮度——昼夜只缩放天光，火把光恒定。
-  const LW = CHUNK_W + 2;
+  // ⚠️ HALO 曾是 1：横向渗光在区块边界被切断——洞口/悬崖的天光走不进相邻区块，边界处出现
+  //   硬黑墙/竖直接缝(用户报"树下洞口死黑一片")。8 格覆盖绝大多数渗光(更远的残余光 ≤6 级,
+  //   肉眼几乎无感)；worker 本就收到 3×3 邻区数据(可支撑到 16)。
+  const HALO = 8;
+  const LW = CHUNK_W + 2 * HALO;
   // 半透明衰减(同 MC opacity)：水/树叶 = 1（光穿过它们每格额外 −1 → 水下越深越暗）。
   const opac = (hx: number, hy: number, hz: number): number => {
-    const id = getBlock(ox + hx - 1, hy, oz + hz - 1);
+    const id = getBlock(ox + hx - HALO, hy, oz + hz - HALO);
     return isWaterId(id) || isCutoutId(id) ? 1 : 0;
   };
-  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1), opac);
+  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO), opac);
   const blkLight = computeBlockLight(
     LW,
     CHUNK_H,
-    (hx, hy, hz) => blockLight(getBlock(ox + hx - 1, hy, oz + hz - 1)),
-    (hx, hy, hz) => occ(ox + hx - 1, hy, oz + hz - 1),
+    (hx, hy, hz) => blockLight(getBlock(ox + hx - HALO, hy, oz + hz - HALO)),
+    (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO),
     opac,
   );
   const skyAt = (lx: number, ly: number, lz: number): number => {
     if (ly >= CHUNK_H) return 15; // 世界顶之上=露天
     if (ly < 0) return 0; // 世界底之下=黑
-    return skyLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
+    return skyLight[lx + HALO + (lz + HALO) * LW + ly * LW * LW];
   };
   const blkAt = (lx: number, ly: number, lz: number): number => {
     if (ly >= CHUNK_H || ly < 0) return 0;
-    return blkLight[lx + 1 + (lz + 1) * LW + ly * LW * LW];
+    return blkLight[lx + HALO + (lz + HALO) * LW + ly * LW * LW];
   };
   // 平滑光照(同 MC smooth lighting)：某面某角，取"面外格 + 两条边格 + 对角格"中【非遮挡】格的
   // (天光,方块光) 平均 → 顶点间渐变、柔和的明暗，而不是整面一个平铺光值。(ex,ey,ez)=面外那一格(local)。

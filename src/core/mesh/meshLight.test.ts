@@ -31,6 +31,40 @@ describe('mesher 光照属性(天光+方块光)', () => {
     expect(skyMin).toBe(0); // 封闭面：天光 0
   });
 
+  it('跨区块渗光：洞口在邻区块时，光仍能渗进本区块(halo>1 回归)', () => {
+    // 密封石隧道(高空 y=180 层)：口开在区块 -1 的 x=-4，往 +x 一直延伸到本区块(0) x=7，x=8 封死。
+    // 天光只能从洞口横向 BFS 渗入。旧实现光照网格只带 1 格光晕 → 本区块看不到 x≤-2 的光源，
+    // 整条隧道在本区块内全黑(接缝黑墙 bug)；halo=8 后应看到"洞口亮、越深越暗"的 MC 式渐变。
+    const w = new ChunkWorld(42);
+    const STONE = 1;
+    for (let x = -4; x <= 8; x++) {
+      for (let z = 7; z <= 9; z++) {
+        for (let y = 179; y <= 181; y++) {
+          const interior = x <= 7 && z === 8 && y === 180;
+          if (!interior) w.setBlock(x, y, z, STONE);
+        }
+      }
+    }
+    const m = meshChunk(w, 0, 0).opaque;
+    const light = m.light!;
+    const pos = m.positions;
+    // 收集隧道地板顶面顶点(y=180, z∈[8,9])的天光，按本地 x 分桶
+    let nearMax = 0; // x∈[0,3]：靠洞口一侧(仍隔着区块边界 4+ 格)
+    let deepMax = 0; // x∈[6,8]：隧道深处
+    for (let i = 0; i < pos.length / 3; i++) {
+      const x = pos[i * 3];
+      const y = pos[i * 3 + 1];
+      const z = pos[i * 3 + 2];
+      if (y !== 180 || z < 8 || z > 9) continue;
+      const sky = light[i * 2];
+      if (x >= 0 && x <= 3 && sky > nearMax) nearMax = sky;
+      if (x >= 6 && x <= 8 && sky > deepMax) deepMax = sky;
+    }
+    expect(nearMax).toBeGreaterThan(0.35); // 旧 halo=1 时这里是 0(黑墙)；x=0 处应约 10/15
+    expect(deepMax).toBeGreaterThan(0.08); // 深处仍有余光(约 3/15)
+    expect(deepMax).toBeLessThan(nearMax); // 且比洞口侧暗(渐变方向正确)
+  });
+
   it('火把：生成自发光网格 + 给周围方块面带来方块光', () => {
     const w = new ChunkWorld(7);
     // 地表之上(y=186)搭一个石台 + 台上放火把，台面的面应当被方块光照亮

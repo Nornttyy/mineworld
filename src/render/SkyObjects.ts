@@ -56,7 +56,9 @@ function makeRealSunTex(): THREE.CanvasTexture {
   return t;
 }
 
-// 太阳光晕：更大、更柔的暖色径向辉光（中心半透明→边缘全透）。
+// 太阳光晕：柔和暖色径向辉光（中心半透明→边缘全透）。
+// ⚠️ 曾是 0.5/0.32/0.14 的浓晕 + 150 大平面：低太阳时叠上 bloom/god-ray 把半边天糊成大白斑
+// (用户截图：水面上一团白雾)。压淡压小——辉光是点缀，主亮感交给 bloom(只作用于真亮源)。
 function makeSunGlowTex(): THREE.CanvasTexture {
   const S = 128;
   const c = document.createElement('canvas');
@@ -65,10 +67,10 @@ function makeSunGlowTex(): THREE.CanvasTexture {
   const cx2 = S / 2;
   const r = S / 2;
   const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,238,0.5)');    // 中心：淡白黄半透(非橙)
-  g.addColorStop(0.25, 'rgba(255,252,224,0.32)'); // 内辉
-  g.addColorStop(0.55, 'rgba(255,249,208,0.14)'); // 中辉
-  g.addColorStop(0.8, 'rgba(255,247,198,0.04)');  // 外辉
+  g.addColorStop(0, 'rgba(255,255,238,0.30)');    // 中心：淡白黄半透(非橙)
+  g.addColorStop(0.25, 'rgba(255,252,224,0.16)'); // 内辉
+  g.addColorStop(0.55, 'rgba(255,249,208,0.07)'); // 中辉
+  g.addColorStop(0.8, 'rgba(255,247,198,0.02)');  // 外辉
   g.addColorStop(1, 'rgba(255,245,188,0)');        // 边缘：全透
   x.fillStyle = g;
   x.beginPath();
@@ -195,18 +197,17 @@ function addBox(P: number[], C: number[], I: number[], cx: number, cy: number, c
   }
 }
 
-/** 天空对象：方块太阳 + 方块月亮(随昼夜东升西落、对侧) + 云层(默认 MC 立体云 / 光影开=柔和真实云)。 */
+/** 天空对象：方块太阳 + 方块月亮(随昼夜东升西落、对侧) + MC 立体方块云(所有画质档共用)。
+ *  ⚠️ 云曾按光影档切换：光影开 = 512² fbm"柔和真实云"平面——实际效果是天上几团模糊白斑，
+ *  是"不像 MC"最扎眼的元素(用户截图)。MC 光影包也大多保留原版方块云；已整体删除软云路径。 */
 export class SkyObjects {
   private readonly sun: THREE.Mesh;
   private readonly moon: THREE.Mesh;
   private readonly realSun: THREE.Mesh;  // 真实发光太阳（光影开）
   private readonly sunGlow: THREE.Mesh;  // 太阳柔和光晕（光影开，加法混合）
   private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
-  private readonly voxelClouds: THREE.Mesh; // 立体方块云（默认）
-  private readonly softClouds: THREE.Mesh; // 柔和真实云（光影开）
-  private readonly softMat: THREE.MeshBasicMaterial;
+  private readonly voxelClouds: THREE.Mesh; // 立体方块云（所有档）
   private readonly dir = new THREE.Vector3();
-  private shaders = false; // 光影开关 → 切云风格
   private drift = 0; // 云缓飘累计（格）
   private cloudOriginX = NaN; // 立体云已建网格的格原点（变了才重建）
   private cloudOriginZ = NaN;
@@ -222,7 +223,7 @@ export class SkyObjects {
     // 真实日月（光影开时显示）
     this.realSun = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), sky(makeRealSunTex()));
     this.sunGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(150, 150),
+      new THREE.PlaneGeometry(88, 88), // 曾 150：低太阳时半边天全是晕(大白斑)。88≈太阳盘 1.7 倍，点缀即可
       new THREE.MeshBasicMaterial({ map: makeSunGlowTex(), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }),
     );
     this.realMoon = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sky(makeRealMoonTex()));
@@ -240,28 +241,14 @@ export class SkyObjects {
     this.voxelClouds = new THREE.Mesh(new THREE.BufferGeometry(), voxelMat);
     this.voxelClouds.frustumCulled = false;
 
-    // 真实云（光影）：高空大平面 + 柔和 fbm 云贴图，UV 缓飘。
-    // ⚠️ 512² 柔云贴图(createImageData≈1MB)【延迟】到光影开时才建——光影关根本不显示柔云，不该为它付内存。
-    //    它本是无条件在此创建，在低内存机上成了压垮 `new SkyObjects` 的那次 createImageData OOM(用户"进不去世界"根因)。
-    this.softMat = new THREE.MeshBasicMaterial({
-      transparent: true,
-      depthWrite: false,
-      opacity: 0.8,
-      side: THREE.DoubleSide,
-      fog: false,
-    });
-    this.softClouds = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), this.softMat);
-    this.softClouds.rotation.x = -Math.PI / 2;
-    this.softClouds.visible = false;
-
-    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds);
+    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds);
   }
 
   /** 维度切换：下界隐藏日月云；主世界按当前光影档恢复。 */
   setDimension(dim: 'overworld' | 'nether'): void {
     this.dim = dim;
     if (dim === 'nether') {
-      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.softClouds]) {
+      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds]) {
         m.visible = false;
       }
     } else {
@@ -269,34 +256,16 @@ export class SkyObjects {
     }
   }
 
-  /** 光影画质：off → MC 立体方块云 + 方块日月；standard/high → 柔和真实云 + 真实日月。 */
+  /** 光影画质：只切日月风格(off=方块像素日月；standard/high=真实日月+光晕)。云恒为 MC 立体方块云。 */
   setLightingQuality(q: LightingQuality): void {
     this.lq = q;
     const on = q !== 'off';
-    this.shaders = on;
-    if (on) this.ensureSoftCloud(); // 光影开才建 512² 柔云贴图(延迟分配；光影关不付这块内存)
-    const softReady = this.softMat.map !== null;
-    this.softClouds.visible = on && softReady;
-    this.voxelClouds.visible = !on || !softReady; // 光影关→立体云；光影开但柔云没建成(内存不足)→回退立体云,不至于没云
+    this.voxelClouds.visible = true;
     this.sun.visible = !on;
     this.moon.visible = !on;
     this.realSun.visible = on;
     this.sunGlow.visible = on;
     this.realMoon.visible = on;
-  }
-
-  /** 延迟创建 512² 柔云贴图(≈1MB)。仅光影开时调用；内存不足时 catch 降级(跳过柔云→回退立体云)，绝不让整局崩。 */
-  private ensureSoftCloud(): void {
-    if (this.softMat.map) return; // 已建过
-    try {
-      const tex = makeSoftCloudTex();
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(3, 3); // 少而大的柔云团
-      this.softMat.map = tex;
-      this.softMat.needsUpdate = true;
-    } catch (err) {
-      console.warn('[SkyObjects] 柔云贴图创建失败(内存紧张),降级为立体云:', err);
-    }
   }
 
   // 重建以 (originX,originZ) 云格为左下角、CLOUD_GRID² 范围的立体云网格（世界固定 pattern）。
@@ -340,84 +309,18 @@ export class SkyObjects {
 
     this.drift += CLOUD_DRIFT; // 缓风（单调，不随昼夜回绕跳变）
 
-    if (this.shaders) {
-      // 真实云：平面跟玩家、UV 飘
-      this.softClouds.position.set(camPos.x, CLOUD_Y, camPos.z);
-      if (this.softMat.map) this.softMat.map.offset.x = (this.drift * 0.0016) % 1;
-    } else {
-      // 立体云：云格世界固定 + 飘移；玩家跨云格才重建网格，网格本地坐标 + position 补偿 → 飘移顺滑无跳。
-      const originX = Math.floor((camPos.x - this.drift) / CLOUD_CS) - CLOUD_GRID / 2;
-      const originZ = Math.floor(camPos.z / CLOUD_CS) - CLOUD_GRID / 2;
-      if (originX !== this.cloudOriginX || originZ !== this.cloudOriginZ) {
-        this.rebuildVoxelClouds(originX, originZ);
-        this.cloudOriginX = originX;
-        this.cloudOriginZ = originZ;
-      }
-      // 云格 i 渲染在世界 (originX+i)*CS + drift → 缓飘；高度固定。
-      this.voxelClouds.position.set(originX * CLOUD_CS + this.drift, CLOUD_Y, originZ * CLOUD_CS);
+    // 立体云：云格世界固定 + 飘移；玩家跨云格才重建网格，网格本地坐标 + position 补偿 → 飘移顺滑无跳。
+    const originX = Math.floor((camPos.x - this.drift) / CLOUD_CS) - CLOUD_GRID / 2;
+    const originZ = Math.floor(camPos.z / CLOUD_CS) - CLOUD_GRID / 2;
+    if (originX !== this.cloudOriginX || originZ !== this.cloudOriginZ) {
+      this.rebuildVoxelClouds(originX, originZ);
+      this.cloudOriginX = originX;
+      this.cloudOriginZ = originZ;
     }
+    // 云格 i 渲染在世界 (originX+i)*CS + drift → 缓飘；高度固定。
+    this.voxelClouds.position.set(originX * CLOUD_CS + this.drift, CLOUD_Y, originZ * CLOUD_CS);
   }
 }
 
-// 周期 value noise（贴图无缝平铺用）：hash 坐标按 period 取模 → 左右/上下边缘相接。
-const emod = (a: number, n: number): number => ((a % n) + n) % n;
-function pnoise(x: number, z: number, period: number): number {
-  const xi = Math.floor(x);
-  const zi = Math.floor(z);
-  const xf = x - xi;
-  const zf = z - zi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = zf * zf * (3 - 2 * zf);
-  const h = (a: number, b: number): number => hash2(emod(a, period), emod(b, period));
-  const a = h(xi, zi);
-  const b = h(xi + 1, zi);
-  const c = h(xi, zi + 1);
-  const d = h(xi + 1, zi + 1);
-  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
-}
-
-// 柔和真实云贴图：周期 fbm → 软边白云团（少而大），透明背景，可无缝平铺。
-function makeSoftCloudTex(): THREE.CanvasTexture {
-  const S = 512; // 提分辨率，掠角看更清晰
-  const P = 8; // 基础噪声周期 → 平铺无缝（各倍频周期都是 P 的整数倍，照样无缝）
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  const img = x.createImageData(S, S);
-  // 4 倍频 FBM（周期对齐 → 仍无缝）：比原来 2 倍频自然得多，云有大团+细絮的层次，不再是糊块。
-  const fbm = (u: number, v: number): number => {
-    let n = 0;
-    let amp = 0.5;
-    let f = 1;
-    let norm = 0;
-    for (let o = 0; o < 4; o++) {
-      n += pnoise(u * f, v * f, P * f) * amp;
-      norm += amp;
-      amp *= 0.5;
-      f *= 2;
-    }
-    return n / norm;
-  };
-  for (let py = 0; py < S; py++) {
-    for (let px = 0; px < S; px++) {
-      const u = (px / S) * P;
-      const v = (py / S) * P;
-      let d = fbm(u, v);
-      d = Math.max(0, Math.min(1, (d - 0.46) / 0.3)); // 阈值 → 蓬松、稀疏
-      const a = d * d * (3 - 2 * d); // smoothstep → 软边
-      const shade = 224 + 31 * a; // 厚处更亮白、薄絮偏冷白 → 有体积感（不再是纯平白）
-      const i = (py * S + px) * 4;
-      img.data[i] = shade;
-      img.data[i + 1] = shade;
-      img.data[i + 2] = Math.min(255, shade + 6); // 极轻微偏蓝 → 高空感
-      img.data[i + 3] = a * 230;
-    }
-  }
-  x.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.minFilter = THREE.LinearMipmapLinearFilter;
-  t.magFilter = THREE.LinearFilter; // 柔和（非像素）
-  t.anisotropy = 4; // 掠角（朝地平线看）更清晰
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+// （软云贴图路径已删：光影档也用 MC 立体方块云——512² fbm 云平面渲出来是糊斑、不像 MC，
+//   还额外吃 ~1MB 贴图内存，低内存机曾因它 OOM。）

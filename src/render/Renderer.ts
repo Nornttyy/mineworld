@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { drawSkyGradient, HORIZON_COLOR, type RGB } from './sky';
+import { HORIZON_COLOR, type RGB } from './sky';
 import { GodRays } from './GodRays';
 import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
@@ -28,11 +28,12 @@ export class Renderer {
   readonly camera: THREE.PerspectiveCamera;
   private readonly gl: THREE.WebGLRenderer;
 
-  // 天空背景：自有 canvas，昼夜更替时重画渐变（见 setSkyColors）。
-  private readonly skyCanvas = document.createElement('canvas');
-  private readonly skyCtx: CanvasRenderingContext2D | null;
-  private readonly skyTex: THREE.CanvasTexture;
-  private lastSky = ''; // 上次套用的天空配色（相同则跳过重画）
+  // 天空穹顶：跟随相机的反面球 + 顶点色渐变。
+  // ⚠️ 曾用 scene.background 贴 2×256 canvas 渐变——它钉死在【屏幕】上：抬头看天顶还是地平线色、
+  //   亮带跟着屏幕下缘走，完全不是 MC 那种"亮带贴住真地平线"的世界天空。穹顶按视线方向渐变才对。
+  private readonly skyDome: THREE.Mesh;
+  private readonly skyDomeColors: THREE.BufferAttribute;
+  private lastSky = ''; // 上次套用的天空配色（相同则跳过重算顶点色）
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
@@ -60,26 +61,48 @@ export class Renderer {
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.shadowMap.autoUpdate = false; // 不每帧重渲 shadow(开销大)；由 markShadowDirty 节流触发(昼夜慢 + 玩家移动时)
-    this.skyCanvas.width = 2;
-    this.skyCanvas.height = 256;
-    this.skyCtx = this.skyCanvas.getContext('2d');
-    if (this.skyCtx) drawSkyGradient(this.skyCtx, [0.3, 0.52, 0.79], [0.81, 0.9, 0.97]);
-    this.skyTex = new THREE.CanvasTexture(this.skyCanvas);
-    this.skyTex.colorSpace = THREE.SRGBColorSpace;
-    this.scene.background = this.skyTex; // 渐变天空
+    // 天空穹顶：半径 750(相机 far 1000 以内)、反面渲染、不写深度(god-ray 深度判定仍视穹顶处为天空)、
+    // 不受雾(fog:false)；每帧跟随相机(见 render)。顶点色由 setSkyColors 按昼夜配色重算。
+    const domeGeo = new THREE.SphereGeometry(750, 32, 24);
+    const domeVerts = domeGeo.getAttribute('position').count;
+    this.skyDomeColors = new THREE.BufferAttribute(new Float32Array(domeVerts * 3), 3);
+    domeGeo.setAttribute('color', this.skyDomeColors);
+    const domeMat = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+    });
+    this.skyDome = new THREE.Mesh(domeGeo, domeMat);
+    this.skyDome.frustumCulled = false;
+    this.skyDome.renderOrder = -1000; // 最先画，地形随后盖上来(穹顶不写深度)
+    this.scene.add(this.skyDome);
+    this.setSkyColors([0.3, 0.52, 0.79], [0.81, 0.9, 0.97]);
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
 
-  // 昼夜更替：重画天空渐变（配色不变则跳过，避免每帧白重传）。
+  // 昼夜更替：重算穹顶顶点色（配色不变则跳过）。渐变按【视线仰角】走：
+  // 地平线亮带 → 仰角 ~0.45 以上为天顶色（近似 MC：亮带贴住真地平线，与雾色衔接）。
   setSkyColors(top: RGB, horizon: RGB): void {
     const sig = `${top.join()}|${horizon.join()}`;
-    if (sig === this.lastSky || !this.skyCtx) return;
+    if (sig === this.lastSky) return;
     this.lastSky = sig;
-    drawSkyGradient(this.skyCtx, top, horizon);
-    this.skyTex.needsUpdate = true;
+    const cTop = new THREE.Color().setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
+    const cHor = new THREE.Color().setRGB(horizon[0], horizon[1], horizon[2], THREE.SRGBColorSpace);
+    const pos = (this.skyDome.geometry as THREE.SphereGeometry).getAttribute('position');
+    const arr = this.skyDomeColors.array as Float32Array;
+    for (let i = 0; i < pos.count; i++) {
+      const ny = pos.getY(i) / 750; // -1..1 仰角
+      const t = ny <= 0 ? 0 : Math.min(1, ny / 0.45);
+      const s = t * t * (3 - 2 * t); // smoothstep
+      arr[i * 3] = cHor.r + (cTop.r - cHor.r) * s;
+      arr[i * 3 + 1] = cHor.g + (cTop.g - cHor.g) * s;
+      arr[i * 3 + 2] = cHor.b + (cTop.b - cHor.b) * s;
+    }
+    this.skyDomeColors.needsUpdate = true;
   }
 
   resize(): void {
@@ -166,6 +189,7 @@ export class Renderer {
    * renderOverlay（第一人称手臂）始终在此之后由 Game 调用，直接上屏（不经 RT）。
    */
   render(): void {
+    this.skyDome.position.copy(this.camera.position); // 穹顶跟随相机(玩家永远在天空球心)
     // ★ off 路径（god===null 或 RT 未就绪）：直接渲染，零后处理开销，与改动前完全一致。
     // bloom 必须依赖 RT（需要场景颜色纹理），故只看 god===null / rt===null 决定直渲。
     // 不再用 intensity<=0.001 做早出（否则太阳不可见时 bloom 也会消失）。
@@ -203,8 +227,9 @@ export class Renderer {
     u['uSunUV'].value.copy(this.god.sunUV);
     u['uIntensity'].value = this.god.intensity; // 太阳不可见时 0，shader 跳过体积光但保留 bloom
     u['uSunColor'].value.copy(this.god.sunColor);
-    // bloom 强度按档位
-    u['uBloom'].value = this.god.quality === 'high' ? 1.0 : 0.6;
+    // bloom 强度按档位。曾是 1.0/0.6：亮沙/雪/天空整片过阈值 → 全画面蒙白纱(用户"发白不像MC")。
+    // bloom 只该给太阳/岩浆/高光加辉光，压到 0.45/0.30 + 提高阈值(Bloom.ts 0.82)。
+    u['uBloom'].value = this.god.quality === 'high' ? 0.45 : 0.3;
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;

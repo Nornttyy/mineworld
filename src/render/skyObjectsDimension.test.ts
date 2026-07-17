@@ -31,10 +31,10 @@ beforeAll(() => {
 import { SkyObjects } from './SkyObjects';
 
 describe('SkyObjects.setDimension', () => {
-  it('setDimension("nether") hides all 7 sky objects', () => {
+  it('setDimension("nether") hides all 6 sky objects', () => {
     const so = new SkyObjects(new THREE.Scene()) as any;
     so.setDimension('nether');
-    for (const m of [so.sun, so.moon, so.realSun, so.sunGlow, so.realMoon, so.voxelClouds, so.softClouds]) {
+    for (const m of [so.sun, so.moon, so.realSun, so.sunGlow, so.realMoon, so.voxelClouds]) {
       expect(m.visible).toBe(false);
     }
   });
@@ -50,6 +50,7 @@ describe('SkyObjects.setDimension', () => {
     expect(so.moon.visible).toBe(true);
     expect(so.realSun.visible).toBe(false);
     expect(so.realMoon.visible).toBe(false);
+    expect(so.voxelClouds.visible).toBe(true); // 体素云所有档恒显示(软云路径已删)
   });
 
   it('dim field defaults to overworld', () => {

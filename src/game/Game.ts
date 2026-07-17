@@ -897,7 +897,7 @@ export class Game {
     this.renderDistance = rd;
     const far = rd * 16;
     if (this.normalFog instanceof THREE.Fog) {
-      this.normalFog.near = far * 0.5;
+      this.normalFog.near = far * 0.72; // MC 雾贴着渲染边缘才起(≈0.75×)；曾 0.5×,半个视距就开始发灰蒙雾
       this.normalFog.far = far;
     }
     this.chunks.setFogFar(far);
@@ -1625,7 +1625,7 @@ export class Game {
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光
-    this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.35);
+    this.chunks.setSunDir(Math.cos(phi), Math.sin(phi), 0.28); // z 同 SkyObjects/updateSun(0.28)，粼光对准太阳盘
   }
 
   /**
@@ -1647,11 +1647,12 @@ export class Game {
       return;
     }
 
-    // 太阳世界方向（同 SkyObjects.update & ChunkMeshManager.updateSun 的公式）。
+    // 太阳世界方向（同 SkyObjects.update & ChunkMeshManager.updateSun 的公式，z 分量三处必须一致=0.28，
+    // 否则 god-ray 光束中心与可见太阳盘错位）。
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
     const sx = Math.cos(phi);
     const sy = Math.sin(phi); // Y > 0 = 地平线以上
-    const sz = 0.35;
+    const sz = 0.28;
     const len = Math.hypot(sx, sy, sz) || 1;
 
     // 太阳在地平线以下 → intensity 0（仍传 setGodRays 以保持 RT active，shader 早返回）。
@@ -1682,8 +1683,9 @@ export class Game {
     // 强度：太阳高于地平线 + 在屏幕内才有光束；高度平滑过渡（tan-like 0..1）。
     let intensity = 0;
     if (sunUp > 0 && facing > 0 && onScreen) {
-      // 平滑渐入：太阳刚过地平线时强度 0，正午偏强，上限 0.6（防过曝）。
-      intensity = Math.min(0.6, sunUp * 2.5);
+      // 平滑渐入：太阳刚过地平线时强度 0，正午偏强。上限曾 0.6——低太阳时半边天全是白纱
+      // (用户截图里水面上的大白斑)，压到 0.32：光束可见但不吞画面。
+      intensity = Math.min(0.32, sunUp * 1.8);
     }
 
     // 太阳颜色：黎明/黄昏偏橙，正午白。用简化双线性近似，避免引入 skyStateAt 的开销。

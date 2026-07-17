@@ -228,6 +228,7 @@ function startGame(world: WorldSave): void {
         showLoading(true, '进入中…③启动渲染');
         game.start();
         gameStarted = true;
+        (window as unknown as { __mw?: Game }).__mw = game; // 调试/截图工具用：暴露 game 实例(tools/shot.mjs 定机位)
         showLoading(false);
         void canvas.requestPointerLock();
       } catch (e) {

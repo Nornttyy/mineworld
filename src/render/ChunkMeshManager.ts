@@ -31,7 +31,7 @@ const MC_BRIGHT_GLSL = 'float mcBright(float lv){ float f = clamp(lv,0.0,15.0)/1
 const MC_LIGHT_GLSL =
   '{ float skyLv = aLight.x*15.0; float blkLv = aLight.y*15.0;' +
   ' float bs = mcBright(max(skyLv - uSkyDarken, 0.0)); float bb = mcBright(blkLv);' +
-  ' float drkFloor = (skyLv < 0.5) ? 0.012 : 0.04;' + // 纯无天光(洞穴/地下)压更暗→需火把(MC感);露天含夜晚 skyLv=15 保持 0.04 不动
+  ' float drkFloor = (skyLv < 0.5) ? 0.03 : 0.04;' + // 纯无天光(洞穴/地下)底光。曾 0.012≈纯黑一片；MC moody 亮度下光照0也约 3~5% 灰,保留一点轮廓感,火把依旧必需
   ' vLF = max(bs, bb) * 0.96 + drkFloor;' +
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
   ' vTint = mix(vec3(1.0, 0.91, 0.78), uSkyTint, sf); }';
@@ -311,7 +311,9 @@ export class ChunkMeshManager {
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
             'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.6 * step(0.5, aTop) * uShaders;\n' + // 水面顶点上下起伏 ±0.3格(aTop>0=平静水面起伏;≤0=瀑布/侧壁底不起伏→不撕缝)
+            // 水面顶点起伏 ±0.08 格(aTop>0=平静水面;≤0=瀑布/侧壁底不动→不撕缝)。
+            // ⚠️ 曾 ±0.3：远处海面被顶成一层层"白色冰架阶梯"(用户截图)。MC 光影的涌浪也只是轻微起伏。
+            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.16 * step(0.5, aTop) * uShaders;\n' +
             'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);', // |aTop|=水柱深度,给片元按深度调透明
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
@@ -333,25 +335,38 @@ export class ChunkMeshManager {
           '#include <color_fragment>',
           '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
             'if (uShaders > 0.5) {\n' +
-            // 真实水(MC 光影风)：丢掉像素贴图，改 清澈水色 + 反射天空渐变 + 菲涅尔 + 太阳粼光。
+            // 真实水(MC 光影风)：丢掉像素贴图，改 清澈碧水 + 天空反射 + 菲涅尔 + 焦散 + 太阳粼光。
+            '  vec3 V = normalize(cameraPosition - vWPos);\n' +
+            '  float dist = length(cameraPosition - vWPos);\n' +
+            // 几何法线(屏幕空间导数)：竖直侧壁(岸边落差的水墙)不做波纹/天空反射——
+            // 否则被菲涅尔刷成白色竖条纹"冰架"(用户截图里海边的白架子)。
+            '  vec3 gNa = cross(dFdx(vWPos), dFdy(vWPos));\n' +
+            '  float horiz = smoothstep(0.35, 0.7, abs(normalize(gNa).y));\n' + // 1=水平水面 0=竖直侧壁
+            '  float nf = 1.0 - smoothstep(24.0, 90.0, dist);\n' + // 波纹随距离衰减:远处波纹是亚像素噪声,会闪成白碎条
             '  vec2 wq = vWPos.xz; float e = 0.35;\n' + // 噪声法线:有限差分求坡度→法线(不规则波纹)
             '  float h0 = mwWave(wq, uTime);\n' +
             '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
             '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
-            '  vec3 N = normalize(vec3((h0 - hx) / e * 1.0, 1.0, (h0 - hz) / e * 1.0));\n' + // 扰动增强→波纹更明显
-            '  vec3 V = normalize(cameraPosition - vWPos);\n' +
-            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0);\n' + // 从水面上方看=1、水下看上来=0 → 水下不显天空反射条纹
+            '  float ns = nf * horiz;\n' +
+            '  vec3 N = normalize(vec3((h0 - hx) / e * ns, 1.0, (h0 - hz) / e * ns));\n' +
+            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0) * horiz;\n' + // 水下看上来/侧壁 → 无天空反射
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
-            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.6;\n' + // 压暗反射→更透明、非镜面
-            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.40);\n' + // Schlick,上限0.40→反射更少、透底更多
-            '  float dN = smoothstep(0.0, 1.0, clamp((vWaterDepth - 0.5) / 6.5, 0.0, 1.0));\n' + // 水深平滑归一:更宽(0.5→7格)+ smoothstep S曲线 → 浅↔深过渡柔和自然,不是硬边
-            '  vec3 base = mix(vec3(0.10, 0.58, 0.92), vec3(0.0, 0.34, 0.70), dN) * vLF * vTint;\n' + // 浅水亮青→深水暗蓝
-            '  vec3 col = mix(base, skyR, fres * above);\n' + // 反射仅水面上方有(水下看上来只显平滑水色,无条纹)
+            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.85;\n' +
+            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.34);\n' + // Schlick,封顶→透底为主
+            '  float dN = smoothstep(0.0, 1.0, clamp((vWaterDepth - 0.5) / 6.5, 0.0, 1.0));\n' + // 浅↔深平滑过渡
+            '  vec3 base = mix(vec3(0.10, 0.60, 0.76), vec3(0.01, 0.32, 0.60), dN) * vLF * vTint;\n' + // 浅水碧青→深水湛蓝
+            // 焦散：浅水底游动的亮网纹(MC 光影签名效果)。波谷脊线→细亮纹；深水/夜晚/侧壁淡出。
+            '  float cav = mwWave(wq * 1.6 + vec2(uTime * 0.12, -uTime * 0.09), uTime * 0.8);\n' +
+            '  float caust = pow(1.0 - abs(cav - 0.5) * 2.0, 5.0);\n' +
+            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.5 * uSkyMul * horiz) * vLF;\n' +
+            '  vec3 col = mix(base, skyR, fres * above);\n' +
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.7 * above;\n' + // 太阳粼光(仅水面上方)
+            '  col += pow(max(dot(Rs, V), 0.0), 140.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.6 * above * (0.3 + 0.7 * nf);\n' + // 太阳粼光
             '  diffuseColor.rgb = col;\n' +
-            '  float depthA = mix(0.06, 0.82, dN);\n' + // 越浅越透(0.06≈见底)→越深越实(0.82)
-            '  diffuseColor.a = mix(depthA, 0.85, fres);\n' + // 俯看按水深定透明,掠角(高fres)仍偏不透(天空反射)
+            // 透明度：MC 感=一格浅水也明显偏蓝。⚠️ 曾 0.06≈隐形——沙滩浅海像没有水、只剩灰污渍(用户截图)。
+            '  float depthA = mix(0.34, 0.80, dN);\n' +
+            '  float topA = mix(depthA, 0.85, fres * above);\n' + // 掠角(高fres)反射更实
+            '  diffuseColor.a = mix(0.58, topA, horiz);\n' + // 侧壁固定 0.58 半透蓝(同 MC 原版水墙感)
             '}',
         );
     };

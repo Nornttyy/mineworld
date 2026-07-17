@@ -55,8 +55,10 @@ void main() {
   if (uIntensity <= 0.001) {
     // 合成是自定义 ShaderMaterial，three.js 不自动做 linear→sRGB；RT 存的是线性场景，
     // 故这里手动 sRGB 编码，否则直接输出线性值会整体偏暗。
+    // ⚠️ 不要在这里加全局提亮/调色(曾有 ×1.15 暖偏移)——它把整个画面洗白、饱和度全丢，
+    //    是"发灰发白不像 MC"的元凶。保持纯编码，颜色交给纹理/天光。
     vec3 outc = scene + bloomColor * uBloom;
-    gl_FragColor = vec4(pow(clamp(outc * 1.15 * vec3(1.08, 1.0, 0.9), 0.0, 1.0), vec3(0.4545)), 1.0);
+    gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
     return;
   }
 
@@ -83,9 +85,9 @@ void main() {
   // 归一化：除以采样数，避免 weight×decay 累加超出合理范围。
   shaft /= float(${S});
 
-  // 体积光光束 + bloom 辉光叠加到场景色（AO 已乘到 scene 上）；末尾手动 sRGB 编码
+  // 体积光光束 + bloom 辉光叠加到场景色（AO 已乘到 scene 上）；末尾手动 sRGB 编码（无全局调色，见上）
   vec3 outc = scene + shaft * uSunColor * uIntensity + bloomColor * uBloom;
-  gl_FragColor = vec4(pow(clamp(outc * 1.15 * vec3(1.08, 1.0, 0.9), 0.0, 1.0), vec3(0.4545)), 1.0);
+  gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
 }
 `.trim();
 
