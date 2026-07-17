@@ -1,9 +1,13 @@
-import { OAK_LEAVES, OAK_LOG } from '../blocks/registry';
+import { OAK_LEAVES, OAK_LOG, SPRUCE_LEAVES, SPRUCE_LOG } from '../blocks/registry';
+
+// 参与腐烂判定的木/叶集合——曾只认橡木 → 云杉树冠砍光树干后永久悬浮(bug)
+export const DECAY_LOGS: ReadonlySet<number> = new Set([OAK_LOG, SPRUCE_LOG]);
+export const DECAY_LEAVES: ReadonlySet<number> = new Set([OAK_LEAVES, SPRUCE_LEAVES]);
 
 // 树叶腐烂支撑判定（同 MC）：每片树叶若到最近原木的"沿树叶洪泛距离" > MAX_DIST 即失去支撑，会腐烂。
 // 原木全被砍光后，整片树冠都失去支撑 → 随机慢慢消失。纯函数，可无头单测。
 
-export const LEAF_MAX_DIST = 6; // 树叶到原木的最大支撑距离（MC=6）
+export const LEAF_MAX_DIST = 4; // 树叶到原木的最大支撑距离（1.12.2 BlockLeaves 判定半径=4；6 是 1.13+ 的 distance 属性）
 
 type GetBlock = (x: number, y: number, z: number) => number;
 export interface Cell {
@@ -37,7 +41,7 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
   for (let x = cx - scan; x <= cx + scan; x++)
     for (let y = cy - scan; y <= cy + scan; y++)
       for (let z = cz - scan; z <= cz + scan; z++)
-        if (getBlock(x, y, z) === OAK_LOG) {
+        if (DECAY_LOGS.has(getBlock(x, y, z))) {
           dist.set(key(x, y, z), 0);
           queue.push({ x, y, z });
         }
@@ -50,7 +54,7 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
       const nx = c.x + dx;
       const ny = c.y + dy;
       const nz = c.z + dz;
-      if (getBlock(nx, ny, nz) !== OAK_LEAVES) continue;
+      if (!DECAY_LEAVES.has(getBlock(nx, ny, nz))) continue;
       const k = key(nx, ny, nz);
       if (dist.has(k)) continue;
       dist.set(k, d + 1);
@@ -62,6 +66,6 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
   for (let x = cx - radius; x <= cx + radius; x++)
     for (let y = cy - radius; y <= cy + radius; y++)
       for (let z = cz - radius; z <= cz + radius; z++)
-        if (getBlock(x, y, z) === OAK_LEAVES && !dist.has(key(x, y, z))) out.push({ x, y, z });
+        if (DECAY_LEAVES.has(getBlock(x, y, z)) && !dist.has(key(x, y, z))) out.push({ x, y, z });
   return out;
 }

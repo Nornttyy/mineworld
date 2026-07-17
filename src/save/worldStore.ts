@@ -15,7 +15,7 @@ export interface WorldSave {
   edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）；维度前缀："nether:x,y,z" = 下界，无前缀 = 主世界
   player?: { x: number; y: number; z: number; yaw: number; pitch: number };
   inv?: ({ id: number; count: number; dur?: number } | null)[]; // 背包；dur=工具剩余耐久
-  survival?: { health: number; food: number; saturation: number; exhaustion: number }; // 生命/饥饿
+  survival?: { health: number; food: number; saturation: number; exhaustion: number; oxygen?: number; oxygenTimer?: number }; // 生命/饥饿
   worldTime?: number; // 昼夜更替：世界时间(刻，0..24000)，不存则新世界从清晨开始
   mobs?: SerializedMob[]; // 玩家附近的生物（动物/敌对）；不存则新世界/旧档进场时撒新群
   furnaces?: Record<string, FurnaceState>; // 熔炉状态("x,y,z"→炉内料/燃料/进度)，否则重开炉内物+进度全丢失

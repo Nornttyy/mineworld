@@ -56,9 +56,9 @@ export function eat(s: Survival, food: FoodValue): void {
   s.saturation = Math.min(s.saturation + food.nutrition * food.saturationModifier * 2, s.food);
 }
 
-// 摔落伤害：落地超过 3 格，每多 1 格 1 点。
+// 摔落伤害：落地超过 3 格，每多 1 格 1 点。1.12 用 MathHelper.ceil：摔 3.1 格就有 1 点(floor 会系统性少 1)。
 export function fallDamage(distance: number): number {
-  return Math.max(0, Math.floor(distance - 3));
+  return Math.max(0, Math.ceil(distance - 3));
 }
 
 // 每刻推进摔落距离并在落地时结算伤害。dy = 本刻竖直位移（下落为负）。

@@ -51,6 +51,33 @@ function run(sim: FluidSim, g: FluidGrid, ticks: number): void {
 }
 
 describe('fluidSim（对照 MC）', () => {
+  it('悬空无限源回归：两源夹一格但下方是洞 → 中间不成源(曾凭空造永久源=无限复制 bug)', () => {
+    const g = new Grid(0);
+    g.src(-1, 0, 0);
+    g.src(1, 0, 0);
+    g.carveHole(0, -1, 0); // 中间格下方是洞(非实心非源)
+    const sim = new FluidSim();
+    sim.activate(0, 0, 0);
+    run(sim, g, 30);
+    expect(g.isSource(0, 0, 0)).toBe(false); // 1.12：成源还需下方实心/源头
+  });
+
+  it('落水柱入池回归：柱身不在池面上方横向摊"水饼"(曾悬空摊 7,6,…,1 永久驻留 bug)', () => {
+    const g = new Grid(0);
+    // 地面上先铺一片 3×3 满水池(源头)
+    for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) g.src(x, 0, z);
+    g.src(0, 6, 0); // 高处源头往下灌,柱子落进池中央
+    const sim = new FluidSim();
+    sim.activate(0, 6, 0);
+    run(sim, g, 60);
+    // 柱身高度(池面上方 y=1..5)的旁侧不应有水(横铺仅限源头或下方实心)
+    for (let y = 1; y <= 5; y++) {
+      expect(g.amount(1, y, 0)).toBe(0);
+      expect(g.amount(-1, y, 0)).toBe(0);
+    }
+    for (let y = 0; y <= 6; y++) expect(g.amount(0, y, 0)).toBeGreaterThan(0); // 柱子本体完好
+  });
+
   it('源头向下流成水柱并在地面铺开', () => {
     const g = new Grid(0);
     g.src(0, 5, 0);

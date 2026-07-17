@@ -14,10 +14,10 @@ describe('工具采集 1:1 MC', () => {
   it('石头：徒手挖不掉且慢；木镐能挖、更快', () => {
     expect(canHarvest(STONE, null)).toBe(false);
     expect(dropFor(STONE, null)).toBeNull();
-    expect(breakTimeMs(STONE, null)).toBe(10000);
+    expect(breakTimeMs(STONE, null)).toBe(7500); // 1.12 石头 1.5×5
     expect(canHarvest(STONE, woodPick)).toBe(true);
     expect(dropFor(STONE, woodPick)).toBe(COBBLE);
-    expect(breakTimeMs(STONE, woodPick)).toBe(Math.ceil((30 * 2.0) / 2) * 50); // 1500ms
+    expect(breakTimeMs(STONE, woodPick)).toBe(Math.ceil((30 * 1.5) / 2) * 50); // 1150ms(1.12)
   });
 
   it('石镐比木镐更快', () => {

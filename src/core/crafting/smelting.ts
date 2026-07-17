@@ -12,13 +12,15 @@ import {
   RAW_CHICKEN,
   COOKED_CHICKEN,
 } from '../items/items';
-import { OAK_LOG, OAK_PLANKS, IRON_ORE } from '../blocks/registry';
+import { OAK_LOG, OAK_PLANKS, IRON_ORE, COBBLESTONE, SPRUCE_LOG, CRAFTING_TABLE, COAL_BLOCK } from '../blocks/registry';
+import { WOODEN_PICKAXE, WOODEN_AXE, WOODEN_SHOVEL, WOODEN_SWORD, WOODEN_HOE } from '../items/items';
 
 export const COOK_TICKS = 200; // 炼 1 个耗 200 刻(=10s @20TPS，同 MC)
 export const MAX_STACK = 64;
 
 // 冶炼配方：原料 id → 产物 id
 const SMELT: Record<number, number> = {
+  [COBBLESTONE]: 1, // →石头(id 1)。1.12：圆石炼石头(此前缺失,全游戏拿不到石头方块)
   [IRON_ORE]: IRON_INGOT,
   [RAW_PORKCHOP]: COOKED_PORKCHOP,
   [RAW_BEEF]: COOKED_BEEF,
@@ -28,9 +30,17 @@ const SMELT: Record<number, number> = {
 // 燃料：id → 可燃烧刻数（MC：煤 1600(炼8)、原木/木板 300(炼1.5)、棍 100(炼0.5)）
 const FUEL: Record<number, number> = {
   [COAL]: 1600,
+  [COAL_BLOCK]: 16000, // 煤炭块=炼80(1.12;之前煤压成块反而不能烧)
   [OAK_LOG]: 300,
+  [SPRUCE_LOG]: 300,
   [OAK_PLANKS]: 300,
+  [CRAFTING_TABLE]: 300,
   [STICK]: 100,
+  [WOODEN_PICKAXE]: 200, // 木工具当燃料(1.12)
+  [WOODEN_AXE]: 200,
+  [WOODEN_SHOVEL]: 200,
+  [WOODEN_SWORD]: 200,
+  [WOODEN_HOE]: 200,
 };
 
 export const smeltResult = (id: number): number | undefined => SMELT[id];
@@ -71,8 +81,9 @@ export function tickFurnace(s: FurnaceState): boolean {
 
   if (s.burn > 0) s.burn--; // 燃料持续燃烧
 
-  // 没火但有料可炼且有燃料 → 烧掉一份燃料
-  if (s.burn === 0 && cook && s.fuelN > 0) {
+  // 没火但有料可炼且有燃料 → 烧掉一份燃料。⚠️ 必须 fuelTicks>0：否则燃料槽里的非燃料
+  // (交换手势能塞进来)会被每刻 -1 静默销毁(20个/秒吞物品 bug)
+  if (s.burn === 0 && cook && s.fuelN > 0 && fuelTicks(s.fuel) > 0) {
     s.burnMax = fuelTicks(s.fuel);
     s.burn = s.burnMax;
     s.fuelN--;
@@ -91,7 +102,7 @@ export function tickFurnace(s: FurnaceState): boolean {
       s.outputN++;
     }
   } else {
-    s.cook = 0; // 没火/没料：进度清零(MC 是缓慢回退，这里简化)
+    s.cook = Math.max(0, s.cook - 2); // 没火/没料：进度每刻 -2 缓慢回退(1.12;补燃料够快可续炼)
   }
 
   return before || s.burn > 0 || s.cook > 0;

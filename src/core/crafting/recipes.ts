@@ -33,11 +33,12 @@ export const RECIPES: Recipe[] = [
     key: { '#': 'oak_planks' },
     result: { item: 'crafting_table', count: 1 },
   },
+  // (箱子配方暂移除：chest 尚无方块注册,原配方"能匹配却不出货"是死配方——箱子方块做好后恢复)
   {
     type: 'shaped',
-    pattern: ['###', '# #', '###'],
-    key: { '#': 'oak_planks' },
-    result: { item: 'chest', count: 1 },
+    pattern: ['##', '##'],
+    key: { '#': 'string' },
+    result: { item: 'wool', count: 1 }, // 1.12：4 线 → 1 羊毛
   },
   {
     type: 'shaped',

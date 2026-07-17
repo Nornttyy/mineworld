@@ -13,7 +13,7 @@ export const SKELETON_ARROW_SPEED = 1.9;
 const HURT_INVULN_DECAY = 1;
 const ATTACK_RANGE = 1.7; // 接触攻击水平距离（格）
 const ATTACK_CD = 18; // 攻击冷却（tick，≈0.9s）
-const SUN_DPS = 0.18; // 日晒每 tick 掉血（20 血约 6 秒烧死 → 天亮自然清场）
+const SUN_DPS = 0.05; // 日晒每 tick 掉血(20血≈20s烧死;1.12 是点燃+火伤 1HP/s,此为等效近似)
 const WANDER_SPEED_MULT = 0.6; // 没目标时慢悠悠晃
 // 远程（骷髅）：拉开距离站桩射击
 const SHOOT_RANGE = 15; // 射程（水平格）
@@ -70,13 +70,16 @@ export function updateHostile(
   let wishX = 0;
   let wishZ = 0;
   let speed = def.moveSpeed;
-  const sense = def.sense ?? 16;
+  // 受击仇恨(1.12 revenge)：aggro>0 时无视感知半径追击,逐刻递减
+  const aggroLeft = Math.max(0, (mob.aggro ?? 0) - 1);
+  mob.aggro = aggroLeft;
+  const sense = aggroLeft > 0 ? 64 : def.sense ?? 16;
   let pdist = Infinity;
   let faceTarget: Vec3 | null = null; // 远程：站桩/后退时也面朝玩家
   if (target) {
     const dx = target.x - mob.pos.x;
     const dz = target.z - mob.pos.z;
-    pdist = Math.hypot(dx, dz);
+    pdist = Math.hypot(dx, target.y - mob.pos.y, dz); // 3D 距离(垫两格柱子就摸不到你,同 MC)
     if (pdist <= sense && pdist > 1e-3) {
       mob.ai.state = 'chase';
       mob.ai.target = { ...target };
@@ -143,23 +146,25 @@ export function updateHostile(
         kind: 'shootArrow',
         from: eye,
         dir: { x: dx / len, y: dy / len, z: dz / len },
-        damage: def.attack ?? 2,
+        damage: 1 + Math.floor(rng() * 4), // 1.12 箭伤按速度 1-4 浮动,非固定值
       });
       mob.atkCd = SHOOT_CD;
     }
   } else if (def.explosive) {
-    // 苦力怕：进引信范围【且看得见玩家】→ 站定膨胀倒计时；玩家走远/被墙挡 → 熄灭重置；到点 → 引爆并自毁
-    if (chest && pdist <= FUSE_RANGE && hasLineOfSight(world, eye, chest)) {
+    // 苦力怕引信(1.12 滞回)：<3 格点燃,点燃后要拉开到 >7 格才解除;解除时引信【逐刻回退】而非瞬间清零
+    // (曾是出 3 格立即清零 → 3.1 格反复横跳永不起爆)
+    const holdRange = mob.fuse > 0 ? 7 : FUSE_RANGE;
+    if (chest && pdist <= holdRange && hasLineOfSight(world, eye, chest)) {
       mob.fuse++;
       wishX = 0; // 引信中站住不动(同 MC)
       wishZ = 0;
       if (mob.fuse >= FUSE_TIME) {
-        events.push({ kind: 'explode', pos: { ...mob.pos }, radius: BLAST_RADIUS, damage: def.attack ?? 22 });
+        events.push({ kind: 'explode', pos: { ...mob.pos }, radius: BLAST_RADIUS, damage: def.attack ?? 43 });
         events.push({ kind: 'death', pos: { ...mob.pos } }); // 自爆消失，不掉火药(同 MC)
         return { mob, events };
       }
     } else {
-      mob.fuse = 0; // 玩家走远/隔墙看不见 → 引信熄灭(同 MC)
+      mob.fuse = Math.max(0, mob.fuse - 1); // 逐刻回退(同 MC)
     }
   } else if (chest && pdist <= ATTACK_RANGE && mob.atkCd <= 0 && hasLineOfSight(world, eye, chest)) {
     events.push({ kind: 'attackPlayer', damage: def.attack ?? 2 });
@@ -191,8 +196,12 @@ export function updateHostile(
   const wantJump = stepAhead && mob.onGround;
 
   // —— 速度 + 重力/浮力 + 起跳 ——
-  mob.vel.x = wishX * speed;
-  mob.vel.z = wishZ * speed;
+  const kbxM = (mob.kbx ?? 0) * 0.8; // 击退持久分量(同 updateMob;意图速度每刻覆盖 vel,不叠加=打不退)
+  const kbzM = (mob.kbz ?? 0) * 0.8;
+  mob.kbx = Math.abs(kbxM) < 0.01 ? 0 : kbxM;
+  mob.kbz = Math.abs(kbzM) < 0.01 ? 0 : kbzM;
+  mob.vel.x = wishX * speed + (mob.kbx ?? 0);
+  mob.vel.z = wishZ * speed + (mob.kbz ?? 0);
   // 在水里像玩家一样有浮力 → 浮到水面漂着；贴着岸(stepAhead)则像跳跃一样上浮爬出，否则会困在水里上不了岸。
   const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
   if (inWater) {

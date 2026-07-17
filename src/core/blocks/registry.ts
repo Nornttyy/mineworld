@@ -88,7 +88,7 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
 const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
 export const BLOCKS: BlockDef[] = [
   { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
-  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 2.0, drop: 4, needsTool: true, tool: 'pickaxe' }, // 徒手 10s（需镐 ×5）
+  { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true, tool: 'pickaxe' }, // 1.12 石头硬度 1.5:徒手 7.5s(不掉),木镐 1.15s
   { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
   {
     id: 3,
@@ -119,7 +119,7 @@ export const BLOCKS: BlockDef[] = [
     solid: true,
     transparent: false,
     faces: column(T.oak_log_side, T.oak_log_top, T.oak_log_top),
-    hardness: 3.33, // 徒手 5s（×1.5）；斧更快
+    hardness: 2.0, // 1.12 原木硬度 2:徒手 3s,斧更快
     drop: 6,
     needsTool: false, // 木头手挖即可采集(斧只是更快)
     tool: 'axe',
@@ -248,7 +248,7 @@ export const BLOCKS: BlockDef[] = [
     tool: null,
   },
   // ── 下界方块 (18-25) ─────────────────────────────────────────────────────
-  { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 12, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 50, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 3 }, // 1.12 硬度50;正版需钻镐(tier4),暂放铁镐12.5s,钻石期改回
   { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: true, tool: 'pickaxe' }, // MC:地狱岩需镐才掉
   { id: 20, name: 'soul_sand', solid: true, transparent: false, faces: all(T.soul_sand), hardness: 0.5, drop: 20, needsTool: false, tool: 'shovel' },
   { id: 21, name: 'glowstone', solid: true, transparent: false, faces: all(T.glowstone), hardness: 0.3, drop: 21, needsTool: false, tool: null, light: 15 },
@@ -270,7 +270,7 @@ export const BLOCKS: BlockDef[] = [
   // 雪层：贴地薄装饰，非实心(可穿)、瞬破不掉(暂无雪球)；mesher 画薄四边形。
   { id: 29, name: 'snow_layer', solid: false, transparent: true, faces: all(T.snow), hardness: 0, drop: null, needsTool: false, tool: 'shovel' },
   // 云杉原木：同橡木原木数值，斧更快。顶/底复用 oak_log_top。
-  { id: 30, name: 'spruce_log', solid: true, transparent: false, faces: column(T.spruce_log, T.oak_log_top, T.oak_log_top), hardness: 3.33, drop: 30, needsTool: false, tool: 'axe' },
+  { id: 30, name: 'spruce_log', solid: true, transparent: false, faces: column(T.spruce_log, T.oak_log_top, T.oak_log_top), hardness: 2.0, drop: 30, needsTool: false, tool: 'axe' },
   // 云杉树叶：同橡树叶(镂空、手挖快不掉)。
   { id: 31, name: 'spruce_leaves', solid: true, transparent: true, faces: all(T.spruce_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
   // ── 合成储存方块 (32-34)：把零散资源压成一格存储，背包/工作台配方产物 ───────────
@@ -299,6 +299,7 @@ export const TALL_GRASS = 17; // 长草(高)
 // 下界方块
 export const OBSIDIAN = 18;
 export const NETHERRACK = 19;
+export const SAND = 5;
 export const SOUL_SAND = 20;
 export const GLOWSTONE = 21;
 export const NETHER_QUARTZ_ORE = 22;

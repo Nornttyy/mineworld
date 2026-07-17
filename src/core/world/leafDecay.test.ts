@@ -23,13 +23,13 @@ describe('findUnsupportedLeaves', () => {
     expect(has(out, 0, 0, 0)).toBe(true);
   });
 
-  it('沿树叶洪泛距离 ≤6 受支撑，>6 腐烂', () => {
+  it('沿树叶洪泛距离 ≤4 受支撑，>4 腐烂(1.12.2 半径=4)', () => {
     const cells: Record<string, number> = { '0,0,0': OAK_LOG };
     for (let x = 1; x <= 8; x++) cells[`${x},0,0`] = OAK_LEAVES; // 连续树叶链 x=1..8
     const out = findUnsupportedLeaves(makeWorld(cells), 0, 0, 0, 8);
-    // x=1..6 距离 1..6 受支撑；x=7,8 距离 7,8 腐烂
-    for (let x = 1; x <= 6; x++) expect(has(out, x, 0, 0)).toBe(false);
-    expect(has(out, 7, 0, 0)).toBe(true);
+    // x=1..4 距离 1..4 受支撑；x=5.. 腐烂
+    for (let x = 1; x <= 4; x++) expect(has(out, x, 0, 0)).toBe(false);
+    expect(has(out, 5, 0, 0)).toBe(true);
     expect(has(out, 8, 0, 0)).toBe(true);
   });
 

@@ -155,7 +155,8 @@ describe('survival: fall damage (MC 1:1)', () => {
   });
   it('1 damage per block beyond 3', () => {
     expect(fallDamage(4)).toBe(1);
-    expect(fallDamage(5.5)).toBe(2); // floor(5.5 - 3)
+    expect(fallDamage(5.5)).toBe(3); // ceil(5.5 - 3)=3(1.12 MathHelper.ceil)
+    expect(fallDamage(3.1)).toBeGreaterThan(0); // 带小数不再被 floor 吞掉
     expect(fallDamage(13)).toBe(10);
   });
 });

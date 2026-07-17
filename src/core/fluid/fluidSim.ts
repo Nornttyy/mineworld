@@ -144,7 +144,8 @@ export class FluidSim {
         if (g.isSource(x + dx, y, z + dz)) srcCount++;
       }
     }
-    if (srcCount >= 2) return { amount: FULL, source: true, falling: false };
+    // 无限水源(≥2 正交相邻源)还需【下方是实心或源头】(MC 1.12)——否则两源夹一个悬空格会凭空造永久源
+    if (srcCount >= 2 && (g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z))) return { amount: FULL, source: true, falling: false };
     const n = maxN - DROPOFF;
     return n > 0 ? { amount: n, source: false, falling: false } : EMPTY;
   }
@@ -154,9 +155,14 @@ export class FluidSim {
     const by = y - 1;
     const belowFull = g.amount(x, by, z) === FULL && !g.isFalling(x, by, z); // 下方已成池满水
     if (!g.isSolid(x, by, z) && !belowFull) {
-      propose(x, by, z, { amount: FULL, source: false, falling: true }); // 下落柱
+      if (g.getBlock(x, by, z) === 0 || g.amount(x, by, z) > 0) {
+        propose(x, by, z, { amount: FULL, source: false, falling: true }); // 下落柱(只灌进空气/水,不静默吞火把/草丛/岩浆)
+      }
       return; // 能向下就只向下，保证瀑布柱单薄（全世界一致，无海平面特例）
     }
+    // 横向铺展仅当【自身是源】或【下方是实心】(MC 1.12)——落水柱落进水池时不横铺,
+    // 否则会在池面上方悬空摊出一层 7,6,…,1 的"水饼"并永久驻留(bug)。
+    if (!cell.source && !g.isSolid(x, by, z)) return;
     const own = cell.source ? FULL : cell.amount;
     const give = own - DROPOFF;
     if (give < 1) return;
@@ -164,6 +170,8 @@ export class FluidSim {
       const nx = x + dx;
       const nz = z + dz;
       if (g.isSolid(nx, y, nz) || g.isSource(nx, y, nz)) continue;
+      const tb = g.getBlock(nx, y, nz);
+      if (tb !== 0 && g.amount(nx, y, nz) === 0) continue; // 目标非空气非水(火把/草丛/岩浆等)→不铺,绝不静默覆盖删块
       if (g.amount(nx, y, nz) >= give) continue; // 已不低于，无需铺
       propose(nx, y, nz, { amount: give, source: false, falling: false });
     }

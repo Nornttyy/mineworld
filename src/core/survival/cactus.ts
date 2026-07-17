@@ -20,7 +20,7 @@ export function touchesCactus(
   const hw = WIDTH / 2;
   const x0 = Math.floor(px - hw - e);
   const x1 = Math.floor(px + hw + e);
-  const y0 = Math.floor(py);
+  const y0 = Math.floor(py - e); // 含脚下贴面格：站在仙人掌【顶上】也要受伤(MC 仙人掌 15/16 高)
   const y1 = Math.floor(py + HEIGHT);
   const z0 = Math.floor(pz - hw - e);
   const z1 = Math.floor(pz + hw + e);

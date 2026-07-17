@@ -44,6 +44,7 @@ const DEFS: ItemDef[] = [
   def('flint_and_steel', 'Flint and Steel', 1),
   def('nether_quartz', 'Nether Quartz'),
   def('string', 'String'),
+  def('wool', 'Wool'),
   def('arrow', 'Arrow'),
   def('bow', 'Bow', 1),
 ];

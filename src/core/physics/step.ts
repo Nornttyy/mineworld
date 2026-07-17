@@ -130,16 +130,21 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   // 有移动意图时直接设定目标速度（与原逻辑一致）；
   // 无移动意图且贴地时，用滑度保留当前水平速度（冰上滑行，普通地面快速减速）。
   const hasHorizIntent = Math.hypot(wish.x, wish.z) > 1e-9;
-  if (hasHorizIntent || !grounded || inWater) {
-    // 有输入 / 在水中 / 空中：直接设定速度（保持原行为）
-    // 灵魂沙减速：贴地且有输入时，脚下灵魂沙(id 20)→ 移动速度 ×0.5（MC 1:1）
+  if (!grounded && !inWater) {
+    // 空中：动量模型(1.12)——保留惯性 ×0.91/刻,输入只小步修正(稳态=目标速度)。
+    // 曾是直接设定/松键瞬间归零 → 疾跑跳抛物线半途夭折、空中手感僵硬。
+    vel.x = vel.x * 0.91 + wish.x * speed * 0.09 + kbx;
+    vel.z = vel.z * 0.91 + wish.z * speed * 0.09 + kbz;
+  } else if (hasHorizIntent || inWater) {
+    // 地面有输入 / 在水中：直接设定速度（保持原行为）
+    // 灵魂沙减速：贴地且有输入时，脚下灵魂沙(id 20)→ 移动速度 ×0.4（1.12 实测≈×0.4;曾 0.5）
     let activeSpeed = speed;
     if (hasHorizIntent && grounded && !inWater) {
       const floorBx = Math.floor(pos.x);
       const floorBy = Math.floor(pos.y - 0.1);
       const floorBz = Math.floor(pos.z);
       const floorId = world.getBlock?.(floorBx, floorBy, floorBz) ?? 0;
-      if (floorId === SOUL_SAND) activeSpeed *= 0.5;
+      if (floorId === SOUL_SAND) activeSpeed *= 0.4;
     }
     vel.x = wish.x * activeSpeed + kbx;
     vel.z = wish.z * activeSpeed + kbz;

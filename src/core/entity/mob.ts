@@ -41,10 +41,10 @@ export const MOB_DEFS: Record<MobKind, MobDef> = {
   sheep: { hp: 8, width: 0.9, height: 1.3, moveSpeed: 0.08, fallImmune: false },
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
   // 敌对怪移速：原 ~0.05 只有玩家走速(~0.216)的 1/4 → 永远追不上你。提到 ~0.15(≈0.7×走速)：能贴身威胁、疾跑仍可甩开(同 MC 感觉)。
-  zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 3, sense: 16 },
-  skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.14, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
-  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 22, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害，按距离衰减
-  husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 3, sense: 16, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
+  zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.13, fallImmune: false, hostile: true, attack: 3, sense: 35 }, // 1.12:followRange 35,僵尸系最慢
+  skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
+  creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 43, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害(1.12 普通难度 power3 贴脸≈43),按距离衰减
+  husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.13, fallImmune: false, hostile: true, attack: 3, sense: 35, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
 };
 
 export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
@@ -61,6 +61,9 @@ export interface Mob {
   eggTimer: number; // 仅鸡：下个蛋的 tick
   atkCd: number; // 敌对：攻击冷却（tick），>0 时不再造成接触伤害
   fuse: number; // 苦力怕：引信计时（tick，0=未点燃；到 FUSE_TIME 引爆）
+  kbx?: number; // 击退持久分量(逐刻衰减;意图速度每刻覆盖 vel,击退必须独立存)
+  kbz?: number;
+  aggro?: number; // 受击仇恨剩余刻(>0 时无视感知半径追击)
 }
 
 export interface MobDrop {
@@ -195,8 +198,12 @@ export function updateMob(m: Mob, world: VoxelWorld, rng: () => number): MobUpda
   const wantJump = stepAhead && mob.onGround; // 陆地起跳仍需贴地（2 格墙跳不上就不跳）
 
   // —— 速度：水平意图 + 重力（鸡缓降钳速）；起跳覆盖本帧重力，才能跳满 1 格（同玩家：满速起跳）——
-  mob.vel.x = wishX * speed;
-  mob.vel.z = wishZ * speed;
+  const kbxM = (mob.kbx ?? 0) * 0.8; // 击退持久分量:逐刻衰减(意图速度每刻覆盖 vel,不存这份就是死代码=打怪不后退)
+  const kbzM = (mob.kbz ?? 0) * 0.8;
+  mob.kbx = Math.abs(kbxM) < 0.01 ? 0 : kbxM;
+  mob.kbz = Math.abs(kbzM) < 0.01 ? 0 : kbzM;
+  mob.vel.x = wishX * speed + (mob.kbx ?? 0);
+  mob.vel.z = wishZ * speed + (mob.kbz ?? 0);
   // 竖直：在水里像玩家一样有浮力 → 浮到水面漂着；贴着岸(stepAhead)则像跳跃一样用力上浮，
   // 配合水平意图爬出水面（否则牛/猪等掉进水里会一直困在水面、上不了地面）。
   const inWater = world.isWater?.(Math.floor(mob.pos.x), Math.floor(mob.pos.y), Math.floor(mob.pos.z)) ?? false;
@@ -254,15 +261,24 @@ export function hurtMob(
   events.push({ kind: 'hurt' });
 
   const len = Math.hypot(knock.x, knock.z) || 1;
-  mob.vel.x = (knock.x / len) * KNOCK_H;
-  mob.vel.z = (knock.z / len) * KNOCK_H;
+  mob.kbx = (knock.x / len) * KNOCK_H; // 存进持久击退分量(updateMob/updateHostile 叠加+衰减)
+  mob.kbz = (knock.z / len) * KNOCK_H;
+  mob.vel.x = mob.kbx;
+  mob.vel.z = mob.kbz;
   mob.vel.y = KNOCK_UP;
   mob.onGround = false;
   mob.yaw = Math.atan2(mob.vel.z, mob.vel.x);
 
-  mob.ai.state = 'panic';
-  mob.ai.target = null;
-  mob.ai.timer = 30 + Math.floor(rng() * 10);
+  if (MOB_DEFS[mob.kind].hostile) {
+    // 受击仇恨(1.12 revenge target)：敌对怪被打立刻还手,临时无视感知半径(300 刻)
+    mob.ai.state = 'chase';
+    mob.ai.timer = 0;
+    mob.aggro = 300;
+  } else {
+    mob.ai.state = 'panic';
+    mob.ai.target = null;
+    mob.ai.timer = 30 + Math.floor(rng() * 10);
+  }
 
   if (mob.health <= 0) {
     events.push({ kind: 'drops', items: rollDrops(mob.kind, rng), pos: { ...mob.pos } });
@@ -304,7 +320,7 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       if (bones > 0) out.push({ id: BONE, count: bones });
       const str = Math.floor(rng() * 3); // 0–2 线（无蜘蛛，骷髅替代来源 → 够做弓）
       if (str > 0) out.push({ id: STRING, count: str });
-      const arr = Math.floor(rng() * 2); // 0–1 箭（MC 骷髅也掉箭）
+      const arr = Math.floor(rng() * 3); // 0–2 箭（1.12）
       if (arr > 0) out.push({ id: ARROW, count: arr });
       return out;
     }

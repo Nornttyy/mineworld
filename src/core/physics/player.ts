@@ -38,8 +38,8 @@ export interface VoxelWorld {
 export const WIDTH = 0.6;
 export const HEIGHT = 1.8;
 export const EYE = 1.62;
-export const CROUCH_HEIGHT = 1.25; // 下蹲时碰撞箱高度
-export const CROUCH_EYE = 1.1; // 下蹲时视点高度（相机下沉）
+export const CROUCH_HEIGHT = 1.8; // 1.12 潜行【不改】碰撞箱(1.5 矮箱是 1.14+;曾 1.25 能钻 1.3 格缝)
+export const CROUCH_EYE = 1.54; // 1.12 潜行眼高 1.54(曾 1.1 蹲得过深)
 export const CROUCH_SPEED_MULT = 0.3; // 下蹲移动倍率（同 MC sneak ≈0.3）
 export const SLOW_SPEED_MULT = 0.2; // 用物品(吃东西)移动倍率（同 MC ≈0.2）
 export const GRAVITY = 0.08;

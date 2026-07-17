@@ -4,7 +4,7 @@ import { addItem, type Inventory, type ItemStack } from '../core/inventory/inven
 import { leftClick, rightClick } from '../core/inventory/slots';
 import { itemMaxStack } from '../core/items/items';
 import { iconUrl, itemLabel } from './itemIcons';
-import { type FurnaceState, isFuel, COOK_TICKS } from '../core/crafting/smelting';
+import { type FurnaceState, isFuel, isSmeltable, COOK_TICKS } from '../core/crafting/smelting';
 
 const maxOf = (id: number): number => itemMaxStack(id);
 const HOTBAR = 9;
@@ -169,7 +169,8 @@ export class FurnaceUI {
       f.fuelN += mv;
       st.count -= mv;
       if (st.count <= 0) inv[idx] = null;
-    } else if (!toFuel && (f.input === 0 || f.input === st.id)) {
+    } else if (!toFuel && isSmeltable(st.id) && (f.input === 0 || f.input === st.id)) {
+      // 只有可冶炼物才进原料槽(1.12 transferStackInSlot；曾把泥土也塞进去占位)
       const space = maxOf(st.id) - f.inputN;
       const mv = Math.min(space, st.count);
       f.input = st.id;
@@ -190,8 +191,8 @@ export class FurnaceUI {
       const id = slot === 'input' ? f.input : f.fuel;
       const n = slot === 'input' ? f.inputN : f.fuelN;
       const arr: (ItemStack | null)[] = [n > 0 ? { id, count: n } : null];
-      // 燃料槽不收非燃料(空槽时)
-      if (slot === 'fuel' && arr[0] === null && this.cursor && !isFuel(this.cursor.id)) return;
+      // 燃料槽不收非燃料——不限空槽(交换手势曾能把泥土换进来,再被点燃逻辑当燃料吞掉)
+      if (slot === 'fuel' && this.cursor && !isFuel(this.cursor.id)) return;
       this.cursor =
         e.button === 2 ? rightClick(arr, 0, this.cursor, maxOf) : leftClick(arr, 0, this.cursor, maxOf);
       const r = arr[0];

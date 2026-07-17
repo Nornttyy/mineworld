@@ -23,6 +23,12 @@ import {
   NETHER_PORTAL,
   isNetherPortalId,
   type HeldTool,
+  ICE,
+  TORCH,
+  SAND,
+  BEDROCK,
+  SPRUCE_LOG,
+  SPRUCE_LEAVES,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
 import { findUnsupportedLeaves } from '../core/world/leafDecay';
@@ -90,7 +96,8 @@ import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
 
 const TICK_MS = 50; // 20 TPS 固定步长
-const REACH = 5; // 交互距离（方块）
+const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
+const REACH_CREATIVE = 5.0; // 创造 5.0
 const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
@@ -113,7 +120,7 @@ function creativeInventory(): Inventory {
   return inv;
 }
 const EAT_TIME = 1.6; // 吃东西耗时（秒，同 MC）
-const LEAF_APPLE_CHANCE = 0.05; // 树叶掉苹果概率（1:1 是 0.5%，调高更可玩）
+const LEAF_APPLE_CHANCE = 0.005; // 树叶掉苹果概率(1.12 = 0.5%,1:1 硬约束)
 const SPRINT_EXHAUSTION = 0.1; // 每格疾跑消耗（MC）
 const JUMP_EXHAUSTION = 0.05;
 const SPRINT_JUMP_EXHAUSTION = 0.2;
@@ -135,7 +142,7 @@ const BOW_MIN_CHARGE = 0.25; // 最短蓄力（秒）：不到不发射（取消
 const BOW_MAX_CHARGE = 1.0; // 满蓄力（秒，同 MC）
 const BOW_MIN_SPEED = 0.6; // 最弱射速（格/tick）
 const BOW_MAX_SPEED = 2.4; // 满蓄力射速（格/tick）
-const BOW_DAMAGE = 6; // 满蓄力伤害（MC 弓 6~10，这里取中）
+const BOW_DAMAGE = 9; // 满蓄力伤害(1.12 满蓄力 9,暴击可到 10)
 // 骷髅箭速从 hostileAi 导入（与那边的下坠瞄准补偿同一值）
 const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
 const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
@@ -515,6 +522,8 @@ export class Game {
       food: sv.food,
       saturation: sv.saturation,
       exhaustion: sv.exhaustion,
+      oxygen: sv.oxygen, // 曾漏存:水下快淹死时存档重进=白嫖满氧(bug)
+      oxygenTimer: sv.oxygenTimer,
     };
     this.save.worldTime = this.worldTime; // 昼夜：存当前时刻，下次续上
     this.save.mobs = this.mobs.map(serializeMob); // 附近生物（动物/敌对）随档保存
@@ -808,18 +817,17 @@ export class Game {
     const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
     this.fallDistance = fall.fallDistance;
     if (fall.damage > 0) {
-      applyDamage(this.survival, fall.damage);
+      this.hurtPlayer(fall.damage, 0, 0, true); // 走统一伤害管线(无敌帧/补差),环境伤害无击退
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
-      this.flashHurt();
     }
     // 仙人掌接触伤害(MC 1.12：贴住每 0.5s 掉 1 血，复用 hurtCd 无敌帧防多刻叠加)
     if (touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z, (x, y, z) => this.world.getBlock(x, y, z))) {
-      this.hurtPlayer(1, 0, 0);
+      this.hurtPlayer(1, 0, 0, true);
     }
     // 岩浆接触伤害(MC 1.12：4HP/0.5s，复用 hurtCd 无敌帧——每刻都调 hurtPlayer，被 hurtCd 自然节流为 0.5s 一次)
     const feetLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y), pz));
     const bodyLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y + 0.9), pz));
-    if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0); // MC 1.12 岩浆 4HP/0.5s
+    if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0, true); // MC 1.12 岩浆 4HP/0.5s(无击退;窗口内会对仙人掌1点补差,不再被抢无敌帧)
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
     const hpBefore = this.survival.health;
@@ -839,17 +847,31 @@ export class Game {
     el.classList.add('flash');
   }
 
+  private hurtWindowMax = 0; // 本无敌帧窗口内已受的最高伤害(1.12:窗口内更高伤害要补差值)
   // 玩家被攻击：扣血 + 红屏/手抖 + 沿来源→玩家方向被击退（近战传攻击者坐标，箭传飞行方向）。
-  private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number): void {
+  // noKnock=环境伤害(仙人掌/岩浆/摔落/溺水,1.12 无击退——曾经的上抛反而帮玩家逃出岩浆)。
+  private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number, noKnock = false): void {
     if (this.creative) return; // 创造：免疫一切伤害（怪/箭/爆炸/仙人掌）
-    if (this.hurtCd > 0) return; // 无敌帧内：免疫(同 MC hurtResistantTime，防同刻多源爆伤)
+    if (this.hurtCd > 0) {
+      // 1.12 hurtResistantTime 规则:窗口内新伤害更高 → 补打差额(修"仙人掌1点抢无敌帧,岩浆4点永不生效")
+      if (damage > this.hurtWindowMax) {
+        applyDamage(this.survival, damage - this.hurtWindowMax);
+        this.hurtWindowMax = damage;
+        this.flashHurt();
+        if (survivalIsDead(this.survival) && !this.dead) this.die();
+      }
+      return;
+    }
     this.hurtCd = 10; // 0.5s 无敌
+    this.hurtWindowMax = damage;
     applyDamage(this.survival, damage);
     this.flashHurt();
-    const d = Math.hypot(knockDirX, knockDirZ) || 1;
-    this.player.kbx = (knockDirX / d) * PLAYER_KNOCK_H;
-    this.player.kbz = (knockDirZ / d) * PLAYER_KNOCK_H;
-    this.player.vel.y = PLAYER_KNOCK_UP; // 上抛（step 保留 vel.y）
+    if (!noKnock) {
+      const d = Math.hypot(knockDirX, knockDirZ) || 1;
+      this.player.kbx = (knockDirX / d) * PLAYER_KNOCK_H;
+      this.player.kbz = (knockDirZ / d) * PLAYER_KNOCK_H;
+      this.player.vel.y = PLAYER_KNOCK_UP; // 上抛（step 保留 vel.y）
+    }
     if (survivalIsDead(this.survival) && !this.dead) this.die();
   }
 
@@ -1031,7 +1053,7 @@ export class Game {
     const sel = this.hotbar.index;
     const stack = this.inv[sel];
     if (!stack || stack.count <= 0 || !isFood(stack.id) || this.survival.food >= MAX_FOOD) {
-      this.eatProgress = 0;
+      this.stopEating(); // 曾只清进度不清 eating 标志 → 吃饱后按住右键一直 20% 减速+假啃食动画(bug)
       return;
     }
     this.eatProgress += dt;
@@ -1067,7 +1089,7 @@ export class Game {
     const sp = Math.sin(this.look.pitch);
     const dir = { x: cy * cp, y: sp, z: sy * cp };
     // 选中判定用 isTargetableId(实心 + 草丛)，让草丛能被瞄准/打掉；非 isSolidId 否则射线穿草打到后面方块。
-    return raycastVoxel(o, dir, REACH, (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)));
+    return raycastVoxel(o, dir, this.creative ? REACH_CREATIVE : REACH_SURVIVAL, (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)));
   }
 
   // 记录方块改动到存档 delta
@@ -1154,9 +1176,10 @@ export class Game {
       const d = this.decayQueue[i];
       if (--d.t > 0) continue;
       this.decayQueue.splice(i, 1);
-      if (this.world.getBlock(d.x, d.y, d.z) !== OAK_LEAVES) continue; // 已被挖掉/已腐烂
+      const lv = this.world.getBlock(d.x, d.y, d.z);
+      if (lv !== OAK_LEAVES && lv !== SPRUCE_LEAVES) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
       this.edit(d.x, d.y, d.z, AIR);
-      this.particles.push(...spawnBurst(d.x + 0.5, d.y + 0.5, d.z + 0.5, particleColor(OAK_LEAVES), 8));
+      this.particles.push(...spawnBurst(d.x + 0.5, d.y + 0.5, d.z + 0.5, particleColor(lv), 8));
       if (Math.random() < LEAF_APPLE_CHANCE) this.drops.push(spawnDrop(APPLE, d.x, d.y, d.z));
     }
   }
@@ -1213,6 +1236,21 @@ export class Game {
     return sel ? toolOf(sel.id) : null;
   }
 
+  // 重力方块(1.12 沙/砾石)：下方被清空后,把上方连续的沙/砾石整列下移(逐块落到最低空位)。
+  private settleFallingAt(x: number, y: number, z: number): void {
+    let src = y + 1;
+    while (true) {
+      const b = this.world.getBlock(x, src, z);
+      if (b !== SAND && b !== GRAVEL) break;
+      let land = src - 1;
+      while (land > 1 && this.world.getBlock(x, land - 1, z) === AIR) land--;
+      if (land >= src) break;
+      this.edit(x, src, z, AIR);
+      this.edit(x, land, z, b);
+      src++;
+    }
+  }
+
   // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
     // 草丛/长草：瞬破、无掉落、不耗工具耐久/疲劳。直接清掉即可。
@@ -1227,18 +1265,25 @@ export class Game {
     let drop = this.creative ? null : dropFor(id, this.heldTool()); // 创造不掉落；需镐的方块要用镐才掉
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     this.edit(x, y, z, AIR);
-    // 失去支撑的草丛随之破坏：破坏的方块上方若是草丛/长草，一并清掉(同 MC，草需下方方块支撑)。
+    // 冰(1.12)：破坏后若下方非空气 → 该格变水源(创造不变)
+    if (id === ICE && !this.creative && this.world.getBlock(x, y - 1, z) !== AIR) {
+      this.world.setWater(x, y, z, 8, true, false);
+      this.fluidSim.activate(x, y, z);
+    }
+    // 失去支撑的草丛/火把随之破坏(同 MC：都需下方方块支撑；火把弹出掉落自身)。
     const above = this.world.getBlock(x, y + 1, z);
-    if (isPlantId(above)) {
+    if (isPlantId(above) || above === TORCH) {
       this.edit(x, y + 1, z, AIR);
+      if (above === TORCH && !this.creative) this.drops.push(spawnDrop(TORCH, x, y + 1, z));
       this.particles.push(...spawnBurst(x + 0.5, y + 1.5, z + 0.5, particleColor(above), 6));
     }
+    this.settleFallingAt(x, y, z); // 重力方块(沙/砾石)失去支撑整列下落(1.12)
     this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }
-    if (id === OAK_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木 → 失去支撑的树叶排队腐烂
+    if (id === OAK_LOG || id === SPRUCE_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
     if (id === FURNACE) {
       const st = this.furnaces.get(`${x},${y},${z}`);
@@ -1414,10 +1459,14 @@ export class Game {
           const bz = cz + dz;
           const b = this.world.getBlock(bx, by, bz);
           if (!isSolidId(b) && !isPlantId(b)) continue; // 空气/水不炸；实心 + 草丛都炸(免得炸完草浮空)
+          if (b === BEDROCK || b === OBSIDIAN) continue; // 1.12 高爆炸抗性方块免疫(曾能炸穿世界底板 bug)
           this.world.setBlock(bx, by, bz, AIR);
           this.save.edits[dimEditKey(this.dimension, bx, by, bz)] = AIR; // 坑随存档保留(按维度前缀键)
           this.fluidSim.activate(bx, by, bz); // 让周围的水流进坑
         }
+    // 爆坑上缘的沙/砾石失去支撑 → 整列下落(1.12 重力方块)
+    for (let dz = -ri; dz <= ri; dz++)
+      for (let dx = -ri; dx <= ri; dx++) this.settleFallingAt(cx + dx, cy - ri, cz + dz);
     this.chunks.remeshDirty(); // 一次性重建被波及的脏区块
     this.particles.push(...spawnBurst(center.x, center.y + 0.4, center.z, [0.33, 0.33, 0.33], 30)); // 爆炸烟尘(灰)
     // 距离衰减伤害 + 击退：爆心约满伤、边缘=0（伤害范围略大于炸块半径）
@@ -1425,8 +1474,42 @@ export class Game {
     const ddx = p.x - center.x;
     const ddz = p.z - center.z;
     const dist = Math.hypot(ddx, p.y + 0.9 - center.y, ddz);
-    const dmg = Math.round(maxDamage * (1 - dist / (radius + 1.5)));
+    let dmg = Math.round(maxDamage * (1 - dist / (radius + 1.5)));
+    if (dmg > 0 && this.explosionBlocked(center, { x: p.x, y: p.y + 0.9, z: p.z })) dmg = Math.round(dmg * 0.3); // 遮挡减伤(近似 1.12 暴露度)
     if (dmg > 0) this.hurtPlayer(dmg, ddx, ddz);
+    // 1.12 爆炸波及所有实体(曾只伤玩家：苦力怕炸不死旁边的僵尸/牛)
+    for (let i = this.mobs.length - 1; i >= 0; i--) {
+      const mob = this.mobs[i];
+      const mdx = mob.pos.x - center.x;
+      const mdz = mob.pos.z - center.z;
+      const md = Math.hypot(mdx, mob.pos.y + 0.5 - center.y, mdz);
+      let mdmg = Math.round(maxDamage * (1 - md / (radius + 1.5)));
+      if (mdmg > 0 && this.explosionBlocked(center, { x: mob.pos.x, y: mob.pos.y + 0.5, z: mob.pos.z })) mdmg = Math.round(mdmg * 0.3);
+      if (mdmg <= 0) continue;
+      const res = hurtMob(mob, mdmg, { x: mdx, z: mdz }, this.mobRng);
+      Object.assign(mob, res.mob);
+      for (const ev of res.events) {
+        if (ev.kind === 'drops') {
+          for (const stack of ev.items)
+            this.drops.push(spawnDrop(stack.id, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z), Math.random, stack.count));
+        } else if (ev.kind === 'death') {
+          this.mobs.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  // 爆心到目标的视线是否被实心方块遮挡(8 步采样,近似 1.12 爆炸暴露度:全遮挡伤害大减)。
+  private explosionBlocked(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): boolean {
+    const STEPS = 8;
+    for (let i = 1; i < STEPS; i++) {
+      const t = i / STEPS;
+      const sx = Math.floor(a.x + (b.x - a.x) * t);
+      const sy = Math.floor(a.y + (b.y - a.y) * t);
+      const sz = Math.floor(a.z + (b.z - a.z) * t);
+      if (isSolidId(this.world.getBlock(sx, sy, sz))) return true;
+    }
+    return false;
   }
 
   // 此刻该生物是否被太阳直晒（白天 + 头顶通天，无遮挡）→ 敌对生物会被烧。
