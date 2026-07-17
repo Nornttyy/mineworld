@@ -204,9 +204,10 @@ export class ChunkMeshManager {
       shader.uniforms.uShadowTexel = this.uShadowTexel;
       shader.uniforms.uShadowOn = this.uShadowOn;
       shader.uniforms.uSunUp = this.uSunUp;
+      shader.uniforms.uShaders = this.uShaders; // 光影开关：阳光泽面/草木摆动门控
+      shader.uniforms.uSunDirW = this.uSunDir; // 阳光方向(世界系,阳光泽面用;与水面共用)
       if (sway) {
         shader.uniforms.uTime = this.uTime;
-        shader.uniforms.uShaders = this.uShaders; // 仅「光影」开时摆（uShaders 门控）
       }
       // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
       // 位移按【世界坐标(原始 position)+时间】→相邻顶点共享相位、无裂缝。×uShaders=只在光影开时摆。
@@ -219,21 +220,22 @@ export class ChunkMeshManager {
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\n' +
-            (sway ? 'uniform float uTime;\nuniform float uShaders;\nattribute float aSway;\n' : '') +
-            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' + MC_BRIGHT_GLSL,
+          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
+            (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
+            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + swayCode + MC_LIGHT_GLSL + '\n' +
             'vSky = aLight.x;\n' +
+            'vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' + // 世界坐标(阳光泽面法线/视线用)
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\n' +
-            'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uSunUp;\n' +
+          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\n' +
+            'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
             // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
             // 【整片永远判成阴影、全场 50% 压暗】,窗口外正常 → 用户报"开光影后玩家周围比远处暗"。
@@ -264,7 +266,21 @@ export class ChunkMeshManager {
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
             '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%(更明确的影)
             '}\n' +
-            'diffuseColor.rgb *= vLF * vTint * vis;',
+            'diffuseColor.rgb *= vLF * vTint * vis;\n' +
+            // 阳光泽面(光影开)：朝阳面暖色增亮 + 半角镜面高光——SEUS 那种"方块被太阳照得亮亮的"。
+            // 法线=屏幕导数(免顶点法线),sign(dot(N,V)) 归正朝观察者(解旧"朝向未定"问题)；
+            // 门控=受天光面×白天×阴影可见×光影开(影子里/洞里/夜里/关光影都没有)。
+            'float sunLit = vSky * uSunUp * uShaders * vis;\n' +
+            'if (sunLit > 0.003) {\n' +
+            '  vec3 Nw = normalize(cross(dFdx(vWp), dFdy(vWp)));\n' +
+            '  vec3 Vd = normalize(cameraPosition - vWp);\n' +
+            '  Nw *= sign(dot(Nw, Vd));\n' +
+            '  float nd = max(dot(Nw, normalize(uSunDirW)), 0.0);\n' +
+            '  diffuseColor.rgb *= 1.0 + vec3(0.30, 0.24, 0.12) * nd * sunLit;\n' + // 直射面暖亮
+            '  vec3 Hh = normalize(normalize(uSunDirW) + Vd);\n' +
+            '  float sp = pow(max(dot(Nw, Hh), 0.0), 28.0);\n' +
+            '  diffuseColor.rgb += vec3(1.0, 0.95, 0.8) * sp * 0.22 * sunLit;\n' + // 镜面泽光(可触发泛光)
+            '}',
         );
     };
   }
