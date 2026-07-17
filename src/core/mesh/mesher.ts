@@ -199,6 +199,10 @@ export interface ChunkMesh {
   cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
   torch: MeshData; // 火把：暖色小十字，自发光(不参与天光 shader)
+  /** 粗光照网格(实体照明用)：4×48×4，每 4³ 格取 max。高 4 位=天光 0..15、低 4 位=方块光。
+   *  生物/掉落物/手持不吃顶点光,没有这份数据就会在洞里/夜里全亮发光(暗处光照 bug)。
+   *  索引 = cx4 + cz4*4 + cy*16；768 B/区块(~170 区块共 ~130KB,内存无感)。 */
+  light3d: Uint8Array;
 }
 
 // 网格化无限世界中的一个区块 (cx,cz)，分别产出"不透明"和"水"两套网格。
@@ -510,7 +514,31 @@ export function meshChunkData(
     }
   }
 
-  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa), torch: toMeshData(to) };
+  // 粗光照网格：核心 16×192×16 按 4³ cell 取 max(实体在空气格,取 max 防贴边偏暗)。
+  const light3d = new Uint8Array(4 * 48 * 4);
+  for (let cy = 0; cy < 48; cy++) {
+    for (let cz4 = 0; cz4 < 4; cz4++) {
+      for (let cx4 = 0; cx4 < 4; cx4++) {
+        let ms = 0;
+        let mb = 0;
+        for (let dy = 0; dy < 4; dy++) {
+          const rowY = (cy * 4 + dy) * LW * LW;
+          for (let dz = 0; dz < 4; dz++) {
+            const row = rowY + (cz4 * 4 + dz + HALO) * LW + HALO + cx4 * 4;
+            for (let dx = 0; dx < 4; dx++) {
+              const s = skyLight[row + dx];
+              if (s > ms) ms = s;
+              const b = blkLight[row + dx];
+              if (b > mb) mb = b;
+            }
+          }
+        }
+        light3d[cx4 + cz4 * 4 + cy * 16] = (ms << 4) | mb;
+      }
+    }
+  }
+
+  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa), torch: toMeshData(to), light3d };
 }
 
 // 主线程入口(同步；用于 remeshDirty 即时重建、无 Worker 测试回退)：包一层 ChunkWorld 的访问器。

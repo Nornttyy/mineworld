@@ -48,6 +48,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     collect(mesh.cutout);
     collect(mesh.water);
     collect(mesh.torch);
+    transfer.push(mesh.light3d.buffer); // 粗光照网格(实体照明)一并零拷贝传回
     (self as unknown as Worker).postMessage({ cx, cz, mesh }, transfer);
   } catch (err) {
     // 网格化抛异常也务必回报——否则主线程 meshPending 永不清 → 该区块永久不重建成洞。

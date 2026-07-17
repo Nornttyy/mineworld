@@ -43,9 +43,17 @@ interface ChunkMeshes {
   torch: THREE.Mesh | null;
 }
 
+// TS 版 MC 亮度曲线(与 shader 的 mcBright 一致)：实体环境光照用
+const mcBrightJs = (lv: number): number => {
+  const f = Math.max(0, Math.min(15, lv)) / 15;
+  return f / (4 - 3 * f);
+};
+
 /** 维护玩家周围已加载的区块网格（不透明 + 半透明水）：按预算加载、卸载远处、重建脏区块。 */
 export class ChunkMeshManager {
   private readonly meshes = new Map<string, ChunkMeshes>();
+  // 粗光照网格(worker 随网格传回,4×48×4/区块)：实体(生物/掉落物/手持)环境光照采样用
+  private readonly lightGrids = new Map<string, Uint8Array>();
   private readonly opaqueMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
@@ -308,7 +316,7 @@ export class ChunkMeshManager {
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nvarying float vWaterDepth;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nvarying float vWaterDepth;\nvarying float vSkyVis;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
             // 顶点端波高噪声(与片元同款,vertex 独立定义)→ 抬降水面顶点
             'float mwHv(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
             '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
@@ -325,13 +333,14 @@ export class ChunkMeshManager {
             // 水面顶点起伏 ±0.08 格(aTop>0=平静水面;≤0=瀑布/侧壁底不动→不撕缝)。
             // ⚠️ 曾 ±0.3：远处海面被顶成一层层"白色冰架阶梯"(用户截图)。MC 光影的涌浪也只是轻微起伏。
             'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.16 * step(0.5, aTop) * uShaders;\n' +
-            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);', // |aTop|=水柱深度,给片元按深度调透明
+            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);\n' + // |aTop|=水柱深度,给片元按深度调透明
+            'vSkyVis = aLight.x;', // 原始天光可见度(不随昼夜)：洞穴湖=0 → 不反射天空/无粼光/无焦散(暗处水发光 bug)
         );
       // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying float vWaterDepth;\n' +
+          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying float vWaterDepth;\nvarying float vSkyVis;\n' +
             // 值噪声 + 两层不同尺度/方向滚动 → 不重复的混沌波纹(比正弦波自然、飘动不规则)。
             'float mwH(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
             '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
@@ -360,7 +369,7 @@ export class ChunkMeshManager {
             '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
             '  float ns = nf * horiz;\n' +
             '  vec3 N = normalize(vec3((h0 - hx) / e * ns, 1.0, (h0 - hz) / e * ns));\n' +
-            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0) * horiz;\n' + // 水下看上来/侧壁 → 无天空反射
+            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0) * horiz * vSkyVis;\n' + // 水下看上来/侧壁/洞穴湖(见不到天) → 无天空反射
             '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
             '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.85;\n' +
             '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.34);\n' + // Schlick,封顶→透底为主
@@ -369,7 +378,7 @@ export class ChunkMeshManager {
             // 焦散：浅水底游动的亮网纹(MC 光影签名效果)。波谷脊线→细亮纹；深水/夜晚/侧壁淡出。
             '  float cav = mwWave(wq * 1.6 + vec2(uTime * 0.12, -uTime * 0.09), uTime * 0.8);\n' +
             '  float caust = pow(1.0 - abs(cav - 0.5) * 2.0, 5.0);\n' +
-            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.5 * uSkyMul * horiz) * vLF;\n' +
+            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.5 * uSkyMul * horiz * vSkyVis) * vLF;\n' + // 焦散=阳光效应,洞穴湖(vSkyVis=0)没有
             '  vec3 col = mix(base, skyR, fres * above);\n' +
             '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
             '  col += pow(max(dot(Rs, V), 0.0), 140.0) * uSkyMul * vec3(1.0, 0.96, 0.85) * 0.6 * above * (0.3 + 0.7 * nf);\n' + // 太阳粼光
@@ -457,6 +466,7 @@ export class ChunkMeshManager {
   /** 切维度：卸载当前所有区块网格、清队列与在途标记、换内部 world 引用。保留 worker 池(不重建)。 */
   setWorld(world: ChunkWorld): void {
     for (const k of [...this.meshes.keys()]) this.unload(k); // 释放 geometry + 从 scene 移除
+    this.lightGrids.clear();
     this.meshQueue.length = 0;
     this.priorityQueue.length = 0;
     this.meshPending.clear();
@@ -473,6 +483,7 @@ export class ChunkMeshManager {
    */
   dispose(): void {
     for (const k of [...this.meshes.keys()]) this.unload(k); // 从场景移除 + dispose 所有 geometry
+    this.lightGrids.clear();
     for (const w of this.meshWorkers) w.terminate(); // 终止网格化 worker(否则线程/内存常驻)
     this.meshWorkers.length = 0;
     this.opaqueMat.dispose();
@@ -498,10 +509,32 @@ export class ChunkMeshManager {
     return g;
   }
 
+  /** 实体环境光采样：世界坐标 → [天光0..15, 方块光0..15]（4 格粒度粗网格）。未加载→[15,0](当露天,防黑闪)。 */
+  lightLevelAt(wx: number, wy: number, wz: number): [number, number] {
+    const cx = Math.floor(Math.floor(wx) / CHUNK_W);
+    const cz = Math.floor(Math.floor(wz) / CHUNK_W);
+    const g = this.lightGrids.get(this.key(cx, cz));
+    if (!g) return [15, 0];
+    const lx = Math.min(3, Math.max(0, Math.floor((wx - cx * CHUNK_W) / 4)));
+    const lz = Math.min(3, Math.max(0, Math.floor((wz - cz * CHUNK_W) / 4)));
+    const ly = Math.min(47, Math.max(0, Math.floor(wy / 4)));
+    const v = g[lx + lz * 4 + ly * 16];
+    return [v >> 4, v & 15];
+  }
+
+  /** 实体环境亮度系数 0..1：与方块 shader 完全同曲线(mcBright、skyDarken、drkFloor)。
+   *  生物/掉落物/手持用它乘暗——否则在洞里/夜里全亮渲染像自发光(暗处光照 bug)。 */
+  brightnessAt(wx: number, wy: number, wz: number, skyDarken: number): number {
+    const [sky, blk] = this.lightLevelAt(wx, wy, wz);
+    const floor = sky < 0.5 ? 0.03 : 0.04;
+    return Math.min(1, Math.max(mcBrightJs(sky - skyDarken), mcBrightJs(blk)) * 0.96 + floor);
+  }
+
   private unload(k: string): void {
     this.editKeys.delete(k); // 卸载就清掉优先标记，防 editKeys 累积已驱逐区块
     this.meshPendingSince.delete(k);
     this.meshFails.delete(k);
+    this.lightGrids.delete(k);
     const m = this.meshes.get(k);
     if (!m) return;
     for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
@@ -558,6 +591,7 @@ export class ChunkMeshManager {
 
   private applyMesh(cx: number, cz: number, mesh: ChunkMesh): void {
     this.unload(this.key(cx, cz));
+    this.lightGrids.set(this.key(cx, cz), mesh.light3d); // 实体照明粗网格(unload 已清旧的)
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
     const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
     const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);

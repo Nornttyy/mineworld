@@ -31,7 +31,9 @@ await page.click('#nw-creative'); // 创造模式：无伤害，传送不会摔�
 await page.click('#nw-create');
 
 await page.waitForFunction(() => window.__mw, null, { timeout: 60000 });
-// 冻结模拟：退出指针锁(无头下 requestPointerLock 可能成功→模拟跑起来会出事)
+// 冻结模拟：退出指针锁。main.ts 在 __mw 赋值【之后】才 requestPointerLock,须等它落地再退,否则重新锁上(竞态)
+await page.evaluate(() => document.exitPointerLock());
+await page.waitForTimeout(600);
 await page.evaluate(() => document.exitPointerLock());
 await page.waitForTimeout(12000); // 等 worker 铺满初始区块(SwiftShader 慢)
 
@@ -88,6 +90,7 @@ for (const v of views) {
     }
     const py = Math.max(surfaceY(px, pz), (view.water && window.__waterPos) ? window.__waterPos.y + 1 : 0) + 1.2 + (view.up || 0);
     g.player = { pos: { x: px, y: py, z: pz }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
+    g.prev = g.player; // 冻结时相机用 prev 插值,必须同步,否则相机不跟传送
     g.look.yaw = yaw;
     g.look.pitch = view.pitch;
   }, v);

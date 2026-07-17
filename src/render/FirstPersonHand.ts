@@ -109,6 +109,7 @@ export class FirstPersonHand {
   private eating = false; // 是否在吃东西（手持食物送嘴边抖动）
   private eatT = 0; // 吃东西计时（驱动抖动）
   private hurtT = 0; // 受击抖动余量 1→0（被攻击时置 1，逐帧衰减；驱动手快速抖一下）
+  private bright = 1; // 环境亮度(0..1)：洞里/夜里手臂+手持物一起变暗(MC 实体光照)，setBrightness 平滑喂入
 
   constructor(atlas: THREE.Texture) {
     this.atlas = atlas;
@@ -145,6 +146,14 @@ export class FirstPersonHand {
   }
 
   // 设置手持物（null=空手，只露手臂）：方块→3D 立方体；物品→平面图标精灵。
+  /** 环境亮度(由 Game 每帧采玩家眼睛处光照传入)：乘到手臂/手持材质色上。内部平滑,跨光照格不跳变。 */
+  setBrightness(b: number): void {
+    this.bright += (b - this.bright) * 0.12;
+    const c = this.bright;
+    (this.arm.material as THREE.MeshBasicMaterial).color.setScalar(c);
+    if (this.item) (this.item.material as THREE.MeshBasicMaterial).color.setScalar(c);
+  }
+
   setHeld(id: number | null): void {
     if (id === this.itemId) return;
     this.itemId = id;

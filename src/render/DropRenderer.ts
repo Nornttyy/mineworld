@@ -48,10 +48,17 @@ export class DropRenderer {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
   }
 
-  /** 切换方块图集（材质风格切换）：换方块掉落物的贴图。物品掉落用各自图标，不受影响。 */
+  /** 切换方块图集（材质风格切换）：换方块掉落物的贴图。物品掉落用各自图标，不受影响。
+   *  每个掉落物的材质是克隆件(为了逐个按环境光变暗)，得一并换贴图。 */
   setAtlas(tex: THREE.Texture): void {
     this.mat.map = tex;
     this.mat.needsUpdate = true;
+    for (const [d, mesh] of this.meshes) {
+      if (!isItem(d.id)) {
+        (mesh.material as THREE.MeshBasicMaterial).map = tex;
+        (mesh.material as THREE.MeshBasicMaterial).needsUpdate = true;
+      }
+    }
   }
 
   // 非方块物品掉落：按 id 取对应图标(icons/<name>.png)做扁平方片材质，缓存复用。
@@ -78,20 +85,27 @@ export class DropRenderer {
     return g;
   }
 
-  sync(drops: ItemDrop[]): void {
+  /** lightAt: 环境亮度采样(0..1)——掉落物在洞里/夜里按所在处光照变暗(MC 实体光照)。不传=恒 1。 */
+  sync(drops: ItemDrop[], lightAt?: (x: number, y: number, z: number) => number): void {
     const present = new Set(drops);
     for (const [d, mesh] of this.meshes) {
       if (!present.has(d)) {
         this.scene.remove(mesh);
+        (mesh.material as THREE.Material).dispose(); // 材质是克隆件(逐个调亮度),移除时释放;共享贴图不受影响
         this.meshes.delete(d);
       }
     }
     for (const d of drops) {
       let mesh = this.meshes.get(d);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.geo(d.id), isItem(d.id) ? this.itemMat(d.id) : this.mat);
+        // 材质克隆：让每个掉落物能独立按环境光变暗(共享材质会互相打架)
+        mesh = new THREE.Mesh(this.geo(d.id), (isItem(d.id) ? this.itemMat(d.id) : this.mat).clone());
         this.scene.add(mesh);
         this.meshes.set(d, mesh);
+      }
+      if (lightAt) {
+        const b = lightAt(d.x, d.y + 0.5, d.z);
+        (mesh.material as THREE.MeshBasicMaterial).color.setScalar(b);
       }
       const bob = 0.1 + Math.sin(d.age * 3) * 0.06; // 悬在地面之上轻轻浮动
       mesh.position.set(d.x, d.y + bob, d.z);
@@ -100,7 +114,10 @@ export class DropRenderer {
   }
 
   clear(): void {
-    for (const [, mesh] of this.meshes) this.scene.remove(mesh);
+    for (const [, mesh] of this.meshes) {
+      this.scene.remove(mesh);
+      (mesh.material as THREE.Material).dispose(); // 克隆材质逐个释放
+    }
     this.meshes.clear();
   }
 }

@@ -179,10 +179,12 @@ const FLASH = new THREE.Color(0xff5a5a);
 const WHITE = new THREE.Color(1, 1, 1); // 苦力怕引信闪白
 
 export class MobRenderer {
-  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number }>();
+  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number; bright: number }>();
   constructor(private readonly scene: THREE.Scene) {}
 
-  sync(mobs: Mob[], dt: number): void {
+  /** lightAt: 环境亮度采样(0..1,来自区块粗光照网格)——生物在洞里/夜里按所在处光照变暗(MC 实体光照)。
+   *  不传(测试/旧调用)=恒 1(全亮,旧行为)。 */
+  sync(mobs: Mob[], dt: number, lightAt?: (x: number, y: number, z: number) => number): void {
     const present = new Set(mobs);
     for (const [mob, m] of this.models) {
       if (!present.has(mob)) {
@@ -196,20 +198,23 @@ export class MobRenderer {
         const built = buildModel(mob.kind);
         this.scene.add(built.group);
         // baseScale = 建模时的个体大小(g.scale)；苦力怕引信鼓胀时在它基础上放大、引信熄灭即复原
-        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x }; // t 错开 → 不同步呼吸
+        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x, bright: 1 }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
       }
       m.t += dt;
       m.group.position.set(mob.pos.x, mob.pos.y, mob.pos.z);
       m.group.rotation.y = -mob.yaw;
+      // 环境光：采样生物半身高处的亮度,帧间平滑(跨 4 格光照 cell 不跳变)
+      const wantB = lightAt ? lightAt(mob.pos.x, mob.pos.y + 0.6, mob.pos.z) : 1;
+      m.bright += (wantB - m.bright) * Math.min(1, dt * 10);
       const tint = mob.hurtCooldown > 0 ? FLASH : m.base; // 受击红闪，平时个体色
-      for (const mt of m.mats) mt.color.copy(tint);
+      for (const mt of m.mats) mt.color.copy(tint).multiplyScalar(m.bright);
       // 苦力怕引信（同 MC 引爆征兆）：越接近引爆越【闪白】+【鼓胀变大】，二者同步脉动；
       // fuse 归 0(走远/被墙挡)→ whiteness=0、swell=1 → 颜色与大小下一帧自动复原。
       const fv = creeperFuseVisual(mob.kind === 'creeper' ? mob.fuse : 0);
       if (fv.whiteness > 0) {
         const flash = tint.clone().lerp(WHITE, fv.whiteness);
-        for (const mt of m.mats) mt.color.copy(flash);
+        for (const mt of m.mats) mt.color.copy(flash).multiplyScalar(m.bright);
       }
       m.group.scale.setScalar(m.baseScale * fv.swell); // 鼓胀（非苦力怕/未点燃时 swell=1 → 恒为个体原大小）
 

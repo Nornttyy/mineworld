@@ -763,7 +763,7 @@ export class Game {
       // 碎屑粒子：每帧推进 + 刷新
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
-      this.mobRenderer.sync(this.mobs, dt); // 生物模型跟随/动画
+      this.mobRenderer.sync(this.mobs, dt, this.entityLight); // 生物模型跟随/动画(+按所在处光照变暗)
       this.arrowRenderer.sync(this.arrows); // 箭模型跟随
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
@@ -771,6 +771,8 @@ export class Game {
       this.hand.setEating(playing && this.eating);
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
+      // 手持/手臂按玩家眼睛处环境光变暗(MC 实体光照)：洞里/夜里手不再自发光
+      this.hand.setBrightness(this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z));
       if (this.hand.camera.aspect !== this.renderer.camera.aspect) {
         this.hand.resize(this.renderer.camera.aspect);
       }
@@ -865,7 +867,7 @@ export class Game {
       this.inv[i] = null;
     }
     this.hotbar.render(this.inv);
-    this.dropRenderer.sync(this.drops);
+    this.dropRenderer.sync(this.drops, this.entityLight);
     void document.exitPointerLock(); // 解锁 → main 切到死亡界面
   }
 
@@ -1291,7 +1293,7 @@ export class Game {
         }
       }
     }
-    this.dropRenderer.sync(this.drops);
+    this.dropRenderer.sync(this.drops, this.entityLight);
   }
 
   // —— 生物 ——
@@ -1604,6 +1606,12 @@ export class Game {
     );
   }
 
+  // 实体环境光照(生物/掉落物/手持共用)：采区块粗光照网格 → 亮度系数(与方块 shader 同曲线)。
+  //   skyDarkenNow 由 updateDayNight 每帧刷新(夜里天光递减)。
+  private skyDarkenNow = 0;
+  private readonly entityLight = (x: number, y: number, z: number): number =>
+    this.chunks.brightnessAt(x, y, z, this.skyDarkenNow);
+
   // 昼夜更替：按世界时间套用天空渐变、雾色、世界亮度着色。水下时雾被 updateWater 换成蓝雾，
   //   这里只改“正常雾”的颜色，故两者不冲突。
   private updateDayNight(): void {
@@ -1627,6 +1635,7 @@ export class Game {
     this.chunks.setTint([t[0] / mx, (t[1] / mx) * (1 - day * 0.05), (t[2] / mx) * (1 - day * 0.15)]);
     // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
     const darken = skyDarkenAt(this.worldTime);
+    this.skyDarkenNow = darken; // 供实体环境光照(entityLight)用
     this.chunks.setSkyDarken(darken);
     this.chunks.setSkyMul(1 - darken / 11); // 仅供水面太阳粼光强度(白天 1、夜 0)
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。

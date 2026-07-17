@@ -65,6 +65,18 @@ describe('mesher 光照属性(天光+方块光)', () => {
     expect(deepMax).toBeLessThan(nearMax); // 且比洞口侧暗(渐变方向正确)
   });
 
+  it('粗光照网格 light3d：露天 cell 天光满、地下深处 cell 黑、火把 cell 有方块光(实体照明数据)', () => {
+    const w = new ChunkWorld(42);
+    w.setBlock(8, 30, 8, TORCH); // 深地下(实心石里挖不动？直接放——mesher 只看方块数据)放火把
+    const m = meshChunk(w, 0, 0);
+    const g = m.light3d;
+    expect(g.length).toBe(4 * 48 * 4);
+    const cell = (wx: number, wy: number, wz: number): number => g[(wx >> 2) + (wz >> 2) * 4 + Math.floor(wy / 4) * 16];
+    expect(cell(8, 188, 8) >> 4).toBe(15); // 世界顶附近露天：天光 15
+    expect(cell(2, 12, 2) >> 4).toBe(0); // 深地下(实心/洞穴)：无天光
+    expect(cell(8, 30, 8) & 15).toBeGreaterThan(10); // 火把所在 cell：方块光接近 14
+  });
+
   it('火把：生成自发光网格 + 给周围方块面带来方块光', () => {
     const w = new ChunkWorld(7);
     // 地表之上(y=186)搭一个石台 + 台上放火把，台面的面应当被方块光照亮
