@@ -203,6 +203,7 @@ export class Bloom {
 
   private buildRT(w: number, h: number): THREE.WebGLRenderTarget {
     return new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType, // 与场景 RT 同为半浮点：亮部提取/模糊不丢精度(HDR 泛光)
       depthBuffer: false, // bloom 不需要深度
     });
   }

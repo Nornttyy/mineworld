@@ -281,7 +281,12 @@ export class Renderer {
     const h = Math.max(1, Math.round(cssH * pr));
     const depthTex = new THREE.DepthTexture(w, h);
     depthTex.type = THREE.UnsignedIntType; // 24-bit depth，与 WebGLRenderer 默认匹配
+    // ⚠️ 颜色必须 HalfFloat：场景以【线性】存进 RT,8-bit 线性在暗部只剩 1~3/255 级,
+    // 合成端 pow(0.4545) 伽马再放大 → 洞穴/夜晚全是彩色量化噪点+色带("暗处怪怪的"根因)。
+    // 16-bit 半浮点暗部精度足够,泛光也因此变成真 HDR。若低端机不支持(WebGL2 核心必支持
+    // EXT_color_buffer_float,理论都行)或过慢,退路=8-bit RT 存 sRGB+合成端改编码语义。
     const rt = new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType,
       depthTexture: depthTex,
       depthBuffer: true,
     });
