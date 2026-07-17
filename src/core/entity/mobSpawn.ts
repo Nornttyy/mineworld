@@ -88,6 +88,7 @@ export function spawnHostileRing(
   surfaceY: (x: number, z: number) => number,
   ringMin = 16,
   ringMax = 32,
+  lightAt?: (x: number, y: number, z: number) => number, // 有效光照(0..15,天光已按昼夜衰减)——MC 1.12:敌对只在 ≤7 刷
 ): Mob[] {
   for (let tries = 0; tries < 14; tries++) {
     const ang = rng() * Math.PI * 2;
@@ -95,7 +96,9 @@ export function spawnHostileRing(
     const bx = Math.floor(cx + Math.cos(ang) * d);
     const bz = Math.floor(cz + Math.sin(ang) * d);
     const bh = surfaceY(bx, bz);
-    if (!isDarkEnoughForSpawn(world, bx, bh + 1, bz)) continue; // 太亮(近火把) → 换个方向再试
+    // MC 1.12 敌对刷怪光照规则：位置光照 >7 不刷(白天地表天光 15 自然堵死——苦力怕"不怕晒"≠白天能刷;
+    // 火把 ≥8 圈出安全区)。有真光照数据用真的,否则退回火把曼哈顿扫描。
+    if (lightAt ? lightAt(bx, bh + 1, bz) > 7 : !isDarkEnoughForSpawn(world, bx, bh + 1, bz)) continue;
     const mobs: Mob[] = [];
     const n = 1 + Math.floor(rng() * 3); // 1–3 只一小群
     for (let i = 0; i < n; i++) {
@@ -122,6 +125,7 @@ export function spawnHostileCave(
   surfaceY: (x: number, z: number) => number,
   ringMin = 5,
   ringMax = 24,
+  lightAt?: (x: number, y: number, z: number) => number, // 同 spawnHostileRing:≤7 才刷(火把照亮的矿道安全)
 ): Mob[] {
   const DEPTH = 5; // 距地表至少 5 格才算"够暗的洞"(避开浅坑/天光直射处)
   for (let tries = 0; tries < 24; tries++) {
@@ -133,7 +137,7 @@ export function spawnHostileCave(
     const yBot = Math.max(2, Math.floor(cy) - 14);
     for (let y = yTop; y >= yBot; y--) {
       if (!canSpawnHostileAt(world, bx, y, bz)) continue; // 脚下实心 + 头两格空(洞室)
-      if (!isDarkEnoughForSpawn(world, bx, y, bz)) continue; // 近火把 → 换格往下找
+      if (lightAt ? lightAt(bx, y, bz) > 7 : !isDarkEnoughForSpawn(world, bx, y, bz)) continue; // 亮处(≥8)不刷
       const mobs: Mob[] = [];
       const n = 1 + Math.floor(rng() * 2); // 洞里 1–2 只
       for (let i = 0; i < n; i++) {

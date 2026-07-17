@@ -1380,13 +1380,18 @@ export class Game {
         const rk = this.mobRng();
         const biome = biomeAt(px, pz, this.save.seed);
         const kind: MobKind = hostileKindFor(biome, rk);
-        // 矿洞：玩家附近地下暗洞，不分昼夜（同 MC）
-        const cave = spawnHostileCave(kind, px, this.player.pos.y, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room);
+        // MC 1.12 刷怪光照规则：敌对只在【位置光照 ≤7】生成(用区块粗光照网格,天光按昼夜衰减)。
+        // 白天地表天光 15 → 自然不刷(修"苦力怕白天生成"——它 sunImmune 只是不怕晒,不等于白天能刷)；
+        // 夜里地表 15-11=4 → 刷；矿洞恒暗 → 全天刷；火把(光 ≥8)圈出安全区(1:1 火把防刷怪机制)。
+        const spawnLight = (x: number, y: number, z: number): number => {
+          const [sky, blk] = this.chunks.lightLevelAt(x, y, z);
+          return Math.max(blk, sky - this.skyDarkenNow);
+        };
+        const cave = spawnHostileCave(kind, px, this.player.pos.y, pz, this.mobRng, this.spawnWorld, this.surfaceY, undefined, undefined, spawnLight).slice(0, room);
         this.mobs.push(...cave);
         room -= cave.length;
-        // 夜晚：地表暗处也刷一小群（尸壳 sunImmune，沙漠白天地表也刷）
-        if (room > 0 && (skyStateAt(this.worldTime).isNight || MOB_DEFS[kind].sunImmune)) {
-          this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY).slice(0, room));
+        if (room > 0) {
+          this.mobs.push(...spawnHostileRing(kind, px, pz, this.mobRng, this.spawnWorld, this.surfaceY, undefined, undefined, spawnLight).slice(0, room));
         }
       }
     }

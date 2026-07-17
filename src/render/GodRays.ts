@@ -63,6 +63,7 @@ void main() {
     wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
     float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
     outc = mix(vec3(lumc), wb, 1.18);
+  outc *= 1.08; // 曝光(用户三催"不够亮";仅此一处、无暖偏移,与旧洗白组合不同)
     gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
     return;
   }
@@ -96,6 +97,7 @@ void main() {
   wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
   float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
   outc = mix(vec3(lumc), wb, 1.18);
+  outc *= 1.08; // 曝光
   gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
 }
 `.trim();

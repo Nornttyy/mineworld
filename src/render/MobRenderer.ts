@@ -179,7 +179,7 @@ const FLASH = new THREE.Color(0xff5a5a);
 const WHITE = new THREE.Color(1, 1, 1); // 苦力怕引信闪白
 
 export class MobRenderer {
-  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number; bright: number }>();
+  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number; bright: number; dispYaw: number; swingAmt: number }>();
   constructor(private readonly scene: THREE.Scene) {}
 
   /** lightAt: 环境亮度采样(0..1,来自区块粗光照网格)——生物在洞里/夜里按所在处光照变暗(MC 实体光照)。
@@ -198,12 +198,17 @@ export class MobRenderer {
         const built = buildModel(mob.kind);
         this.scene.add(built.group);
         // baseScale = 建模时的个体大小(g.scale)；苦力怕引信鼓胀时在它基础上放大、引信熄灭即复原
-        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x, bright: 1 }; // t 错开 → 不同步呼吸
+        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x, bright: 1, dispYaw: mob.yaw, swingAmt: 0 }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
       }
       m.t += dt;
-      m.group.position.set(mob.pos.x, mob.pos.y, mob.pos.z);
-      m.group.rotation.y = -mob.yaw;
+      // 转身平滑：显示朝向按最短弧插值逼近逻辑 yaw(原来直接跳 → 转身瞬移,僵硬感主因之一)
+      let dy = -mob.yaw - m.dispYaw;
+      dy = ((dy + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      m.dispYaw += dy * Math.min(1, dt * 10);
+      m.group.rotation.y = m.dispYaw;
+      // 落体/跳跃前后倾(按竖直速度,轻微)
+      m.group.rotation.z = Math.max(-0.18, Math.min(0.22, -mob.vel.y * 2.2));
       // 环境光：采样生物半身高处的亮度,帧间平滑(跨 4 格光照 cell 不跳变)
       const wantB = lightAt ? lightAt(mob.pos.x, mob.pos.y + 0.6, mob.pos.z) : 1;
       m.bright += (wantB - m.bright) * Math.min(1, dt * 10);
@@ -222,9 +227,11 @@ export class MobRenderer {
       const moving = speed > 0.002;
       if (moving) m.phase += speed * 20 * dt * SWING_RATE;
 
-      // 摆腿
-      const swing = moving ? Math.sin(m.phase) * 0.6 : 0;
+      // 摆腿：幅度渐入渐出(原来起步/停步瞬间从 0 跳满幅 → 僵硬)；走路时身体随步伐轻微起伏
+      m.swingAmt += ((moving ? 1 : 0) - m.swingAmt) * Math.min(1, dt * 8);
+      const swing = Math.sin(m.phase) * 0.6 * m.swingAmt;
       m.legs.forEach((leg, i) => (leg.rotation.z = i % 2 === 0 ? swing : -swing));
+      m.group.position.set(mob.pos.x, mob.pos.y + Math.abs(Math.sin(m.phase)) * 0.035 * m.swingAmt, mob.pos.z);
 
       // 头：走路点头 / 站着呼吸或鸡啄地
       if (m.head) {
@@ -238,6 +245,7 @@ export class MobRenderer {
         } else {
           m.head.position.y = m.headY + Math.sin(m.t * 1.4) * 0.012; // 呼吸起伏
           m.head.rotation.z = 0;
+          m.head.rotation.y = Math.sin(m.t * 0.55) * 0.4 * (1 - m.swingAmt); // 待机张望(走路时归零)
         }
       }
       // 尾巴甩

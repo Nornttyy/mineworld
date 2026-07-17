@@ -36,6 +36,15 @@ describe('敌对刷新：暗度门控 + 16–32 环带', () => {
       expect(d).toBeLessThan(35);
     }
   });
+
+  it('MC 1.12 光照规则：光照>7 不刷(白天地表苦力怕也不刷——sunImmune≠白天能刷)', () => {
+    // 白天地表：有效光照 15 → 连"不怕晒"的苦力怕也不能刷(修"苦力怕白天生成"bug)
+    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => 15)).toEqual([]);
+    // 火把照亮处(光照 ≥8) → 不刷(火把防刷怪机制)
+    expect(spawnHostileRing('zombie', 0, 0, rng, world([]), surfaceY, 16, 32, () => 10)).toEqual([]);
+    // 夜里地表(15-skyDarken11=4 ≤7) → 刷
+    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => 4).length).toBeGreaterThan(0);
+  });
 });
 
 // 地下洞世界：地表 y=64；y∈[40,41] 是空气洞室(洞底 y=39 实心)，其余 y≤64 实心。可放火把。

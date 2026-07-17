@@ -77,113 +77,180 @@ def streak(px, color, x, y, length, rng):
 
 
 # ---- per-block generators：MC 1.12 原版风 ----------------------------------
+
+# ── 手绘像素纹样(2026-07-17 用户"我要改材质,不是只换颜色")──────────────────
+# 每块 16×16 逐像素手绘(按 1.12 原版纹样结构临摹)：块面图案是【设计出来的】连贯图形,
+# 不是随机噪声。rng 只做 ±3 通道微抖动(有机感),图案本身固定。
+def from_map(rows, pal, rng, alpha_blank=False):
+    assert len(rows) == 16, len(rows)
+    for r in rows:
+        assert len(r) == 16, (len(r), r)
+    im = Image.new("RGBA" if alpha_blank else "RGB", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if alpha_blank and ch == " ":
+                continue
+            c = hx(pal[ch])
+            j = rng.randint(-3, 3)
+            v = (max(0, min(255, c[0] + j)), max(0, min(255, c[1] + j)), max(0, min(255, c[2] + j)))
+            px[x, y] = (v[0], v[1], v[2], 255) if alpha_blank else v
+    return im
+
+
 # 2026-07-17 用户拍板"按照(我的世界)游戏贴图画"：从鲜艳卡通转向 1.12 原版观感——
 # 土色系中饱和度、逐像素 3-5 色噪声(原版贴图噪感明显)、标志性图案(石头团块/木板缝/
 # 年轮/草侧锯齿边)。全程程序生成(不搬 Mojang 素材,按风格临摹)。% S 包裹保证无缝平铺。
 
 def stone(rng):
-    im = new()
-    fill(im, "#7d7d7d")  # 1.12 石头中灰
-    speck(im, ["#6f6f6f", "#8a8a8a", "#757575"], 0.35, rng)  # 原版噪感
-    for _ in range(6):  # 不规则深浅团块(原版石头的"云斑")
-        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([2, 2, 3]), "#828282", "#8f8f8f", "#6a6a6a", rng, 0.4)
-    px = im.load()
-    for _ in range(3):
-        streak(px, "#666666", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
-    return im
-
+    # 1.12 石头：斜向流动的深浅斑块 + 1px 暗缝(手绘纹样)。
+    rows = [
+        "LLl..dd..llLL..d",
+        "Ll..dDDd..lLL.dd",
+        "l..dDDd....L..dD",
+        "..dDd..ll....dDd",
+        ".dDd..lLLl..dDd.",
+        ".dd..lLLl..dDd..",
+        "....lLl...dDd..l",
+        ".ll..l..dDDd..lL",
+        "lLLl...dDd...lL.",
+        "lLl..dDd...ll...",
+        ".l..dDd..llLLl..",
+        "...dDd..lLLl..d.",
+        "..dDd..lLl..dDDd",
+        ".dDd........dDd.",
+        "dDd..lll..dDd...",
+        "Dd..lLLl..dd...L",
+    ]
+    return from_map(rows, {".": "#7d7d7d", "l": "#8a8a8a", "L": "#949494", "d": "#6f6f6f", "D": "#5f5f5f"}, rng)
 
 def cobblestone(rng):
-    # 原版圆石：灰石块马赛克 + 深灰石缝,石块顶缘略亮。
-    im = new()
-    fill(im, "#4f4f4f")  # 石缝
-    for cx, cy in [(3, 3), (11, 4), (7, 9), (2, 12), (13, 11), (9, 1), (14, 15), (5, 7)]:
-        base = rng.choice(["#8c8c8c", "#7f7f7f", "#868686"])
-        pebble(im, cx, cy, rng.choice([3, 3, 4]), base, "#a0a0a0", "#646464", rng, 0.3)
-    speck(im, ["#757575", "#8a8a8a"], 0.10, rng)
-    return im
-
+    # 1.12 圆石：大块圆润卵石马赛克 + 深色石缝,石块顶缘高光/底缘阴影(手绘)。
+    rows = [
+        ".hbb..hcb..hbb..",
+        "abbbd.bcbd.abbd.",
+        "abbd..bbd..abbd.",
+        ".ad.hbbd.hcb.ad.",
+        "hcb.abbbd.bcbd.h",
+        "bcbd.abd..bbd..b",
+        "abbd..d.hbbd..ab",
+        ".ad..hcb.abbd.ab",
+        "..hbb.bcbd.ad..a",
+        ".abbbd.abd...hbb",
+        ".abbd...d..hcbbd",
+        "h.ad..hbb..bcbd.",
+        "cbd..abbbd.abd..",
+        "bbd..abbd...d.hb",
+        "ad.hcb.ad..hbb.b",
+        "..bcbd...hbbbd.a",
+    ]
+    return from_map(rows, {".": "#5b5b5b", "a": "#7a7a7a", "b": "#858585", "c": "#909090", "h": "#9c9c9c", "d": "#6a6a6a"}, rng)
 
 def dirt(rng):
-    im = new()
-    fill(im, "#866748")  # 1.12 泥土棕
-    speck(im, ["#79573b", "#97795a", "#8b6c4c"], 0.4, rng)  # 密噪(原版泥土很碎)
-    for _ in range(6):
-        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 2]), "#866748", "#9d7f5e", "#6b4c33", rng)
-    px = im.load()
-    for _ in range(5):  # 零星深色小石粒
-        px[rng.randrange(S), rng.randrange(S)] = hx("#5a3f2a")
-    return im
-
+    # 1.12 泥土：棕底 + 深色土坷垃团 + 零星亮砂/近黑碎石(手绘)。
+    rows = [
+        "..l.dd.l..ld...l",
+        ".lLl.d..dDd..l..",
+        "..l..l.dDd..lLl.",
+        "d...ld..d.l..l.d",
+        "Dd.lLl....dd...D",
+        "d...l..dd.dDd.d.",
+        "..ld...dDd.d...l",
+        ".lLl.l..d...lLl.",
+        "..l.dDd...l..l..",
+        "l...dkd.lLl....d",
+        "Ll.l.d..l....dDd",
+        "l..........dd.d.",
+        "..dd..lLl.dDd..l",
+        ".dDd...l...d..lL",
+        "..d.l....dd....l",
+        "l..lLl..dDd.l...",
+    ]
+    return from_map(rows, {".": "#866748", "l": "#96775a", "L": "#a58868", "d": "#75573b", "D": "#634830", "k": "#54402a"}, rng)
 
 GB, GH, GL = "#74a83f", "#84bc4c", "#5f8c33"  # 1.12 平原草绿(base/亮/暗)
 
 
 def grass_top(rng):
-    im = new()
-    fill(im, GB)
-    speck(im, ["#6b9c3a", "#7db246", "#699338"], 0.45, rng)  # 原版草顶=细密四色噪
-    for _ in range(4):
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, GB, GH, GL, rng, 0.5)
-    return im
-
+    # 1.12 草顶：短横划(2px 草叶)密织,四色交错(手绘)。
+    rows = [
+        ".ll.dd.l.LL.d.ll",
+        "l.DD.ll.d..ll.D.",
+        ".ll..L.dd.Ll..dd",
+        "D..lL..l.D..lL..",
+        ".dd.l.DD.ll.d.Ll",
+        "l.Ll.d..l..DD.l.",
+        ".d..ll.Ld.l..ll.",
+        "lL.dd.l..ll.dD.d",
+        "..l.DD.lL..l..l.",
+        "dd.l..d..DD.lL..",
+        ".Ll..ll.d..l..dd",
+        "l..dD..Ll.dd.l.L",
+        ".ll.l.d..l.DD.l.",
+        "d..LL.dd.lL...d.",
+        ".dd..l.D..l.ll.L",
+        "l.l.dd.ll.dd.l..",
+    ]
+    return from_map(rows, {".": "#74a83f", "l": "#7fb54a", "L": "#8ac153", "d": "#699a37", "D": "#5e8c30"}, rng)
 
 def grass_side(rng):
-    # 泥土身 + 顶部草皮带(2~4px 锯齿下垂,唇边压深)——原版 grass_side 结构。
-    im = new()
-    fill(im, "#866748")
-    speck(im, ["#79573b", "#97795a", "#8b6c4c"], 0.4, rng)
+    # 1.12 草侧：手绘泥土身 + 顶部草皮带(固定锯齿深度 + 深绿唇边)。
+    im = dirt(rng)
     px = im.load()
-    for _ in range(3):
-        pebble(im, rng.randrange(S), rng.randrange(5, S), 2, "#866748", "#9d7f5e", "#6b4c33", rng)
-    g = [GB, "#6b9c3a", "#7db246"]
+    depths = [3, 2, 3, 4, 2, 3, 3, 2, 4, 3, 2, 3, 2, 3, 4, 3]
+    greens = ["#74a83f", "#7fb54a", "#8ac153"]
     for x in range(S):
-        depth = rng.randint(2, 4)
-        for y in range(depth):
-            c = rng.choice(g) if y < depth - 1 else GL  # 唇边深绿收口
-            px[x, y] = hx(c)
-        if rng.random() < 0.35:
-            px[x, depth] = hx(GL)
+        dep = depths[x]
+        for y in range(dep):
+            if y == dep - 1:
+                px[x, y] = hx("#5e8c30")  # 唇边深绿
+            else:
+                px[x, y] = hx(greens[(x + y) % 3])
     return im
-
 
 def sand(rng):
-    im = new()
-    fill(im, "#d7cda0")  # 1.12 沙色(淡卡其,非明黄)
-    speck(im, ["#ccc293", "#e0d7ad", "#d2c799"], 0.4, rng)
-    px = im.load()
-    for _ in range(6):  # 零星深沙粒
-        px[rng.randrange(S), rng.randrange(S)] = hx("#bfb589")
-    return im
-
+    # 1.12 沙子：淡卡其 + 稀疏波状起伏点(手绘,大片留白=原版的"平")。
+    rows = [
+        "...ll....d..ll..",
+        ".ll..dd......dd.",
+        "......dDd..l....",
+        ".d..l....lLl...d",
+        "..dd......l..dd.",
+        "....lLl......d..",
+        ".l..l..dd...l..l",
+        "......dDd..lLl..",
+        ".dd......l..l...",
+        "...lLl........d.",
+        "l...l...dd..lL..",
+        "..d....dDd...l..",
+        "....ll..d......d",
+        ".dd..L......ll..",
+        "...l....dd..L...",
+        ".l...dd..d....l.",
+    ]
+    return from_map(rows, {".": "#d7cda0", "l": "#e0d7ad", "L": "#e8e0bc", "d": "#cbc192", "D": "#bdb384"}, rng)
 
 def oak_planks(rng):
-    im = new()
-    fill(im, "#a2814e")  # 1.12 橡木板棕
-    speck(im, ["#98773f", "#ac8b57"], 0.3, rng)
-    px = im.load()
-    groove = hx("#6b5330")
-    hi = hx("#b08d58")
-    grain = hx("#93743f")
-    for gy in (3, 7, 11, 15):  # 板间横缝
-        for x in range(S):
-            px[x, gy] = groove
-    for top in (0, 4, 8, 12):  # 每板顶缘略亮
-        for x in range(S):
-            if rng.random() < 0.45:
-                px[x, top] = hi
-    for top in (0, 4, 8, 12):  # 板内水平木纹
-        for _ in range(2):
-            y = top + rng.randint(1, 2)
-            x0 = rng.randrange(S)
-            for dx in range(rng.randint(3, 6)):
-                px[(x0 + dx) % S, y] = grain
-    seams = [4, 11, 2, 9]  # 错位竖接缝
-    for i, top in enumerate((0, 4, 8, 12)):
-        for y in range(top, top + 3):
-            px[seams[i] % S, y] = groove
-    return im
-
+    # 1.12 橡木板：4 条板(顶缘亮线/底缘深缝/板内木纹划/错位竖接缝)全手绘。
+    rows = [
+        "hh.shhhhhh.hhhh.",
+        "..gs...g......g.",
+        ".g.s..g....gg...",
+        "ssssssssssssssss",
+        "hhhh.hhhhhh.shhh",
+        "..g......g..s.g.",
+        ".g...gg.....s..g",
+        "ssssssssssssssss",
+        "hh.hhhh.shhhhhh.",
+        ".g....g.s...g...",
+        "...gg...s.g....g",
+        "ssssssssssssssss",
+        "hhhhh.hhhhhh.shh",
+        "..g.....g....s.g",
+        ".g...gg......s..",
+        "ssssssssssssssss",
+    ]
+    return from_map(rows, {".": "#a2814e", "h": "#b08d58", "g": "#93743f", "s": "#6b5330"}, rng)
 
 def oak_log_side(rng):
     im = new()
@@ -309,26 +376,26 @@ def water_frames(n):
 
 
 def oak_leaves(rng):
-    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    px = im.load()
-    cols = ["#3a7a1e", "#2f6519", "#449024", "#275413", "#4f9e2c"]  # 1.12 橡叶绿(暗基调)
-    wts = [3, 3, 2, 2, 1]
-    for y in range(S):
-        for x in range(S):
-            if rng.random() < 0.08:
-                px[x, y] = (0, 0, 0, 0)  # 镂空
-            else:
-                r, g, b = hx(rng.choices(cols, wts)[0])
-                px[x, y] = (r, g, b, 255)
-    for _ in range(4):  # 明暗叶簇
-        cx, cy = rng.randrange(S), rng.randrange(S)
-        for dy in range(-1, 2):
-            for dx in range(-1, 2):
-                if rng.random() < 0.6:
-                    r, g, b = hx("#4f9e2c") if rng.random() < 0.5 else hx("#275413")
-                    px[(cx + dx) % S, (cy + dy) % S] = (r, g, b, 255)
-    return im
-
+    # 1.12 橡叶：手绘叶簇纹样(四色绿) + 固定镂空孔位。
+    rows = [
+        ".lD.d L..dl.Dd.l",
+        "dL.l.dD.l .l.dD.",
+        ".d Dl.l.dLl.d .d",
+        "l.dl.D d..D.l.Ld",
+        "D.l.dLl.l.d.D.l.",
+        ".dD.l.d.Dl.lD.dl",
+        "l. l.Dd.l.dl. d.",
+        ".dl.d.lL.D.d.lD.",
+        "D.Ld.D.l.dl.L.ld",
+        ".l.dl.dD. l.d.D.",
+        "d.D.lL.l.dD.ld.l",
+        ".ld.d.D l..l.D d",
+        "L. l.dl.Dd.D.l..",
+        ".dD.L.d.l.lD.dLl",
+        "d.l.dD.ld. l.d.D",
+        ".D.ld.l.D.dl.lD.",
+    ]
+    return from_map(rows, {".": "#3a7a1e", "l": "#449024", "L": "#4f9e2c", "d": "#2f6519", "D": "#275413"}, rng, alpha_blank=True)
 
 def crack_strip():
     """10 段挖掘裂纹（destroy_stage_0..9），横排成 160x16 RGBA。
@@ -409,20 +476,26 @@ def crafting_table_top(rng):
 
 
 def gravel(rng):
-    # 1.12 砾石：粉调暖灰碎石堆。
-    im = new()
-    fill(im, "#807c78")
-    speck(im, ["#736f6b", "#8d8984", "#7a736c"], 0.3, rng)
-    pal = [
-        ("#8f8b86", "#a19d97", "#736f6b"),
-        ("#6e6a66", "#807c78", "#5a5652"),
-        ("#8a8078", "#9b948a", "#6f665d"),
+    # 1.12 砾石：小卵石密铺马赛克(带微粉调),全手绘。
+    rows = [
+        ".ab.cd.e..ab.cd.",
+        "abbc.d.eea.bbc.d",
+        ".ac..e.d.e..ac..",
+        "c.d.abb..cd.e.ab",
+        ".e..abc.d..e..ab",
+        "d.eea.d.abb.cd..",
+        ".d.e..c.abc..d.e",
+        "ab..cd.e..d.ee..",
+        "bbc.d..eea..abc.",
+        "ac..e.d.e.c.abc.",
+        ".d.abb..d.e..ac.",
+        "e..abc.cd.abb..d",
+        ".eea.d..e.abc.d.",
+        "d.e..cd.ee..c..e",
+        ".d.ab..d.abb.cd.",
+        "c..bbc.e.aac..d.",
     ]
-    for _ in range(16):
-        b, h, l = rng.choice(pal)
-        pebble(im, rng.randrange(S), rng.randrange(S), rng.choice([1, 1, 2]), b, h, l, rng, 0.35)
-    return im
-
+    return from_map(rows, {".": "#807c78", "a": "#8d8984", "b": "#98938c", "c": "#736f6b", "d": "#615d5a", "e": "#8a8078"}, rng)
 
 def grass_plant(rng):
     # 草丛(cross billboard)：1.12 草绿细叶。
@@ -444,24 +517,26 @@ def grass_plant(rng):
 
 
 def sandstone(rng):
-    # 1.12 砂岩：淡卡其 + 顶面平整、层理横纹。
-    im = new()
-    fill(im, "#d5c98f")
-    speck(im, ["#cabf85", "#ddd29b"], 0.25, rng)
-    px = im.load()
-    for x in range(S):
-        px[x, 0] = hx("#dcd2a0")
-        px[x, 1] = hx("#d8cd97")
-        px[x, S - 2] = hx("#bcb076")
-        px[x, S - 1] = hx("#b3a76d")
-    for ly in (4, 8, 12):
-        for x in range(S):
-            if rng.random() < 0.8:
-                px[x, ly] = hx("#c4b87e")
-    for _ in range(4):  # 小凹点(原版砂岩面的蚀坑)
-        px[rng.randrange(S), rng.randrange(2, S - 2)] = hx("#b3a76d")
-    return im
-
+    # 1.12 砂岩：平顶带 + 长层理缝 + 蚀坑点(手绘)。
+    rows = [
+        "tttttttttttttttt",
+        "t.t..t...t..t.t.",
+        "................",
+        "..d.......d.....",
+        "dddDdddddDdddddd",
+        "................",
+        ".....k....k.....",
+        "................",
+        "dddddDddddddDddd",
+        "................",
+        "..d.......d.....",
+        "................",
+        "dddDddddddDddddd",
+        "................",
+        "....k.......k...",
+        "DDDDDDDDDDDDDDDD",
+    ]
+    return from_map(rows, {".": "#d5c98f", "t": "#dcd2a0", "d": "#c4b87e", "D": "#b3a76d", "k": "#a89a5e"}, rng)
 
 def cactus(rng):
     # 1.12 仙人掌侧：绿柱 + 暗边棱 + 亮中带 + 淡刺点。
@@ -503,12 +578,26 @@ def ice(rng):
 
 
 def snow(rng):
-    # 1.12 雪：近白 + 极淡灰蓝噪。
-    im = new()
-    fill(im, "#f6fbfb")
-    speck(im, ["#eef4f4", "#ffffff", "#e4ecf0"], 0.25, rng)
-    return im
-
+    # 1.12 雪：近白 + 稀疏冰晶点(手绘)。
+    rows = [
+        "...l....d.......",
+        ".d.....l....l...",
+        "......d......d..",
+        "..l........l....",
+        "........d......d",
+        ".d...l......d...",
+        "...........l....",
+        "....d..d........",
+        ".l..........d..l",
+        "......l.........",
+        ".d........d.....",
+        "........l......d",
+        "..d.l...........",
+        "...........d....",
+        ".l.....d......l.",
+        "......l....d....",
+    ]
+    return from_map(rows, {".": "#f6fbfb", "l": "#ffffff", "d": "#e7eff2", "D": "#dae4ea"}, rng)
 
 def spruce_log(rng):
     # 1.12 云杉原木侧：深冷褐竖条树皮。
@@ -564,14 +653,26 @@ def obsidian(rng):
 
 
 def netherrack(rng):
-    im = new()
-    fill(im, "#6f3634")
-    speck(im, ["#5c2b29", "#833f3d", "#4f2422", "#79403c"], 0.45, rng)  # 原版地狱岩=高密度红褐噪
-    px = im.load()
-    for _ in range(4):
-        streak(px, "#471f1e", rng.randrange(S), rng.randrange(S), rng.randint(2, 4), rng)
-    return im
-
+    # 1.12 地狱岩：红褐斑驳(手绘竖向蜿蜒纹)。
+    rows = [
+        ".dl.Ld.l.dD.l.d.",
+        "d.D.l.dL.l.d.Ld.",
+        ".l.dD.l..dD.l..d",
+        "L.d.l.Dd.l.Ld.l.",
+        ".dD.Ld..D.l..dD.",
+        "l.d..l.dL.dD.l.d",
+        ".Ld.dD.l..l.d.L.",
+        "d..l.d.Dd.Ld..dl",
+        ".dD.Ld.l.d..l.D.",
+        "l..d.l.dD.dL.d..",
+        ".Ld.D..l.d.l.dDl",
+        "d.l.dLd..Dd..l..",
+        ".d..l.dD.l.dL.dD",
+        "D.lL.d..dl..d.l.",
+        ".d.l.dD.L.dD..d.",
+        "l.D.d.l..d.l.dLl",
+    ]
+    return from_map(rows, {".": "#6f3634", "l": "#7f403d", "L": "#8f4a47", "d": "#5e2b29", "D": "#4c211f"}, rng)
 
 def soul_sand(rng):
     im = new()
@@ -583,16 +684,26 @@ def soul_sand(rng):
 
 
 def glowstone(rng):
-    im = new()
-    fill(im, "#8a6238")  # 原版萤石=棕底亮黄晶簇
-    speck(im, ["#7a5530", "#9a7040"], 0.3, rng)
-    for _ in range(6):
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#e0a95c", "#f9d49c", "#b07f42", rng)
-    px = im.load()
-    for _ in range(5):
-        px[rng.randrange(S), rng.randrange(S)] = hx("#fff2c8")
-    return im
-
+    # 1.12 萤石：棕底 + 亮金晶簇团(手绘晶粒,亮芯 W 可触发泛光)。
+    rows = [
+        "..dCC..d..cC....",
+        ".cCWC.d..cCCc..d",
+        ".cCCc.....cCc..d",
+        "..cc..dcC..c....",
+        "d....cCWCc....d.",
+        "...d.cCCc..dCCc.",
+        ".cC...cc..dCWCc.",
+        "cCWc.d....cCCc..",
+        ".cCc...dc..cc..d",
+        "..c..dcCCc.....d",
+        "d...cCWCc..cC...",
+        "..d.cCCc..cCWc..",
+        "CC...cc..d.cCc.d",
+        "WCc.d....d..c...",
+        "CCc...dCC......c",
+        "cc..d.cCWc..d.cC",
+    ]
+    return from_map(rows, {".": "#8a6238", "d": "#75512c", "c": "#e0a95c", "C": "#f6d391", "W": "#fff0c0"}, rng)
 
 def nether_quartz_ore(rng):
     im = netherrack(rng)
@@ -616,13 +727,26 @@ def lava(rng):
 
 
 def bedrock(rng):
-    im = new()
-    fill(im, "#565656")
-    speck(im, ["#333333", "#777777", "#454545"], 0.4, rng)  # 原版基岩=高对比灰噪
-    for _ in range(6):
-        pebble(im, rng.randrange(S), rng.randrange(S), 2, "#494949", "#8a8a8a", "#222222", rng)
-    return im
-
+    # 1.12 基岩：高对比大块斑(近黑↔亮灰)手绘。
+    rows = [
+        "DDd.lLL.dDD..lLl",
+        "Dd..lLl.dDDd.lL.",
+        "d..dd..l.dD..ll.",
+        "..dDDd....d...l.",
+        "lLl.dDd.lLl..dDd",
+        "LLl..dd.lL..dDDd",
+        "Ll....l...dDDd..",
+        "l..dDd..ll.dd..L",
+        "..dDDd.lLLl...lL",
+        ".dDd...lLl..dd.l",
+        "dDd..ll....dDDd.",
+        "Dd..lLLl..dDd..d",
+        "d..lLl..dDd...dD",
+        "..ll...dDd..lLl.",
+        ".l..dDd....lLLl.",
+        "l..dDDd..l..lL..",
+    ]
+    return from_map(rows, {".": "#565656", "l": "#7a7a7a", "L": "#8f8f8f", "d": "#3a3a3a", "D": "#232323"}, rng)
 
 def nether_portal(rng):
     im = new()
