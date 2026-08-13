@@ -36,13 +36,17 @@ export class FurnaceUI {
   private readonly hotbarCells: Cell[] = [];
 
   onChange: (() => void) | null = null; // 背包变动 → Game 刷新快捷栏
+  onClose: (() => void) | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
     root.classList.add('hidden');
     root.innerHTML = `
       <div class="inv-panel">
-        <div class="inv-title">熔炉</div>
+        <div class="inv-title-row">
+          <div class="inv-title">熔炉</div>
+          <button class="inv-close" type="button">关闭</button>
+        </div>
         <div class="fur-top">
           <div class="fur-col">
             <div class="fur-slot fur-input"></div>
@@ -56,13 +60,14 @@ export class FurnaceUI {
         <div class="inv-hotbar"></div>
         <div class="inv-hint">E / Esc 关闭 · 上槽放矿、下槽放燃料(煤/木) · 取走成品</div>
       </div>`;
+    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
     const mk = (sel: string): Cell => this.bindSlot(root.querySelector(sel) as HTMLElement);
     this.inputCell = mk('.fur-input');
     this.fuelCell = mk('.fur-fuel');
     this.outCell = mk('.fur-out');
-    this.inputCell.el.addEventListener('mousedown', (e) => this.clickFur('input', e));
-    this.fuelCell.el.addEventListener('mousedown', (e) => this.clickFur('fuel', e));
-    this.outCell.el.addEventListener('mousedown', (e) => this.clickFur('output', e));
+    this.inputCell.el.addEventListener('pointerdown', (e) => this.clickFur('input', e));
+    this.fuelCell.el.addEventListener('pointerdown', (e) => this.clickFur('fuel', e));
+    this.outCell.el.addEventListener('pointerdown', (e) => this.clickFur('output', e));
     this.flameEl = root.querySelector('.fur-flame-fill') as HTMLElement;
     this.arrowFillEl = root.querySelector('.fur-arrow-fill') as HTMLElement;
 
@@ -80,7 +85,7 @@ export class FurnaceUI {
     this.cursorEl.append(this.cursorIcon, this.cursorCnt);
     this.cursorEl.style.display = 'none';
     document.body.appendChild(this.cursorEl);
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
       if (!this.open) return;
       this.cursorEl.style.left = `${e.clientX}px`;
       this.cursorEl.style.top = `${e.clientY}px`;
@@ -106,8 +111,10 @@ export class FurnaceUI {
     const cnt = document.createElement('div');
     cnt.className = 'slot-count';
     el.append(icon, cnt);
-    el.addEventListener('mousedown', (e) => {
+    el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      this.cursorEl.style.left = `${e.clientX}px`;
+      this.cursorEl.style.top = `${e.clientY}px`;
       this.clickInv(region, i, e);
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -183,6 +190,8 @@ export class FurnaceUI {
   // 熔炉三槽点击：input/fuel 当 1 格 mini-inv 用光标拿放；output 只能取。
   private clickFur(slot: Slot, e: MouseEvent): void {
     e.preventDefault();
+    this.cursorEl.style.left = `${e.clientX}px`;
+    this.cursorEl.style.top = `${e.clientY}px`;
     const f = this.furnace;
     if (!f) return;
     if (slot === 'output') {

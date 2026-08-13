@@ -6,15 +6,17 @@ export class PointerLookControls {
   yaw = 0;
   pitch = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
-    canvas.addEventListener('click', () => void canvas.requestPointerLock());
+  constructor(canvas: HTMLCanvasElement, usePointerLock = true) {
+    if (usePointerLock) canvas.addEventListener('click', () => void canvas.requestPointerLock());
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
-      this.yaw += e.movementX * SENSITIVITY;
-      this.pitch = Math.max(
-        -PITCH_LIMIT,
-        Math.min(PITCH_LIMIT, this.pitch - e.movementY * SENSITIVITY),
-      );
+      this.rotate(e.movementX * SENSITIVITY, -e.movementY * SENSITIVITY);
     });
+  }
+
+  /** 鼠标与触屏共用的视角增量入口（参数单位为弧度）。 */
+  rotate(deltaYaw: number, deltaPitch: number): void {
+    this.yaw += deltaYaw;
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch + deltaPitch));
   }
 }

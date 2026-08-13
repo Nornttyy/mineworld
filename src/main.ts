@@ -2,9 +2,12 @@ import { Game } from './game/Game';
 import { MenuBackground } from './render/MenuBackground';
 import { listWorlds, createWorld, saveWorld, deleteWorld, parseSeed, type WorldSave, type GameMode } from './save/worldStore';
 import { SettingsMenu } from './ui/settingsMenu';
+import { supportsTouchControls } from './input/TouchControls';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
+const touchMode = supportsTouchControls();
+document.documentElement.classList.toggle('touch-device', touchMode);
 
 // 主菜单/存档界面的旋转全景背景（独立画布，与游戏无关）
 const menubgCanvas = $('menubg') as HTMLCanvasElement;
@@ -54,16 +57,25 @@ $('splash').textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 // boot 加载界面增强：随机 splash + 轮换小贴士（HTML 里已有默认值，JS 跑起来后接管）
 const bootSplashEl = bootEl.querySelector('.boot-splash') as HTMLElement | null;
 if (bootSplashEl) bootSplashEl.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
-const BOOT_HINTS = [
-  '提示: 按住左键挖方块',
-  '提示: 双击 W 可以疾跑',
-  '提示: 右键放方块(会消耗物品)',
-  '提示: 数字键 1-9 / 滚轮 切换物品',
-  '提示: 石头要用镐才挖得动',
-  '提示: 砍树 → 木板 → 工作台 → 工具',
-  '提示: 熔炉能把铁矿炼成铁锭',
-  '提示: 天黑了小心怪物',
-];
+const BOOT_HINTS = touchMode
+  ? [
+      '提示: 左摇杆移动，右半屏拖动视角',
+      '提示: 摇杆向前推满可以疾跑',
+      '提示: 按住“挖/打”挖方块',
+      '提示: 点“放/用”放置方块或使用物品',
+      '提示: 可以直接点快捷栏切换物品',
+      '提示: 石头要用镐才挖得动',
+    ]
+  : [
+      '提示: 按住左键挖方块',
+      '提示: 双击 W 可以疾跑',
+      '提示: 右键放方块(会消耗物品)',
+      '提示: 数字键 1-9 / 滚轮 切换物品',
+      '提示: 石头要用镐才挖得动',
+      '提示: 砍树 → 木板 → 工作台 → 工具',
+      '提示: 熔炉能把铁矿炼成铁锭',
+      '提示: 天黑了小心怪物',
+    ];
 const bootHintEl = bootEl.querySelector('.boot-hint') as HTMLElement | null;
 if (bootHintEl) {
   let hi = Math.floor(Math.random() * BOOT_HINTS.length);
@@ -78,6 +90,7 @@ function setHud(show: boolean): void {
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
   $('status').style.display = show ? 'flex' : 'none';
+  game?.setTouchActive(show && touchMode);
 }
 
 function showOnly(el: HTMLElement | null): void {
@@ -230,7 +243,10 @@ function startGame(world: WorldSave): void {
         gameStarted = true;
         (window as unknown as { __mw?: Game }).__mw = game; // 调试/截图工具用：暴露 game 实例(tools/shot.mjs 定机位)
         showLoading(false);
-        void canvas.requestPointerLock();
+        if (touchMode) {
+          setHud(true);
+          game.setTouchActive(true);
+        } else void canvas.requestPointerLock();
       } catch (e) {
         // 任何报错都显示到加载界面，别再静默卡死（方便定位"进不去"到底卡在哪）
         console.error('[startGame] 进入游戏失败:', e);
@@ -242,7 +258,12 @@ function startGame(world: WorldSave): void {
 }
 
 // --- 暂停 / 存盘 ---
-$('resume').addEventListener('click', () => void canvas.requestPointerLock());
+$('resume').addEventListener('click', () => {
+  if (touchMode) {
+    pause.classList.add('hidden');
+    setHud(true);
+  } else void canvas.requestPointerLock();
+});
 $('save-quit').addEventListener('click', () => {
   if (game) saveWorld(game.snapshot());
   showLoading(true, '保存并返回主菜单…'); // 退出也过加载界面
@@ -252,6 +273,7 @@ $('save-quit').addEventListener('click', () => {
 // 指针锁定 = 游戏中；解锁(ESC) = 暂停；死亡时改显示死亡界面
 const death = $('death');
 document.addEventListener('pointerlockchange', () => {
+  if (touchMode) return;
   const playing = document.pointerLockElement === canvas;
   if (playing) {
     pause.classList.add('hidden');
@@ -266,17 +288,31 @@ document.addEventListener('pointerlockchange', () => {
   }
 });
 
+// 触屏没有 Pointer Lock，虚拟按钮通过事件让外层 UI 显示暂停/死亡页。
+window.addEventListener('mineworld:touch-pause', () => {
+  if (!game || game.isDead()) return;
+  saveWorld(game.snapshot());
+  setHud(false);
+  pause.classList.remove('hidden');
+});
+window.addEventListener('mineworld:touch-death', () => {
+  setHud(false);
+  pause.classList.add('hidden');
+  death.style.display = 'flex';
+});
+
 // 重生：满状态回到出生点并重新锁定
 $('respawn').addEventListener('click', () => {
   if (!game) return;
   game.respawn();
   death.style.display = 'none';
-  void canvas.requestPointerLock();
+  if (touchMode) setHud(true);
+  else void canvas.requestPointerLock();
 });
 
 // 定时自动存盘 + 关页面前存盘
 setInterval(() => {
-  if (game && document.pointerLockElement === canvas) saveWorld(game.snapshot());
+  if (game?.isGameplayActive()) saveWorld(game.snapshot());
 }, 15000);
 window.addEventListener('beforeunload', () => {
   if (game) saveWorld(game.snapshot());

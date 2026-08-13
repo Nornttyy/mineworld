@@ -33,6 +33,13 @@ export class Hotbar {
       durFill.style.cssText = 'height:100%;width:100%;';
       durTrack.appendChild(durFill);
       slot.append(icon, count, durTrack);
+      // 触屏直接点快捷栏选格；pointerdown 可在多指操作中与移动/转向并行。
+      slot.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.setSelected(i);
+      });
       el.appendChild(slot);
       this.cells.push(slot);
       this.icons.push(icon);

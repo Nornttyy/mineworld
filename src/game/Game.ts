@@ -67,8 +67,9 @@ import {
   deserializeInventory,
   type Inventory,
 } from '../core/inventory/inventory';
-import { readMove, consumeJump } from '../input/keyboard';
+import { readMove, consumeJump, type MoveKeys } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
+import { TouchControls, supportsTouchControls } from '../input/TouchControls';
 import { Hotbar } from '../ui/hotbar';
 import { StatusBar } from '../ui/statusBar';
 import { InventoryUI } from '../ui/inventoryUI';
@@ -185,6 +186,7 @@ export class Game {
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
   private readonly look: PointerLookControls;
+  private readonly touch: TouchControls | null;
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   private readonly physWorld: VoxelWorld;
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
@@ -325,7 +327,9 @@ export class Game {
       'color:#fff;background:rgba(0,0,0,.45);white-space:pre;display:none;pointer-events:none;text-shadow:1px 1px 0 #000;';
     document.body.appendChild(this.coordEl);
     this.furnaceUI.onChange = (): void => this.hotbar.render(this.inv);
+    this.furnaceUI.onClose = (): void => this.closeFurnace();
     this.invUI.onChange = (): void => this.hotbar.render(this.inv);
+    this.invUI.onClose = (): void => this.closeCrafting();
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -361,44 +365,52 @@ export class Game {
     this.highlight.visible = false;
     this.renderer.scene.add(this.highlight);
 
-    this.look = new PointerLookControls(canvas);
+    const touchEnabled = supportsTouchControls();
+    this.look = new PointerLookControls(canvas, !touchEnabled);
     this.look.yaw = p ? p.yaw : Math.atan2(-spawn.z, -spawn.x);
     this.look.pitch = p ? p.pitch : -0.18;
+
+    this.touch = touchEnabled
+      ? new TouchControls(document.getElementById('touch-controls') as HTMLElement, {
+          look: (yaw, pitch) => this.look.rotate(yaw, pitch),
+          primaryDown: () => this.beginPrimaryAction(),
+          primaryUp: () => this.stopDigging(),
+          useDown: () => this.onUseDown(),
+          useUp: () => {
+            this.releaseBow();
+            this.stopEating();
+          },
+          cancelUse: () => {
+            this.drawingBow = false;
+            this.bowCharge = 0;
+            this.stopEating();
+          },
+          inventory: () => {
+            if (this.furnaceKey) this.closeFurnace();
+            else if (this.craftingGrid > 0) this.closeCrafting();
+            else this.openCrafting(2);
+          },
+          pause: () => window.dispatchEvent(new Event('mineworld:touch-pause')),
+        })
+      : null;
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
       if (document.pointerLockElement !== canvas) return;
-      if (e.button === 0) {
-        const target = this.mobUnderCrosshair();
-        if (target) {
-          // 攻击冷却 ~0.5s(同 MC 1.9+)：冷却内的点击不再造成伤害 → 杜绝疯点=无限 DPS。对着生物即便在冷却中也不挖方块。
-          const nowMs = performance.now();
-          if (nowMs - this.lastMeleeMs >= 500) {
-            this.attackMob(target); // 准星对着生物 → 打它（不挖方块）
-            this.lastMeleeMs = nowMs;
-          }
-          return;
-        }
-        this.digging = true; // 按住左键持续挖掘（按硬度耗时）
-        this.digTarget = null; // 重新评估目标
-      } else if (e.button === 2) this.onUseDown(); // 右键：吃 / 放方块
+      if (e.button === 0) this.beginPrimaryAction();
+      else if (e.button === 2) this.onUseDown(); // 右键：吃 / 放方块
     });
-    const stopDig = (): void => {
-      this.digging = false;
-      this.digProgress = 0;
-      this.digTarget = null;
-      this.crack.hide();
-    };
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) stopDig();
+      if (e.button === 0) this.stopDigging();
       else if (e.button === 2) {
         this.releaseBow(); // 松开右键：弓发射
         this.stopEating();
       }
     });
     document.addEventListener('pointerlockchange', () => {
+      if (this.touch) return;
       if (document.pointerLockElement !== canvas) {
-        stopDig(); // 松开锁定即停挖
+        this.stopDigging(); // 松开锁定即停挖
         this.drawingBow = false; // 失焦取消拉弓
         this.bowCharge = 0;
         this.stopEating();
@@ -408,7 +420,7 @@ export class Game {
       if (e.code === 'KeyE') {
         if (this.furnaceKey) this.closeFurnace();
         else if (this.craftingGrid > 0) this.closeCrafting();
-        else if (document.pointerLockElement === canvas) this.openCrafting(2);
+        else if (this.isGameplayActive()) this.openCrafting(2);
         return;
       }
       if (e.code === 'F3') {
@@ -436,6 +448,55 @@ export class Game {
       },
       { passive: false },
     );
+  }
+
+  /** 主循环与外层 UI 共用：桌面靠指针锁定，触屏靠虚拟控制层的 active 状态。 */
+  isGameplayActive(): boolean {
+    return this.touch?.isActive ?? document.pointerLockElement === this.canvas;
+  }
+
+  usesTouchControls(): boolean {
+    return this.touch !== null;
+  }
+
+  setTouchActive(active: boolean): void {
+    this.touch?.setActive(active && !this.dead && this.craftingGrid === 0 && !this.furnaceKey);
+  }
+
+  private readMovement(): MoveKeys {
+    const keyboard = readMove();
+    if (!this.touch?.isActive) return keyboard;
+    const touch = this.touch.readMove();
+    return {
+      forward: Math.max(-1, Math.min(1, keyboard.forward + touch.forward)),
+      right: Math.max(-1, Math.min(1, keyboard.right + touch.right)),
+      sprint: keyboard.sprint || touch.sprint,
+      jumpHeld: keyboard.jumpHeld || touch.jumpHeld,
+      crouch: keyboard.crouch || touch.crouch,
+    };
+  }
+
+  private beginPrimaryAction(): void {
+    if (!this.isGameplayActive()) return;
+    const target = this.mobUnderCrosshair();
+    if (target) {
+      // 攻击冷却 ~0.5s(同 MC 1.9+)：冷却内的点击不再造成伤害。对着生物时不挖它后面的方块。
+      const nowMs = performance.now();
+      if (nowMs - this.lastMeleeMs >= 500) {
+        this.attackMob(target);
+        this.lastMeleeMs = nowMs;
+      }
+      return;
+    }
+    this.digging = true;
+    this.digTarget = null;
+  }
+
+  private stopDigging(): void {
+    this.digging = false;
+    this.digProgress = 0;
+    this.digTarget = null;
+    this.crack.hide();
   }
 
   /**
@@ -661,11 +722,11 @@ export class Game {
       this.acc += now - this.last;
       this.last = now;
       if (this.acc > 250) this.acc = 250;
-      const playing = document.pointerLockElement === this.canvas;
+      const playing = this.isGameplayActive();
       while (playing && this.acc >= TICK_MS) {
         this.prev = this.player;
-        const m = readMove();
-        const jumped = consumeJump();
+        const m = this.readMovement();
+        const jumped = consumeJump() || (this.touch?.consumeJump() ?? false);
         // 创造：双击空格切换飞行（两次起跳按键落在 6 刻≈0.3s 窗口内）。
         if (this.creative && jumped) {
           if (this.flyTapWindow > 0) {
@@ -743,7 +804,7 @@ export class Game {
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
-      const wantFov = playing && readMove().sprint ? 80 : 70;
+      const wantFov = playing && this.readMovement().sprint ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
       this.renderer.camera.updateProjectionMatrix();
@@ -877,7 +938,7 @@ export class Game {
 
   private die(): void {
     this.dead = true;
-    this.digging = false;
+    this.stopDigging();
     this.stopEating();
     // MC：死亡把背包(快捷栏+主背包)全部撒在原地，各物品带随机初速，DROP_TTL(5min)后消失——回不去就永久丢失
     const bx = Math.floor(this.player.pos.x);
@@ -890,7 +951,10 @@ export class Game {
     }
     this.hotbar.render(this.inv);
     this.dropRenderer.sync(this.drops, this.entityLight);
-    void document.exitPointerLock(); // 解锁 → main 切到死亡界面
+    if (this.touch) {
+      this.touch.setActive(false);
+      window.dispatchEvent(new Event('mineworld:touch-death'));
+    } else void document.exitPointerLock(); // 解锁 → main 切到死亡界面
   }
 
   isDead(): boolean {
@@ -1016,12 +1080,14 @@ export class Game {
   private openCrafting(gridSize: number): void {
     this.craftingGrid = gridSize;
     this.invUI.show(this.inv, gridSize);
-    document.exitPointerLock(); // 解锁鼠标操作界面（暂停在 pointerlockchange 里被抑制）
+    if (this.touch) this.touch.setActive(false);
+    else document.exitPointerLock(); // 解锁鼠标操作界面（暂停在 pointerlockchange 里被抑制）
   }
   private closeCrafting(): void {
     this.craftingGrid = 0;
     this.invUI.hide();
-    void this.canvas.requestPointerLock(); // 回到游戏
+    if (this.touch) this.touch.setActive(!this.dead);
+    else void this.canvas.requestPointerLock(); // 回到游戏
   }
 
   // —— 熔炉界面 ——
@@ -1034,12 +1100,14 @@ export class Game {
     }
     this.furnaceKey = key;
     this.furnaceUI.show(this.inv, st);
-    document.exitPointerLock();
+    if (this.touch) this.touch.setActive(false);
+    else document.exitPointerLock();
   }
   private closeFurnace(): void {
     this.furnaceKey = null;
     this.furnaceUI.hide();
-    void this.canvas.requestPointerLock();
+    if (this.touch) this.touch.setActive(!this.dead);
+    else void this.canvas.requestPointerLock();
   }
 
   private stopEating(): void {

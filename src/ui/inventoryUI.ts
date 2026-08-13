@@ -51,13 +51,17 @@ export class InventoryUI {
   private drag: DragState | null = null;
 
   onChange: (() => void) | null = null; // 背包变动 → Game 刷新快捷栏
+  onClose: (() => void) | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
     root.classList.add('hidden');
     root.innerHTML = `
       <div class="inv-panel">
-        <div class="inv-title">合成</div>
+        <div class="inv-title-row">
+          <div class="inv-title">合成</div>
+          <button class="inv-close" type="button">关闭</button>
+        </div>
         <div class="inv-top">
           <div class="inv-cgrid"></div>
           <div class="inv-arrow">▶</div>
@@ -68,6 +72,7 @@ export class InventoryUI {
         <div class="inv-hint">E / Esc 关闭 · 左键拿放 · 右键放一个/拿一半 · Shift 快速转移</div>
       </div>`;
     this.titleEl = root.querySelector('.inv-title') as HTMLElement;
+    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
     this.cgridEl = root.querySelector('.inv-cgrid') as HTMLElement;
     const mainEl = root.querySelector('.inv-main') as HTMLElement;
     const hotEl = root.querySelector('.inv-hotbar') as HTMLElement;
@@ -86,13 +91,13 @@ export class InventoryUI {
     this.cursorEl.style.display = 'none';
     this.cursorEl.style.pointerEvents = 'none'; // 别挡住 elementFromPoint 命中下方格子
     document.body.appendChild(this.cursorEl);
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
       if (!this.open) return;
       this.cursorEl.style.left = `${e.clientX}px`;
       this.cursorEl.style.top = `${e.clientY}px`;
       if (this.drag) this.onDragMove(e);
     });
-    document.addEventListener('mouseup', (e) => {
+    document.addEventListener('pointerup', (e) => {
       if (this.open && this.drag) this.endDrag(e);
     });
   }
@@ -107,7 +112,7 @@ export class InventoryUI {
     const cnt = document.createElement('div');
     cnt.className = 'slot-count';
     el.append(icon, cnt);
-    el.addEventListener('mousedown', (e) => {
+    el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.beginDrag(region, i, e);
     });
@@ -166,6 +171,8 @@ export class InventoryUI {
   // 鼠标按下：输出槽/Shift 即时处理；其余挂起为「待定拖拽」，松手或划格时再决定是点击还是手势。
   private beginDrag(region: Region, i: number, e: MouseEvent): void {
     if (!this.inv) return;
+    this.cursorEl.style.left = `${e.clientX}px`;
+    this.cursorEl.style.top = `${e.clientY}px`;
     if (region === 'output') {
       this.takeOutput();
       this.render();
