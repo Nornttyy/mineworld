@@ -35,6 +35,48 @@ export function supportsTouchControls(): boolean {
   return navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
 }
 
+let touchGuardsInstalled = false;
+
+/** 阻止手机浏览器把快速连续操作识别成双击/双指页面缩放。 */
+export function installTouchZoomGuards(): void {
+  if (touchGuardsInstalled) return;
+  touchGuardsInstalled = true;
+  const preventGesture = (e: Event): void => e.preventDefault();
+  document.addEventListener('gesturestart', preventGesture, { passive: false });
+  document.addEventListener('gesturechange', preventGesture, { passive: false });
+  document.addEventListener('gestureend', preventGesture, { passive: false });
+  document.addEventListener('dblclick', preventGesture, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    },
+    { passive: false },
+  );
+
+  let lastTouchEnd = -Infinity;
+  let lastTouchTarget: EventTarget | null = null;
+  let lastTouchX = 0;
+  let lastTouchY = 0;
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      const now = performance.now();
+      const touch = e.changedTouches[0];
+      const sameSpot =
+        touch !== undefined && Math.hypot(touch.clientX - lastTouchX, touch.clientY - lastTouchY) < 28;
+      if (now - lastTouchEnd < 320 && e.target === lastTouchTarget && sameSpot) e.preventDefault();
+      lastTouchEnd = now;
+      lastTouchTarget = e.target;
+      if (touch) {
+        lastTouchX = touch.clientX;
+        lastTouchY = touch.clientY;
+      }
+    },
+    { passive: false },
+  );
+}
+
 /**
  * 触屏第一人称输入：左摇杆移动、右半屏滑动视角，按钮负责动作。
  * Pointer Events 让多指操作成立（移动、转向、跳跃可以同时按）。

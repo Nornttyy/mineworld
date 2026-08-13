@@ -14,11 +14,22 @@
       html,
       body {
         margin: 0;
+        width: 100%;
         height: 100%;
         overflow: hidden;
         background: #87ceeb;
       }
+      @supports (height: 100dvh) {
+        html,
+        body {
+          height: 100dvh;
+        }
+      }
       #app {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         display: block;
         cursor: pointer;
       }
@@ -922,6 +933,18 @@
       html.touch-device #oxygen { bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px)); width: min(386px, calc(100vw - 18px)); }
       html.touch-device .desktop-help { display: none; }
       html.touch-device .touch-help { display: inline; }
+      html.touch-device button,
+      html.touch-device input,
+      html.touch-device select,
+      html.touch-device textarea {
+        touch-action: manipulation;
+      }
+      /* iOS 会把小于 16px 的表单控件在聚焦时自动放大。 */
+      html.touch-device input,
+      html.touch-device select,
+      html.touch-device textarea {
+        font-size: 16px !important;
+      }
 
       @media (pointer: coarse) and (max-height: 520px) {
         .touch-stick { width: 104px; height: 104px; bottom: max(58px, calc(env(safe-area-inset-bottom) + 50px)); }

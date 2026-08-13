@@ -4,6 +4,7 @@ import { GodRays } from './GodRays';
 import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
+import { browserViewportSize } from './browserViewport';
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
 interface GodRayOpts {
@@ -27,6 +28,17 @@ export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   private readonly gl: THREE.WebGLRenderer;
+  private viewportW = 1;
+  private viewportH = 1;
+  private resizeQueued = false;
+  private readonly onViewportChange = (): void => {
+    if (this.resizeQueued) return;
+    this.resizeQueued = true;
+    requestAnimationFrame(() => {
+      this.resizeQueued = false;
+      this.resize();
+    });
+  };
 
   // 天空穹顶：跟随相机的反面球 + 顶点色渐变。
   // ⚠️ 曾用 scene.background 贴 2×256 canvas 渐变——它钉死在【屏幕】上：抬头看天顶还是地平线色、
@@ -84,7 +96,11 @@ export class Renderer {
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', this.onViewportChange);
+    window.addEventListener('orientationchange', this.onViewportChange);
+    // iOS Safari / Android Chrome 收放地址栏时不一定触发 window.resize，但一定会更新 visualViewport。
+    window.visualViewport?.addEventListener('resize', this.onViewportChange);
+    window.visualViewport?.addEventListener('scroll', this.onViewportChange);
   }
 
   // 昼夜更替：重算穹顶顶点色（配色/太阳方位不变则跳过）。渐变按【视线仰角】走：
@@ -125,8 +141,9 @@ export class Renderer {
   }
 
   resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = browserViewportSize(window);
+    this.viewportW = w;
+    this.viewportH = h;
     this.gl.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -183,13 +200,13 @@ export class Renderer {
     }
     // 确保 RT 已建（首次开启或 resize 中途重建）。
     if (this.rt === null) {
-      this.rt = this.buildRT(window.innerWidth, window.innerHeight);
+      this.rt = this.buildRT(this.viewportW, this.viewportH);
     }
     // 确保 Bloom 已建。
     if (this.bloom === null) {
       const pr = this.gl.getPixelRatio();
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      const w = this.viewportW;
+      const h = this.viewportH;
       this.bloom = new Bloom(
         Math.max(1, Math.round((w * pr) / 4)),
         Math.max(1, Math.round((h * pr) / 4)),

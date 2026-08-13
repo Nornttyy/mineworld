@@ -6,6 +6,7 @@ import { SEA_LEVEL } from '../core/worldgen/terrain';
 import { ChunkMeshManager } from './ChunkMeshManager';
 import { loadAtlas } from './atlas';
 import { makeSkyTexture, HORIZON_COLOR } from './sky';
+import { browserViewportSize } from './browserViewport';
 
 // 主菜单旋转全景：低空飞过无限世界（与游戏同款地形：水/海滩），相机缓缓前飞 + 转向，
 // 区块随飞随加载。固定种子、纯装饰，与玩家存档/游戏无关。独立画布，不冲突。
@@ -38,6 +39,9 @@ export class MenuBackground {
 
     this.resize();
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('orientationchange', this.onResize);
+    window.visualViewport?.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('scroll', this.onResize);
   }
 
   // 从原点向外找最近的水，把起点放到它前方 14 格、朝它飞
@@ -58,8 +62,7 @@ export class MenuBackground {
   }
 
   private resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = browserViewportSize(window);
     this.gl.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -123,6 +126,9 @@ export class MenuBackground {
   dispose(): void {
     this.running = false; // 停 rAF 循环
     window.removeEventListener('resize', this.onResize); // 摘掉监听,否则闭包持有 this → 整套世界泄漏
+    window.removeEventListener('orientationchange', this.onResize);
+    window.visualViewport?.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('scroll', this.onResize);
     this.chunks.dispose(); // 卸载菜单世界所有区块网格 + 终止其 mesh worker + 销毁材质
     this.world.dispose(); // 终止 chunkGen worker + 清空区块数据(JS 堆大头,泄漏会 OOM)
     this.gl.dispose();
