@@ -2,7 +2,7 @@
 <html lang="zh">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>MINEWORLD</title>
     <style>
       /* Zpix 中文像素字体（子集：全 UI 用字 + GB2312 常用汉字 + ASCII，~285KB）。相对路径同时适配 dev 与 Pages 子路径 */
@@ -321,6 +321,7 @@
         border: 2px solid rgba(255, 255, 255, 0.22);
         outline: 2px solid rgba(0, 0, 0, 0.65);
         user-select: none;
+        z-index: 13;
       }
       .hotbar-slot {
         position: relative;
@@ -560,6 +561,21 @@
         font-size: 18px;
         text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
       }
+      .inv-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 28px;
+      }
+      .inv-close {
+        border: 2px solid #373737;
+        padding: 5px 12px;
+        color: #3f3f3f;
+        background: #d7d7d7;
+        box-shadow: inset 2px 2px 0 #fff, inset -2px -2px 0 #8b8b8b;
+        font: 13px 'Zpix', monospace;
+        cursor: pointer;
+      }
       .inv-top {
         display: flex;
         align-items: center;
@@ -741,6 +757,180 @@
           opacity: 0;
         }
       }
+      /* —— 手机 / 平板虚拟控制 —— */
+      #touch-controls {
+        position: fixed;
+        inset: 0;
+        z-index: 12;
+        display: none;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+        font-family: 'Zpix', monospace;
+      }
+      #touch-controls.active {
+        display: block;
+      }
+      .touch-look {
+        position: absolute;
+        left: 36%;
+        right: 0;
+        top: 62px;
+        bottom: 62px;
+        pointer-events: auto;
+        touch-action: none;
+      }
+      .touch-stick {
+        position: absolute;
+        left: max(16px, env(safe-area-inset-left));
+        bottom: max(78px, calc(env(safe-area-inset-bottom) + 68px));
+        width: 124px;
+        height: 124px;
+        border: 3px solid rgba(255, 255, 255, 0.52);
+        border-radius: 50%;
+        background: rgba(10, 16, 22, 0.3);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.42), inset 0 0 22px rgba(0, 0, 0, 0.25);
+        pointer-events: auto;
+        touch-action: none;
+      }
+      .touch-stick::before,
+      .touch-stick::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.18);
+      }
+      .touch-stick::before { left: 50%; top: 13px; bottom: 13px; width: 1px; }
+      .touch-stick::after { top: 50%; left: 13px; right: 13px; height: 1px; }
+      .touch-stick-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 54px;
+        height: 54px;
+        margin: -27px;
+        border: 3px solid rgba(255, 255, 255, 0.72);
+        border-radius: 50%;
+        box-sizing: border-box;
+        background: rgba(88, 116, 70, 0.72);
+        box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+        will-change: transform;
+      }
+      .touch-button {
+        position: absolute;
+        width: 64px;
+        height: 64px;
+        padding: 0;
+        border: 3px solid rgba(255, 255, 255, 0.62);
+        border-radius: 50%;
+        color: #fff;
+        background: rgba(24, 30, 34, 0.58);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), inset 2px 2px 0 rgba(255, 255, 255, 0.16);
+        text-shadow: 1px 2px 0 #000;
+        font: 15px 'Zpix', monospace;
+        pointer-events: auto;
+        touch-action: none;
+      }
+      .touch-button.pressed {
+        background: rgba(112, 151, 84, 0.82);
+        transform: translateY(2px) scale(0.96);
+      }
+      #touch-jump {
+        right: max(18px, env(safe-area-inset-right));
+        bottom: max(83px, calc(env(safe-area-inset-bottom) + 73px));
+        width: 72px;
+        height: 72px;
+      }
+      #touch-mine {
+        right: max(96px, calc(env(safe-area-inset-right) + 86px));
+        bottom: max(126px, calc(env(safe-area-inset-bottom) + 116px));
+      }
+      #touch-use {
+        right: max(102px, calc(env(safe-area-inset-right) + 92px));
+        bottom: max(61px, calc(env(safe-area-inset-bottom) + 51px));
+      }
+      #touch-crouch {
+        left: max(147px, calc(env(safe-area-inset-left) + 137px));
+        bottom: max(90px, calc(env(safe-area-inset-bottom) + 80px));
+        width: 54px;
+        height: 54px;
+        font-size: 13px;
+      }
+      #touch-pause,
+      #touch-inventory {
+        top: max(10px, env(safe-area-inset-top));
+        width: 48px;
+        height: 42px;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+      #touch-pause { left: max(10px, env(safe-area-inset-left)); }
+      #touch-inventory { right: max(10px, env(safe-area-inset-right)); width: 62px; }
+      .touch-help { display: none; }
+
+      @media (max-width: 600px) {
+        .menu-main { top: 10%; gap: 14px; }
+        .logo h1 { font-size: clamp(34px, 12vw, 56px); letter-spacing: 3px; }
+        #splash { right: 0; font-size: 13px; }
+        .btn-wide { width: min(360px, 88vw); }
+        .btn-row { width: min(460px, 92vw); flex-wrap: wrap; justify-content: center; }
+        .btn-row .btn { width: auto; min-width: 112px; flex: 1; }
+        .world-rows { width: 92vw; max-height: 52vh; }
+        .world-row { flex-wrap: wrap; }
+        .world-row .wname { min-width: 50%; }
+        #newworld,
+        #about-panel { width: calc(100vw - 28px); box-sizing: border-box; padding: 18px; }
+        .screen-title { font-size: 28px; }
+        .boot-logo { font-size: clamp(32px, 12vw, 56px); letter-spacing: 4px; }
+        .boot-bar { width: min(360px, 78vw); }
+        .boot-hint { max-width: 70%; font-size: 11px; }
+        .inv-panel {
+          width: calc(100vw - 12px);
+          max-height: calc(100vh - 12px);
+          overflow-y: auto;
+          box-sizing: border-box;
+          padding: 9px 10px 11px;
+          gap: 7px;
+        }
+        .inv-slot {
+          width: min(44px, calc((100vw - 84px) / 9));
+          height: min(44px, calc((100vw - 84px) / 9));
+          touch-action: none;
+        }
+        .inv-out,
+        .fur-out { width: 46px; height: 46px; }
+        .inv-top { gap: 10px; }
+        .inv-hint { font-size: 9px; }
+      }
+
+      @media (pointer: coarse) {
+        html, body { touch-action: none; overscroll-behavior: none; }
+        #app { cursor: default; }
+        #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
+        .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
+        #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
+        #oxygen { bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px)); width: min(386px, calc(100vw - 18px)); }
+        .desktop-help { display: none; }
+        .touch-help { display: inline; }
+      }
+      html.touch-device,
+      html.touch-device body { touch-action: none; overscroll-behavior: none; }
+      html.touch-device #app { cursor: default; }
+      html.touch-device #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
+      html.touch-device .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
+      html.touch-device #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
+      html.touch-device #oxygen { bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px)); width: min(386px, calc(100vw - 18px)); }
+      html.touch-device .desktop-help { display: none; }
+      html.touch-device .touch-help { display: inline; }
+
+      @media (pointer: coarse) and (max-height: 520px) {
+        .touch-stick { width: 104px; height: 104px; bottom: max(58px, calc(env(safe-area-inset-bottom) + 50px)); }
+        .touch-stick-knob { width: 46px; height: 46px; margin: -23px; }
+        #touch-crouch { left: max(124px, calc(env(safe-area-inset-left) + 114px)); bottom: max(68px, calc(env(safe-area-inset-bottom) + 60px)); }
+        #touch-jump { bottom: max(61px, calc(env(safe-area-inset-bottom) + 53px)); }
+        #touch-mine { bottom: max(104px, calc(env(safe-area-inset-bottom) + 96px)); }
+        #touch-use { bottom: max(43px, calc(env(safe-area-inset-bottom) + 35px)); }
+      }
       /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
       #boot {
         position: fixed;
@@ -873,7 +1063,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-CFAg8Eer.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-DadPzfI6.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -909,8 +1099,10 @@
         <p>浏览器里的体素沙盒</p>
         <p>TypeScript + Three.js 纯手工打造</p>
         <p class="ctrl">
-          WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
-          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停
+          <span class="desktop-help">WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
+          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span>
+          <span class="touch-help">左摇杆移动 · 右半屏拖动视角 · 点快捷栏选物品<br />
+          按住“挖/打”挖掘 · “放/用”交互 · 推满摇杆自动疾跑</span>
         </p>
         <button id="about-close" class="btn">关闭</button>
       </div>
@@ -959,6 +1151,16 @@
     <div id="oxygen"></div>
     <div id="hotbar"></div>
     <div id="hurt"></div>
+    <div id="touch-controls" aria-hidden="true">
+      <div class="touch-look" aria-label="拖动视角"></div>
+      <div class="touch-stick" aria-label="移动摇杆"><div class="touch-stick-knob"></div></div>
+      <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">Ⅱ</button>
+      <button id="touch-inventory" class="touch-button" type="button" aria-label="背包">背包</button>
+      <button id="touch-crouch" class="touch-button" type="button" aria-label="下蹲">蹲</button>
+      <button id="touch-mine" class="touch-button" type="button" aria-label="挖掘或攻击">挖/打</button>
+      <button id="touch-use" class="touch-button" type="button" aria-label="放置或使用">放/用</button>
+      <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">跳</button>
+    </div>
     <div id="death">
       <h2>你死了！</h2>
       <button id="respawn" class="btn btn-wide">重生</button>
