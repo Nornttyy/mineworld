@@ -15,7 +15,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'classic', renderDistance: 6 };
 
 const KEY = 'mineworld.settings';
-const TEXTURE_STYLE_VERSION = 2;
+const TEXTURE_STYLE_VERSION = 3;
 const LQ: LightingQuality[] = ['off', 'standard', 'high'];
 
 // 把任意(可能脏的)输入收敛成合法 Settings：音量夹到 0..100 整数，枚举/布尔校验，缺省补默认。
@@ -40,7 +40,7 @@ export function sanitizeSettings(raw: unknown): Settings {
   return { volume, lightingQuality, texturePack, renderDistance };
 }
 
-/** 老版本默认是鲜艳包；首次加载 v2 时迁移到新的标准像素包。之后仍可在设置里手动切回。 */
+/** 材质纹样升级时强制迁移一次到标准像素包；之后仍可在设置里手动切回。 */
 export function settingsFromStorage(raw: unknown): Settings {
   const settings = sanitizeSettings(raw);
   const r = (raw ?? {}) as Partial<Record<string, unknown>>;

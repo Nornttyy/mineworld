@@ -26,7 +26,7 @@ describe('settings sanitize', () => {
   });
 });
 
-describe('texture pack v2 migration', () => {
+describe('texture pack v3 migration', () => {
   it('新安装默认使用经典像素包', () => {
     expect(DEFAULT_SETTINGS.texturePack).toBe('classic');
   });
@@ -35,8 +35,12 @@ describe('texture pack v2 migration', () => {
     expect(settingsFromStorage({ texturePack: 'cartoon' }).texturePack).toBe('classic');
   });
 
-  it('迁移完成后尊重用户手动选择的卡通包', () => {
-    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 2 }).texturePack).toBe('cartoon');
+  it('上一版近似纹样再次迁移到新的标准像素包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 2 }).texturePack).toBe('classic');
+  });
+
+  it('v3 迁移完成后尊重用户手动选择的鲜艳包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 3 }).texturePack).toBe('cartoon');
   });
 });
 
