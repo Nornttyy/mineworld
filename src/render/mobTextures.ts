@@ -1,116 +1,257 @@
 import * as THREE from 'three';
 import type { MobKind } from '../core/entity/mob';
 
-// 程序生成的生物像素贴图(MC 风)。身体(bodyTexture):牛斑/羊卷毛/猪皮/鸡羽/僵尸破衫/骷髅肋骨/尸壳沙衫。
-// 头(headTexture,仅僵尸/骷髅/尸壳):绿烂皮 / 裂骨 / 干枯沙皮。配合 vertexColors 烤光 + 个体染色。NearestFilter 像素硬边。
-const cache = new Map<string, THREE.CanvasTexture>();
+// 生物皮肤采用 64×64 像素图集。每个方盒部位按「顶/底/右/前/左/后」展开，
+// 与经典方块生物的做法一致；所有线条均落在整数像素，无缩放绘制或抗锯齿。
+export const MOB_SKIN_SIZE = 64;
+
+export interface SkinPart {
+  u: number;
+  v: number;
+  x: number; // 方盒 X 向贴图像素数
+  y: number; // 方盒高度贴图像素数
+  z: number; // 方盒 Z 向贴图像素数
+}
+
+export type SkinFace = 'right' | 'front' | 'left' | 'back' | 'top' | 'bottom';
+
+export interface SkinRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// 同一种生物只会使用 animalBody / humanBody 其中之一，因此它们可以共享图集区域。
+export const MOB_SKIN_PARTS = {
+  head: { u: 0, v: 0, x: 8, y: 8, z: 8 },
+  snout: { u: 32, v: 0, x: 4, y: 3, z: 6 },
+  animalBody: { u: 0, v: 16, x: 12, y: 8, z: 8 },
+  humanBody: { u: 0, v: 16, x: 4, y: 12, z: 8 },
+  leg: { u: 0, v: 36, x: 4, y: 12, z: 4 },
+  arm: { u: 16, v: 36, x: 4, y: 12, z: 4 },
+  wing: { u: 32, v: 16, x: 8, y: 6, z: 2 },
+  tail: { u: 32, v: 36, x: 2, y: 8, z: 2 },
+} as const satisfies Record<string, SkinPart>;
+
+export type MobSkinPart = keyof typeof MOB_SKIN_PARTS;
+
+/** 返回经典方盒皮肤展开中某一面的像素矩形。+X 是本项目生物的正面，对应 right。 */
+export function skinFaceRect(part: SkinPart, face: SkinFace): SkinRect {
+  const { u, v, x, y, z } = part;
+  switch (face) {
+    case 'top': return { x: u + z, y: v, w: x, h: z };
+    case 'bottom': return { x: u + z + x, y: v, w: x, h: z };
+    case 'right': return { x: u, y: v + z, w: z, h: y };
+    case 'front': return { x: u + z, y: v + z, w: x, h: y };
+    case 'left': return { x: u + z + x, y: v + z, w: z, h: y };
+    case 'back': return { x: u + z + x + z, y: v + z, w: x, h: y };
+  }
+}
+
+const cache = new Map<MobKind, THREE.CanvasTexture>();
 
 function srand(seed: number): () => number {
-  let s = seed % 2147483647;
-  if (s <= 0) s += 2147483646;
-  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+  let state = seed % 2147483647;
+  if (state <= 0) state += 2147483646;
+  return () => (state = (state * 16807) % 2147483647) / 2147483647;
 }
 
-function makeTex(key: string, paint: (ctx: CanvasRenderingContext2D, S: number) => void): THREE.CanvasTexture {
-  let t = cache.get(key);
-  if (t) return t;
-  const S = 16;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const ctx = c.getContext('2d');
-  if (ctx) paint(ctx, S);
-  t = new THREE.CanvasTexture(c);
-  t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  cache.set(key, t);
-  return t;
+function rgb(hex: string): [number, number, number] {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function drawBody(kind: MobKind, ctx: CanvasRenderingContext2D, S: number): void {
-  const fill = (col: string, x: number, y: number, w = 1, h = 1): void => {
-    ctx.fillStyle = col;
-    ctx.fillRect(x, y, w, h);
+function shade(hex: string, amount: number): string {
+  const [r, g, b] = rgb(hex);
+  const c = (n: number): string => Math.max(0, Math.min(255, Math.round(n * amount))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+
+function fill(ctx: CanvasRenderingContext2D, color: string, rect: SkinRect): void {
+  ctx.fillStyle = color;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+}
+
+function pixel(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, w = 1, h = 1): void {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
+function paintBox(ctx: CanvasRenderingContext2D, part: SkinPart, base: string, accent: string, seed: number): void {
+  const factors: Record<SkinFace, number> = {
+    top: 1.08,
+    bottom: 0.62,
+    right: 0.96,
+    front: 0.88,
+    left: 0.78,
+    back: 0.83,
   };
-  if (kind === 'pig') {
-    fill('#e7a39d', 0, 0, S, S);
-    const r = srand(11);
-    for (let i = 0; i < 14; i++) fill(r() > 0.5 ? '#dd9890' : '#efb0aa', Math.floor(r() * S), Math.floor(r() * S));
-    fill('#d98c8c', 0, S - 2, S, 2);
-  } else if (kind === 'cow') {
-    fill('#5b4636', 0, 0, S, S);
-    ctx.fillStyle = '#e7ddcd';
-    for (const [x, y, w, h] of [[2, 2, 5, 4], [9, 7, 6, 5], [3, 10, 4, 4], [12, 1, 3, 4], [7, 4, 2, 2]]) ctx.fillRect(x, y, w, h);
-    const r = srand(23);
-    for (let i = 0; i < 6; i++) fill('#4a3a2c', Math.floor(r() * S), Math.floor(r() * S));
-  } else if (kind === 'sheep') {
-    fill('#ece9e1', 0, 0, S, S);
-    const r = srand(31);
-    for (let i = 0; i < 30; i++) fill(r() > 0.55 ? '#dcd8cc' : '#f7f5ef', Math.floor(r() * S), Math.floor(r() * S), 2, 2);
-  } else if (kind === 'zombie') {
-    fill('#2f6a6a', 0, 0, S, S); // 青衫底
-    const r = srand(51);
-    for (let i = 0; i < 12; i++) fill(r() > 0.5 ? '#234e4e' : '#356f6f', Math.floor(r() * S), Math.floor(r() * S), 1 + Math.floor(r() * 2), 1 + Math.floor(r() * 2)); // 磨损斑
-    fill('#5a8f4a', 4, 9, 3, 3); // 破洞露绿皮
-    fill('#4f7e42', 5, 10, 1, 1);
-    for (let x = 0; x < S; x++) if (srand(90 + x)() > 0.45) fill('#264f4f', x, S - 1, 1, 1); // 破烂下摆
-  } else if (kind === 'skeleton') {
-    fill('#d8d8cc', 0, 0, S, S); // 骨白底
-    fill('#c6c6b8', 7, 1, 2, S - 2); // 胸骨竖
-    for (const y of [3, 6, 9, 12]) {
-      fill('#9c9c8e', 1, y, 6, 1);
-      fill('#9c9c8e', 9, y, 6, 1); // 左右肋
-      fill('#84847a', 1, y + 1, 6, 1);
-      fill('#84847a', 9, y + 1, 6, 1); // 肋下影
+  const random = srand(seed);
+  const faces: SkinFace[] = ['right', 'front', 'left', 'back', 'top', 'bottom'];
+  for (const face of faces) {
+    const rect = skinFaceRect(part, face);
+    fill(ctx, shade(base, factors[face]), rect);
+    const count = Math.max(2, Math.floor((rect.w * rect.h) / 12));
+    for (let i = 0; i < count; i++) {
+      pixel(
+        ctx,
+        shade(accent, factors[face]),
+        rect.x + Math.floor(random() * rect.w),
+        rect.y + Math.floor(random() * rect.h),
+      );
     }
-  } else if (kind === 'husk') {
-    fill('#c2b280', 0, 0, S, S); // 沙黄衫底(日晒褪色)
-    const r = srand(57);
-    for (let i = 0; i < 12; i++) fill(r() > 0.5 ? '#a89660' : '#d4c898', Math.floor(r() * S), Math.floor(r() * S), 1 + Math.floor(r() * 2), 1 + Math.floor(r() * 2)); // 干裂磨损斑
-    fill('#8b7340', 4, 9, 3, 3); // 破洞露沙皮
-    fill('#7a6535', 5, 10, 1, 1);
-    for (let x = 0; x < S; x++) if (srand(95 + x)() > 0.45) fill('#9b8050', x, S - 1, 1, 1); // 破烂下摆
-  } else if (kind === 'creeper') {
-    fill('#5fa044', 0, 0, S, S); // 苦力怕绿底
-    const r = srand(81);
-    for (let i = 0; i < 22; i++)
-      fill(r() > 0.5 ? '#4d8a36' : '#6fb050', Math.floor(r() * S), Math.floor(r() * S), 1, 1 + Math.floor(r() * 2)); // 深浅绿斑(苦力怕斑驳)
-  } else {
-    fill('#f1f1f1', 0, 0, S, S); // 鸡:白羽
-    const r = srand(41);
-    for (let i = 0; i < 10; i++) fill('#e0e0e0', Math.floor(r() * S), Math.floor(r() * S), 1, 2);
-    fill('#dadada', 0, S - 2, S, 2);
   }
 }
 
-function drawHead(kind: 'zombie' | 'skeleton' | 'husk', ctx: CanvasRenderingContext2D, S: number): void {
-  const fill = (col: string, x: number, y: number, w = 1, h = 1): void => {
-    ctx.fillStyle = col;
-    ctx.fillRect(x, y, w, h);
-  };
-  if (kind === 'zombie') {
-    fill('#5a8f4a', 0, 0, S, S); // 绿皮
-    const r = srand(61);
-    for (let i = 0; i < 18; i++) fill(r() > 0.5 ? '#4c7a3e' : '#6aa055', Math.floor(r() * S), Math.floor(r() * S)); // 腐烂斑驳
-    fill('#3f6a34', 0, S - 2, S, 2); // 下颌阴影
-  } else if (kind === 'husk') {
-    fill('#b8a060', 0, 0, S, S); // 沙黄皮(日晒干枯)
-    const r = srand(67);
-    for (let i = 0; i < 18; i++) fill(r() > 0.5 ? '#9a8448' : '#ceb878', Math.floor(r() * S), Math.floor(r() * S)); // 龟裂斑驳
-    fill('#7a6535', 0, S - 2, S, 2); // 下颌阴影(更深)
+function facePixel(
+  ctx: CanvasRenderingContext2D,
+  part: SkinPart,
+  face: SkinFace,
+  color: string,
+  x: number,
+  y: number,
+  w = 1,
+  h = 1,
+): void {
+  const rect = skinFaceRect(part, face);
+  pixel(ctx, color, rect.x + x, rect.y + y, w, h);
+}
+
+function paintAnimal(ctx: CanvasRenderingContext2D, kind: 'pig' | 'cow' | 'sheep' | 'chicken'): void {
+  const head = MOB_SKIN_PARTS.head;
+  const body = MOB_SKIN_PARTS.animalBody;
+  const leg = MOB_SKIN_PARTS.leg;
+  const snout = MOB_SKIN_PARTS.snout;
+
+  if (kind === 'pig') {
+    paintBox(ctx, head, '#e7a39d', '#f0b2ab', 11);
+    paintBox(ctx, body, '#e5a09a', '#d98e8b', 12);
+    paintBox(ctx, leg, '#dc9692', '#c97f7d', 13);
+    paintBox(ctx, snout, '#d88b8b', '#efaaa4', 14);
+    facePixel(ctx, head, 'right', '#202020', 1, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#202020', 5, 2, 2, 2);
+    facePixel(ctx, snout, 'right', '#7c4d55', 1, 1);
+    facePixel(ctx, snout, 'right', '#7c4d55', 4, 1);
+  } else if (kind === 'cow') {
+    paintBox(ctx, head, '#554033', '#382b23', 21);
+    paintBox(ctx, body, '#594435', '#3f3026', 22);
+    paintBox(ctx, leg, '#4c382c', '#2f241d', 23);
+    paintBox(ctx, snout, '#b9a28e', '#8e7663', 24);
+    for (const face of ['right', 'front', 'left', 'back', 'top'] as const) {
+      const rect = skinFaceRect(body, face);
+      pixel(ctx, '#e7ddcd', rect.x + 1, rect.y + 1, Math.max(2, Math.floor(rect.w / 3)), Math.max(2, Math.floor(rect.h / 2)));
+      pixel(ctx, '#e7ddcd', rect.x + Math.max(1, rect.w - 4), rect.y + Math.max(1, rect.h - 3), 3, 2);
+    }
+    facePixel(ctx, head, 'right', '#f0e7d9', 0, 0, 3, 5);
+    facePixel(ctx, head, 'right', '#171717', 1, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#171717', 5, 2, 2, 2);
+    facePixel(ctx, snout, 'right', '#4b3834', 1, 1);
+    facePixel(ctx, snout, 'right', '#4b3834', 4, 1);
+  } else if (kind === 'sheep') {
+    paintBox(ctx, head, '#4a433d', '#625950', 31);
+    paintBox(ctx, body, '#ece9e1', '#d7d3c9', 32);
+    paintBox(ctx, leg, '#4a433d', '#312d29', 33);
+    for (const face of ['front', 'back', 'top', 'right', 'left'] as const) {
+      const rect = skinFaceRect(body, face);
+      for (let y = 0; y < rect.h; y += 3) {
+        for (let x = (y / 3) % 2; x < rect.w; x += 3) pixel(ctx, '#f8f6ef', rect.x + x, rect.y + y, 2, 2);
+      }
+    }
+    facePixel(ctx, head, 'right', '#ece9e1', 0, 0, 8, 2);
+    facePixel(ctx, head, 'right', '#171717', 1, 3, 2, 2);
+    facePixel(ctx, head, 'right', '#171717', 5, 3, 2, 2);
   } else {
-    fill('#dcdcd0', 0, 0, S, S); // 骨白
-    const r = srand(71);
-    for (let i = 0; i < 9; i++) fill('#bdbdb0', Math.floor(r() * S), Math.floor(r() * S), 1, 1 + Math.floor(r() * 2)); // 裂纹/阴影
+    paintBox(ctx, head, '#f1f1ef', '#d9d9d6', 41);
+    paintBox(ctx, body, '#eeeeeb', '#d6d6d2', 42);
+    paintBox(ctx, leg, '#d99020', '#a96917', 43);
+    paintBox(ctx, MOB_SKIN_PARTS.wing, '#f7f7f5', '#d4d4d0', 44);
+    facePixel(ctx, head, 'right', '#151515', 1, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#151515', 5, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#ffffff', 1, 2);
+    facePixel(ctx, head, 'right', '#ffffff', 5, 2);
   }
 }
 
-export function bodyTexture(kind: MobKind): THREE.CanvasTexture {
-  return makeTex('b-' + kind, (ctx, S) => drawBody(kind, ctx, S));
+function paintHumanoid(ctx: CanvasRenderingContext2D, kind: 'zombie' | 'skeleton' | 'husk'): void {
+  const head = MOB_SKIN_PARTS.head;
+  const body = MOB_SKIN_PARTS.humanBody;
+  const arm = MOB_SKIN_PARTS.arm;
+  const leg = MOB_SKIN_PARTS.leg;
+
+  if (kind === 'skeleton') {
+    paintBox(ctx, head, '#dcdcd0', '#bcbcaf', 71);
+    paintBox(ctx, body, '#d8d8cc', '#9f9f91', 72);
+    paintBox(ctx, arm, '#d6d6ca', '#a5a598', 73);
+    paintBox(ctx, leg, '#d6d6ca', '#a5a598', 74);
+    facePixel(ctx, head, 'right', '#1b1b1b', 1, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#1b1b1b', 5, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#77776d', 3, 4, 2, 1);
+    facePixel(ctx, head, 'right', '#77776d', 1, 6, 6, 1);
+    const front = skinFaceRect(body, 'right');
+    pixel(ctx, '#9b9b8e', front.x + 3, front.y + 1, 2, 10);
+    for (const y of [2, 5, 8]) {
+      pixel(ctx, '#85857a', front.x, front.y + y, 3, 1);
+      pixel(ctx, '#85857a', front.x + 5, front.y + y, 3, 1);
+    }
+    return;
+  }
+
+  const husk = kind === 'husk';
+  const skin = husk ? '#b29a5e' : '#568746';
+  const skinAccent = husk ? '#8f783f' : '#3f6e37';
+  const shirt = husk ? '#b9a66d' : '#2f6a69';
+  const shirtAccent = husk ? '#8c7645' : '#244f50';
+  const pants = husk ? '#66542e' : '#2d3158';
+  paintBox(ctx, head, skin, skinAccent, husk ? 67 : 61);
+  paintBox(ctx, body, shirt, shirtAccent, husk ? 68 : 62);
+  paintBox(ctx, arm, shirt, skin, husk ? 69 : 63);
+  paintBox(ctx, leg, pants, shade(pants, 0.75), husk ? 70 : 64);
+  for (const face of ['right', 'front', 'left', 'back'] as const) {
+    const sleeve = skinFaceRect(arm, face);
+    pixel(ctx, shade(skin, face === 'left' ? 0.8 : 0.95), sleeve.x, sleeve.y + 7, sleeve.w, 5);
+  }
+  facePixel(ctx, head, 'right', '#242022', 1, 2, 2, 1);
+  facePixel(ctx, head, 'right', '#242022', 5, 2, 2, 1);
+  facePixel(ctx, head, 'right', husk ? '#5e4724' : '#31562c', 2, 6, 4, 1);
+  const torso = skinFaceRect(body, 'right');
+  pixel(ctx, skinAccent, torso.x + 1, torso.y + 7, 2, 3);
+  pixel(ctx, shade(shirt, 0.72), torso.x + 5, torso.y + 10, 3, 2);
 }
 
-// 头部贴图：僵尸/骷髅/尸壳有独立头贴图(绿烂皮 / 裂骨 / 干枯沙皮)；其它动物用纯色头，返回 null。
-export function headTexture(kind: MobKind): THREE.CanvasTexture | null {
-  if (kind !== 'zombie' && kind !== 'skeleton' && kind !== 'husk') return null;
-  return makeTex('h-' + kind, (ctx, S) => drawHead(kind, ctx, S));
+function paintCreeper(ctx: CanvasRenderingContext2D): void {
+  const head = MOB_SKIN_PARTS.head;
+  const body = MOB_SKIN_PARTS.humanBody;
+  paintBox(ctx, head, '#5d9f43', '#407c31', 81);
+  paintBox(ctx, body, '#5a9840', '#3d762e', 82);
+  paintBox(ctx, MOB_SKIN_PARTS.leg, '#4d8937', '#326628', 83);
+  facePixel(ctx, head, 'right', '#101010', 1, 2, 2, 2);
+  facePixel(ctx, head, 'right', '#101010', 5, 2, 2, 2);
+  facePixel(ctx, head, 'right', '#101010', 3, 4, 2, 2);
+  facePixel(ctx, head, 'right', '#101010', 2, 6, 2, 2);
+  facePixel(ctx, head, 'right', '#101010', 4, 6, 2, 2);
+}
+
+function drawSkin(kind: MobKind, ctx: CanvasRenderingContext2D): void {
+  ctx.clearRect(0, 0, MOB_SKIN_SIZE, MOB_SKIN_SIZE);
+  ctx.imageSmoothingEnabled = false;
+  if (kind === 'pig' || kind === 'cow' || kind === 'sheep' || kind === 'chicken') paintAnimal(ctx, kind);
+  else if (kind === 'creeper') paintCreeper(ctx);
+  else paintHumanoid(ctx, kind);
+}
+
+export function mobTexture(kind: MobKind): THREE.CanvasTexture {
+  const cached = cache.get(kind);
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = MOB_SKIN_SIZE;
+  const ctx = canvas.getContext('2d');
+  if (ctx) drawSkin(kind, ctx);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  cache.set(kind, texture);
+  return texture;
 }
