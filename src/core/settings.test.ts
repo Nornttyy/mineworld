@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeSettings, DEFAULT_SETTINGS } from './settings';
+import { sanitizeSettings, settingsFromStorage, DEFAULT_SETTINGS } from './settings';
 
 describe('settings sanitize', () => {
   it('空/脏输入 → 默认值', () => {
@@ -15,14 +15,28 @@ describe('settings sanitize', () => {
     expect(sanitizeSettings({ volume: NaN }).volume).toBe(DEFAULT_SETTINGS.volume);
   });
 
-  it('材质只认 cartoon/classic，其余回退 cartoon', () => {
+  it('材质只认 cartoon/classic，其余回退默认经典包', () => {
     expect(sanitizeSettings({ texturePack: 'classic' }).texturePack).toBe('classic');
     expect(sanitizeSettings({ texturePack: 'cartoon' }).texturePack).toBe('cartoon');
-    expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('cartoon');
+    expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('classic');
   });
 
   it('空对象回退到默认', () => {
     expect(sanitizeSettings({}).lightingQuality).toBe(DEFAULT_SETTINGS.lightingQuality);
+  });
+});
+
+describe('texture pack v2 migration', () => {
+  it('新安装默认使用经典像素包', () => {
+    expect(DEFAULT_SETTINGS.texturePack).toBe('classic');
+  });
+
+  it('旧版卡通设置首次加载时迁移到经典像素包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon' }).texturePack).toBe('classic');
+  });
+
+  it('迁移完成后尊重用户手动选择的卡通包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 2 }).texturePack).toBe('cartoon');
   });
 });
 

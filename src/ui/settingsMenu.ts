@@ -55,8 +55,8 @@ export class SettingsMenu {
         </label>
         <div style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">材质</span>
-          <button id="set-tex-cartoon" class="btn" type="button">卡通</button>
-          <button id="set-tex-classic" class="btn" type="button">经典</button>
+          <button id="set-tex-classic" class="btn" type="button">标准像素</button>
+          <button id="set-tex-cartoon" class="btn" type="button">鲜艳像素</button>
         </div>
         <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">渲染距离</span>

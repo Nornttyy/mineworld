@@ -71,6 +71,7 @@ import { readMove, consumeJump, type MoveKeys } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { TouchControls, supportsTouchControls } from '../input/TouchControls';
 import { Hotbar } from '../ui/hotbar';
+import { setIconTexturePack } from '../ui/itemIcons';
 import { StatusBar } from '../ui/statusBar';
 import { InventoryUI } from '../ui/inventoryUI';
 import { FurnaceUI } from '../ui/furnaceUI';
@@ -266,6 +267,8 @@ export class Game {
   private readonly _godFwd = new THREE.Vector3(); // 相机朝向（判太阳是否在前方，防背后投影出 NaN→黑屏）
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave) {
+    const settings = loadSettings();
+    setIconTexturePack(settings.texturePack);
     this.canvas = canvas;
     this.save = save;
     this.creative = save.gameMode === 'creative';
@@ -301,12 +304,12 @@ export class Game {
     // 维度：续存档维度，新档/旧档默认主世界。buildDimension 建对应维度的世界 + 只贴该维度的玩家改动。
     this.dimension = save.currentDimension ?? 'overworld';
     this.buildDimension(this.dimension);
-    this.texturePack = loadSettings().texturePack; // 按设置选卡通/经典图集
-    this.lightingQuality = loadSettings().lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
-    this.renderDistance = loadSettings().renderDistance; // 渲染距离初值
+    this.texturePack = settings.texturePack; // 按设置选鲜艳/标准像素图集
+    this.lightingQuality = settings.lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
+    this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
-    this.chunks.setLightingQuality(loadSettings().lightingQuality); // 光影开关初值(真实水面波动/反射)
+    this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
@@ -317,7 +320,7 @@ export class Game {
     this.hand = new FirstPersonHand(atlas);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
-    this.skyObjects.setLightingQuality(loadSettings().lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
+    this.skyObjects.setLightingQuality(settings.lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
     this.skyObjects.setDimension(this.dimension); // 初始维度同步（默认 overworld，Task 9 接真实切换）
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
@@ -965,10 +968,12 @@ export class Game {
   setTexturePack(pack: TexturePack): void {
     if (pack === this.texturePack) return;
     this.texturePack = pack;
+    setIconTexturePack(pack);
     const atlas = loadAtlas(pack);
     this.chunks.setAtlas(atlas);
     this.hand.setAtlas(atlas);
     this.dropRenderer.setAtlas(atlas);
+    this.hotbar.render(this.inv);
   }
 
   // 光影画质（设置里改"光影"时由 main 调用）：真实水面波动/反射/高光 + 云风格(立体↔真实)，无需重建网格。

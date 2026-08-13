@@ -2,6 +2,7 @@
 // hotbar / 合成 / 背包界面共用，避免各处重复维护映射。
 import { APPLE } from '../core/items/items';
 import { asset } from '../asset';
+import type { TexturePack } from '../core/settings';
 
 // 有等距图标文件的 id → 文件名；其余回退中文文字
 const ICON: Record<number, string> = {
@@ -75,6 +76,21 @@ const ICON: Record<number, string> = {
   295: 'nether_quartz',
 };
 
+// 经典包的方块图标与 16x16 世界图集由同一脚本生成；工具、食物等物品继续共用原图标。
+const CLASSIC_BLOCK_ICONS = new Set([
+  'stone', 'dirt', 'grass', 'cobblestone', 'sand', 'oak_log', 'oak_planks',
+  'coal_ore', 'oak_leaves', 'crafting_table', 'iron_ore', 'furnace', 'gravel',
+  'sandstone', 'obsidian', 'netherrack', 'soul_sand', 'glowstone',
+  'nether_quartz_ore', 'bedrock', 'cactus', 'ice', 'spruce_log', 'spruce_leaves',
+  'coal_block', 'iron_block', 'quartz_block',
+]);
+
+let activeTexturePack: TexturePack = 'classic';
+
+export function setIconTexturePack(pack: TexturePack): void {
+  activeTexturePack = pack;
+}
+
 // 显示名（无图标时文字占位 + hover 提示）
 const ZH: Record<number, string> = {
   1: '石头',
@@ -137,7 +153,13 @@ const ZH: Record<number, string> = {
   295: '下界石英',
 };
 
-export const iconUrl = (id: number): string | null =>
-  ICON[id] ? asset(`textures/icons/${ICON[id]}.png`) : null;
+export const iconUrl = (id: number): string | null => {
+  const name = ICON[id];
+  if (!name) return null;
+  const directory = activeTexturePack === 'classic' && CLASSIC_BLOCK_ICONS.has(name)
+    ? 'icons_classic'
+    : 'icons';
+  return asset(`textures/${directory}/${name}.png`);
+};
 
 export const itemLabel = (id: number): string => ZH[id] ?? `#${id}`;

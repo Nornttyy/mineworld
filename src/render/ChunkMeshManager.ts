@@ -278,7 +278,7 @@ export class ChunkMeshManager {
             // 暖阳冷影(光影包核心质感)：影子里偏蓝(天空光补光),而不是单纯变暗的灰
             'vec3 shTint = mix(vec3(0.80, 0.88, 1.18), vec3(1.0), vis);\n' +
             'diffuseColor.rgb *= vLF * vTint * vis * shTint;\n' +
-            // 阳光泽面(光影开)：朝阳面暖色增亮 + 半角镜面高光——SEUS 那种"方块被太阳照得亮亮的"。
+            // 方块保持经典哑光：只留轻微暖阳层次，避免强镜面把 16×16 像素纹理洗成塑料。
             // 法线=屏幕导数(免顶点法线),sign(dot(N,V)) 归正朝观察者(解旧"朝向未定"问题)；
             // 门控=受天光面×白天×阴影可见×光影开(影子里/洞里/夜里/关光影都没有)。
             'float sunLit = vSky * uSunUp * uShaders * vis;\n' +
@@ -287,10 +287,10 @@ export class ChunkMeshManager {
             '  vec3 Vd = normalize(cameraPosition - vWp);\n' +
             '  Nw *= sign(dot(Nw, Vd));\n' +
             '  float nd = max(dot(Nw, normalize(uSunDirW)), 0.0);\n' +
-            '  diffuseColor.rgb *= 1.0 + vec3(0.30, 0.24, 0.12) * nd * sunLit;\n' + // 直射面暖亮
+            '  diffuseColor.rgb *= 1.0 + vec3(0.12, 0.09, 0.04) * nd * sunLit;\n' + // 轻微直射面暖亮
             '  vec3 Hh = normalize(normalize(uSunDirW) + Vd);\n' +
             '  float sp = pow(max(dot(Nw, Hh), 0.0), 28.0);\n' +
-            '  diffuseColor.rgb += vec3(1.0, 0.95, 0.8) * sp * 0.22 * sunLit;\n' + // 镜面泽光(可触发泛光)
+            '  diffuseColor.rgb += vec3(1.0, 0.95, 0.8) * sp * 0.035 * sunLit;\n' + // 极弱高光：保留光向，不覆盖像素颗粒
             '}',
         );
     };
