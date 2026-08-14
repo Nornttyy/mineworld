@@ -252,7 +252,8 @@
       #about-panel .btn {
         margin-top: 18px;
       }
-      #newworld {
+      #newworld,
+      #multiplayer {
         position: fixed;
         z-index: 20; /* 盖过旋转菜单背景(#menubg z:1) 和世界列表(z:10)，否则弹窗被背景画布遮住看不见 */
         left: 50%;
@@ -275,7 +276,8 @@
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }
-      #newworld h2 {
+      #newworld h2,
+      #multiplayer h2 {
         margin: 0 0 18px;
         font-size: 26px;
         text-align: center;
@@ -329,6 +331,68 @@
       #newworld .btn-row {
         margin-top: 22px;
         justify-content: center;
+      }
+      .mp-intro {
+        margin: -4px 0 16px;
+        color: #cfcfcf;
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: center;
+      }
+      .mp-field {
+        display: block;
+        margin: 14px 0;
+        color: #cfcfcf;
+        font-size: 14px;
+      }
+      .mp-field input {
+        display: block;
+        width: 100%;
+        margin-top: 6px;
+        box-sizing: border-box;
+        font-family: inherit;
+        font-size: 16px;
+        color: #fff;
+        padding: 9px 10px;
+        background: #1c1c22;
+        border: 2px solid #000;
+        box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+        text-transform: uppercase;
+      }
+      #mp-status {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: #9fd17a;
+        font-size: 12px;
+        line-height: 1.5;
+        text-align: center;
+      }
+      #mp-status.error { color: #ff9b9b; }
+      #multiplayer .btn-row {
+        margin-top: 18px;
+        justify-content: center;
+      }
+      #mp-back {
+        display: block;
+        margin: 14px auto 0;
+        font-size: 14px;
+      }
+      #online-hud {
+        position: fixed;
+        top: max(8px, env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+        z-index: 14;
+        max-width: min(260px, calc(100vw - 26px));
+        padding: 6px 9px;
+        color: #d9ffd0;
+        background: rgba(0, 0, 0, 0.48);
+        border: 1px solid rgba(180, 235, 147, 0.45);
+        box-sizing: border-box;
+        font: 11px 'Zpix', monospace;
+        line-height: 1.45;
+        text-align: right;
+        pointer-events: none;
+        text-shadow: 1px 1px 0 #000;
       }
       #underwater {
         position: fixed;
@@ -928,6 +992,7 @@
         .world-row { flex-wrap: wrap; }
         .world-row .wname { min-width: 50%; }
         #newworld,
+        #multiplayer,
         #about-panel { width: calc(100vw - 28px); box-sizing: border-box; padding: 18px; }
         .screen-title { font-size: 28px; }
         .boot-logo { font-size: clamp(32px, 12vw, 56px); letter-spacing: 4px; }
@@ -1174,7 +1239,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-CUQZ5HBk.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-BtPZFi88.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1196,7 +1261,8 @@
           <h1>MINEWORLD</h1>
           <div id="splash"></div>
         </div>
-        <button id="play" class="btn btn-wide">开始游戏</button>
+        <button id="play" class="btn btn-wide">单人游戏</button>
+        <button id="multiplayer-play" class="btn btn-wide">联机游戏</button>
         <div class="btn-row">
           <button id="fullscreen" class="btn">全屏</button>
           <button id="settings-btn" class="btn">设置</button>
@@ -1246,6 +1312,29 @@
         <button id="nw-cancel" class="btn">取消</button>
       </div>
     </div>
+    <div id="multiplayer" class="hidden">
+      <h2>联机游戏</h2>
+      <p class="mp-intro">创建房间后，把房间号告诉朋友；同一房间会共享世界和方块改动。</p>
+      <label class="mp-field">你的名字
+        <input id="mp-name" type="text" maxlength="16" autocomplete="nickname" placeholder="玩家" />
+      </label>
+      <label class="mp-field">房间号
+        <input id="mp-room" type="text" maxlength="16" autocapitalize="characters" autocomplete="off" placeholder="例如 A8K2M" />
+      </label>
+      <div class="mp-field">创建模式
+        <div class="nw-modes">
+          <button id="mp-creative" class="nw-mode active" type="button">创造</button>
+          <button id="mp-survival" class="nw-mode" type="button">生存</button>
+        </div>
+        <div id="mp-mode-desc" class="nw-desc">创造模式：适合和朋友一起搭建；玩家与方块会实时同步。</div>
+      </div>
+      <p id="mp-status" role="status">创建一个新房间，或输入朋友给你的房间号。</p>
+      <div class="btn-row">
+        <button id="mp-create" class="btn" type="button">创建房间</button>
+        <button id="mp-join" class="btn" type="button">加入房间</button>
+      </div>
+      <button id="mp-back" class="btn" type="button">返回</button>
+    </div>
     <div id="pause" class="hidden">
       <h2 class="screen-title">已暂停</h2>
       <button id="resume" class="btn btn-wide">继续游戏</button>
@@ -1260,6 +1349,7 @@
       <div id="hunger"></div>
     </div>
     <div id="oxygen"></div>
+    <div id="online-hud" class="hidden" aria-live="polite"></div>
     <div id="hotbar"></div>
     <div id="hurt"></div>
     <div id="touch-controls" aria-hidden="true">
