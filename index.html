@@ -857,6 +857,13 @@
       #touch-controls {
         position: fixed;
         inset: 0;
+        /*
+         * 触控区刻意为快捷栏留出一整行：方向键和右侧动作键都不会压到选物品的区域。
+         * 这套排布按 Bedrock Crosshair 模式：右下是「剑/挖」和「手/放」，上面是跳/蹲。
+         */
+        --touch-safe-left: max(14px, env(safe-area-inset-left));
+        --touch-safe-right: max(14px, env(safe-area-inset-right));
+        --touch-hotbar-clear: max(76px, calc(env(safe-area-inset-bottom) + 66px));
         z-index: 12;
         display: none;
         pointer-events: none;
@@ -874,7 +881,7 @@
         left: 50%;
         right: 0;
         top: max(58px, env(safe-area-inset-top));
-        bottom: max(58px, env(safe-area-inset-bottom));
+        bottom: max(66px, calc(env(safe-area-inset-bottom) + 56px));
         pointer-events: auto;
         touch-action: none;
         z-index: 0;
@@ -882,28 +889,52 @@
       /* 类似手机版《我的世界》的十字方向键：四个方向可同时按，方便斜走。 */
       .touch-dpad {
         position: absolute;
-        left: max(16px, env(safe-area-inset-left));
-        bottom: max(78px, calc(env(safe-area-inset-bottom) + 68px));
-        width: 154px;
-        height: 154px;
+        left: var(--touch-safe-left);
+        bottom: calc(var(--touch-hotbar-clear) + 10px);
+        width: 194px;
+        height: 194px;
+        display: grid;
+        grid-template-columns: repeat(3, 62px);
+        grid-template-rows: repeat(3, 62px);
+        gap: 4px;
         pointer-events: none;
         z-index: 2;
       }
-      .touch-dpad-button {
+      .touch-dpad::before {
+        content: '';
         position: absolute;
-        width: 50px;
-        height: 50px;
+        left: 66px;
+        top: 66px;
+        width: 62px;
+        height: 62px;
+        box-sizing: border-box;
+        border: 2px solid rgba(220, 240, 255, 0.22);
+        border-radius: 14px;
+        background: rgba(31, 53, 67, 0.22);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        pointer-events: none;
+      }
+      .touch-dpad-button {
+        position: relative;
+        width: 62px;
+        height: 62px;
         padding: 0;
-        border: 2px solid rgba(255, 255, 255, 0.56);
-        border-radius: 7px;
-        background: rgba(26, 34, 38, 0.5);
-        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.2);
+        box-sizing: border-box;
+        border: 2px solid rgba(220, 240, 255, 0.56);
+        border-radius: 14px;
+        color: #fff;
+        background:
+          linear-gradient(135deg, rgba(109, 163, 192, 0.42), rgba(28, 53, 69, 0.5)),
+          rgba(23, 40, 50, 0.42);
+        box-shadow:
+          0 2px 0 rgba(0, 0, 0, 0.24),
+          inset 1px 1px 0 rgba(255, 255, 255, 0.2);
         display: grid;
         place-items: center;
         pointer-events: auto;
         touch-action: none;
-        box-sizing: border-box;
-        transition: background 80ms ease-out, transform 80ms ease-out;
+        z-index: 1;
+        transition: background 80ms ease-out, transform 80ms ease-out, border-color 80ms ease-out;
       }
       .touch-dpad-button::after {
         content: '';
@@ -913,72 +944,96 @@
         margin: 0;
         filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.55));
       }
-      #touch-forward { left: 52px; top: 0; }
-      #touch-back { left: 52px; bottom: 0; }
-      #touch-left { left: 0; top: 52px; }
-      #touch-right { right: 0; top: 52px; }
-      #touch-forward::after { border-left: 11px solid transparent; border-right: 11px solid transparent; border-bottom: 15px solid #fff; }
-      #touch-back::after { border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 15px solid #fff; }
-      #touch-left::after { border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-right: 15px solid #fff; }
-      #touch-right::after { border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 15px solid #fff; }
+      #touch-forward { grid-column: 2; grid-row: 1; }
+      #touch-back { grid-column: 2; grid-row: 3; }
+      #touch-left { grid-column: 1; grid-row: 2; }
+      #touch-right { grid-column: 3; grid-row: 2; }
+      #touch-forward::after { border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 19px solid currentColor; }
+      #touch-back::after { border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 19px solid currentColor; }
+      #touch-left::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-right: 19px solid currentColor; }
+      #touch-right::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-left: 19px solid currentColor; }
       .touch-dpad-button.pressed {
-        background: rgba(112, 151, 84, 0.82);
+        border-color: rgba(237, 252, 255, 0.88);
+        background: rgba(107, 164, 194, 0.78);
         transform: scale(0.92);
       }
       .touch-button {
         position: absolute;
-        width: 64px;
-        height: 64px;
+        display: grid;
+        place-items: center;
         padding: 0;
-        border: 3px solid rgba(255, 255, 255, 0.62);
-        border-radius: 50%;
-        color: #fff;
-        background: rgba(24, 30, 34, 0.58);
-        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), inset 2px 2px 0 rgba(255, 255, 255, 0.16);
-        text-shadow: 1px 2px 0 #000;
-        font: 15px 'Zpix', monospace;
+        box-sizing: border-box;
+        border: 2px solid rgba(220, 242, 255, 0.64);
+        border-radius: 14px;
+        color: rgba(255, 255, 255, 0.98);
+        background:
+          linear-gradient(135deg, rgba(112, 171, 203, 0.48), rgba(27, 61, 82, 0.6)),
+          rgba(22, 47, 62, 0.46);
+        box-shadow:
+          0 2px 0 rgba(0, 0, 0, 0.28),
+          inset 1px 1px 0 rgba(255, 255, 255, 0.22);
         pointer-events: auto;
         touch-action: none;
         z-index: 3;
-        transition: background 80ms ease-out, transform 80ms ease-out;
+        transition: background 80ms ease-out, transform 80ms ease-out, border-color 80ms ease-out;
       }
       .touch-button.pressed {
-        background: rgba(112, 151, 84, 0.82);
-        transform: translateY(2px) scale(0.96);
+        border-color: rgba(242, 252, 255, 0.92);
+        background: rgba(113, 174, 207, 0.83);
+        transform: scale(0.93);
       }
-      #touch-jump {
-        right: max(18px, env(safe-area-inset-right));
-        bottom: max(83px, calc(env(safe-area-inset-bottom) + 73px));
+      .touch-icon {
+        width: 58%;
+        height: 58%;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.5));
+        pointer-events: none;
+      }
+      .touch-action-button {
         width: 72px;
         height: 72px;
+        border-radius: 12px;
       }
-      #touch-mine {
-        right: max(96px, calc(env(safe-area-inset-right) + 86px));
-        bottom: max(126px, calc(env(safe-area-inset-bottom) + 116px));
-        background: rgba(118, 74, 37, 0.68);
+      .touch-action-button .touch-icon {
+        width: 66%;
+        height: 66%;
+        stroke-width: 4.5;
       }
-      #touch-use {
-        right: max(102px, calc(env(safe-area-inset-right) + 92px));
-        bottom: max(61px, calc(env(safe-area-inset-bottom) + 51px));
-        background: rgba(51, 100, 132, 0.68);
+      #touch-jump {
+        right: calc(var(--touch-safe-right) + 4px);
+        bottom: calc(var(--touch-hotbar-clear) + 96px);
+        width: 64px;
+        height: 64px;
       }
       #touch-crouch {
-        left: max(176px, calc(env(safe-area-inset-left) + 166px));
-        bottom: max(90px, calc(env(safe-area-inset-bottom) + 80px));
-        width: 48px;
-        height: 48px;
-        font-size: 13px;
+        right: calc(var(--touch-safe-right) + 92px);
+        bottom: calc(var(--touch-hotbar-clear) + 96px);
+        width: 64px;
+        height: 64px;
+      }
+      /* Bedrock Crosshair：左键是剑/攻击（长按=挖），右键是手/放置或使用。 */
+      #touch-mine {
+        right: calc(var(--touch-safe-right) + 84px);
+        bottom: calc(var(--touch-hotbar-clear) + 10px);
+      }
+      #touch-use {
+        right: var(--touch-safe-right);
+        bottom: calc(var(--touch-hotbar-clear) + 10px);
       }
       #touch-pause,
       #touch-inventory {
         top: max(10px, env(safe-area-inset-top));
-        width: 48px;
-        height: 42px;
-        border-radius: 4px;
-        font-size: 13px;
+        width: 54px;
+        height: 54px;
+        border-radius: 12px;
       }
-      #touch-pause { left: max(10px, env(safe-area-inset-left)); }
-      #touch-inventory { right: max(10px, env(safe-area-inset-right)); width: 62px; }
+      #touch-pause { left: var(--touch-safe-left); }
+      /* 和右上联机人数提示错开，避免多人模式时背包按钮被盖住。 */
+      #touch-inventory { left: calc(var(--touch-safe-left) + 64px); }
       .touch-help { display: none; }
 
       @media (max-width: 600px) {
@@ -1043,6 +1098,11 @@
       html.touch-device textarea {
         touch-action: manipulation;
       }
+      /* 游戏中的虚拟按键依赖多指 Pointer Events；不能被上面的通用菜单规则改回浏览器手势。 */
+      html.touch-device #touch-controls button,
+      html.touch-device #touch-controls .touch-look {
+        touch-action: none;
+      }
       /* iOS 会把小于 16px 的表单控件在聚焦时自动放大。 */
       html.touch-device input,
       html.touch-device select,
@@ -1070,14 +1130,6 @@
           pointer-events: none;
         }
       }
-      /* 极窄竖屏上“蹲”改到方向键正上方，避开右侧挖/用键。 */
-      @media (pointer: coarse) and (orientation: portrait) and (max-width: 340px) {
-        .touch-dpad { width: 132px; height: 132px; }
-        .touch-dpad-button { width: 44px; height: 44px; }
-        #touch-forward, #touch-back { left: 44px; }
-        #touch-left, #touch-right { top: 44px; }
-      }
-
       @media (pointer: coarse) and (max-height: 520px) {
         /* 短横屏打开设置时从顶部开始排，内容可完整向下滚动。 */
         #settings {
@@ -1087,24 +1139,80 @@
           box-sizing: border-box;
         }
         #settings .settings-card { margin: 0 auto !important; }
-        .touch-dpad { width: 138px; height: 138px; bottom: max(58px, calc(env(safe-area-inset-bottom) + 50px)); }
-        .touch-dpad-button { width: 46px; height: 46px; }
-        #touch-forward, #touch-back { left: 46px; }
-        #touch-left, #touch-right { top: 46px; }
-        #touch-crouch { left: max(160px, calc(env(safe-area-inset-left) + 150px)); bottom: max(68px, calc(env(safe-area-inset-bottom) + 60px)); }
-        #touch-jump { bottom: max(61px, calc(env(safe-area-inset-bottom) + 53px)); }
-        /* 挖/打与放/用刚好留出边界，不让两块触区重叠误按。 */
-        #touch-mine { bottom: max(119px, calc(env(safe-area-inset-bottom) + 111px)); }
-        /* 避开底部快捷栏，防止按“放/用”下沿时误点选物品。 */
-        #touch-use { bottom: max(55px, calc(env(safe-area-inset-bottom) + 47px)); }
+        /* 568×320 一类短横屏：方向键仍有 54px 单键，同时避开顶部暂停键与状态条。 */
+        .touch-dpad {
+          bottom: calc(var(--touch-hotbar-clear) + 2px);
+          width: 170px;
+          height: 170px;
+          grid-template-columns: repeat(3, 54px);
+          grid-template-rows: repeat(3, 54px);
+          gap: 4px;
+        }
+        .touch-dpad::before {
+          left: 58px;
+          top: 58px;
+          width: 54px;
+          height: 54px;
+        }
+        .touch-dpad-button {
+          width: 54px;
+          height: 54px;
+          border-radius: 13px;
+        }
+        #touch-forward::after { border-left-width: 12px; border-right-width: 12px; border-bottom-width: 17px; }
+        #touch-back::after { border-left-width: 12px; border-right-width: 12px; border-top-width: 17px; }
+        #touch-left::after { border-top-width: 12px; border-bottom-width: 12px; border-right-width: 17px; }
+        #touch-right::after { border-top-width: 12px; border-bottom-width: 12px; border-left-width: 17px; }
       }
-      /* 此规则必须放在短屏规则后：极窄竖屏中“蹲”始终在方向键上方，不能被放/用遮住。 */
-      @media (pointer: coarse) and (orientation: portrait) and (max-width: 340px) {
+
+      /* 窄竖屏使用 50px 单键（仍高于旧版 44px），让右侧动作组和左侧方向键有明确间隔。 */
+      @media (pointer: coarse) and (orientation: portrait) and (max-width: 480px) {
+        #touch-controls {
+          --touch-safe-left: max(12px, env(safe-area-inset-left));
+          --touch-safe-right: max(12px, env(safe-area-inset-right));
+          --touch-hotbar-clear: max(72px, calc(env(safe-area-inset-bottom) + 62px));
+        }
+        .touch-dpad {
+          width: 160px;
+          height: 160px;
+          grid-template-columns: repeat(3, 50px);
+          grid-template-rows: repeat(3, 50px);
+          gap: 5px;
+        }
+        .touch-dpad::before {
+          left: 55px;
+          top: 55px;
+          width: 50px;
+          height: 50px;
+          border-radius: 12px;
+        }
+        .touch-dpad-button {
+          width: 50px;
+          height: 50px;
+          border-radius: 12px;
+        }
+        #touch-forward::after { border-left-width: 11px; border-right-width: 11px; border-bottom-width: 16px; }
+        #touch-back::after { border-left-width: 11px; border-right-width: 11px; border-top-width: 16px; }
+        #touch-left::after { border-top-width: 11px; border-bottom-width: 11px; border-right-width: 16px; }
+        #touch-right::after { border-top-width: 11px; border-bottom-width: 11px; border-left-width: 16px; }
+      }
+      /* 320px 竖屏：右侧改为单列，彻底消除动作键与方向键的命中区重叠。 */
+      @media (pointer: coarse) and (orientation: portrait) and (max-width: 360px) {
+        #touch-mine {
+          right: var(--touch-safe-right);
+          bottom: calc(var(--touch-hotbar-clear) + 94px);
+        }
+        #touch-use {
+          right: var(--touch-safe-right);
+          bottom: calc(var(--touch-hotbar-clear) + 10px);
+        }
+        #touch-jump {
+          right: calc(var(--touch-safe-right) + 4px);
+          bottom: calc(var(--touch-hotbar-clear) + 180px);
+        }
         #touch-crouch {
-          left: max(18px, env(safe-area-inset-left));
-          bottom: max(240px, calc(env(safe-area-inset-bottom) + 230px));
-          width: 48px;
-          height: 48px;
+          right: calc(var(--touch-safe-right) + 4px);
+          bottom: calc(var(--touch-hotbar-clear) + 256px);
         }
       }
       /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
@@ -1239,7 +1347,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-BtPZFi88.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-B5oQMOCG.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1360,12 +1468,24 @@
         <button id="touch-right" class="touch-dpad-button" type="button" aria-label="向右移动"></button>
         <button id="touch-back" class="touch-dpad-button" type="button" aria-label="后退"></button>
       </div>
-      <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">Ⅱ</button>
-      <button id="touch-inventory" class="touch-button" type="button" aria-label="背包">背包</button>
-      <button id="touch-crouch" class="touch-button" type="button" aria-label="下蹲">蹲</button>
-      <button id="touch-mine" class="touch-button" type="button" aria-label="挖掘或攻击">挖/打</button>
-      <button id="touch-use" class="touch-button" type="button" aria-label="放置或使用">放/用</button>
-      <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">跳</button>
+      <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M21 16v32M43 16v32" /></svg>
+      </button>
+      <button id="touch-inventory" class="touch-button" type="button" aria-label="背包">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M17 23h30v29H17zM24 23v-5h16v5M17 32h30" /></svg>
+      </button>
+      <button id="touch-crouch" class="touch-button" type="button" aria-label="下蹲">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 14v33M18 34l14 14 14-14" /></svg>
+      </button>
+      <button id="touch-mine" class="touch-button touch-action-button" type="button" aria-label="攻击或挖掘">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M14 17c11-8 26-6 36 4M15 17l5 10M49 21l-8 5M34 27L14 50M29 35l6 6" /></svg>
+      </button>
+      <button id="touch-use" class="touch-button touch-action-button" type="button" aria-label="放置或使用">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M22 51V32c0-4 6-4 6 0v5V20c0-4 6-4 6 0v15V21c0-4 6-4 6 0v15V26c0-4 6-4 6 0v15c0 7-5 12-12 12H29c-4 0-7-2-9-5l-6-9c-2-3 3-7 6-4l2 3" /></svg>
+      </button>
+      <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 50V17M18 30l14-14 14 14" /></svg>
+      </button>
     </div>
     <div id="orientation-tip" aria-hidden="true">建议横屏游玩，操作空间更大</div>
     <div id="death">
