@@ -9,6 +9,9 @@ import { type FurnaceState, isFuel, isSmeltable, COOK_TICKS } from '../core/craf
 const maxOf = (id: number): number => itemMaxStack(id);
 const HOTBAR = 9;
 const MAIN = 27;
+// 手机上没有右键：稳定按住一小会儿即可执行原本的右键操作。
+const TOUCH_HOLD_MS = 420;
+const TOUCH_MOVE_TOLERANCE = 12;
 
 interface Cell {
   el: HTMLElement;
@@ -16,6 +19,16 @@ interface Cell {
   cnt: HTMLElement;
 }
 type Slot = 'input' | 'fuel' | 'output';
+
+interface TouchPress {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  holdTimer: number | null;
+  moved: boolean;
+  longPressed: boolean;
+  activate: (right: boolean) => void;
+}
 
 export class FurnaceUI {
   private readonly root: HTMLElement;
@@ -34,6 +47,7 @@ export class FurnaceUI {
   private readonly arrowFillEl: HTMLElement;
   private readonly mainCells: Cell[] = [];
   private readonly hotbarCells: Cell[] = [];
+  private touchPress: TouchPress | null = null;
 
   onChange: (() => void) | null = null; // 背包变动 → Game 刷新快捷栏
   onClose: (() => void) | null = null;
@@ -58,16 +72,16 @@ export class FurnaceUI {
         </div>
         <div class="inv-main"></div>
         <div class="inv-hotbar"></div>
-        <div class="inv-hint">E / Esc 关闭 · 上槽放矿、下槽放燃料(煤/木) · 取走成品</div>
+        <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · 上槽放矿、下槽放燃料 · E / Esc 关闭</div>
       </div>`;
     (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
     const mk = (sel: string): Cell => this.bindSlot(root.querySelector(sel) as HTMLElement);
     this.inputCell = mk('.fur-input');
     this.fuelCell = mk('.fur-fuel');
     this.outCell = mk('.fur-out');
-    this.inputCell.el.addEventListener('pointerdown', (e) => this.clickFur('input', e));
-    this.fuelCell.el.addEventListener('pointerdown', (e) => this.clickFur('fuel', e));
-    this.outCell.el.addEventListener('pointerdown', (e) => this.clickFur('output', e));
+    this.inputCell.el.addEventListener('pointerdown', (e) => this.onFurnacePointerDown('input', e));
+    this.fuelCell.el.addEventListener('pointerdown', (e) => this.onFurnacePointerDown('fuel', e));
+    this.outCell.el.addEventListener('pointerdown', (e) => this.onFurnacePointerDown('output', e));
     this.flameEl = root.querySelector('.fur-flame-fill') as HTMLElement;
     this.arrowFillEl = root.querySelector('.fur-arrow-fill') as HTMLElement;
 
@@ -84,16 +98,23 @@ export class FurnaceUI {
     this.cursorCnt.className = 'slot-count';
     this.cursorEl.append(this.cursorIcon, this.cursorCnt);
     this.cursorEl.style.display = 'none';
+    this.cursorEl.style.pointerEvents = 'none'; // 手持物品图标不能盖住要点击的熔炉格
     document.body.appendChild(this.cursorEl);
     document.addEventListener('pointermove', (e) => {
       if (!this.open) return;
       this.cursorEl.style.left = `${e.clientX}px`;
       this.cursorEl.style.top = `${e.clientY}px`;
+      this.updateTouchPressMove(e);
+    });
+    document.addEventListener('pointerup', (e) => this.endTouchPress(e));
+    document.addEventListener('pointercancel', (e) => {
+      if (this.touchPress?.pointerId === e.pointerId) this.cancelTouchPress();
     });
   }
 
   private bindSlot(el: HTMLElement): Cell {
     el.classList.add('inv-slot');
+    el.style.touchAction = 'none';
     const icon = document.createElement('div');
     icon.className = 'slot-icon';
     const cnt = document.createElement('div');
@@ -106,16 +127,14 @@ export class FurnaceUI {
   private makeInvSlot(parent: HTMLElement, region: 'main' | 'hotbar', i: number): Cell {
     const el = document.createElement('div');
     el.className = 'inv-slot';
+    el.style.touchAction = 'none';
     const icon = document.createElement('div');
     icon.className = 'slot-icon';
     const cnt = document.createElement('div');
     cnt.className = 'slot-count';
     el.append(icon, cnt);
     el.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.cursorEl.style.left = `${e.clientX}px`;
-      this.cursorEl.style.top = `${e.clientY}px`;
-      this.clickInv(region, i, e);
+      this.onInventoryPointerDown(region, i, e);
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     parent.appendChild(el);
@@ -136,6 +155,7 @@ export class FurnaceUI {
 
   // 关闭：光标残留退回背包
   hide(): void {
+    this.cancelTouchPress();
     if (this.inv && this.cursor) {
       addItem(this.inv, this.cursor.id, this.cursor.count, maxOf(this.cursor.id));
       this.cursor = null;
@@ -146,15 +166,46 @@ export class FurnaceUI {
     this.onChange?.();
   }
 
-  private clickInv(region: 'main' | 'hotbar', i: number, e: MouseEvent): void {
+  private onInventoryPointerDown(region: 'main' | 'hotbar', i: number, e: PointerEvent): void {
+    if (!this.isSupportedPointer(e)) return;
+    e.preventDefault();
+    this.positionCursor(e);
+    if (e.pointerType === 'touch') {
+      this.beginTouchPress(e, (right) => this.performInventoryClick(region, i, right, false));
+    } else {
+      this.performInventoryClick(region, i, e.button === 2, e.shiftKey);
+    }
+  }
+
+  private onFurnacePointerDown(slot: Slot, e: PointerEvent): void {
+    if (!this.isSupportedPointer(e)) return;
+    e.preventDefault();
+    this.positionCursor(e);
+    if (e.pointerType === 'touch') {
+      this.beginTouchPress(e, (right) => this.performFurnaceClick(slot, right));
+    } else {
+      this.performFurnaceClick(slot, e.button === 2);
+    }
+  }
+
+  private isSupportedPointer(e: PointerEvent): boolean {
+    return e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0 || e.button === 2);
+  }
+
+  private positionCursor(e: Pick<PointerEvent, 'clientX' | 'clientY'>): void {
+    this.cursorEl.style.left = `${e.clientX}px`;
+    this.cursorEl.style.top = `${e.clientY}px`;
+  }
+
+  private performInventoryClick(region: 'main' | 'hotbar', i: number, right: boolean, shift: boolean): void {
     if (!this.inv) return;
     const idx = region === 'main' ? HOTBAR + i : i;
-    if (e.shiftKey) {
+    if (shift) {
       // Shift：快速送进对应熔炉槽(燃料→燃料槽，可炼→原料槽)，否则背包内挪
       this.shiftToFurnace(idx);
     } else {
       this.cursor =
-        e.button === 2
+        right
           ? rightClick(this.inv, idx, this.cursor, maxOf)
           : leftClick(this.inv, idx, this.cursor, maxOf);
     }
@@ -188,10 +239,7 @@ export class FurnaceUI {
   }
 
   // 熔炉三槽点击：input/fuel 当 1 格 mini-inv 用光标拿放；output 只能取。
-  private clickFur(slot: Slot, e: MouseEvent): void {
-    e.preventDefault();
-    this.cursorEl.style.left = `${e.clientX}px`;
-    this.cursorEl.style.top = `${e.clientY}px`;
+  private performFurnaceClick(slot: Slot, right: boolean): void {
     const f = this.furnace;
     if (!f) return;
     if (slot === 'output') {
@@ -203,7 +251,7 @@ export class FurnaceUI {
       // 燃料槽不收非燃料——不限空槽(交换手势曾能把泥土换进来,再被点燃逻辑当燃料吞掉)
       if (slot === 'fuel' && this.cursor && !isFuel(this.cursor.id)) return;
       this.cursor =
-        e.button === 2 ? rightClick(arr, 0, this.cursor, maxOf) : leftClick(arr, 0, this.cursor, maxOf);
+        right ? rightClick(arr, 0, this.cursor, maxOf) : leftClick(arr, 0, this.cursor, maxOf);
       const r = arr[0];
       if (slot === 'input') {
         f.input = r?.id ?? 0;
@@ -215,6 +263,56 @@ export class FurnaceUI {
     }
     this.render();
     this.onChange?.();
+  }
+
+  private beginTouchPress(e: PointerEvent, activate: (right: boolean) => void): void {
+    this.cancelTouchPress();
+    const press: TouchPress = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      holdTimer: null,
+      moved: false,
+      longPressed: false,
+      activate,
+    };
+    this.touchPress = press;
+    press.holdTimer = window.setTimeout(() => {
+      press.holdTimer = null;
+      if (!this.open || this.touchPress !== press || press.moved) return;
+      press.longPressed = true;
+      // 触屏长按等同右键：取半叠，或向目标格放一个。
+      press.activate(true);
+    }, TOUCH_HOLD_MS);
+  }
+
+  private updateTouchPressMove(e: PointerEvent): void {
+    const press = this.touchPress;
+    if (!press || press.pointerId !== e.pointerId || press.longPressed) return;
+    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= TOUCH_MOVE_TOLERANCE) return;
+    press.moved = true;
+    this.clearTouchPressTimer(press);
+  }
+
+  private endTouchPress(e: PointerEvent): void {
+    const press = this.touchPress;
+    if (!press || press.pointerId !== e.pointerId) return;
+    this.clearTouchPressTimer(press);
+    this.touchPress = null;
+    // 滑动手势不误触物品格；短按才是普通左键。
+    if (!press.moved && !press.longPressed) press.activate(false);
+  }
+
+  private cancelTouchPress(): void {
+    if (!this.touchPress) return;
+    this.clearTouchPressTimer(this.touchPress);
+    this.touchPress = null;
+  }
+
+  private clearTouchPressTimer(press: TouchPress): void {
+    if (press.holdTimer === null) return;
+    window.clearTimeout(press.holdTimer);
+    press.holdTimer = null;
   }
 
   private takeOutput(): void {

@@ -93,6 +93,9 @@
         width: 460px;
         max-height: 320px;
         overflow-y: auto;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -226,6 +229,12 @@
         box-shadow:
           inset 2px 2px 0 rgba(255, 255, 255, 0.15),
           inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+        max-height: calc(100dvh - 24px);
+        box-sizing: border-box;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
       }
       #about-panel h2 {
         margin: 0 0 14px;
@@ -259,6 +268,12 @@
         box-shadow:
           inset 2px 2px 0 rgba(255, 255, 255, 0.15),
           inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+        max-height: calc(100dvh - 24px);
+        box-sizing: border-box;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
       }
       #newworld h2 {
         margin: 0 0 18px;
@@ -566,6 +581,12 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+        max-height: calc(100dvh - 12px);
+        box-sizing: border-box;
+        overflow-y: auto;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
       }
       .inv-title {
         color: #3f3f3f;
@@ -785,12 +806,25 @@
       }
       .touch-look {
         position: absolute;
-        left: 36%;
+        /* 右半屏专门负责转视角，和左侧移动区彻底分开，双指时不会抢手势。 */
+        left: 48%;
         right: 0;
-        top: 62px;
-        bottom: 62px;
+        top: max(58px, env(safe-area-inset-top));
+        bottom: max(58px, env(safe-area-inset-bottom));
         pointer-events: auto;
         touch-action: none;
+        z-index: 0;
+      }
+      /* 左侧大范围起步区：手指按在任意空白处都会呼出摇杆，不用先瞄准圆圈。 */
+      .touch-move-zone {
+        position: absolute;
+        left: 0;
+        top: max(58px, env(safe-area-inset-top));
+        width: 52%;
+        bottom: max(58px, env(safe-area-inset-bottom));
+        pointer-events: auto;
+        touch-action: none;
+        z-index: 1;
       }
       .touch-stick {
         position: absolute;
@@ -804,6 +838,11 @@
         box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.42), inset 0 0 22px rgba(0, 0, 0, 0.25);
         pointer-events: auto;
         touch-action: none;
+        z-index: 2;
+        transition: opacity 100ms ease-out;
+      }
+      .touch-stick.floating {
+        opacity: 0.9;
       }
       .touch-stick::before,
       .touch-stick::after {
@@ -841,6 +880,8 @@
         font: 15px 'Zpix', monospace;
         pointer-events: auto;
         touch-action: none;
+        z-index: 3;
+        transition: background 80ms ease-out, transform 80ms ease-out;
       }
       .touch-button.pressed {
         background: rgba(112, 151, 84, 0.82);
@@ -855,10 +896,12 @@
       #touch-mine {
         right: max(96px, calc(env(safe-area-inset-right) + 86px));
         bottom: max(126px, calc(env(safe-area-inset-bottom) + 116px));
+        background: rgba(118, 74, 37, 0.68);
       }
       #touch-use {
         right: max(102px, calc(env(safe-area-inset-right) + 92px));
         bottom: max(61px, calc(env(safe-area-inset-bottom) + 51px));
+        background: rgba(51, 100, 132, 0.68);
       }
       #touch-crouch {
         left: max(147px, calc(env(safe-area-inset-left) + 137px));
@@ -915,8 +958,9 @@
       }
 
       @media (pointer: coarse) {
-        html, body { touch-action: none; overscroll-behavior: none; }
-        #app { cursor: default; }
+        /* 不能在 html/body 全局禁用手势：世界列表、背包在手机上需要自己滚动。 */
+        html, body { overscroll-behavior: none; }
+        #app { cursor: default; touch-action: none; }
         #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
         .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
         #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
@@ -925,8 +969,8 @@
         .touch-help { display: inline; }
       }
       html.touch-device,
-      html.touch-device body { touch-action: none; overscroll-behavior: none; }
-      html.touch-device #app { cursor: default; }
+      html.touch-device body { overscroll-behavior: none; }
+      html.touch-device #app { cursor: default; touch-action: none; -webkit-touch-callout: none; }
       html.touch-device #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
       html.touch-device .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
       html.touch-device #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
@@ -945,14 +989,53 @@
       html.touch-device textarea {
         font-size: 16px !important;
       }
+      /* 第一人称操作在竖屏可用但空间很紧；只给出不挡操作的横屏建议。 */
+      #orientation-tip { display: none; }
+      @media (pointer: coarse) and (orientation: portrait) {
+        html.touch-device #touch-controls.active + #orientation-tip {
+          position: fixed;
+          z-index: 28;
+          top: max(58px, calc(env(safe-area-inset-top) + 48px));
+          left: 50%;
+          transform: translateX(-50%);
+          display: block;
+          max-width: calc(100vw - 32px);
+          padding: 6px 10px;
+          box-sizing: border-box;
+          color: rgba(255,255,255,.92);
+          background: rgba(0,0,0,.45);
+          border: 1px solid rgba(255,255,255,.28);
+          font: 11px 'Zpix', monospace;
+          text-align: center;
+          pointer-events: none;
+        }
+      }
+      /* 极窄竖屏上“蹲”会和右侧挖/用键重叠，改到左摇杆正上方。 */
+      @media (pointer: coarse) and (orientation: portrait) and (max-width: 340px) {
+        #touch-crouch {
+          left: max(18px, env(safe-area-inset-left));
+          bottom: max(218px, calc(env(safe-area-inset-bottom) + 208px));
+          width: 48px;
+          height: 48px;
+        }
+      }
 
       @media (pointer: coarse) and (max-height: 520px) {
+        /* 短横屏打开设置时从顶部开始排，内容可完整向下滚动。 */
+        #settings {
+          align-items: flex-start !important;
+          justify-content: center !important;
+          padding: 16px 0;
+          box-sizing: border-box;
+        }
+        #settings .settings-card { margin: 0 auto !important; }
         .touch-stick { width: 104px; height: 104px; bottom: max(58px, calc(env(safe-area-inset-bottom) + 50px)); }
         .touch-stick-knob { width: 46px; height: 46px; margin: -23px; }
         #touch-crouch { left: max(124px, calc(env(safe-area-inset-left) + 114px)); bottom: max(68px, calc(env(safe-area-inset-bottom) + 60px)); }
         #touch-jump { bottom: max(61px, calc(env(safe-area-inset-bottom) + 53px)); }
         #touch-mine { bottom: max(104px, calc(env(safe-area-inset-bottom) + 96px)); }
-        #touch-use { bottom: max(43px, calc(env(safe-area-inset-bottom) + 35px)); }
+        /* 避开底部快捷栏，防止按“放/用”下沿时误点选物品。 */
+        #touch-use { bottom: max(55px, calc(env(safe-area-inset-bottom) + 47px)); }
       }
       /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
       #boot {
@@ -1123,7 +1206,7 @@
         <p class="ctrl">
           <span class="desktop-help">WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
           空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span>
-          <span class="touch-help">左摇杆移动 · 右半屏拖动视角 · 点快捷栏选物品<br />
+          <span class="touch-help">左半屏拖动移动 · 右半屏拖动视角 · 点快捷栏选物品<br />
           按住“挖/打”挖掘 · “放/用”交互 · 推满摇杆自动疾跑</span>
         </p>
         <button id="about-close" class="btn">关闭</button>
@@ -1175,6 +1258,7 @@
     <div id="hurt"></div>
     <div id="touch-controls" aria-hidden="true">
       <div class="touch-look" aria-label="拖动视角"></div>
+      <div class="touch-move-zone" aria-label="拖动移动"></div>
       <div class="touch-stick" aria-label="移动摇杆"><div class="touch-stick-knob"></div></div>
       <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">Ⅱ</button>
       <button id="touch-inventory" class="touch-button" type="button" aria-label="背包">背包</button>
@@ -1183,6 +1267,7 @@
       <button id="touch-use" class="touch-button" type="button" aria-label="放置或使用">放/用</button>
       <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">跳</button>
     </div>
+    <div id="orientation-tip" aria-hidden="true">建议横屏游玩，操作空间更大</div>
     <div id="death">
       <h2>你死了！</h2>
       <button id="respawn" class="btn btn-wide">重生</button>

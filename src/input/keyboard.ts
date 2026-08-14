@@ -19,6 +19,18 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyW') sprinting = false; // 松开 W 停止疾跑
 });
 
+// 切标签页、弹系统菜单或蓝牙键盘断开时，浏览器未必发 keyup；清空状态避免角色一直走。
+function resetKeys(): void {
+  keys.clear();
+  sprinting = false;
+  pendingJump = false;
+  lastWPress = -Infinity;
+}
+window.addEventListener('blur', resetKeys);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) resetKeys();
+});
+
 export interface MoveKeys {
   forward: number;
   right: number;

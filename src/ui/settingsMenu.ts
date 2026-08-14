@@ -35,9 +35,10 @@ export class SettingsMenu {
     ensureControlStyles(); // 注入像素风拉杆/复选框样式
     // 占满全屏的设置页（不再是小浮窗）：不透明深底铺满，控件居中成列。
     root.style.cssText =
-      'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#0e1a28;';
+      'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#0e1a28;' +
+      'overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;';
     root.innerHTML = `
-      <div class="settings-card" style="width:min(560px,90vw);color:#dce8f2;font-family:'Zpix',monospace;display:flex;flex-direction:column;gap:24px;">
+      <div class="settings-card" style="width:min(560px,90vw);margin:24px auto;color:#dce8f2;font-family:'Zpix',monospace;display:flex;flex-direction:column;gap:24px;">
         <h2 class="screen-title" style="margin:0 0 4px;text-align:center;">设置</h2>
         <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">音量</span>

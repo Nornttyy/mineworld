@@ -10,6 +10,9 @@ import { iconUrl, itemLabel } from './itemIcons';
 const maxOf = (id: number): number => itemMaxStack(id);
 const HOTBAR = 9;
 const MAIN = 27;
+// 手机上没有右键：按住不动一小会儿，等同于桌面的右键。
+const TOUCH_HOLD_MS = 420;
+const TOUCH_MOVE_TOLERANCE = 12;
 
 interface Cell {
   el: HTMLElement;
@@ -27,6 +30,12 @@ interface DragState {
   swept: SlotRef[]; // 划过的格子（distribute）
   sweptKeys: Set<string>;
   sweptCells: Cell[]; // 高亮过的格子，松手时清除
+  pointerId: number;
+  touch: boolean;
+  startX: number;
+  startY: number;
+  holdTimer: number | null;
+  longPressed: boolean;
 }
 
 export class InventoryUI {
@@ -69,7 +78,7 @@ export class InventoryUI {
         </div>
         <div class="inv-main"></div>
         <div class="inv-hotbar"></div>
-        <div class="inv-hint">E / Esc 关闭 · 左键拿放 · 右键放一个/拿一半 · Shift 快速转移</div>
+        <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭</div>
       </div>`;
     this.titleEl = root.querySelector('.inv-title') as HTMLElement;
     (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
@@ -100,6 +109,9 @@ export class InventoryUI {
     document.addEventListener('pointerup', (e) => {
       if (this.open && this.drag) this.endDrag(e);
     });
+    document.addEventListener('pointercancel', (e) => {
+      if (this.open && this.drag?.pointerId === e.pointerId) this.cancelDrag();
+    });
   }
 
   private makeSlot(parent: HTMLElement, region: Region, i: number): Cell {
@@ -107,12 +119,15 @@ export class InventoryUI {
     el.className = 'inv-slot';
     el.dataset.region = region;
     el.dataset.idx = String(i);
+    // 防止触屏拖动物品时被浏览器当成滚动/长按菜单。
+    el.style.touchAction = 'none';
     const icon = document.createElement('div');
     icon.className = 'slot-icon';
     const cnt = document.createElement('div');
     cnt.className = 'slot-count';
     el.append(icon, cnt);
     el.addEventListener('pointerdown', (e) => {
+      if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2)) return;
       e.preventDefault();
       this.beginDrag(region, i, e);
     });
@@ -169,7 +184,7 @@ export class InventoryUI {
   }
 
   // 鼠标按下：输出槽/Shift 即时处理；其余挂起为「待定拖拽」，松手或划格时再决定是点击还是手势。
-  private beginDrag(region: Region, i: number, e: MouseEvent): void {
+  private beginDrag(region: Region, i: number, e: PointerEvent): void {
     if (!this.inv) return;
     this.cursorEl.style.left = `${e.clientX}px`;
     this.cursorEl.style.top = `${e.clientY}px`;
@@ -194,13 +209,26 @@ export class InventoryUI {
       swept: [],
       sweptKeys: new Set(),
       sweptCells: [],
+      pointerId: e.pointerId,
+      touch: e.pointerType === 'touch',
+      startX: e.clientX,
+      startY: e.clientY,
+      holdTimer: null,
+      longPressed: false,
     };
+    if (this.drag.touch) this.startTouchHold(this.drag);
   }
 
   // 拖拽移动：首次划到别的格 → 正式开始（distribute 收集划过的格；move 把起点整组拿到光标）。
-  private onDragMove(e: MouseEvent): void {
+  private onDragMove(e: PointerEvent): void {
     const d = this.drag;
-    if (!d || !this.inv) return;
+    if (!d || !this.inv || d.pointerId !== e.pointerId) return;
+    if (d.touch && !d.longPressed) {
+      const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if (moved > TOUCH_MOVE_TOLERANCE) this.clearTouchHold(d);
+    }
+    // 长按已作为一次右键处理，松手时不能再补一次普通左键。
+    if (d.longPressed) return;
     const hit = this.slotAt(e);
     if (!d.started) {
       if (!hit || (hit.region === d.region && hit.i === d.i)) return; // 还没离开起点格
@@ -218,11 +246,14 @@ export class InventoryUI {
   }
 
   // 松手提交：没划动=普通点击；distribute=平分/每格1；move=放到松手所在格(否则留光标)。
-  private endDrag(e: MouseEvent): void {
+  private endDrag(e: PointerEvent): void {
     const d = this.drag;
+    if (!d || d.pointerId !== e.pointerId) return;
+    this.clearTouchHold(d);
     this.drag = null;
     for (const c of d?.sweptCells ?? []) c.el.classList.remove('inv-drag-hi');
-    if (!d || !this.inv) return;
+    if (!this.inv) return;
+    if (d.longPressed) return;
     if (!d.started) {
       this.applyClick(d.region, d.i, d.right); // 原地按放 = 普通左右键点击
     } else if (d.mode === 'distribute') {
@@ -242,8 +273,27 @@ export class InventoryUI {
 
   private cancelDrag(): void {
     if (!this.drag) return;
+    this.clearTouchHold(this.drag);
     for (const c of this.drag.sweptCells) c.el.classList.remove('inv-drag-hi');
     this.drag = null;
+  }
+
+  private startTouchHold(d: DragState): void {
+    d.holdTimer = window.setTimeout(() => {
+      d.holdTimer = null;
+      if (!this.open || this.drag !== d || d.started || !this.inv) return;
+      d.longPressed = true;
+      // 触屏长按等同右键：空手从一叠中拿一半；持物时只放一个。
+      this.applyClick(d.region, d.i, true);
+      this.render();
+      this.onChange?.();
+    }, TOUCH_HOLD_MS);
+  }
+
+  private clearTouchHold(d: DragState): void {
+    if (d.holdTimer === null) return;
+    window.clearTimeout(d.holdTimer);
+    d.holdTimer = null;
   }
 
   private addSwept(d: DragState, region: Region, i: number): void {
@@ -287,7 +337,7 @@ export class InventoryUI {
   }
 
   // 鼠标位置下的格子（命中测试），无则 null。
-  private slotAt(e: MouseEvent): { region: Region; i: number } | null {
+  private slotAt(e: Pick<PointerEvent, 'clientX' | 'clientY'>): { region: Region; i: number } | null {
     const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
     const el = hit?.closest('.inv-slot') as HTMLElement | null;
     if (!el || el.dataset.region === undefined) return null;
