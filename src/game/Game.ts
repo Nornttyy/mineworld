@@ -96,6 +96,8 @@ import { SkyObjects } from '../render/SkyObjects';
 import { spawnBurst, stepParticles, particleColor, type Particle } from '../core/particles/particles';
 import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
+import { MultiplayerClient, type BlockEdit } from '../multiplayer/MultiplayerClient';
+import { RemotePlayerRenderer } from '../render/RemotePlayerRenderer';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
@@ -186,6 +188,9 @@ export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
+  /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。 */
+  private readonly multiplayer: MultiplayerClient | null;
+  private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
   private readonly touch: TouchControls | null;
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
@@ -266,13 +271,15 @@ export class Game {
   private readonly _godSunWorld = new THREE.Vector3();
   private readonly _godFwd = new THREE.Vector3(); // 相机朝向（判太阳是否在前方，防背后投影出 NaN→黑屏）
 
-  constructor(canvas: HTMLCanvasElement, save: WorldSave) {
+  constructor(canvas: HTMLCanvasElement, save: WorldSave, multiplayer: MultiplayerClient | null = null) {
     const settings = loadSettings();
     setIconTexturePack(settings.texturePack);
     this.canvas = canvas;
     this.save = save;
     this.creative = save.gameMode === 'creative';
     this.renderer = new Renderer(canvas);
+    this.multiplayer = multiplayer;
+    this.remotePlayers = new RemotePlayerRenderer(this.renderer.scene);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
@@ -311,6 +318,9 @@ export class Game {
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
     this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
+    // welcome 到创建 Game 之间可能已经收到了别人的方块包；MultiplayerClient 会排队，直到这里世界/网格都就绪后再交付。
+    this.multiplayer?.setBlockHandler((edit) => this.applyRemoteBlockEdit(edit));
+    this.multiplayer?.setWorldTimeHandler((worldTime) => this.setNetworkWorldTime(worldTime));
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
@@ -477,6 +487,20 @@ export class Game {
       jumpHeld: keyboard.jumpHeld || touch.jumpHeld,
       crouch: keyboard.crouch || touch.crouch,
     };
+  }
+
+  /** 固定步长物理之后采样本机状态；client 自己节流到 15Hz，避免每 20TPS 都发包。 */
+  private publishMultiplayerState(): void {
+    if (!this.multiplayer) return;
+    const p = this.player.pos;
+    this.multiplayer.sendState({
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      yaw: this.look.yaw,
+      pitch: this.look.pitch,
+      dimension: this.dimension,
+    });
   }
 
   private beginPrimaryAction(): void {
@@ -719,6 +743,8 @@ export class Game {
 
   start(): void {
     this.last = performance.now();
+    // 先发一次出生位置；桌面端在点进指针锁定前也能让已在房内的玩家看见自己。
+    this.publishMultiplayerState();
     const frame = (now: number): void => {
       requestAnimationFrame(frame);
       const dt = Math.min(now - this.last, 100) / 1000; // 帧间隔(秒)，限幅防卡顿跳变
@@ -757,6 +783,7 @@ export class Game {
           },
           this.physWorld,
         );
+        this.publishMultiplayerState();
         this.stepSurvival(m.sprint, jumped);
         if (++this.worldTime >= DAY_LENGTH) this.worldTime = 0; // 昼夜推进：每模拟刻 +1（暂停即冻结）
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
@@ -837,6 +864,12 @@ export class Game {
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
       this.mobRenderer.sync(this.mobs, dt, this.entityLight); // 生物模型跟随/动画(+按所在处光照变暗)
+      // 远端玩家走独立渲染器，绝不塞进 mobs（否则会被本地 AI/攻击系统接管）。
+      this.remotePlayers.sync(
+        this.multiplayer?.remotePlayers.filter((player) => player.dimension === this.dimension) ?? [],
+        dt,
+        this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z),
+      );
       this.arrowRenderer.sync(this.arrows); // 箭模型跟随
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
@@ -1171,6 +1204,37 @@ export class Game {
     this.save.edits[dimEditKey(this.dimension, x, y, z)] = id; // 按维度前缀键存(下界 "nether:" 前缀)，避免跨维度污染
     this.fluidSim.activate(x, y, z); // 让相邻的水流进/退去
     this.chunks.remeshDirty();
+    // 本地所有正常挖/放都会经过 edit；联机时把最终方块值发给同一房间。
+    this.multiplayer?.sendBlock({ dimension: this.dimension, x, y, z, id });
+  }
+
+  /** 应用服务端确认/其他玩家送来的方块改动；不走 edit，避免收到广播后又发回服务器形成循环。 */
+  private applyRemoteBlockEdit(edit: BlockEdit): void {
+    if (
+      (edit.dimension !== 'overworld' && edit.dimension !== 'nether') ||
+      !Number.isInteger(edit.x) ||
+      !Number.isInteger(edit.y) ||
+      !Number.isInteger(edit.z) ||
+      !Number.isInteger(edit.id) ||
+      edit.y < 0 ||
+      edit.y >= CHUNK_H
+    )
+      return;
+    this.save.edits[dimEditKey(edit.dimension, edit.x, edit.y, edit.z)] = edit.id;
+    if (edit.dimension !== this.dimension) return;
+    // 远处其他玩家可能在几千格外建造；不能为一条网络包同步生成整列区块，否则会把本机卡住。
+    // delta 已写入 save，等玩家走近时 buildDimension 的 editHook 会自动贴回这一格。
+    if (!this.world.peek(worldToChunk(edit.x), worldToChunk(edit.z))) return;
+    this.world.setBlock(edit.x, edit.y, edit.z, edit.id);
+    this.fluidSim.activate(edit.x, edit.y, edit.z);
+    this.chunks.remeshDirty();
+  }
+
+  /** 服务端偶尔校正世界时间，避免有人暂停后与房间里的昼夜越走越远。 */
+  private setNetworkWorldTime(worldTime: number): void {
+    if (!Number.isFinite(worldTime)) return;
+    const normalized = Math.floor(worldTime) % DAY_LENGTH;
+    this.worldTime = normalized < 0 ? normalized + DAY_LENGTH : normalized;
   }
 
   // 只写存档 delta（不动当前世界——给「另一个未加载维度」写方块用：切过去 buildDimension 时应用）。

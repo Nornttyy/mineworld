@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mineworld-multiplayer-nornttyy
+    runtime: node
+    region: singapore
+    plan: free
+    branch: main
+    buildCommand: npm ci
+    startCommand: npm run start:multiplayer
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://nornttyy.github.io,http://localhost:5173,http://127.0.0.1:5173

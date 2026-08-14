@@ -1,8 +1,14 @@
 import { Game } from './game/Game';
 import { MenuBackground } from './render/MenuBackground';
-import { listWorlds, createWorld, saveWorld, deleteWorld, parseSeed, type WorldSave, type GameMode } from './save/worldStore';
+import { listWorlds, createWorld, saveWorld, deleteWorld, parseSeed, dimEditKey, type WorldSave, type GameMode } from './save/worldStore';
 import { SettingsMenu } from './ui/settingsMenu';
 import { installTouchZoomGuards, supportsTouchControls } from './input/TouchControls';
+import {
+  MultiplayerClient,
+  multiplayerServerUrl,
+  normalizePlayerName,
+  normalizeRoomCode,
+} from './multiplayer/MultiplayerClient';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -16,10 +22,13 @@ let menubg: MenuBackground | null = new MenuBackground(menubgCanvas);
 
 const menu = $('menu');
 const worldlist = $('worldlist');
+const multiplayerMenu = $('multiplayer');
 const pause = $('pause');
 const worldRows = $('world-rows');
+const onlineHud = $('online-hud');
 
 let game: Game | null = null;
+let multiplayer: MultiplayerClient | null = null;
 
 // 加载/启动界面（MC 风，#boot 已写在 HTML、JS 加载前就显示 → 无白屏）：切显隐 + 改提示文字。
 const bootEl = $('boot');
@@ -91,16 +100,17 @@ function setHud(show: boolean): void {
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
   $('status').style.display = show ? 'flex' : 'none';
+  onlineHud.classList.toggle('hidden', !show || multiplayer === null);
   game?.setTouchActive(show && touchMode);
 }
 
 function showOnly(el: HTMLElement | null): void {
-  for (const s of [menu, worldlist, pause]) s.classList.add('hidden');
+  for (const s of [menu, worldlist, multiplayerMenu, pause]) s.classList.add('hidden');
   $('newworld').classList.add('hidden'); // 切屏时关掉创建弹窗
   if (el) el.classList.remove('hidden');
   setHud(false);
   // 旋转背景只在主菜单/存档界面显示
-  const bg = el === menu || el === worldlist;
+  const bg = el === menu || el === worldlist || el === multiplayerMenu;
   menubgCanvas.style.display = bg ? 'block' : 'none';
   if (bg) menubg?.start();
   else menubg?.stop();
@@ -134,6 +144,127 @@ $('settings-btn').addEventListener('click', () => settingsMenu.show());
 $('settings-btn-pause').addEventListener('click', () => settingsMenu.show());
 
 $('play').addEventListener('click', () => openWorldList());
+
+// --- 在线房间 ---
+const mpName = $('mp-name') as HTMLInputElement;
+const mpRoom = $('mp-room') as HTMLInputElement;
+const mpStatus = $('mp-status');
+const mpCreate = $('mp-create') as HTMLButtonElement;
+const mpJoin = $('mp-join') as HTMLButtonElement;
+let mpGameMode: GameMode = 'creative';
+let mpConnecting = false;
+
+function setMpStatus(text: string, error = false): void {
+  mpStatus.textContent = text;
+  mpStatus.classList.toggle('error', error);
+}
+
+function setMpGameMode(mode: GameMode): void {
+  mpGameMode = mode;
+  $('mp-creative').classList.toggle('active', mode === 'creative');
+  $('mp-survival').classList.toggle('active', mode === 'survival');
+  $('mp-mode-desc').textContent =
+    mode === 'creative'
+      ? '创造模式：适合和朋友一起搭建；玩家与方块会实时同步。'
+      : '生存模式：玩家与方块会实时同步；生物、掉落物和背包暂各自本地运行。';
+}
+
+function randomRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'MW';
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function updateOnlineHud(extra = ''): void {
+  if (!multiplayer) {
+    onlineHud.classList.add('hidden');
+    return;
+  }
+  onlineHud.textContent = extra || `联机 · 房间 ${multiplayer.room.id.toUpperCase()}\n${multiplayer.playerCount} 名玩家`;
+}
+
+function openMultiplayerMenu(): void {
+  try {
+    mpName.value = localStorage.getItem('mineworld.multiplayer.name') ?? '';
+  } catch {
+    // 隐私模式下 localStorage 不可用也应能联机。
+  }
+  mpRoom.value = normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? mpRoom.value);
+  setMpGameMode('creative');
+  setMpStatus('创建一个新房间，或输入朋友给你的房间号。');
+  showOnly(multiplayerMenu);
+  mpName.focus();
+}
+
+function onlineWorld(client: MultiplayerClient): WorldSave {
+  const edits: Record<string, number> = {};
+  for (const edit of client.initialEdits) edits[dimEditKey(edit.dimension, edit.x, edit.y, edit.z)] = edit.id;
+  const room = client.room;
+  return {
+    id: `online:${room.id}:${room.seed}`,
+    name: `联机 · ${room.id.toUpperCase()}`,
+    seed: room.seed,
+    gameMode: room.gameMode,
+    lastPlayed: Date.now(),
+    edits,
+    worldTime: room.worldTime,
+  };
+}
+
+async function connectMultiplayer(action: 'create' | 'join'): Promise<void> {
+  if (mpConnecting) return;
+  let room = normalizeRoomCode(mpRoom.value);
+  if (action === 'create' && room.length < 3) room = randomRoomCode();
+  if (room.length < 3) {
+    setMpStatus('请输入至少 3 位的房间号。', true);
+    mpRoom.focus();
+    return;
+  }
+  const name = normalizePlayerName(mpName.value);
+  mpRoom.value = room;
+  mpName.value = name;
+  try {
+    localStorage.setItem('mineworld.multiplayer.name', name);
+  } catch {
+    // 不影响实际连接。
+  }
+  mpConnecting = true;
+  mpCreate.disabled = true;
+  mpJoin.disabled = true;
+  showOnly(null);
+  showLoading(true, action === 'create' ? '正在创建联机房间…' : '正在加入联机房间…');
+  try {
+    const client = await MultiplayerClient.connect({
+      url: multiplayerServerUrl(),
+      action,
+      room,
+      name,
+      gameMode: mpGameMode,
+    });
+    startGame(onlineWorld(client), client);
+  } catch (error) {
+    showLoading(false);
+    setMpStatus(error instanceof Error ? error.message : '连接联机服务器失败。', true);
+    showOnly(multiplayerMenu);
+  } finally {
+    mpConnecting = false;
+    mpCreate.disabled = false;
+    mpJoin.disabled = false;
+  }
+}
+
+$('multiplayer-play').addEventListener('click', () => openMultiplayerMenu());
+$('mp-create').addEventListener('click', () => void connectMultiplayer('create'));
+$('mp-join').addEventListener('click', () => void connectMultiplayer('join'));
+$('mp-back').addEventListener('click', () => showOnly(menu));
+$('mp-creative').addEventListener('click', () => setMpGameMode('creative'));
+$('mp-survival').addEventListener('click', () => setMpGameMode('survival'));
+for (const input of [mpName, mpRoom]) {
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') void connectMultiplayer('join');
+  });
+}
 $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen();
@@ -218,8 +349,22 @@ for (const inp of [nwName, nwSeed]) {
 $('worldlist-back').addEventListener('click', () => showOnly(menu));
 
 // --- 进入游戏 ---
-function startGame(world: WorldSave): void {
-  if (game) return;
+function startGame(world: WorldSave, online: MultiplayerClient | null = null): void {
+  if (game) {
+    online?.disconnect('游戏已经在运行');
+    return;
+  }
+  multiplayer = online;
+  $('save-quit').textContent = online ? '退出房间' : '保存并退出';
+  if (online) {
+    online.onPlayersChanged = () => updateOnlineHud();
+    online.onDisconnect = (reason) => {
+      if (multiplayer !== online) return;
+      onlineHud.classList.remove('hidden');
+      onlineHud.textContent = `联机已断开\n${reason}`;
+    };
+    updateOnlineHud();
+  }
   showOnly(null);
   showLoading(true, '进入中…');
   // 进游戏前先彻底释放菜单背景世界(整套区块网格 + worker + 第二个 WebGL 上下文)，
@@ -236,7 +381,7 @@ function startGame(world: WorldSave): void {
     requestAnimationFrame(async () => {
       try {
         showLoading(true, '进入中…①构建世界');
-        game = new Game(canvas, world);
+        game = new Game(canvas, world, online);
         showLoading(true, '进入中…②生成出生区块');
         await Promise.race([game.preloadSpawn(), timeout(12000)]); // 出生预载封顶 12s，超时也进游戏(地形会继续补)
         showLoading(true, '进入中…③启动渲染');
@@ -251,6 +396,10 @@ function startGame(world: WorldSave): void {
       } catch (e) {
         // 任何报错都显示到加载界面，别再静默卡死（方便定位"进不去"到底卡在哪）
         console.error('[startGame] 进入游戏失败:', e);
+        if (multiplayer === online) {
+          online?.disconnect('进入世界失败');
+          multiplayer = null;
+        }
         const msg = e instanceof Error ? `${e.stack ?? e.message}` : String(e);
         showLoading(true, `进入失败：${msg}`);
       }
@@ -259,6 +408,10 @@ function startGame(world: WorldSave): void {
 }
 
 // --- 暂停 / 存盘 ---
+function saveLocalGame(): void {
+  if (game && multiplayer === null) saveWorld(game.snapshot());
+}
+
 $('resume').addEventListener('click', () => {
   if (touchMode) {
     pause.classList.add('hidden');
@@ -266,8 +419,10 @@ $('resume').addEventListener('click', () => {
   } else void canvas.requestPointerLock();
 });
 $('save-quit').addEventListener('click', () => {
-  if (game) saveWorld(game.snapshot());
-  showLoading(true, '保存并返回主菜单…'); // 退出也过加载界面
+  const leavingOnline = multiplayer !== null;
+  saveLocalGame();
+  multiplayer?.disconnect('玩家退出房间');
+  showLoading(true, leavingOnline ? '正在退出联机房间…' : '保存并返回主菜单…'); // 退出也过加载界面
   location.reload(); // 干净重置；reload 后走启动流程(加载界面 + 菜单背景预加载)
 });
 
@@ -281,7 +436,7 @@ document.addEventListener('pointerlockchange', () => {
     death.style.display = 'none';
     setHud(true);
   } else if (game) {
-    saveWorld(game.snapshot());
+    saveLocalGame();
     if (game.isCraftingOpen()) return; // 合成界面：保持 HUD、不弹暂停
     setHud(false);
     if (game.isDead()) death.style.display = 'flex';
@@ -292,7 +447,7 @@ document.addEventListener('pointerlockchange', () => {
 // 触屏没有 Pointer Lock，虚拟按钮通过事件让外层 UI 显示暂停/死亡页。
 window.addEventListener('mineworld:touch-pause', () => {
   if (!game || game.isDead()) return;
-  saveWorld(game.snapshot());
+  saveLocalGame();
   setHud(false);
   pause.classList.remove('hidden');
 });
@@ -313,8 +468,9 @@ $('respawn').addEventListener('click', () => {
 
 // 定时自动存盘 + 关页面前存盘
 setInterval(() => {
-  if (game?.isGameplayActive()) saveWorld(game.snapshot());
+  if (game?.isGameplayActive()) saveLocalGame();
 }, 15000);
 window.addEventListener('beforeunload', () => {
-  if (game) saveWorld(game.snapshot());
+  saveLocalGame();
+  multiplayer?.disconnect('页面关闭');
 });

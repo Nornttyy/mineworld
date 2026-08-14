@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:multiplayer": "node --watch server/index.mjs",
+    "start:multiplayer": "node server/index.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -28,6 +30,7 @@
     "vitest": "1.6.0"
   },
   "dependencies": {
-    "three": "0.165.0"
+    "three": "0.165.0",
+    "ws": "8.21.3"
   }
 }
