@@ -11,27 +11,58 @@
         src: url('./fonts/zpix.woff2?v=2') format('woff2');
         font-display: swap;
       }
+      /*
+       * 游戏是单屏应用，页面本身绝不能参与滚动。
+       * 手机上的地址栏收放 / 下拉回弹会把普通 body 拉出视口，露出一条没有
+       * 被 canvas 覆盖的背景。把根节点和 body 固定成同一个动态视口，内部需要
+       * 滚动的世界列表、背包等仍各自拥有 overflow-y:auto。
+       */
       html,
       body {
         margin: 0;
         width: 100%;
         height: 100%;
+        min-height: 100%;
         overflow: hidden;
+        overscroll-behavior: none;
         background: #87ceeb;
+      }
+      html {
+        position: fixed;
+        inset: 0;
+      }
+      body {
+        position: fixed;
+        inset: 0;
+        -webkit-overflow-scrolling: auto;
       }
       @supports (height: 100dvh) {
         html,
         body {
           height: 100dvh;
+          min-height: 100dvh;
+        }
+      }
+      @supports (overflow: clip) {
+        html,
+        body {
+          overflow: clip;
         }
       }
       #app {
         position: fixed;
         inset: 0;
-        width: 100%;
-        height: 100%;
+        /* Three.js resize 会写行内 width/height；这里必须覆盖它，才能在
+           手机浏览器收放工具栏后持续铺满动态视口。 */
+        width: 100vw !important;
+        height: 100vh !important;
         display: block;
         cursor: pointer;
+      }
+      @supports (height: 100dvh) {
+        #app {
+          height: 100dvh !important;
+        }
       }
       #app {
         z-index: 0;
@@ -40,11 +71,19 @@
       #menubg {
         position: fixed;
         inset: 0;
+        /* 与 #app 同理：菜单画布不能因 WebGL 的旧视口尺寸露边。 */
+        width: 100vw !important;
+        height: 100vh !important;
         z-index: 1;
         display: block;
         filter: blur(8px);
         /* 放大一点：盖住 blur 在屏幕四边产生的透明描边 */
         transform: scale(1.08);
+      }
+      @supports (height: 100dvh) {
+        #menubg {
+          height: 100dvh !important;
+        }
       }
       #menu,
       #worldlist,
@@ -1317,7 +1356,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-BhFSs8YQ.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-CXIpdBp7.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1340,7 +1379,7 @@
           <div id="splash"></div>
         </div>
         <button id="play" class="btn btn-wide">单人游戏</button>
-        <button id="multiplayer-play" class="btn btn-wide">联机游戏</button>
+        <button id="multiplayer-play" class="btn btn-wide">加入联机房间</button>
         <div class="btn-row">
           <button id="fullscreen" class="btn">全屏</button>
           <button id="settings-btn" class="btn">设置</button>
@@ -1391,24 +1430,21 @@
       </div>
     </div>
     <div id="multiplayer" class="hidden">
-      <h2>联机游戏</h2>
-      <p class="mp-intro">创建房间后，把房间号告诉朋友；同一房间会共享世界和方块改动。</p>
+      <h2 id="mp-title">加入联机房间</h2>
+      <p id="mp-intro" class="mp-intro">输入朋友给你的房间号，即可进入同一个世界。</p>
       <label class="mp-field">你的名字
         <input id="mp-name" type="text" maxlength="16" autocomplete="nickname" placeholder="玩家" />
       </label>
       <label class="mp-field">房间号
         <input id="mp-room" type="text" maxlength="16" autocapitalize="characters" autocomplete="off" placeholder="例如 A8K2M" />
       </label>
-      <div class="mp-field">创建模式
-        <div class="nw-modes">
-          <button id="mp-creative" class="nw-mode active" type="button">创造</button>
-          <button id="mp-survival" class="nw-mode" type="button">生存</button>
-        </div>
+      <div id="mp-mode-field" class="mp-field hidden">当前世界
+        <div id="mp-current-mode">创造模式</div>
         <div id="mp-mode-desc" class="nw-desc">创造模式：适合和朋友一起搭建；玩家与方块会实时同步。</div>
       </div>
-      <p id="mp-status" role="status">创建一个新房间，或输入朋友给你的房间号。</p>
+      <p id="mp-status" role="status">输入房间号后加入。</p>
       <div class="btn-row">
-        <button id="mp-create" class="btn" type="button">创建房间</button>
+        <button id="mp-create" class="btn hidden" type="button">开启房间</button>
         <button id="mp-join" class="btn" type="button">加入房间</button>
       </div>
       <button id="mp-back" class="btn" type="button">返回</button>
@@ -1416,6 +1452,7 @@
     <div id="pause" class="hidden">
       <h2 class="screen-title">已暂停</h2>
       <button id="resume" class="btn btn-wide">继续游戏</button>
+      <button id="open-room" class="btn btn-wide">开启联机房间</button>
       <button id="settings-btn-pause" class="btn btn-wide">设置</button>
       <button id="save-quit" class="btn btn-wide">保存并退出</button>
     </div>
