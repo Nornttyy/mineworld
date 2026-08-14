@@ -60,8 +60,8 @@ const bootSplashEl = bootEl.querySelector('.boot-splash') as HTMLElement | null;
 if (bootSplashEl) bootSplashEl.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 const BOOT_HINTS = touchMode
   ? [
-      '提示: 左半屏拖动移动，右半屏拖动视角',
-      '提示: 摇杆向前推满可以疾跑',
+      '提示: 左侧方向键移动，右半屏拖动视角',
+      '提示: 双击前进后按住可以疾跑',
       '提示: 按住“挖/打”挖方块',
       '提示: 点“放/用”放置方块或使用物品',
       '提示: 可以直接点快捷栏切换物品',

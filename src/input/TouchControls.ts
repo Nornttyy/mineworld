@@ -1,7 +1,8 @@
 import type { MoveKeys } from './keyboard';
 
 const LOOK_SENSITIVITY = 0.004;
-const STICK_DEAD_ZONE = 0.12;
+/** 与键盘双击 W 一致：第二次按下前进后保持按住，即进入疾跑。 */
+export const TOUCH_SPRINT_DOUBLE_TAP_MS = 320;
 // 浏览器在掉帧、切回页面时可能合并多次 pointermove；限制单次转向，避免镜头突然甩飞。
 const MAX_LOOK_DELTA = 72;
 
@@ -16,19 +17,22 @@ export interface TouchControlActions {
   pause(): void;
 }
 
-export interface StickVector {
-  x: number;
-  y: number;
-  strength: number;
+export type TouchDirection = 'forward' | 'back' | 'left' | 'right';
+
+/**
+ * 十字键允许多键同时按住：前/后、左/右相反方向会互相抵消，斜向移动则保留两个轴。
+ * 保持为纯函数，方便测试，也避免输入状态和画面控件相互耦合。
+ */
+export function dpadAxes(held: ReadonlySet<TouchDirection>): Pick<MoveKeys, 'forward' | 'right'> {
+  return {
+    forward: Number(held.has('forward')) - Number(held.has('back')),
+    right: Number(held.has('right')) - Number(held.has('left')),
+  };
 }
 
-/** 把触点限制在圆形摇杆内，并应用死区。y 向上为正。 */
-export function stickVector(dx: number, dy: number, radius: number): StickVector {
-  const safeRadius = Math.max(1, radius);
-  const rawStrength = Math.min(1, Math.hypot(dx, dy) / safeRadius);
-  if (rawStrength < STICK_DEAD_ZONE) return { x: 0, y: 0, strength: 0 };
-  const scale = rawStrength / (Math.hypot(dx, dy) || 1);
-  return { x: dx * scale, y: -dy * scale, strength: rawStrength };
+/** 第二次按下前进必须落在短时间窗口内，边界时间也算连续双击。 */
+export function isTouchSprintDoubleTap(previousPress: number, currentPress: number): boolean {
+  return currentPress - previousPress >= 0 && currentPress - previousPress <= TOUCH_SPRINT_DOUBLE_TAP_MS;
 }
 
 /** 手机/平板自动启用；?touch=1 可在桌面浏览器调试。 */
@@ -80,22 +84,20 @@ export function installTouchZoomGuards(): void {
 }
 
 /**
- * 触屏第一人称输入：左摇杆移动、右半屏滑动视角，按钮负责动作。
+ * 触屏第一人称输入：左下十字键移动、右半屏滑动视角，按钮负责动作。
  * Pointer Events 让多指操作成立（移动、转向、跳跃可以同时按）。
  */
 export class TouchControls {
   private readonly root: HTMLElement;
-  private readonly moveZone: HTMLElement;
-  private readonly stick: HTMLElement;
-  private readonly knob: HTMLElement;
   private readonly actions: TouchControlActions;
-  private stickPointer: number | null = null;
   private lookPointer: number | null = null;
   private lookX = 0;
   private lookY = 0;
   private forward = 0;
   private right = 0;
-  private strength = 0;
+  private readonly heldDirections = new Set<TouchDirection>();
+  private lastForwardPress = -Infinity;
+  private sprinting = false;
   private jumpHeld = false;
   private crouchHeld = false;
   private pendingJump = false;
@@ -105,37 +107,7 @@ export class TouchControls {
   constructor(root: HTMLElement, actions: TouchControlActions) {
     this.root = root;
     this.actions = actions;
-    this.moveZone = root.querySelector('.touch-move-zone') as HTMLElement;
-    this.stick = root.querySelector('.touch-stick') as HTMLElement;
-    this.knob = root.querySelector('.touch-stick-knob') as HTMLElement;
     const look = root.querySelector('.touch-look') as HTMLElement;
-
-    // 左下半屏都可以直接起步：手指不必先精确按到小小的固定摇杆。
-    // 按下后摇杆会出现在手指下方，松开再回到默认位置。
-    this.moveZone.addEventListener('pointerdown', (e) => this.beginStick(e, true));
-    this.moveZone.addEventListener('pointermove', (e) => {
-      if (e.pointerId === this.stickPointer) this.updateStick(e);
-    });
-    const endMoveZoneStick = (e: PointerEvent): void => {
-      if (e.pointerId !== this.stickPointer) return;
-      this.endStick();
-    };
-    this.moveZone.addEventListener('pointerup', endMoveZoneStick);
-    this.moveZone.addEventListener('pointercancel', endMoveZoneStick);
-    this.moveZone.addEventListener('lostpointercapture', endMoveZoneStick);
-    this.stick.addEventListener('pointerdown', (e) => {
-      this.beginStick(e, false);
-    });
-    this.stick.addEventListener('pointermove', (e) => {
-      if (e.pointerId === this.stickPointer) this.updateStick(e);
-    });
-    const endStick = (e: PointerEvent): void => {
-      if (e.pointerId !== this.stickPointer) return;
-      this.endStick();
-    };
-    this.stick.addEventListener('pointerup', endStick);
-    this.stick.addEventListener('pointercancel', endStick);
-    this.stick.addEventListener('lostpointercapture', endStick);
 
     look.addEventListener('pointerdown', (e) => {
       if (!this.active || this.lookPointer !== null) return;
@@ -161,6 +133,11 @@ export class TouchControls {
     look.addEventListener('pointercancel', endLook);
     look.addEventListener('lostpointercapture', endLook);
 
+    // 四个独立的 Pointer Events 允许同时按住，例如前进 + 左转或前进 + 跳跃。
+    this.bindHold('touch-forward', () => this.pressDirection('forward'), () => this.releaseDirection('forward'));
+    this.bindHold('touch-back', () => this.pressDirection('back'), () => this.releaseDirection('back'));
+    this.bindHold('touch-left', () => this.pressDirection('left'), () => this.releaseDirection('left'));
+    this.bindHold('touch-right', () => this.pressDirection('right'), () => this.releaseDirection('right'));
     this.bindHold('touch-jump', () => {
       if (!this.jumpHeld) this.pendingJump = true;
       this.jumpHeld = true;
@@ -193,7 +170,8 @@ export class TouchControls {
     return {
       forward: this.forward,
       right: this.right,
-      sprint: this.forward > 0.82 && this.strength > 0.9 && !this.crouchHeld,
+      // 双击只是在第二次按下时开启；只要放开前进就立刻停跑。
+      sprint: this.sprinting && this.forward > 0 && !this.crouchHeld,
       jumpHeld: this.jumpHeld,
       crouch: this.crouchHeld,
     };
@@ -205,62 +183,29 @@ export class TouchControls {
     return jump;
   }
 
-  private beginStick(e: PointerEvent, floating: boolean): void {
-    if (!this.active || this.stickPointer !== null) return;
-    e.preventDefault();
-    if (floating) this.placeFloatingStick(e);
-    this.stickPointer = e.pointerId;
-    // 浮动摇杆的手势由大左侧区域持有；固定圆心起步则由圆本身持有。
-    (floating ? this.moveZone : this.stick).setPointerCapture(e.pointerId);
-    this.updateStick(e);
+  private pressDirection(direction: TouchDirection): void {
+    // 同一方向本身不会重复压入，但不同方向可以由不同手指并行按住。
+    if (this.heldDirections.has(direction)) return;
+    if (direction === 'forward') {
+      const now = performance.now();
+      if (isTouchSprintDoubleTap(this.lastForwardPress, now)) this.sprinting = true;
+      this.lastForwardPress = now;
+    }
+    this.heldDirections.add(direction);
+    this.syncDirectionAxes();
   }
 
-  private endStick(): void {
-    this.stickPointer = null;
-    this.forward = 0;
-    this.right = 0;
-    this.strength = 0;
-    this.knob.style.transform = 'translate3d(0,0,0)';
-    this.restoreStickHome();
+  private releaseDirection(direction: TouchDirection): void {
+    this.heldDirections.delete(direction);
+    // MCPE 手感：第二次前进按住才跑，松开该键必定立即取消疾跑。
+    if (direction === 'forward') this.sprinting = false;
+    this.syncDirectionAxes();
   }
 
-  /** 把摇杆中心放到左侧触点，且不让它越过屏幕边缘或挡住右侧按钮。 */
-  private placeFloatingStick(e: PointerEvent): void {
-    const size = this.stick.getBoundingClientRect().width;
-    const radius = size / 2;
-    const viewport = window.visualViewport;
-    const width = viewport?.width ?? window.innerWidth;
-    const height = viewport?.height ?? window.innerHeight;
-    const minX = radius + 12;
-    const maxX = Math.max(minX, Math.min(width * 0.5 - radius - 8, width - radius - 12));
-    const minY = radius + 60;
-    const maxY = Math.max(minY, height - radius - 60);
-    const centerX = Math.max(minX, Math.min(maxX, e.clientX));
-    const centerY = Math.max(minY, Math.min(maxY, e.clientY));
-    this.stick.classList.add('floating');
-    this.stick.style.left = `${Math.round(centerX - radius)}px`;
-    this.stick.style.top = `${Math.round(centerY - radius)}px`;
-    this.stick.style.bottom = 'auto';
-  }
-
-  private restoreStickHome(): void {
-    this.stick.classList.remove('floating');
-    this.stick.style.left = '';
-    this.stick.style.top = '';
-    this.stick.style.bottom = '';
-  }
-
-  private updateStick(e: PointerEvent): void {
-    e.preventDefault();
-    const rect = this.stick.getBoundingClientRect();
-    const radius = rect.width * 0.36;
-    const dx = e.clientX - (rect.left + rect.width / 2);
-    const dy = e.clientY - (rect.top + rect.height / 2);
-    const v = stickVector(dx, dy, radius);
-    this.right = v.x;
-    this.forward = v.y;
-    this.strength = v.strength;
-    this.knob.style.transform = `translate3d(${v.x * radius}px,${-v.y * radius}px,0)`;
+  private syncDirectionAxes(): void {
+    const axes = dpadAxes(this.heldDirections);
+    this.forward = axes.forward;
+    this.right = axes.right;
   }
 
   private bindHold(id: string, down: () => void, up: () => void, cancel = up): void {
@@ -309,16 +254,20 @@ export class TouchControls {
   }
 
   private reset(): void {
-    this.stickPointer = null;
     this.lookPointer = null;
+    this.heldDirections.clear();
     this.forward = 0;
     this.right = 0;
-    this.strength = 0;
+    this.lastForwardPress = -Infinity;
+    this.sprinting = false;
     this.jumpHeld = false;
     this.crouchHeld = false;
     this.pendingJump = false;
-    this.knob.style.transform = 'translate3d(0,0,0)';
-    this.restoreStickHome();
     for (const release of this.releaseHolds) release();
+    // releaseHolds 会逐项处理 pointer capture；再清空一次防止浏览器漏发取消事件。
+    this.heldDirections.clear();
+    this.forward = 0;
+    this.right = 0;
+    this.sprinting = false;
   }
 }
