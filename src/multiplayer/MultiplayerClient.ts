@@ -1,3 +1,5 @@
+import { parseEditKey, type WorldSave } from '../save/worldStore';
+
 /**
  * 轻量联机客户端。
  *
@@ -28,6 +30,17 @@ export interface BlockEdit {
   id: number;
 }
 
+/**
+ * 房主把正在游玩的本地世界带进房间时，服务器需要保存的最小共享快照。
+ * 背包、玩家出生点和附近生物仍是本地状态；种子、时间和方块改动则是同房间共同的世界状态。
+ */
+export interface MultiplayerHostWorld {
+  seed: number;
+  gameMode: OnlineGameMode;
+  worldTime: number;
+  edits: readonly BlockEdit[];
+}
+
 export interface OnlineRoom {
   id: string;
   seed: number;
@@ -41,6 +54,8 @@ export interface MultiplayerJoinOptions {
   room: string;
   name: string;
   gameMode?: OnlineGameMode;
+  /** 仅创建房间时使用：将当前单人世界作为这个房间的初始世界。 */
+  world?: MultiplayerHostWorld;
 }
 
 interface WelcomeMessage {
@@ -68,6 +83,8 @@ type ServerMessage =
 const STATE_INTERVAL_MS = 1000 / 15;
 const CONNECT_TIMEOUT_MS = 10_000;
 const DEFAULT_MULTIPLAYER_SERVER = 'wss://mineworld-multiplayer-nornttyy.onrender.com/ws';
+/** 与服务端上限对应；超过后先在本地给出可理解的错误，而不是发送超大 WebSocket 包。 */
+export const MAX_MULTIPLAYER_INITIAL_EDITS = 5_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -129,6 +146,44 @@ function parseEdit(value: unknown): BlockEdit | null {
   )
     return null;
   return { dimension, x: value.x, y: value.y, z: value.z, id: value.id };
+}
+
+function validHostWorld(world: MultiplayerHostWorld): boolean {
+  return (
+    Number.isInteger(world.seed) &&
+    world.seed >= 0 &&
+    world.seed <= 2_000_000_000 &&
+    asGameMode(world.gameMode) !== null &&
+    finite(world.worldTime) &&
+    Math.abs(world.worldTime) <= 2_000_000_000 &&
+    Array.isArray(world.edits) &&
+    world.edits.length <= MAX_MULTIPLAYER_INITIAL_EDITS &&
+    world.edits.every((edit) => parseEdit(edit) !== null)
+  );
+}
+
+/**
+ * 把本地 WorldSave 转换为可以随“创建房间”包上传的共享初始世界。
+ *
+ * WorldSave 的 edits 用字符串键兼容旧存档；联机协议则使用显式维度/坐标对象。
+ * 损坏的旧键会跳过，避免一个历史残留键阻止整个世界开房。
+ */
+export function multiplayerHostWorldFromSave(world: WorldSave): MultiplayerHostWorld {
+  const edits: BlockEdit[] = [];
+  for (const [key, id] of Object.entries(world.edits)) {
+    const parsed = parseEditKey(key);
+    const edit: BlockEdit = { dimension: parsed.dim, x: parsed.x, y: parsed.y, z: parsed.z, id };
+    if (parseEdit(edit) !== null) edits.push(edit);
+  }
+  if (edits.length > MAX_MULTIPLAYER_INITIAL_EDITS) {
+    throw new Error(`这个世界有 ${edits.length} 个方块改动，联机房间最多可带入 ${MAX_MULTIPLAYER_INITIAL_EDITS} 个。`);
+  }
+  return {
+    seed: Math.floor(world.seed),
+    gameMode: world.gameMode ?? 'survival',
+    worldTime: world.worldTime ?? 1000,
+    edits,
+  };
 }
 
 function parseWelcome(value: unknown): WelcomeMessage | null {
@@ -238,6 +293,13 @@ export class MultiplayerClient {
     const room = normalizeRoomCode(options.room);
     if (room.length < 3) return Promise.reject(new Error('房间号至少需要 3 个字符'));
     const name = normalizePlayerName(options.name);
+    if (options.action !== 'create' && options.world !== undefined) {
+      return Promise.reject(new Error('只有创建房间时才能带入本地世界'));
+    }
+    if (options.world !== undefined && !validHostWorld(options.world)) {
+      return Promise.reject(new Error('当前世界数据不适合开启联机房间'));
+    }
+    const gameMode = options.world?.gameMode ?? options.gameMode ?? 'creative';
     return new Promise((resolve, reject) => {
       let settled = false;
       let timer = 0;
@@ -263,7 +325,8 @@ export class MultiplayerClient {
           room,
           name,
           skin: 'default',
-          gameMode: options.gameMode ?? 'creative',
+          gameMode,
+          world: options.world,
         });
       });
       client.socket.addEventListener('message', (event) => {
@@ -274,7 +337,10 @@ export class MultiplayerClient {
           resolve(client);
         }
       });
-      client.socket.addEventListener('error', () => fail('无法连接联机服务器'));
+      client.socket.addEventListener('error', () => {
+        const isDefault = options.url === DEFAULT_MULTIPLAYER_SERVER;
+        fail(isDefault ? '联机服务器暂时不可用或仍在启动，请稍后重试。' : '无法连接联机服务器');
+      });
       client.socket.addEventListener('close', (event) => {
         const reason = client.disconnectReason || (event.code === 1000 ? '已断开联机' : '联机连接已断开');
         if (!settled) fail(reason);

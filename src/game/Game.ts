@@ -188,8 +188,8 @@ export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
-  /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。 */
-  private readonly multiplayer: MultiplayerClient | null;
+  /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。单人世界可在暂停时直接开放为房间。 */
+  private multiplayer: MultiplayerClient | null;
   private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
   private readonly touch: TouchControls | null;
@@ -321,8 +321,7 @@ export class Game {
     this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     // welcome 到创建 Game 之间可能已经收到了别人的方块包；MultiplayerClient 会排队，直到这里世界/网格都就绪后再交付。
-    this.multiplayer?.setBlockHandler((edit) => this.applyRemoteBlockEdit(edit));
-    this.multiplayer?.setWorldTimeHandler((worldTime) => this.setNetworkWorldTime(worldTime));
+    if (this.multiplayer) this.bindMultiplayer(this.multiplayer);
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
@@ -468,6 +467,23 @@ export class Game {
 
   setTouchActive(active: boolean): void {
     this.touch?.setActive(active && !this.dead && this.craftingGrid === 0 && !this.furnaceKey);
+  }
+
+  /**
+   * 把正在运行的单人世界开放成联机房间，不需要重新创建 Game。
+   * 服务端创建房间时已收到当前快照的 seed / 方块改动 / 时间；这里只接上之后的实时同步。
+   */
+  attachMultiplayer(client: MultiplayerClient): boolean {
+    if (this.multiplayer !== null) return false;
+    this.multiplayer = client;
+    this.bindMultiplayer(client);
+    this.publishMultiplayerState();
+    return true;
+  }
+
+  private bindMultiplayer(client: MultiplayerClient): void {
+    client.setBlockHandler((edit) => this.applyRemoteBlockEdit(edit));
+    client.setWorldTimeHandler((worldTime) => this.setNetworkWorldTime(worldTime));
   }
 
   private readMovement(): MoveKeys {

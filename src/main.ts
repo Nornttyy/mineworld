@@ -5,6 +5,7 @@ import { SettingsMenu } from './ui/settingsMenu';
 import { installTouchZoomGuards, supportsTouchControls } from './input/TouchControls';
 import {
   MultiplayerClient,
+  multiplayerHostWorldFromSave,
   multiplayerServerUrl,
   normalizePlayerName,
   normalizeRoomCode,
@@ -69,10 +70,10 @@ const bootSplashEl = bootEl.querySelector('.boot-splash') as HTMLElement | null;
 if (bootSplashEl) bootSplashEl.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 const BOOT_HINTS = touchMode
   ? [
-      '提示: 左侧方向键移动，右半屏拖动视角',
+      '提示: 左侧方向键移动，空白处拖动视角',
       '提示: 双击前进后按住可以疾跑',
-      '提示: 按住“挖/打”挖方块',
-      '提示: 点“放/用”放置方块或使用物品',
+      '提示: 轻点空白处可互动或放置方块',
+      '提示: 长按空白处可挖方块或攻击',
       '提示: 可以直接点快捷栏切换物品',
       '提示: 石头要用镐才挖得动',
     ]
@@ -151,6 +152,13 @@ const mpRoom = $('mp-room') as HTMLInputElement;
 const mpStatus = $('mp-status');
 const mpCreate = $('mp-create') as HTMLButtonElement;
 const mpJoin = $('mp-join') as HTMLButtonElement;
+const mpTitle = $('mp-title');
+const mpIntro = $('mp-intro');
+const mpModeField = $('mp-mode-field');
+const mpBack = $('mp-back') as HTMLButtonElement;
+type MultiplayerPanelMode = 'join' | 'host';
+let mpPanelMode: MultiplayerPanelMode = 'join';
+let mpHostWorld: WorldSave | null = null;
 let mpGameMode: GameMode = 'creative';
 let mpConnecting = false;
 
@@ -161,12 +169,33 @@ function setMpStatus(text: string, error = false): void {
 
 function setMpGameMode(mode: GameMode): void {
   mpGameMode = mode;
-  $('mp-creative').classList.toggle('active', mode === 'creative');
-  $('mp-survival').classList.toggle('active', mode === 'survival');
+  $('mp-current-mode').textContent = mode === 'creative' ? '创造模式' : '生存模式';
   $('mp-mode-desc').textContent =
     mode === 'creative'
-      ? '创造模式：适合和朋友一起搭建；玩家与方块会实时同步。'
-      : '生存模式：玩家与方块会实时同步；生物、掉落物和背包暂各自本地运行。';
+      ? '适合和朋友一起搭建；玩家与方块会实时同步。'
+      : '玩家与方块会实时同步；生物、掉落物和背包暂各自本地运行。';
+}
+
+function restoreMultiplayerName(): void {
+  try {
+    mpName.value = localStorage.getItem('mineworld.multiplayer.name') ?? '';
+  } catch {
+    // 隐私模式下 localStorage 不可用也应能联机。
+  }
+}
+
+/** 同一张房间面板有两个入口：主菜单只能加入；已进入单人世界才可以开房。 */
+function setMultiplayerPanelMode(mode: MultiplayerPanelMode): void {
+  mpPanelMode = mode;
+  const hosting = mode === 'host';
+  mpTitle.textContent = hosting ? '开启联机房间' : '加入联机房间';
+  mpIntro.textContent = hosting
+    ? '当前单人世界会成为这个房间的世界。把房间号告诉朋友即可一起游玩。'
+    : '输入朋友给你的房间号，即可进入同一个世界。';
+  mpModeField.classList.toggle('hidden', !hosting);
+  mpCreate.classList.toggle('hidden', !hosting);
+  mpJoin.classList.toggle('hidden', hosting);
+  mpBack.textContent = hosting ? '返回暂停菜单' : '返回';
 }
 
 function randomRoomCode(): string {
@@ -184,17 +213,72 @@ function updateOnlineHud(extra = ''): void {
   onlineHud.textContent = extra || `联机 · 房间 ${multiplayer.room.id.toUpperCase()}\n${multiplayer.playerCount} 名玩家`;
 }
 
-function openMultiplayerMenu(): void {
-  try {
-    mpName.value = localStorage.getItem('mineworld.multiplayer.name') ?? '';
-  } catch {
-    // 隐私模式下 localStorage 不可用也应能联机。
+/** 已在游戏内打开房间面板时，保留当前世界作背景，不能把主菜单全景重新盖上来。 */
+function showMultiplayerPanel(): void {
+  if (mpPanelMode === 'join') {
+    showOnly(multiplayerMenu);
+    return;
   }
+  for (const s of [menu, worldlist, pause]) s.classList.add('hidden');
+  $('newworld').classList.add('hidden');
+  multiplayerMenu.classList.remove('hidden');
+  setHud(false);
+  menubgCanvas.style.display = 'none';
+  menubg?.stop();
+}
+
+function openMultiplayerMenu(): void {
+  setMultiplayerPanelMode('join');
+  mpHostWorld = null;
+  restoreMultiplayerName();
   mpRoom.value = normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? mpRoom.value);
   setMpGameMode('creative');
-  setMpStatus('创建一个新房间，或输入朋友给你的房间号。');
-  showOnly(multiplayerMenu);
+  setMpStatus('输入房间号后加入。');
+  showMultiplayerPanel();
   mpName.focus();
+}
+
+/** 单人世界暂停时的“开启联机房间”。服务器会接收当前种子、昼夜和方块改动。 */
+function openHostedMultiplayerMenu(): void {
+  if (!game || multiplayer !== null) return;
+  mpHostWorld = game.snapshot();
+  setMultiplayerPanelMode('host');
+  restoreMultiplayerName();
+  mpRoom.value = randomRoomCode();
+  setMpGameMode(mpHostWorld.gameMode ?? 'survival');
+  setMpStatus('房间号已生成。开启后，把它告诉朋友。');
+  showMultiplayerPanel();
+  mpName.focus();
+}
+
+function closeMultiplayerMenu(): void {
+  if (mpPanelMode === 'host' && game && multiplayer === null) {
+    mpHostWorld = null;
+    multiplayerMenu.classList.add('hidden');
+    pause.classList.remove('hidden');
+    setHud(false);
+    return;
+  }
+  mpHostWorld = null;
+  showOnly(menu);
+}
+
+/** 给新联机会话装好 HUD / 断线处理；单人世界开房和直接加入共用。 */
+function setMultiplayerSession(online: MultiplayerClient | null): void {
+  multiplayer = online;
+  $('save-quit').textContent = online ? '退出房间' : '保存并退出';
+  $('open-room').classList.toggle('hidden', online !== null);
+  if (!online) {
+    onlineHud.classList.add('hidden');
+    return;
+  }
+  online.onPlayersChanged = () => updateOnlineHud();
+  online.onDisconnect = (reason) => {
+    if (multiplayer !== online) return;
+    onlineHud.classList.remove('hidden');
+    onlineHud.textContent = `联机已断开\n${reason}`;
+  };
+  updateOnlineHud();
 }
 
 function onlineWorld(client: MultiplayerClient): WorldSave {
@@ -214,6 +298,11 @@ function onlineWorld(client: MultiplayerClient): WorldSave {
 
 async function connectMultiplayer(action: 'create' | 'join'): Promise<void> {
   if (mpConnecting) return;
+  const hostWorld = action === 'create' && mpPanelMode === 'host' ? mpHostWorld : null;
+  if (action === 'create' && hostWorld === null) {
+    setMpStatus('请先进入一个单人世界，再从暂停菜单开启房间。', true);
+    return;
+  }
   let room = normalizeRoomCode(mpRoom.value);
   if (action === 'create' && room.length < 3) room = randomRoomCode();
   if (room.length < 3) {
@@ -241,12 +330,28 @@ async function connectMultiplayer(action: 'create' | 'join'): Promise<void> {
       room,
       name,
       gameMode: mpGameMode,
+      world: hostWorld ? multiplayerHostWorldFromSave(hostWorld) : undefined,
     });
-    startGame(onlineWorld(client), client);
+    if (hostWorld) {
+      // 不重载、不丢当前背包/位置：在正在运行的单人 Game 上接入实时会话。
+      if (!game || !game.attachMultiplayer(client)) {
+        client.disconnect('无法切换到联机房间');
+        throw new Error('当前世界已经不在单人状态，请返回后重试。');
+      }
+      setMultiplayerSession(client);
+      mpHostWorld = null;
+      multiplayerMenu.classList.add('hidden');
+      pause.classList.add('hidden');
+      showLoading(false);
+      setHud(true);
+      if (!touchMode) void canvas.requestPointerLock();
+    } else {
+      startGame(onlineWorld(client), client);
+    }
   } catch (error) {
     showLoading(false);
     setMpStatus(error instanceof Error ? error.message : '连接联机服务器失败。', true);
-    showOnly(multiplayerMenu);
+    showMultiplayerPanel();
   } finally {
     mpConnecting = false;
     mpCreate.disabled = false;
@@ -255,14 +360,13 @@ async function connectMultiplayer(action: 'create' | 'join'): Promise<void> {
 }
 
 $('multiplayer-play').addEventListener('click', () => openMultiplayerMenu());
+$('open-room').addEventListener('click', () => openHostedMultiplayerMenu());
 $('mp-create').addEventListener('click', () => void connectMultiplayer('create'));
 $('mp-join').addEventListener('click', () => void connectMultiplayer('join'));
-$('mp-back').addEventListener('click', () => showOnly(menu));
-$('mp-creative').addEventListener('click', () => setMpGameMode('creative'));
-$('mp-survival').addEventListener('click', () => setMpGameMode('survival'));
+mpBack.addEventListener('click', () => closeMultiplayerMenu());
 for (const input of [mpName, mpRoom]) {
   input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') void connectMultiplayer('join');
+    if (event.key === 'Enter') void connectMultiplayer(mpPanelMode === 'host' ? 'create' : 'join');
   });
 }
 $('fullscreen').addEventListener('click', () => {
@@ -354,17 +458,7 @@ function startGame(world: WorldSave, online: MultiplayerClient | null = null): v
     online?.disconnect('游戏已经在运行');
     return;
   }
-  multiplayer = online;
-  $('save-quit').textContent = online ? '退出房间' : '保存并退出';
-  if (online) {
-    online.onPlayersChanged = () => updateOnlineHud();
-    online.onDisconnect = (reason) => {
-      if (multiplayer !== online) return;
-      onlineHud.classList.remove('hidden');
-      onlineHud.textContent = `联机已断开\n${reason}`;
-    };
-    updateOnlineHud();
-  }
+  setMultiplayerSession(online);
   showOnly(null);
   showLoading(true, '进入中…');
   // 进游戏前先彻底释放菜单背景世界(整套区块网格 + worker + 第二个 WebGL 上下文)，

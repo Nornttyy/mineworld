@@ -13,7 +13,10 @@ const MAX_CONNECTIONS = 128;
 const MAX_PLAYERS = 8;
 const MAX_ROOMS = 100;
 const MAX_EDITS_PER_ROOM = 5000;
-const MAX_MESSAGE_BYTES = 2048;
+// 创建房间时可以带入当前本地世界的方块 delta。5000 个编辑在极端大坐标下约 370KB，
+// 所以不能沿用普通状态包的 2KB 上限；512KB 仍是可控的单包上限。
+const MAX_MESSAGE_BYTES = 512 * 1024;
+const MAX_INITIAL_EDITS = 5000;
 const MAX_STATE_PER_SECOND = 15;
 // 创造模式按住挖掘每刻可破一格(≈20/s)；上限需高于正常玩法，不能把正常玩家误判成刷包。
 const MAX_BLOCKS_PER_SECOND = 32;
@@ -118,6 +121,35 @@ function parseBlock(message) {
   return { dimension: message.dimension, x: message.x, y: message.y, z: message.z, id: message.id };
 }
 
+/**
+ * 房主创建房间时可带入自己的种子、世界时间和已有方块改动。
+ * 只允许在 create 包里出现，避免后来加入的玩家覆盖已经在运行的房间。
+ */
+function parseInitialWorld(value) {
+  if (!isRecord(value)) return null;
+  if (
+    !Number.isInteger(value.seed) ||
+    value.seed < 0 ||
+    value.seed > 2_000_000_000 ||
+    !GAME_MODES.has(value.gameMode) ||
+    !isFiniteNumber(value.worldTime, -2_000_000_000, 2_000_000_000) ||
+    !Array.isArray(value.edits) ||
+    value.edits.length > MAX_INITIAL_EDITS
+  ) {
+    return null;
+  }
+
+  // 以坐标为键去重：最后一个编辑代表当前方块值，和客户端本地 WorldSave 的语义一致。
+  const edits = new Map();
+  for (const rawEdit of value.edits) {
+    const edit = parseBlock(rawEdit);
+    if (!edit) return null;
+    edits.set(editKey(edit), edit);
+  }
+  const worldTime = ((Math.floor(value.worldTime) % 24_000) + 24_000) % 24_000;
+  return { seed: value.seed, gameMode: value.gameMode, worldTime, edits };
+}
+
 function editKey(edit) {
   return `${edit.dimension}:${edit.x},${edit.y},${edit.z}`;
 }
@@ -159,16 +191,16 @@ export function createRealtimeServer(options = {}) {
     return total;
   }
 
-  function makeRoom(id, gameMode) {
+  function makeRoom(id, gameMode, initialWorld = null) {
     return {
       id,
-      seed: randomInt(1, 2_000_000_000),
-      gameMode,
-      baseWorldTime: DEFAULT_WORLD_TIME,
+      seed: initialWorld?.seed ?? randomInt(1, 2_000_000_000),
+      gameMode: initialWorld?.gameMode ?? gameMode,
+      baseWorldTime: initialWorld?.worldTime ?? DEFAULT_WORLD_TIME,
       createdAt: Date.now(),
       players: new Map(),
       clients: new Set(),
-      edits: new Map(),
+      edits: initialWorld?.edits ?? new Map(),
       emptySince: null,
     };
   }
@@ -238,11 +270,17 @@ export function createRealtimeServer(options = {}) {
       if (message.gameMode !== undefined && !GAME_MODES.has(message.gameMode)) {
         return reject(client, 'invalid_join', '游戏模式不正确。', true);
       }
-      const gameMode = GAME_MODES.has(message.gameMode) ? message.gameMode : 'survival';
-      room = makeRoom(roomId, gameMode);
+      const initialWorld = message.world === undefined ? null : parseInitialWorld(message.world);
+      if (message.world !== undefined && !initialWorld) {
+        return reject(client, 'invalid_world', '带入的世界数据不正确或方块改动过多。', true);
+      }
+      const gameMode = initialWorld?.gameMode ?? (GAME_MODES.has(message.gameMode) ? message.gameMode : 'survival');
+      room = makeRoom(roomId, gameMode, initialWorld);
       rooms.set(roomId, room);
     } else if (!room) {
       return reject(client, 'room_not_found', '没有找到这个房间。');
+    } else if (message.world !== undefined) {
+      return reject(client, 'invalid_join', '加入已有房间时不能带入本地世界。', true);
     }
 
     if (room.players.size >= maxPlayers) return reject(client, 'room_full', '这个房间已经满了。');
