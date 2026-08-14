@@ -93,6 +93,7 @@ export class TouchControls {
   private lookPointer: number | null = null;
   private lookX = 0;
   private lookY = 0;
+  private releaseLookCapture: (() => void) | null = null;
   private forward = 0;
   private right = 0;
   private readonly heldDirections = new Set<TouchDirection>();
@@ -126,8 +127,17 @@ export class TouchControls {
       this.lookY = e.clientY;
       this.actions.look(dx * LOOK_SENSITIVITY, -dy * LOOK_SENSITIVITY);
     });
+    const releaseLook = (): void => {
+      const pointerId = this.lookPointer;
+      if (pointerId === null) return;
+      this.lookPointer = null;
+      this.releasePointerCapture(look, pointerId);
+    };
+    this.releaseLookCapture = releaseLook;
     const endLook = (e: PointerEvent): void => {
-      if (e.pointerId === this.lookPointer) this.lookPointer = null;
+      if (e.pointerId !== this.lookPointer) return;
+      e.preventDefault();
+      releaseLook();
     };
     look.addEventListener('pointerup', endLook);
     look.addEventListener('pointercancel', endLook);
@@ -143,6 +153,7 @@ export class TouchControls {
       this.jumpHeld = true;
     }, () => (this.jumpHeld = false));
     this.bindHold('touch-crouch', () => (this.crouchHeld = true), () => (this.crouchHeld = false));
+    // MCPE Crosshair 模式的两个独立互动键：剑=挖掘/攻击，手=放置/使用。
     this.bindHold('touch-mine', () => this.actions.primaryDown(), () => this.actions.primaryUp());
     this.bindHold('touch-use', () => this.actions.useDown(), () => this.actions.useUp(), () => this.actions.cancelUse());
     this.bindTap('touch-inventory', () => this.actions.inventory());
@@ -153,6 +164,7 @@ export class TouchControls {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.reset();
     });
+    window.addEventListener('pagehide', () => this.reset());
   }
 
   setActive(active: boolean): void {
@@ -208,6 +220,16 @@ export class TouchControls {
     this.right = axes.right;
   }
 
+  /** Pointer capture 可能已被系统手势抢走；先确认再释放，避免抛异常中断清理。 */
+  private releasePointerCapture(el: HTMLElement, pointerId: number): void {
+    if (!el.hasPointerCapture(pointerId)) return;
+    try {
+      el.releasePointerCapture(pointerId);
+    } catch {
+      // Safari/Android 切后台时 capture 可能已失效，此时状态已在上方清理完毕。
+    }
+  }
+
   private bindHold(id: string, down: () => void, up: () => void, cancel = up): void {
     const el = document.getElementById(id) as HTMLButtonElement;
     let pointer: number | null = null;
@@ -221,10 +243,13 @@ export class TouchControls {
       down();
     });
     const release = (finish: () => void): void => {
-      if (pointer === null) return;
+      const pointerId = pointer;
+      if (pointerId === null) return;
       pointer = null;
       el.classList.remove('pressed');
       finish();
+      // reset()/blur 不会自动交还 pointer capture；主动释放以免下一根手指还被旧按钮吞掉。
+      this.releasePointerCapture(el, pointerId);
     };
     const end = (e: PointerEvent): void => {
       if (e.pointerId !== pointer) return;
@@ -254,7 +279,10 @@ export class TouchControls {
   }
 
   private reset(): void {
-    this.lookPointer = null;
+    // 先通过每个控件自身的取消路径停掉游戏行为，再归零状态；否则 blur 时会留下挖掘/跳跃/下蹲。
+    this.releaseLookCapture?.();
+    for (const release of this.releaseHolds) release();
+    // releaseHolds 会逐项处理 pointer capture；再清空一次防止浏览器漏发取消事件。
     this.heldDirections.clear();
     this.forward = 0;
     this.right = 0;
@@ -263,11 +291,5 @@ export class TouchControls {
     this.jumpHeld = false;
     this.crouchHeld = false;
     this.pendingJump = false;
-    for (const release of this.releaseHolds) release();
-    // releaseHolds 会逐项处理 pointer capture；再清空一次防止浏览器漏发取消事件。
-    this.heldDirections.clear();
-    this.forward = 0;
-    this.right = 0;
-    this.sprinting = false;
   }
 }
