@@ -69,7 +69,7 @@ import {
 } from '../core/inventory/inventory';
 import { readMove, consumeJump, type MoveKeys } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
-import { TouchControls, supportsTouchControls } from '../input/TouchControls';
+import { TouchControls, supportsTouchControls, type TouchWorldPoint } from '../input/TouchControls';
 import { Hotbar } from '../ui/hotbar';
 import { setIconTexturePack } from '../ui/itemIcons';
 import { StatusBar } from '../ui/statusBar';
@@ -183,6 +183,15 @@ function rayAabb(
   return tmin;
 }
 
+/**
+ * 一次世界交互所使用的射线。桌面端始终取准星中心；触屏端则由手指按下的屏幕位置换算而来。
+ * 使用普通数值对象而不是把 THREE.Ray 传遍游戏逻辑，避免输入层和渲染对象产生不必要耦合。
+ */
+type InteractionRay = Readonly<{
+  origin: Readonly<{ x: number; y: number; z: number }>;
+  direction: Readonly<{ x: number; y: number; z: number }>;
+}>;
+
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置 + 生命/饥饿。从存档启动。 */
 export class Game {
   private readonly canvas: HTMLCanvasElement;
@@ -193,6 +202,9 @@ export class Game {
   private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
   private readonly touch: TouchControls | null;
+  /** 只给触屏按下坐标换算相机射线复用，避免每一次轻点/长按都创建 Three.js 对象。 */
+  private readonly touchRaycaster = new THREE.Raycaster();
+  private readonly touchNdc = new THREE.Vector2();
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   private readonly physWorld: VoxelWorld;
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
@@ -222,6 +234,12 @@ export class Game {
   private furnaceKey: string | null = null; // 当前打开的熔炉坐标(null=没开)
   /** 触屏空白世界区域当前已经开始的长按行为，确保拖动/系统取消不会误射弓或遗留挖掘状态。 */
   private touchHoldAction: 'primary' | 'use' | null = null;
+  /**
+   * 长按挖掘时锁定手指按下瞬间命中的方块。
+   * 这样玩家按画面边缘挖方块不会在下一帧又跳回屏幕中心准星；桌面端保持动态准星挖掘。
+   */
+  private touchDigging = false;
+  private touchDigHit: RayHit | null = null;
   private readonly drops: ItemDrop[] = [];
   private readonly arrows: Arrow[] = []; // 飞行/插地的箭（玩家弓射 + 骷髅射）
   private readonly arrowRenderer: ArrowRenderer;
@@ -387,10 +405,10 @@ export class Game {
     this.touch = touchEnabled
       ? new TouchControls(document.getElementById('touch-controls') as HTMLElement, {
           look: (yaw, pitch) => this.look.rotate(yaw, pitch),
-          interactTap: () => this.onTouchInteractTap(),
-          interactHoldStart: () => this.beginTouchHoldAction(),
-          interactHoldEnd: () => this.endTouchHoldAction(),
-          interactHoldCancel: () => this.cancelTouchHoldAction(),
+          interactTap: (point) => this.onTouchInteractTap(point),
+          interactHoldStart: (point) => this.beginTouchHoldAction(point),
+          interactHoldEnd: (point) => this.endTouchHoldAction(point),
+          interactHoldCancel: (point) => this.cancelTouchHoldAction(point),
           inventory: () => {
             if (this.furnaceKey) this.closeFurnace();
             else if (this.craftingGrid > 0) this.closeCrafting();
@@ -513,24 +531,36 @@ export class Game {
     });
   }
 
-  private beginPrimaryAction(): void {
+  /**
+   * 开始左键/长按的主操作。传入 aim 时代表触屏手指按下的位置；不传时保持桌面准星行为。
+   * 触屏挖掘会记住这一次命中，不会在玩家仍按着手指时偷偷改用屏幕中心的目标。
+   */
+  private beginPrimaryAction(aim?: InteractionRay): void {
     if (!this.isGameplayActive()) return;
-    const target = this.mobUnderCrosshair();
+    // 每次主操作先清掉上一次触屏锁定，避免攻击生物后留下旧方块目标。
+    this.touchDigging = false;
+    this.touchDigHit = null;
+    const target = this.mobUnderRay(aim);
     if (target) {
       // 攻击冷却 ~0.5s(同 MC 1.9+)：冷却内的点击不再造成伤害。对着生物时不挖它后面的方块。
       const nowMs = performance.now();
       if (nowMs - this.lastMeleeMs >= 500) {
-        this.attackMob(target);
+        this.attackMob(target, aim);
         this.lastMeleeMs = nowMs;
       }
       return;
     }
+    // 传入 aim 即代表直接触屏：即便按下位置没有命中方块，也绝不能退回中间准星开始挖。
+    this.touchDigging = aim !== undefined;
+    this.touchDigHit = aim ? this.rayHitFor(aim) : null;
     this.digging = true;
     this.digTarget = null;
   }
 
   private stopDigging(): void {
     this.digging = false;
+    this.touchDigging = false;
+    this.touchDigHit = null;
     this.digProgress = 0;
     this.digTarget = null;
     this.crack.hide();
@@ -540,14 +570,14 @@ export class Game {
    * 手机版《我的世界》式直接触控：空白世界区域轻点是使用/放置，长按则按手持物决定挖掘/攻击或吃东西/拉弓。
    * TouchControls 保证一次手势只会进入其中一个分支，不能先放方块再开始挖。
    */
-  private onTouchInteractTap(): void {
+  private onTouchInteractTap(point: TouchWorldPoint): void {
     if (!this.isGameplayActive()) return;
-    const hit = this.rayHit();
+    const hit = this.rayHitAtTouchPoint(point);
     if (this.useTargetedBlock(hit)) return;
     const stack = this.inv[this.hotbar.index];
     if (this.tryIgnitePortal(hit, stack?.id ?? null)) return;
     // 食物/弓只允许长按；短点只负责方块放置和一次性目标使用，避免误吃/误射。
-    this.placeBlock();
+    this.placeBlock(hit);
   }
 
   private shouldUseHeldItemOnTouchHold(): boolean {
@@ -557,17 +587,19 @@ export class Game {
     return isFood(stack.id) && this.survival.food < MAX_FOOD;
   }
 
-  private beginTouchHoldAction(): void {
+  private beginTouchHoldAction(point: TouchWorldPoint): void {
     if (!this.isGameplayActive() || this.touchHoldAction !== null) return;
     if (this.shouldUseHeldItemOnTouchHold() && this.beginHeldItemUse()) {
       this.touchHoldAction = 'use';
       return;
     }
     this.touchHoldAction = 'primary';
-    this.beginPrimaryAction();
+    this.beginPrimaryAction(this.touchRayAt(point));
   }
 
-  private endTouchHoldAction(): void {
+  private endTouchHoldAction(point: TouchWorldPoint): void {
+    // 抬手坐标由输入层一并传入，当前目标始终固定为按下坐标，故这里无需重新取射线。
+    void point;
     const action = this.touchHoldAction;
     this.touchHoldAction = null;
     if (action === 'primary') {
@@ -580,7 +612,9 @@ export class Game {
     }
   }
 
-  private cancelTouchHoldAction(): void {
+  private cancelTouchHoldAction(point: TouchWorldPoint): void {
+    // 拖动/系统取消后不能改为目标处的点击；保留参数是为了与触控输入接口一致。
+    void point;
     const action = this.touchHoldAction;
     this.touchHoldAction = null;
     if (action === 'primary') {
@@ -1156,7 +1190,7 @@ export class Game {
     const stack = this.inv[this.hotbar.index];
     if (this.tryIgnitePortal(hit, stack?.id ?? null)) return;
     if (this.beginHeldItemUse()) return;
-    this.placeBlock();
+    this.placeBlock(hit);
   }
 
   // 拉弓蓄力（每帧）：累加蓄力时间，封顶满蓄力。
@@ -1272,15 +1306,54 @@ export class Game {
     }
   }
 
-  private rayHit(): RayHit | null {
-    const o = { x: this.player.pos.x, y: this.player.pos.y + EYE, z: this.player.pos.z };
+  /** 桌面准星中心射线。保持原有的玩家眼睛原点，桌面鼠标行为不发生变化。 */
+  private crosshairRay(): InteractionRay {
+    const origin = { x: this.player.pos.x, y: this.player.pos.y + EYE, z: this.player.pos.z };
     const cy = Math.cos(this.look.yaw);
     const sy = Math.sin(this.look.yaw);
     const cp = Math.cos(this.look.pitch);
     const sp = Math.sin(this.look.pitch);
-    const dir = { x: cy * cp, y: sp, z: sy * cp };
+    return { origin, direction: { x: cy * cp, y: sp, z: sy * cp } };
+  }
+
+  /**
+   * 触屏点击坐标 → 相机射线。坐标是 viewport CSS 像素，先相对 canvas 换为 NDC，
+   * 再由当前透视相机反投影；因此点到画面哪个位置，就真正选那个位置的方块/生物。
+   */
+  private touchRayAt(point: TouchWorldPoint): InteractionRay {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || rect.width <= 0 || rect.height <= 0) return this.crosshairRay();
+    const u = Math.max(0, Math.min(1, (point.x - rect.left) / rect.width));
+    const v = Math.max(0, Math.min(1, (point.y - rect.top) / rect.height));
+    const camera = this.renderer.camera;
+    // input event 有可能正好落在两帧渲染之间；强制更新矩阵，避免拿到上一帧相机方向。
+    camera.updateMatrixWorld();
+    this.touchNdc.set(u * 2 - 1, 1 - v * 2);
+    this.touchRaycaster.setFromCamera(this.touchNdc, camera);
+    const ray = this.touchRaycaster.ray;
+    return {
+      origin: { x: ray.origin.x, y: ray.origin.y, z: ray.origin.z },
+      direction: { x: ray.direction.x, y: ray.direction.y, z: ray.direction.z },
+    };
+  }
+
+  /** 选中判定共用同一条射线；草丛也可被选中，水/空气会穿透。 */
+  private rayHitFor(aim: InteractionRay): RayHit | null {
     // 选中判定用 isTargetableId(实心 + 草丛)，让草丛能被瞄准/打掉；非 isSolidId 否则射线穿草打到后面方块。
-    return raycastVoxel(o, dir, this.creative ? REACH_CREATIVE : REACH_SURVIVAL, (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)));
+    return raycastVoxel(
+      aim.origin,
+      aim.direction,
+      this.creative ? REACH_CREATIVE : REACH_SURVIVAL,
+      (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)),
+    );
+  }
+
+  private rayHit(): RayHit | null {
+    return this.rayHitFor(this.crosshairRay());
+  }
+
+  private rayHitAtTouchPoint(point: TouchWorldPoint): RayHit | null {
+    return this.rayHitFor(this.touchRayAt(point));
   }
 
   // 记录方块改动到存档 delta
@@ -1412,11 +1485,20 @@ export class Game {
       this.crack.hide();
       return;
     }
-    const hit = this.rayHit();
+    // 桌面端按住左键时仍跟随准星；触屏端长按则锁定手指按下处的命中，不能跳回画面中心。
+    const hit = this.touchDigging ? this.touchDigHit : this.rayHit();
     if (!hit) {
       this.digProgress = 0;
       this.digTarget = null;
       this.crack.hide();
+      // 触屏按下位置本来就没方块时，不能等玩家之后转镜头再从屏幕中心开始挖。
+      if (this.touchDigging) this.stopDigging();
+      return;
+    }
+    const id = this.world.getBlock(hit.x, hit.y, hit.z);
+    // 锁定目标被其他玩家/上一次破坏改成空气时，结束这一次触屏动作；桌面端仍会自然跟着准星找下一个方块。
+    if (this.touchDigging && !isTargetableId(id)) {
+      this.stopDigging();
       return;
     }
     if (
@@ -1428,7 +1510,6 @@ export class Game {
       this.digTarget = { x: hit.x, y: hit.y, z: hit.z }; // 换了目标 → 进度归零
       this.digProgress = 0;
     }
-    const id = this.world.getBlock(hit.x, hit.y, hit.z);
     if (blockHardness(id) < 0) {
       this.crack.hide();
       return; // 不可破坏（基岩 hardness<0）：生存/创造都挖不动
@@ -1436,11 +1517,13 @@ export class Game {
     const need = this.creative ? 0 : breakTimeMs(id, this.heldTool()) / 1000; // 创造：瞬破
     if (need <= 0) {
       this.mineBlock(hit.x, hit.y, hit.z, id); // 瞬破方块
+      if (this.touchDigging) this.stopDigging(); // 触屏一次长按只处理按下时选中的那格
       return;
     }
     this.digProgress += dt;
     if (this.digProgress >= need) {
       this.mineBlock(hit.x, hit.y, hit.z, id);
+      if (this.touchDigging) this.stopDigging();
     } else {
       this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
       // 挖掘中持续喷碎屑（节流，免得每帧爆量）
@@ -1814,18 +1897,13 @@ export class Game {
     }
   }
 
-  // 准星(视线)对准的最近生物（攻击距离内），无则 null。
-  private mobUnderCrosshair(): Mob | null {
-    const ox = this.player.pos.x;
-    const oy = this.player.pos.y + EYE;
-    const oz = this.player.pos.z;
-    const cy = Math.cos(this.look.yaw);
-    const sy = Math.sin(this.look.yaw);
-    const cp = Math.cos(this.look.pitch);
-    const sp = Math.sin(this.look.pitch);
-    const dx = cy * cp;
-    const dy = sp;
-    const dz = sy * cp;
+  /**
+   * 指定射线命中的最近生物（攻击距离内）。不传时就是桌面准星；触屏长按传入按下点的相机射线。
+   */
+  private mobUnderRay(aim: InteractionRay = this.crosshairRay()): Mob | null {
+    const { origin, direction } = aim;
+    const { x: ox, y: oy, z: oz } = origin;
+    const { x: dx, y: dy, z: dz } = direction;
     let best: Mob | null = null;
     let bestT = MOB_REACH;
     for (const mob of this.mobs) {
@@ -1855,7 +1933,7 @@ export class Game {
   }
 
   // 攻击一只生物：按手持武器结算伤害 + 击退；死亡则掉落 + 移除。
-  private attackMob(mob: Mob): void {
+  private attackMob(mob: Mob, aim?: InteractionRay): void {
     this.hand.swing();
     const held = this.inv[this.hotbar.index];
     const dmg = mobDamage(held ? held.id : null);
@@ -1865,9 +1943,12 @@ export class Game {
       for (let n = wtd.kind === 'sword' ? 1 : 2; n > 0; n--) damageTool(this.inv, this.hotbar.index, wtd.maxDurability);
       this.hotbar.render(this.inv);
     }
-    const cy = Math.cos(this.look.yaw);
-    const sy = Math.sin(this.look.yaw);
-    const res = hurtMob(mob, dmg, { x: cy, z: sy }, this.mobRng);
+    // 触屏点画面边缘攻击时，击退方向也跟随该点的射线；竖直朝上/下时退回当前朝向。
+    const dir = aim?.direction;
+    const horizontal = dir ? Math.hypot(dir.x, dir.z) : 0;
+    const knockX = dir && horizontal > 1e-6 ? dir.x / horizontal : Math.cos(this.look.yaw);
+    const knockZ = dir && horizontal > 1e-6 ? dir.z / horizontal : Math.sin(this.look.yaw);
+    const res = hurtMob(mob, dmg, { x: knockX, z: knockZ }, this.mobRng);
     Object.assign(mob, res.mob);
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
@@ -1881,11 +1962,10 @@ export class Game {
   }
 
   // 放置：消耗当前快捷栏格里的方块（空手/手持食物则不放）。
-  private placeBlock(): void {
+  private placeBlock(hit: RayHit | null = this.rayHit()): void {
     const sel = this.hotbar.index;
     const stack = this.inv[sel];
     if (!stack || stack.count <= 0 || stack.id >= 256) return; // 空手或手持物品(食物/工具/棍等不可放置)
-    const hit = this.rayHit();
     if (!hit) return;
     // 瞄到的若是可替换块(草丛)→ 直接放在它那格(替换掉草)；否则放在命中面的外侧那格。
     const onReplaceable = isReplaceableId(this.world.getBlock(hit.x, hit.y, hit.z));

@@ -70,7 +70,7 @@ const bootSplashEl = bootEl.querySelector('.boot-splash') as HTMLElement | null;
 if (bootSplashEl) bootSplashEl.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)];
 const BOOT_HINTS = touchMode
   ? [
-      '提示: 左侧方向键移动，空白处拖动视角',
+      '提示: 左侧滑动方向盘移动，空白处拖动视角',
       '提示: 双击前进后按住可以疾跑',
       '提示: 轻点空白处可互动或放置方块',
       '提示: 长按空白处可挖方块或攻击',

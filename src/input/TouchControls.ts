@@ -1,39 +1,64 @@
 import type { MoveKeys } from './keyboard';
 
-const LOOK_SENSITIVITY = 0.004;
+// 触屏相比鼠标需要更少的手指位移才能转过同样角度；与 8px 手势死区配合，既灵敏也不会一碰就甩镜头。
+const LOOK_SENSITIVITY = 0.006;
 /** 与键盘双击 W 一致：第二次按下前进后保持按住，即进入疾跑。 */
 export const TOUCH_SPRINT_DOUBLE_TAP_MS = 320;
-/** 空白世界操作区按住多久才算长按；短一点能及时开始挖掘，又不给普通轻点造成明显延迟。 */
-export const TOUCH_INTERACT_HOLD_MS = 280;
-/** 超过这个位移便固定判为“拖动视角”，不会在松手时意外使用/放置。 */
-export const TOUCH_LOOK_DRAG_DISTANCE = 12;
+/** 空白世界操作区按住多久才算长按；留出明确的轻点窗口，减少转视角时误开挖。 */
+export const TOUCH_INTERACT_HOLD_MS = 380;
+/**
+ * 手指离开起点这么远就固定判为“拖动视角”。阈值小于普通手指划屏的第一小段，
+ * 但仍能容忍轻点时的细微抖动；一旦越过绝不再回退成轻点/长按。
+ */
+export const TOUCH_LOOK_DRAG_DISTANCE = 8;
 // 浏览器在掉帧、切回页面时可能合并多次 pointermove；限制单次转向，避免镜头突然甩飞。
-const MAX_LOOK_DELTA = 72;
+const MAX_LOOK_DELTA = 96;
+
+/** 触屏坐标使用浏览器 viewport 的 CSS 像素；交互始终取按下处，防止滑动后目标漂移。 */
+export type TouchWorldPoint = Readonly<{ x: number; y: number }>;
 
 export interface TouchControlActions {
   look(deltaYaw: number, deltaPitch: number): void;
   /** 空白世界区域轻点：使用物品 / 放置方块 / 操作工作台。 */
-  interactTap(): void;
+  interactTap(point: TouchWorldPoint): void;
   /** 空白世界区域长按开始：游戏会按手持物决定挖掘/攻击，或吃东西/拉弓。 */
-  interactHoldStart(): void;
+  interactHoldStart(point: TouchWorldPoint): void;
   /** 正常抬手：结束挖掘，或完成吃东西/放箭。 */
-  interactHoldEnd(): void;
+  interactHoldEnd(point: TouchWorldPoint): void;
   /** 系统取消、切后台或手指改为滑动视角：不能留下挖掘，也不能误放箭。 */
-  interactHoldCancel(): void;
+  interactHoldCancel(point: TouchWorldPoint): void;
   inventory(): void;
   pause(): void;
 }
 
-export type TouchDirection = 'forward' | 'back' | 'left' | 'right';
+export type TouchMoveAxes = Pick<MoveKeys, 'forward' | 'right'>;
+
+/** 移动盘中心的小死区：放开拇指回到正中时角色立即停下，不会因手指抖动慢慢漂移。 */
+export const TOUCH_DPAD_DEAD_ZONE = 0.2;
+// 22.5° 为八方向的分界；比这个比例更偏向一个轴时显示为纯前/后/左/右。
+const TOUCH_DPAD_CARDINAL_RATIO = 1 + Math.SQRT2;
 
 /**
- * 十字键允许多键同时按住：前/后、左/右相反方向会互相抵消，斜向移动则保留两个轴。
- * 保持为纯函数，方便测试，也避免输入状态和画面控件相互耦合。
+ * 将相对移动盘中心的归一化坐标映射到八个离散移动方向。
+ * x 向右为正，y 向下为正；返回的 forward 与游戏键盘输入一致（前进为正）。
+ *
+ * 保持为纯函数，手势层可以持续把同一根手指的滑动喂进来，测试也能覆盖八向边界。
  */
-export function dpadAxes(held: ReadonlySet<TouchDirection>): Pick<MoveKeys, 'forward' | 'right'> {
+export function slidingDpadAxes(normalizedX: number, normalizedY: number): TouchMoveAxes {
+  const distance = Math.hypot(normalizedX, normalizedY);
+  if (distance < TOUCH_DPAD_DEAD_ZONE) return { forward: 0, right: 0 };
+
+  const horizontal = Math.abs(normalizedX);
+  const vertical = Math.abs(normalizedY);
+  if (vertical > horizontal * TOUCH_DPAD_CARDINAL_RATIO) {
+    return { forward: normalizedY < 0 ? 1 : -1, right: 0 };
+  }
+  if (horizontal > vertical * TOUCH_DPAD_CARDINAL_RATIO) {
+    return { forward: 0, right: normalizedX > 0 ? 1 : -1 };
+  }
   return {
-    forward: Number(held.has('forward')) - Number(held.has('back')),
-    right: Number(held.has('right')) - Number(held.has('left')),
+    forward: normalizedY < 0 ? 1 : -1,
+    right: normalizedX > 0 ? 1 : -1,
   };
 }
 
@@ -51,10 +76,18 @@ export function isTouchLookDrag(startX: number, startY: number, currentX: number
 
 export type TouchLookRelease = 'tap' | 'hold-end' | 'none';
 
-/** 拖动永远优先；已经开始的长按只在正常松手时结束，取消事件不会变成轻点。 */
-export function touchLookReleaseAction(dragged: boolean, holdStarted: boolean, cancelled = false): TouchLookRelease {
+/**
+ * 拖动、系统取消永远优先。最后一个参数处理低端手机掉帧：若计时器来不及执行，
+ * 但手指确实已按够时长，也必须按长按收尾，不能误变成“放置”。
+ */
+export function touchLookReleaseAction(
+  dragged: boolean,
+  holdStarted: boolean,
+  cancelled = false,
+  heldForMs = 0,
+): TouchLookRelease {
   if (dragged || cancelled) return 'none';
-  return holdStarted ? 'hold-end' : 'tap';
+  return holdStarted || heldForMs >= TOUCH_INTERACT_HOLD_MS ? 'hold-end' : 'tap';
 }
 
 /** 手机/平板自动启用；?touch=1 可在桌面浏览器调试。 */
@@ -113,6 +146,11 @@ export class TouchControls {
   private readonly root: HTMLElement;
   private readonly actions: TouchControlActions;
   private lookPointer: number | null = null;
+  /** 本次交互锁定的落点。即使用户后来划屏取消，也不会把动作错投到划过的方块上。 */
+  private lookPoint: TouchWorldPoint | null = null;
+  private lookStartedAt = 0;
+  /** 防止 Android/Safari 迟到的 timeout 落到下一次恰好复用的 pointerId 上。 */
+  private lookGesture = 0;
   private lookStartX = 0;
   private lookStartY = 0;
   private lookX = 0;
@@ -121,9 +159,10 @@ export class TouchControls {
   private lookHoldStarted = false;
   private lookHoldTimer: number | null = null;
   private releaseLookCapture: (() => void) | null = null;
+  /** 左下移动盘只占用一根左手手指；右手仍可同时在空白区转视角/交互。 */
+  private dpadPointer: number | null = null;
   private forward = 0;
   private right = 0;
-  private readonly heldDirections = new Set<TouchDirection>();
   private lastForwardPress = -Infinity;
   private sprinting = false;
   private jumpHeld = false;
@@ -138,9 +177,14 @@ export class TouchControls {
     const look = root.querySelector('.touch-look') as HTMLElement;
 
     look.addEventListener('pointerdown', (e) => {
-      if (!this.active || this.lookPointer !== null) return;
+      if (!this.active) return;
       e.preventDefault();
+      // 左手仍按方向键时，右手只允许一根手指负责视角/世界交互；第二根手指不能穿透成页面滚动或一次额外放置。
+      if (this.lookPointer !== null) return;
       this.lookPointer = e.pointerId;
+      this.lookPoint = { x: e.clientX, y: e.clientY };
+      this.lookStartedAt = performance.now();
+      const gesture = ++this.lookGesture;
       this.lookStartX = e.clientX;
       this.lookStartY = e.clientY;
       this.lookX = e.clientX;
@@ -151,49 +195,57 @@ export class TouchControls {
       this.lookHoldTimer = window.setTimeout(() => {
         this.lookHoldTimer = null;
         // 长按计时器可能恰好和 pointerup/cancel 同一帧排队；再次核对状态，绝不在已经结束后开挖。
-        if (this.lookPointer === null || this.lookDragging || !this.active) return;
+        if (this.lookPointer !== e.pointerId || this.lookGesture !== gesture || this.lookDragging || !this.active) return;
+        const point = this.lookPoint;
+        if (point === null) return;
         this.lookHoldStarted = true;
-        this.actions.interactHoldStart();
+        this.actions.interactHoldStart(point);
       }, TOUCH_INTERACT_HOLD_MS);
     });
     const moveLook = (e: PointerEvent): void => {
       if (e.pointerId !== this.lookPointer) return;
       e.preventDefault();
-      if (!this.lookDragging && isTouchLookDrag(this.lookStartX, this.lookStartY, e.clientX, e.clientY)) {
-        this.lookDragging = true;
-        this.clearLookHoldTimer();
-        // 用户在长按后又开始滑动，优先把它当作转视角；取消而非松开，避免弓误射。
-        if (this.lookHoldStarted) {
-          this.lookHoldStarted = false;
-          this.actions.interactHoldCancel();
-        }
-      }
-      if (!this.lookDragging) return;
-      const dx = Math.max(-MAX_LOOK_DELTA, Math.min(MAX_LOOK_DELTA, e.clientX - this.lookX));
-      const dy = Math.max(-MAX_LOOK_DELTA, Math.min(MAX_LOOK_DELTA, e.clientY - this.lookY));
-      this.lookX = e.clientX;
-      this.lookY = e.clientY;
-      this.actions.look(dx * LOOK_SENSITIVITY, -dy * LOOK_SENSITIVITY);
+      // 有些安卓浏览器会把一次快速划动合并成一个 PointerEvent；逐个样本处理，既更顺滑，也能可靠地阻止“快速划一下却放了方块”。
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+      const samples = coalesced.length > 0 ? coalesced : [e];
+      for (const sample of samples) this.moveLookTo(sample.clientX, sample.clientY);
     };
-    const finishLook = (cancelled: boolean): void => {
+    const finishLook = (cancelled: boolean, endPoint?: TouchWorldPoint): void => {
       const pointerId = this.lookPointer;
-      if (pointerId === null) return;
-      const release = touchLookReleaseAction(this.lookDragging, this.lookHoldStarted, cancelled);
+      const point = this.lookPoint;
+      if (pointerId === null || point === null) return;
+      // 部分 WebView 在非常快的 swipe 中只给 pointerup；把抬手位置也纳入判定，绝不把它误认为轻点。
+      if (!cancelled && endPoint) this.moveLookTo(endPoint.x, endPoint.y);
+      const holdStarted = this.lookHoldStarted;
+      const release = touchLookReleaseAction(
+        this.lookDragging,
+        holdStarted,
+        cancelled,
+        performance.now() - this.lookStartedAt,
+      );
       this.clearLookHoldTimer();
       this.lookPointer = null;
+      this.lookPoint = null;
+      this.lookStartedAt = 0;
       this.lookDragging = false;
       this.lookHoldStarted = false;
       // 在派发游戏动作前交还 pointer capture：打开背包/暂停时就不会留下被浏览器吞住的指针。
       this.releasePointerCapture(look, pointerId);
-      if (release === 'tap') this.actions.interactTap();
-      else if (release === 'hold-end') this.actions.interactHoldEnd();
-      else if (cancelled) this.actions.interactHoldCancel();
+      if (release === 'tap') this.actions.interactTap(point);
+      else if (release === 'hold-end') {
+        // 计时器在掉帧中没来得及跑时，仍按长按而非轻点处理，防止挖矿手势变成放方块。
+        if (!holdStarted) this.actions.interactHoldStart(point);
+        this.actions.interactHoldEnd(point);
+      } else if (holdStarted) {
+        // 只有真正开始过的动作才需要取消，避免系统取消一记轻点时打断别的游戏行为。
+        this.actions.interactHoldCancel(point);
+      }
     };
     this.releaseLookCapture = () => finishLook(true);
     const endLook = (e: PointerEvent): void => {
       if (e.pointerId !== this.lookPointer) return;
       e.preventDefault();
-      finishLook(false);
+      finishLook(false, { x: e.clientX, y: e.clientY });
     };
     const cancelLook = (e: PointerEvent): void => {
       if (e.pointerId !== this.lookPointer) return;
@@ -206,11 +258,8 @@ export class TouchControls {
     window.addEventListener('pointercancel', cancelLook);
     look.addEventListener('lostpointercapture', cancelLook);
 
-    // 四个独立的 Pointer Events 允许同时按住，例如前进 + 左转或前进 + 跳跃。
-    this.bindHold('touch-forward', () => this.pressDirection('forward'), () => this.releaseDirection('forward'));
-    this.bindHold('touch-back', () => this.pressDirection('back'), () => this.releaseDirection('back'));
-    this.bindHold('touch-left', () => this.pressDirection('left'), () => this.releaseDirection('left'));
-    this.bindHold('touch-right', () => this.pressDirection('right'), () => this.releaseDirection('right'));
+    // 左拇指在同一块 MC 风方向盘中滑动即可切换八个方向，不必抬手重按每一个箭头。
+    this.bindSlidingDpad(root.querySelector('#touch-dpad') as HTMLElement);
     this.bindHold('touch-jump', () => {
       if (!this.jumpHeld) this.pendingJump = true;
       this.jumpHeld = true;
@@ -256,29 +305,107 @@ export class TouchControls {
     return jump;
   }
 
-  private pressDirection(direction: TouchDirection): void {
-    // 同一方向本身不会重复压入，但不同方向可以由不同手指并行按住。
-    if (this.heldDirections.has(direction)) return;
-    if (direction === 'forward') {
+  /**
+   * 用每一个 pointer 样本驱动镜头。首次越过阈值后手势就永久进入 look 模式，
+   * 因而用户即使把手指划回原处，也不会在松手时误触使用/放置。
+   */
+  private moveLookTo(x: number, y: number): void {
+    const point = this.lookPoint;
+    if (point === null) return;
+    if (!this.lookDragging && isTouchLookDrag(this.lookStartX, this.lookStartY, x, y)) {
+      this.lookDragging = true;
+      this.clearLookHoldTimer();
+      // 用户在长按后又开始滑动，优先把它当作转视角；取消而非松开，避免弓误射。
+      if (this.lookHoldStarted) {
+        this.lookHoldStarted = false;
+        this.actions.interactHoldCancel(point);
+      }
+      // 划过手势阈值的那一小段只用于“确认是转视角”，不把它突然灌给镜头；
+      // 从当前位置开始计算后续位移，能消除轻微拖动刚触发时的跳镜。
+      this.lookX = x;
+      this.lookY = y;
+      return;
+    }
+    if (!this.lookDragging) return;
+    const dx = Math.max(-MAX_LOOK_DELTA, Math.min(MAX_LOOK_DELTA, x - this.lookX));
+    const dy = Math.max(-MAX_LOOK_DELTA, Math.min(MAX_LOOK_DELTA, y - this.lookY));
+    this.lookX = x;
+    this.lookY = y;
+    this.actions.look(dx * LOOK_SENSITIVITY, -dy * LOOK_SENSITIVITY);
+  }
+
+  /**
+   * 一个手指驱动整个移动盘。按下时立即按落点走，移动时持续重算八方向；
+   * 因而从“前进”斜滑到“左前”、再滑到“后退”都不会有松手的停顿。
+   */
+  private bindSlidingDpad(dpad: HTMLElement): void {
+    const update = (x: number, y: number): void => this.updateSlidingDpad(dpad, x, y);
+    const finish = (): void => {
+      const pointerId = this.dpadPointer;
+      if (pointerId === null) return;
+      this.dpadPointer = null;
+      this.setMoveAxes(dpad, { forward: 0, right: 0 });
+      dpad.style.setProperty('--touch-dpad-stick-x', '0px');
+      dpad.style.setProperty('--touch-dpad-stick-y', '0px');
+      dpad.dataset.moving = 'false';
+      this.releasePointerCapture(dpad, pointerId);
+    };
+    dpad.addEventListener('pointerdown', (e) => {
+      if (!this.active || this.dpadPointer !== null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.dpadPointer = e.pointerId;
+      this.capturePointer(dpad, e.pointerId);
+      update(e.clientX, e.clientY);
+    });
+    const move = (e: PointerEvent): void => {
+      if (e.pointerId !== this.dpadPointer) return;
+      e.preventDefault();
+      update(e.clientX, e.clientY);
+    };
+    const end = (e: PointerEvent): void => {
+      if (e.pointerId !== this.dpadPointer) return;
+      e.preventDefault();
+      finish();
+    };
+    // 即使 Safari 拒绝/丢失 pointer capture，window 仍会接到最后一帧，角色不会卡在前进状态。
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    dpad.addEventListener('lostpointercapture', end);
+    this.releaseHolds.push(finish);
+  }
+
+  private updateSlidingDpad(dpad: HTMLElement, clientX: number, clientY: number): void {
+    const rect = dpad.getBoundingClientRect();
+    const radius = Math.max(1, Math.min(rect.width, rect.height) / 2);
+    const x = (clientX - (rect.left + rect.width / 2)) / radius;
+    const y = (clientY - (rect.top + rect.height / 2)) / radius;
+    const axes = slidingDpadAxes(x, y);
+    this.setMoveAxes(dpad, axes);
+
+    // 视觉摇杆的行程限制在中心格内，方向箭头依旧清楚可见；超过方向盘边缘时也不会把摇杆甩出界。
+    const magnitude = Math.hypot(x, y);
+    const clamp = magnitude > 0 ? Math.min(1, magnitude) / magnitude : 0;
+    const stickLimit = radius * 0.42;
+    dpad.style.setProperty('--touch-dpad-stick-x', `${Math.round(x * clamp * stickLimit)}px`);
+    dpad.style.setProperty('--touch-dpad-stick-y', `${Math.round(y * clamp * stickLimit)}px`);
+    dpad.dataset.moving = String(axes.forward !== 0 || axes.right !== 0);
+  }
+
+  private setMoveAxes(dpad: HTMLElement, axes: TouchMoveAxes): void {
+    // 只有“进入前进”这一刻参与双击判定；从前进平滑滑到左前时不会把它错误地当成新按键。
+    if (axes.forward > 0 && this.forward <= 0) {
       const now = performance.now();
       if (isTouchSprintDoubleTap(this.lastForwardPress, now)) this.sprinting = true;
       this.lastForwardPress = now;
     }
-    this.heldDirections.add(direction);
-    this.syncDirectionAxes();
-  }
-
-  private releaseDirection(direction: TouchDirection): void {
-    this.heldDirections.delete(direction);
-    // MCPE 手感：第二次前进按住才跑，松开该键必定立即取消疾跑。
-    if (direction === 'forward') this.sprinting = false;
-    this.syncDirectionAxes();
-  }
-
-  private syncDirectionAxes(): void {
-    const axes = dpadAxes(this.heldDirections);
+    // MCPE 手感：前进轴一松开或改为后退，疾跑立刻结束；左右滑动不会打断仍在前进的疾跑。
+    if (axes.forward <= 0) this.sprinting = false;
     this.forward = axes.forward;
     this.right = axes.right;
+    dpad.dataset.forward = String(axes.forward);
+    dpad.dataset.right = String(axes.right);
   }
 
   /** Pointer capture 可能已被系统手势抢走；先确认再释放，避免抛异常中断清理。 */
@@ -358,8 +485,8 @@ export class TouchControls {
     // 先通过每个控件自身的取消路径停掉游戏行为，再归零状态；否则 blur 时会留下挖掘/跳跃/下蹲。
     this.releaseLookCapture?.();
     for (const release of this.releaseHolds) release();
-    // releaseHolds 会逐项处理 pointer capture；再清空一次防止浏览器漏发取消事件。
-    this.heldDirections.clear();
+    // releaseHolds 会逐项处理 pointer capture；再归零一次防止浏览器漏发取消事件。
+    this.dpadPointer = null;
     this.forward = 0;
     this.right = 0;
     this.lastForwardPress = -Infinity;
