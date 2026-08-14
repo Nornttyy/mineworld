@@ -220,6 +220,8 @@ export class Game {
   private readonly furnaceUI: FurnaceUI;
   private readonly furnaces = new Map<string, FurnaceState>(); // 坐标"x,y,z"→熔炉状态
   private furnaceKey: string | null = null; // 当前打开的熔炉坐标(null=没开)
+  /** 触屏空白世界区域当前已经开始的长按行为，确保拖动/系统取消不会误射弓或遗留挖掘状态。 */
+  private touchHoldAction: 'primary' | 'use' | null = null;
   private readonly drops: ItemDrop[] = [];
   private readonly arrows: Arrow[] = []; // 飞行/插地的箭（玩家弓射 + 骷髅射）
   private readonly arrowRenderer: ArrowRenderer;
@@ -386,18 +388,10 @@ export class Game {
     this.touch = touchEnabled
       ? new TouchControls(document.getElementById('touch-controls') as HTMLElement, {
           look: (yaw, pitch) => this.look.rotate(yaw, pitch),
-          primaryDown: () => this.beginPrimaryAction(),
-          primaryUp: () => this.stopDigging(),
-          useDown: () => this.onUseDown(),
-          useUp: () => {
-            this.releaseBow();
-            this.stopEating();
-          },
-          cancelUse: () => {
-            this.drawingBow = false;
-            this.bowCharge = 0;
-            this.stopEating();
-          },
+          interactTap: () => this.onTouchInteractTap(),
+          interactHoldStart: () => this.beginTouchHoldAction(),
+          interactHoldEnd: () => this.endTouchHoldAction(),
+          interactHoldCancel: () => this.cancelTouchHoldAction(),
           inventory: () => {
             if (this.furnaceKey) this.closeFurnace();
             else if (this.craftingGrid > 0) this.closeCrafting();
@@ -524,6 +518,65 @@ export class Game {
     this.digProgress = 0;
     this.digTarget = null;
     this.crack.hide();
+  }
+
+  /**
+   * 手机版《我的世界》式直接触控：空白世界区域轻点是使用/放置，长按则按手持物决定挖掘/攻击或吃东西/拉弓。
+   * TouchControls 保证一次手势只会进入其中一个分支，不能先放方块再开始挖。
+   */
+  private onTouchInteractTap(): void {
+    if (!this.isGameplayActive()) return;
+    const hit = this.rayHit();
+    if (this.useTargetedBlock(hit)) return;
+    const stack = this.inv[this.hotbar.index];
+    if (this.tryIgnitePortal(hit, stack?.id ?? null)) return;
+    // 食物/弓只允许长按；短点只负责方块放置和一次性目标使用，避免误吃/误射。
+    this.placeBlock();
+  }
+
+  private shouldUseHeldItemOnTouchHold(): boolean {
+    const stack = this.inv[this.hotbar.index];
+    if (!stack || stack.count <= 0) return false;
+    if (stack.id === BOW) return countItem(this.inv, ARROW) > 0;
+    return isFood(stack.id) && this.survival.food < MAX_FOOD;
+  }
+
+  private beginTouchHoldAction(): void {
+    if (!this.isGameplayActive() || this.touchHoldAction !== null) return;
+    if (this.shouldUseHeldItemOnTouchHold() && this.beginHeldItemUse()) {
+      this.touchHoldAction = 'use';
+      return;
+    }
+    this.touchHoldAction = 'primary';
+    this.beginPrimaryAction();
+  }
+
+  private endTouchHoldAction(): void {
+    const action = this.touchHoldAction;
+    this.touchHoldAction = null;
+    if (action === 'primary') {
+      this.stopDigging();
+      return;
+    }
+    if (action === 'use') {
+      this.releaseBow();
+      this.stopEating();
+    }
+  }
+
+  private cancelTouchHoldAction(): void {
+    const action = this.touchHoldAction;
+    this.touchHoldAction = null;
+    if (action === 'primary') {
+      this.stopDigging();
+      return;
+    }
+    // 拖动、系统手势、失焦都属于取消：弓不可在这里放箭。
+    if (action === 'use') {
+      this.drawingBow = false;
+      this.bowCharge = 0;
+      this.stopEating();
+    }
   }
 
   /**
@@ -1041,37 +1094,53 @@ export class Game {
     this.statusBar.render(this.survival);
   }
 
-  // 右键按下：手持食物则开吃，否则放方块。
-  private onUseDown(): void {
-    // 右键工作台 → 打开 3×3 合成
-    const hit = this.rayHit();
-    if (hit && this.world.getBlock(hit.x, hit.y, hit.z) === CRAFTING_TABLE) {
+  /** 短点/右键先操作明确瞄准到的可交互方块，避免拿食物时无法打开工作台。 */
+  private useTargetedBlock(hit: RayHit | null): boolean {
+    if (!hit) return false;
+    if (this.world.getBlock(hit.x, hit.y, hit.z) === CRAFTING_TABLE) {
       this.openCrafting(3);
-      return;
+      return true;
     }
-    if (hit && this.world.getBlock(hit.x, hit.y, hit.z) === FURNACE) {
+    if (this.world.getBlock(hit.x, hit.y, hit.z) === FURNACE) {
       this.openFurnace(hit.x, hit.y, hit.z);
-      return;
+      return true;
     }
+    return false;
+  }
+
+  /** 打火石点在黑曜石边框上时尝试补成传送门；点不到/结构不合法都交给后续普通使用。 */
+  private tryIgnitePortal(hit: RayHit | null, heldId: number | null): boolean {
+    if (!hit || heldId !== FLINT_AND_STEEL || this.world.getBlock(hit.x, hit.y, hit.z) !== OBSIDIAN) return false;
+    const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z);
+    if (!inner) return false;
+    for (const [x, y, z] of inner) this.edit(x, y, z, NETHER_PORTAL);
+    return true;
+  }
+
+  /** 只开始弓/食物这种需要持续按住的“手持物使用”；返回是否真的进入了使用状态。 */
+  private beginHeldItemUse(): boolean {
     const stack = this.inv[this.hotbar.index];
-    // 手持打火石命中黑曜石 → 点燃下界传送门
-    if (hit && stack && stack.id === FLINT_AND_STEEL && this.world.getBlock(hit.x, hit.y, hit.z) === OBSIDIAN) {
-      const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z);
-      if (inner) { for (const [x, y, z] of inner) this.edit(x, y, z, NETHER_PORTAL); return; }
-    }
-    // 手持弓且有箭 → 拉弓蓄力（松开右键时发射）
     if (stack && stack.id === BOW && countItem(this.inv, ARROW) > 0) {
       this.drawingBow = true;
       this.bowCharge = 0;
-      return;
+      return true;
     }
-    // 手持食物且饱食度未满 → 开吃；饱食度满时不能吃（同 MC，普通食物吃不下）。
     if (stack && stack.count > 0 && isFood(stack.id) && this.survival.food < MAX_FOOD) {
       this.eating = true;
       this.eatProgress = 0;
-    } else {
-      this.placeBlock();
+      return true;
     }
+    return false;
+  }
+
+  // 右键按下：先使用工作台/熔炉/打火石，再按住食物或弓，最后才放方块。
+  private onUseDown(): void {
+    const hit = this.rayHit();
+    if (this.useTargetedBlock(hit)) return;
+    const stack = this.inv[this.hotbar.index];
+    if (this.tryIgnitePortal(hit, stack?.id ?? null)) return;
+    if (this.beginHeldItemUse()) return;
+    this.placeBlock();
   }
 
   // 拉弓蓄力（每帧）：累加蓄力时间，封顶满蓄力。
