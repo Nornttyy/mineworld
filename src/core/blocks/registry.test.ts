@@ -18,6 +18,8 @@ import {
   COAL_BLOCK,
   IRON_BLOCK,
   QUARTZ_BLOCK,
+  DIAMOND_ORE,
+  DIAMOND_BLOCK,
   blockSlipperiness,
   isCactus,
   isLavaId,
@@ -130,6 +132,28 @@ describe('合成储存方块 (32-34)', () => {
       expect(BLOCKS[id].tool).toBe('pickaxe');
     }
     expect(BLOCKS[IRON_BLOCK].minTier).toBe(2); // 铁块需石镐及以上（同 MC）
+  });
+});
+
+describe('钻石进度 (35-36)', () => {
+  it('钻石矿与钻石块追加注册，且图集 tile 不重用旧方块', () => {
+    expect(DIAMOND_ORE).toBe(35);
+    expect(DIAMOND_BLOCK).toBe(36);
+    expect(BLOCKS[DIAMOND_ORE].name).toBe('diamond_ore');
+    expect(BLOCKS[DIAMOND_BLOCK].name).toBe('diamond_block');
+    expect(blockFaceTile(DIAMOND_ORE, Face.PosY)).toBe(35);
+    expect(blockFaceTile(DIAMOND_BLOCK, Face.PosY)).toBe(36);
+  });
+
+  it('两种钻石方块均不透明；钻石矿需铁镐、钻石块需铁镐', () => {
+    expect(isOpaque(DIAMOND_ORE)).toBe(true);
+    expect(isOpaque(DIAMOND_BLOCK)).toBe(true);
+    expect(BLOCKS[DIAMOND_ORE].minTier).toBe(3);
+    expect(BLOCKS[DIAMOND_BLOCK].minTier).toBe(3);
+  });
+
+  it('黑曜石恢复为必须钻石镐才能采集', () => {
+    expect(BLOCKS[OBSIDIAN].minTier).toBe(4);
   });
 });
 

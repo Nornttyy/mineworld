@@ -52,7 +52,10 @@ describe('direct touch look gestures', () => {
     expect(touchLookReleaseAction(false, false)).toBe('tap');
     expect(touchLookReleaseAction(false, true)).toBe('hold-end');
     expect(touchLookReleaseAction(true, false)).toBe('none');
+    // 已开始挖掘后再拖动镜头，松手仍应结束那一次长按，不能把挖掘卡住或取消。
+    expect(touchLookReleaseAction(true, true)).toBe('hold-end');
     expect(touchLookReleaseAction(false, true, true)).toBe('none');
+    expect(touchLookReleaseAction(true, true, true)).toBe('none');
   });
 
   it('treats a late timer after a real hold as a hold rather than an accidental tap', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { breakTimeMs, canHarvest, dropFor, type HeldTool } from './registry';
-import { COAL } from '../items/items';
+import { COAL, DIAMOND } from '../items/items';
 
 const STONE = 1;
 const COBBLE = 4;
@@ -9,6 +9,8 @@ const COAL_ORE = 8;
 const woodPick: HeldTool = { kind: 'pickaxe', tier: 1, speed: 2 };
 const stonePick: HeldTool = { kind: 'pickaxe', tier: 2, speed: 4 };
 const shovel: HeldTool = { kind: 'shovel', tier: 1, speed: 2 };
+const ironPick: HeldTool = { kind: 'pickaxe', tier: 3, speed: 6 };
+const diamondPick: HeldTool = { kind: 'pickaxe', tier: 4, speed: 8 };
 
 describe('工具采集 1:1 MC', () => {
   it('石头：徒手挖不掉且慢；木镐能挖、更快', () => {
@@ -46,6 +48,17 @@ describe('工具采集 1:1 MC', () => {
     expect(canHarvest(IRON, stonePick)).toBe(true); // 石镐 tier2 ✓
     expect(dropFor(IRON, stonePick)).toBe(IRON);
     expect(breakTimeMs(IRON, stonePick)).toBeLessThan(breakTimeMs(IRON, woodPick)); // 石镐更快
+  });
+
+  it('钻石矿要求铁镐，黑曜石要求钻石镐', () => {
+    const DIAMOND_ORE = 35;
+    const OBSIDIAN = 18;
+    expect(canHarvest(DIAMOND_ORE, stonePick)).toBe(false);
+    expect(canHarvest(DIAMOND_ORE, ironPick)).toBe(true);
+    expect(dropFor(DIAMOND_ORE, ironPick)).toBe(DIAMOND);
+    expect(canHarvest(OBSIDIAN, ironPick)).toBe(false);
+    expect(canHarvest(OBSIDIAN, diamondPick)).toBe(true);
+    expect(dropFor(OBSIDIAN, diamondPick)).toBe(OBSIDIAN);
   });
 
   it('剑能挖方块（慢挖、不享工具加成；之前错误地完全挖不动=Infinity，已按 MC 修正）', () => {

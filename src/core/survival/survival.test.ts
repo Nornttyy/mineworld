@@ -9,9 +9,11 @@ import {
   fallDamage,
   trackFall,
   tickOxygen,
+  canSprint,
   MAX_HEALTH,
   MAX_FOOD,
   MAX_OXYGEN,
+  MIN_SPRINT_FOOD,
 } from './survival';
 
 const APPLE = { nutrition: 4, saturationModifier: 0.3 }; // MC 苹果
@@ -23,6 +25,20 @@ describe('survival: initial state', () => {
     expect(s.food).toBe(MAX_FOOD); // 20 = 10 个鸡腿
     expect(s.exhaustion).toBe(0);
     expect(s.saturation).toBe(5); // MC 出生饱和度 5
+  });
+});
+
+describe('survival: sprint food requirement (MC 1.12)', () => {
+  it('allows sprinting only at food 7 or higher', () => {
+    const s = newSurvival();
+    s.food = MIN_SPRINT_FOOD - 1;
+    expect(canSprint(s)).toBe(false);
+
+    s.food = MIN_SPRINT_FOOD;
+    expect(canSprint(s)).toBe(true);
+
+    s.food = MAX_FOOD;
+    expect(canSprint(s)).toBe(true);
   });
 });
 

@@ -301,6 +301,14 @@ def iron_ore(rng):
     return im
 
 
+def diamond_ore(rng):
+    """原创 16px 钻石矿：石底上嵌蓝绿色晶簇，保留经典像素块感。"""
+    im = stone(rng)
+    for cx, cy, r in [(4, 4, 2), (11, 4, 1), (8, 9, 2), (3, 12, 1), (13, 12, 2), (7, 14, 1)]:
+        pebble(im, cx, cy, r, "#2dabb5", "#73e6e8", "#167681", rng, 0.18)
+    return im
+
+
 def furnace_front(rng):
     """熔炉正面：原版灰石壳 + 深炉口 + 底部余烬。"""
     im = new()
@@ -800,6 +808,28 @@ def quartz_block(rng):
     return im
 
 
+def diamond_block(rng):
+    """原创钻石块：青蓝金属面与斜向晶面，不复制原版纹样。"""
+    im = new()
+    fill(im, "#29aeb8")
+    px = im.load()
+    hi, mid, lo, deep = hx("#74e8e3"), hx("#43c9c9"), hx("#168590"), hx("#0e6572")
+    for y in range(S):
+        for x in range(S):
+            if (x + y) % 9 == 0:
+                px[x, y] = hi
+            elif (x - y) % 11 == 0:
+                px[x, y] = lo
+            elif (x * 3 + y * 5) % 17 == 0:
+                px[x, y] = mid
+    for i in range(S):
+        px[i, 0] = hi
+        px[0, i] = hi
+        px[i, S - 1] = deep
+        px[S - 1, i] = deep
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -812,6 +842,7 @@ BLOCKS = [
     ("oak_log_top", oak_log_top),
     ("coal_ore", coal_ore),
     ("iron_ore", iron_ore),
+    ("diamond_ore", diamond_ore),
     ("furnace_front", furnace_front),
     ("water", water),
     ("oak_leaves", oak_leaves),
@@ -836,6 +867,7 @@ BLOCKS = [
     ("coal_block", coal_block),
     ("iron_block", iron_block),
     ("quartz_block", quartz_block),
+    ("diamond_block", diamond_block),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -910,7 +942,7 @@ def main():
 
     # Pack block tiles into one atlas (4 cols × 7 rows = 28 slots, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
-    # 4×9=36 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-34 合成储存方块
+    # 4×10=40 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-36 合成储存/钻石方块
     # 改行数时务必同步 mesher.ts / DropRenderer.ts / FirstPersonHand.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
@@ -918,8 +950,8 @@ def main():
                    'gravel', 'grass_plant',
                    'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
-                   'coal_block', 'iron_block', 'quartz_block']
-    ATLAS_COLS, ATLAS_ROWS = 4, 9  # 4×9=36 槽；同步 mesher/DropRenderer/FirstPersonHand 的 ATLAS_ROWS=9
+                   'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block']
+    ATLAS_COLS, ATLAS_ROWS = 4, 10  # 4×10=40 槽；同步 mesher/DropRenderer/FirstPersonHand 的 ATLAS_ROWS=10
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:
@@ -939,6 +971,7 @@ def main():
         'oak_planks': ('oak_planks', 'oak_planks'),
         'coal_ore': ('coal_ore', 'coal_ore'),
         'iron_ore': ('iron_ore', 'iron_ore'),
+        'diamond_ore': ('diamond_ore', 'diamond_ore'),
         'furnace': ('cobblestone', 'furnace_front'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
@@ -947,6 +980,7 @@ def main():
         'coal_block': ('coal_block', 'coal_block'),
         'iron_block': ('iron_block', 'iron_block'),
         'quartz_block': ('quartz_block', 'quartz_block'),
+        'diamond_block': ('diamond_block', 'diamond_block'),
         # 生物群系/下界方块的等距图标(之前漏了→快捷栏/背包没图标)
         'obsidian': ('obsidian', 'obsidian'),
         'netherrack': ('netherrack', 'netherrack'),

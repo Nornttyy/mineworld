@@ -6,7 +6,7 @@ import { asset } from '../asset';
 const atlasCache = new Map<string, THREE.Texture>();
 
 /** 加载方块图集：放大、缩小和 mip 层级切换都只取最近邻，保持 16×16 像素硬边。
- *  图集 64×144 且每格 16×16；各 mip 级仍与 tile 对齐，不会跨格渗色。 */
+ *  图集 64×160 且每格 16×16；各 mip 级仍与 tile 对齐，不会跨格渗色。 */
 export function loadAtlas(pack: 'cartoon' | 'classic' = 'classic'): THREE.Texture {
   const cached = atlasCache.get(pack);
   if (cached) return cached;

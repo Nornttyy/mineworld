@@ -1,15 +1,83 @@
 import { describe, it, expect } from 'vitest';
-import { generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
+import { decorateOverworldOres, generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
 import { biomeAt } from './biome';
 import { localCoord, worldToChunk } from '../world/coords';
-import { CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
-import { CHUNK_W } from '../world/chunk';
+import { CACTUS, COAL_ORE, DIAMOND_ORE, ICE, IRON_ORE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
+import { Chunk, CHUNK_H, CHUNK_W } from '../world/chunk';
 
 const SAND_ID = 5;
 const GRASS_ID = 3;
 const SANDSTONE_ID = 26;
+const STONE_ID = 1;
 
 // 注：水下/沿海洞穴灌水的测试在 floodCaves.test.ts。
+
+// 独立的纯石区块让矿脉测试不受地表/洞穴覆盖量影响；实际 generateChunk 会在同一地形阶段调用它。
+function solidStoneChunk(): Chunk {
+  const chunk = new Chunk();
+  chunk.blocks.fill(STONE_ID);
+  return chunk;
+}
+
+function countOre(chunk: Chunk, id: number): number {
+  let total = 0;
+  for (const block of chunk.blocks) if (block === id) total++;
+  return total;
+}
+
+describe('主世界矿脉', () => {
+  const SEED = 0x51a7;
+
+  it('是确定性的矿脉，煤多、铁中等、钻石少且严格位于各自高度带', () => {
+    const a = solidStoneChunk();
+    const b = solidStoneChunk();
+    decorateOverworldOres(a, 2, -3, SEED);
+    decorateOverworldOres(b, 2, -3, SEED);
+
+    expect(a.blocks).toEqual(b.blocks);
+
+    const coal = countOre(a, COAL_ORE);
+    const iron = countOre(a, IRON_ORE);
+    const diamond = countOre(a, DIAMOND_ORE);
+    expect(coal).toBeGreaterThan(iron);
+    expect(iron).toBeGreaterThan(diamond);
+    expect(diamond).toBeGreaterThan(0);
+
+    for (let y = 0; y < CHUNK_H; y++) {
+      for (let x = 0; x < CHUNK_W; x++) {
+        for (let z = 0; z < CHUNK_W; z++) {
+          const id = a.get(x, y, z);
+          if (id === COAL_ORE) expect(y).toBeGreaterThanOrEqual(5);
+          if (id === COAL_ORE) expect(y).toBeLessThanOrEqual(128);
+          if (id === IRON_ORE) expect(y).toBeGreaterThanOrEqual(5);
+          if (id === IRON_ORE) expect(y).toBeLessThanOrEqual(64);
+          if (id === DIAMOND_ORE) expect(y).toBeGreaterThanOrEqual(5);
+          if (id === DIAMOND_ORE) expect(y).toBeLessThanOrEqual(16);
+        }
+      }
+    }
+  });
+
+  it('从相邻区块重放同一候选矿脉，矿石可无缝跨过区块边界', () => {
+    const west = solidStoneChunk();
+    const east = solidStoneChunk();
+    decorateOverworldOres(west, 0, 0, SEED);
+    decorateOverworldOres(east, 1, 0, SEED);
+
+    let spansBoundary = false;
+    for (let y = 0; y < CHUNK_H && !spansBoundary; y++) {
+      for (let z = 0; z < CHUNK_W && !spansBoundary; z++) {
+        const westId = west.get(CHUNK_W - 1, y, z);
+        const eastId = east.get(0, y, z);
+        if (
+          westId === eastId &&
+          (westId === COAL_ORE || westId === IRON_ORE || westId === DIAMOND_ORE)
+        ) spansBoundary = true;
+      }
+    }
+    expect(spansBoundary).toBe(true);
+  });
+});
 
 describe('下界世界生成', () => {
   it('基岩封顶封底、有地狱岩/岩浆/荧石，无草无水', () => {

@@ -14,7 +14,7 @@ export const TOUCH_LOOK_DRAG_DISTANCE = 8;
 // 浏览器在掉帧、切回页面时可能合并多次 pointermove；限制单次转向，避免镜头突然甩飞。
 const MAX_LOOK_DELTA = 96;
 
-/** 触屏坐标使用浏览器 viewport 的 CSS 像素；交互始终取按下处，防止滑动后目标漂移。 */
+/** 触屏坐标使用浏览器 viewport 的 CSS 像素；仅用于稳定识别同一次手势，游戏目标由中央箭头决定。 */
 export type TouchWorldPoint = Readonly<{ x: number; y: number }>;
 
 export interface TouchControlActions {
@@ -77,8 +77,9 @@ export function isTouchLookDrag(startX: number, startY: number, currentX: number
 export type TouchLookRelease = 'tap' | 'hold-end' | 'none';
 
 /**
- * 拖动、系统取消永远优先。最后一个参数处理低端手机掉帧：若计时器来不及执行，
- * 但手指确实已按够时长，也必须按长按收尾，不能误变成“放置”。
+ * 系统取消永远优先。已经开始的长按即使随后转动视角，也必须正常收尾：
+ * 否则玩家挖方块时手指轻微移动就会把进度打断。尚未开始长按的拖动仍只是看视角。
+ * 最后一个参数处理低端手机掉帧：计时器来不及执行时，按住时长仍是最终依据。
  */
 export function touchLookReleaseAction(
   dragged: boolean,
@@ -86,8 +87,10 @@ export function touchLookReleaseAction(
   cancelled = false,
   heldForMs = 0,
 ): TouchLookRelease {
-  if (dragged || cancelled) return 'none';
-  return holdStarted || heldForMs >= TOUCH_INTERACT_HOLD_MS ? 'hold-end' : 'tap';
+  if (cancelled) return 'none';
+  if (holdStarted) return 'hold-end';
+  if (dragged) return 'none';
+  return heldForMs >= TOUCH_INTERACT_HOLD_MS ? 'hold-end' : 'tap';
 }
 
 /** 手机/平板自动启用；?touch=1 可在桌面浏览器调试。 */
@@ -146,7 +149,7 @@ export class TouchControls {
   private readonly root: HTMLElement;
   private readonly actions: TouchControlActions;
   private lookPointer: number | null = null;
-  /** 本次交互锁定的落点。即使用户后来划屏取消，也不会把动作错投到划过的方块上。 */
+  /** 本次右手手势的起点；只用于手势识别，方块目标始终由游戏层中央箭头锁定。 */
   private lookPoint: TouchWorldPoint | null = null;
   private lookStartedAt = 0;
   /** 防止 Android/Safari 迟到的 timeout 落到下一次恰好复用的 pointerId 上。 */
@@ -315,11 +318,8 @@ export class TouchControls {
     if (!this.lookDragging && isTouchLookDrag(this.lookStartX, this.lookStartY, x, y)) {
       this.lookDragging = true;
       this.clearLookHoldTimer();
-      // 用户在长按后又开始滑动，优先把它当作转视角；取消而非松开，避免弓误射。
-      if (this.lookHoldStarted) {
-        this.lookHoldStarted = false;
-        this.actions.interactHoldCancel(point);
-      }
+      // 已经开始的长按不能因转镜头而取消：目标由游戏层锁在箭头当时指向的方块上，
+      // 所以玩家可以一边挖一边微调视角，松手才结束。系统取消仍会走 cancel 路径。
       // 划过手势阈值的那一小段只用于“确认是转视角”，不把它突然灌给镜头；
       // 从当前位置开始计算后续位移，能消除轻微拖动刚触发时的跳镜。
       this.lookX = x;

@@ -77,6 +77,14 @@ export const RECIPES: Recipe[] = [
     result: { item: 'iron_block', count: 1 },
   },
   { type: 'shapeless', ingredients: ['iron_block'], result: { item: 'iron_ingot', count: 9 } },
+  // 钻石块：3×3 钻石压缩；可逆拆为 9 颗。
+  {
+    type: 'shaped',
+    pattern: ['###', '###', '###'],
+    key: { '#': 'diamond' },
+    result: { item: 'diamond_block', count: 1 },
+  },
+  { type: 'shapeless', ingredients: ['diamond_block'], result: { item: 'diamond', count: 9 } },
   {
     type: 'shaped',
     pattern: ['C', 'S'],
@@ -112,4 +120,10 @@ export const RECIPES: Recipe[] = [
   toolRecipe(SHOVEL, 'iron_ingot', 'iron_shovel'),
   toolRecipe(SWORD, 'iron_ingot', 'iron_sword'),
   toolRecipe(HOE, 'iron_ingot', 'iron_hoe'),
+  // 钻石工具：同 1.12 的材料图案，须使用 3×3 工作台。
+  toolRecipe(PICKAXE, 'diamond', 'diamond_pickaxe'),
+  toolRecipe(AXE, 'diamond', 'diamond_axe'),
+  toolRecipe(SHOVEL, 'diamond', 'diamond_shovel'),
+  toolRecipe(SWORD, 'diamond', 'diamond_sword'),
+  toolRecipe(HOE, 'diamond', 'diamond_hoe'),
 ];

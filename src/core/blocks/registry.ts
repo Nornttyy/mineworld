@@ -9,7 +9,7 @@ export enum Face {
 }
 
 // atlas.png 的格子索引（与 tools/textures/gen_textures.py 的 ATLAS_ORDER 一致）
-// 4×8=32 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原
+// 4×10=40 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-36 储存/钻石
 const T = {
   stone: 0,
   dirt: 1,
@@ -49,6 +49,9 @@ const T = {
   coal_block: 32,
   iron_block: 33,
   quartz_block: 34,
+  // 1.12 生存矿物进度（图集第 10 行）
+  diamond_ore: 35,
+  diamond_block: 36,
 } as const;
 
 export interface BlockDef {
@@ -86,6 +89,7 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
 // 硬度/掉落取自 MC Java 真实值。手挖耗时 = 硬度 ×(needsTool?5:1.5) 秒（见 breakTimeMs）。
 // needsTool(石/圆石/矿)：手挖 ×5 且不掉落（要镐）。草→土、草方块/树叶手挖不掉(需精准采集/剪刀)。
 const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
+const DIAMOND_ITEM = 296; // items.ts 的 DIAMOND；避免 blocks/items 双向依赖
 export const BLOCKS: BlockDef[] = [
   { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
   { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true, tool: 'pickaxe' }, // 1.12 石头硬度 1.5:徒手 7.5s(不掉),木镐 1.15s
@@ -248,7 +252,7 @@ export const BLOCKS: BlockDef[] = [
     tool: null,
   },
   // ── 下界方块 (18-25) ─────────────────────────────────────────────────────
-  { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 50, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 3 }, // 1.12 硬度50;正版需钻镐(tier4),暂放铁镐12.5s,钻石期改回
+  { id: 18, name: 'obsidian', solid: true, transparent: false, faces: all(T.obsidian), hardness: 50, drop: 18, needsTool: true, tool: 'pickaxe', minTier: 4 }, // 1.12：硬度50，必须钻石镐（tier 4）采集
   { id: 19, name: 'netherrack', solid: true, transparent: false, faces: all(T.netherrack), hardness: 0.4, drop: 19, needsTool: true, tool: 'pickaxe' }, // MC:地狱岩需镐才掉
   { id: 20, name: 'soul_sand', solid: true, transparent: false, faces: all(T.soul_sand), hardness: 0.5, drop: 20, needsTool: false, tool: 'shovel' },
   { id: 21, name: 'glowstone', solid: true, transparent: false, faces: all(T.glowstone), hardness: 0.3, drop: 21, needsTool: false, tool: null, light: 15 },
@@ -280,6 +284,33 @@ export const BLOCKS: BlockDef[] = [
   { id: 33, name: 'iron_block', solid: true, transparent: false, faces: all(T.iron_block), hardness: 5, drop: 33, needsTool: true, tool: 'pickaxe', minTier: 2 },
   // 石英块：4 下界石英合成；镐采掉自身。MC 硬度 0.8。
   { id: 34, name: 'quartz_block', solid: true, transparent: false, faces: all(T.quartz_block), hardness: 0.8, drop: 34, needsTool: true, tool: 'pickaxe' },
+  // ── 钻石进度 (35-36)：铁镐挖出钻石，钻石镐开启黑曜石/下界链 ──────────────────
+  // 钻石矿：MC 1.12 硬度 3，铁镐及以上可采，默认掉 1 颗钻石（时运/经验后续由掉落表扩展）。
+  {
+    id: 35,
+    name: 'diamond_ore',
+    solid: true,
+    transparent: false,
+    faces: all(T.diamond_ore),
+    hardness: 3.0,
+    drop: DIAMOND_ITEM,
+    needsTool: true,
+    tool: 'pickaxe',
+    minTier: 3,
+  },
+  // 钻石块：9 钻石压缩存储，铁镐及以上才能完整采集。
+  {
+    id: 36,
+    name: 'diamond_block',
+    solid: true,
+    transparent: false,
+    faces: all(T.diamond_block),
+    hardness: 5.0,
+    drop: 36,
+    needsTool: true,
+    tool: 'pickaxe',
+    minTier: 3,
+  },
 ];
 
 export const GRASS = 3;
@@ -317,6 +348,9 @@ export const SPRUCE_LEAVES = 31; // 云杉树叶
 export const COAL_BLOCK = 32;   // 煤炭块（9 煤）
 export const IRON_BLOCK = 33;   // 铁块（9 铁锭）
 export const QUARTZ_BLOCK = 34; // 石英块（4 下界石英）
+// 钻石进度
+export const DIAMOND_ORE = 35;
+export const DIAMOND_BLOCK = 36;
 
 export const isLavaId = (id: number): boolean => id === LAVA;
 export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;

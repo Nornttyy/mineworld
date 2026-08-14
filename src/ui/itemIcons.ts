@@ -34,6 +34,8 @@ const ICON: Record<number, string> = {
   32: 'coal_block',
   33: 'iron_block',
   34: 'quartz_block',
+  35: 'diamond_ore',
+  36: 'diamond_block',
   [APPLE]: 'apple',
   257: 'stick',
   258: 'coal',
@@ -74,6 +76,12 @@ const ICON: Record<number, string> = {
   293: 'gunpowder',
   294: 'flint_and_steel',
   295: 'nether_quartz',
+  296: 'diamond',
+  297: 'diamond_pickaxe',
+  298: 'diamond_axe',
+  299: 'diamond_shovel',
+  300: 'diamond_sword',
+  301: 'diamond_hoe',
 };
 
 // 经典包的方块图标与 16x16 世界图集由同一脚本生成；工具、食物等物品继续共用原图标。
@@ -82,7 +90,7 @@ const CLASSIC_BLOCK_ICONS = new Set([
   'coal_ore', 'oak_leaves', 'crafting_table', 'iron_ore', 'furnace', 'gravel',
   'sandstone', 'obsidian', 'netherrack', 'soul_sand', 'glowstone',
   'nether_quartz_ore', 'bedrock', 'cactus', 'ice', 'spruce_log', 'spruce_leaves',
-  'coal_block', 'iron_block', 'quartz_block',
+  'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block',
 ]);
 
 let activeTexturePack: TexturePack = 'classic';
@@ -111,6 +119,8 @@ const ZH: Record<number, string> = {
   32: '煤炭块',
   33: '铁块',
   34: '石英块',
+  35: '钻石矿石',
+  36: '钻石块',
   256: '苹果',
   257: '木棍',
   258: '煤炭',
@@ -151,6 +161,12 @@ const ZH: Record<number, string> = {
   293: '火药',
   294: '打火石',
   295: '下界石英',
+  296: '钻石',
+  297: '钻石镐',
+  298: '钻石斧',
+  299: '钻石锹',
+  300: '钻石剑',
+  301: '钻石锄',
 };
 
 export const iconUrl = (id: number): string | null => {

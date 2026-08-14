@@ -4,6 +4,8 @@
 export const MAX_HEALTH = 20; // 10 颗心（半心 = 1 HP）
 export const MAX_FOOD = 20; // 10 个鸡腿
 export const MAX_OXYGEN = 10; // 10 个气泡（水下憋气）
+// Java 1.12：食物值必须大于 6（即至少 7）才能开始或保持疾跑。
+export const MIN_SPRINT_FOOD = 7;
 const STARVE_FLOOR = 1; // 普通难度：饿到剩 1 心就不再掉（不会饿死）
 const HEAL_EXHAUSTION = 6; // 自然回 1 心所消耗的疲劳（MC 1.9+）
 const REGEN_TICKS = 80; // 慢速回血 / 掉血周期（4s）
@@ -36,6 +38,11 @@ export function newSurvival(): Survival {
     oxygen: MAX_OXYGEN,
     oxygenTimer: 0,
   };
+}
+
+// 只判断生存模式的食物门槛；创造模式由游戏层绕过此限制。
+export function canSprint(s: Pick<Survival, 'food'>): boolean {
+  return s.food >= MIN_SPRINT_FOOD;
 }
 
 export function addExhaustion(s: Survival, amount: number): void {

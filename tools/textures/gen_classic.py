@@ -186,6 +186,31 @@ def iron_ore(rng):
     return ore(stone(rng), "#b8946f", "#d0ad86", "#987654", [(3, 2), (11, 3), (7, 6), (13, 9), (2, 11), (9, 12), (5, 14)])
 
 
+def diamond_ore(rng):
+    """经典包的原创钻石矿；与卡通包保持 tile 顺序一致。"""
+    return ore(stone(rng), "#2d9fac", "#72e2e2", "#156c78", [(2, 3), (10, 2), (6, 6), (13, 7), (3, 10), (9, 11), (6, 14), (14, 13)])
+
+
+def diamond_block(rng):
+    image = Image.new("RGB", (S, S), source.hx("#25a8b3"))
+    pixels = image.load()
+    hi, mid, lo, deep = source.hx("#71e2df"), source.hx("#3bc5c7"), source.hx("#147b88"), source.hx("#0e5e6b")
+    for y in range(S):
+        for x in range(S):
+            if (x + y) % 9 == 0:
+                pixels[x, y] = hi
+            elif (x - y) % 11 == 0:
+                pixels[x, y] = lo
+            elif (x * 3 + y * 5) % 17 == 0:
+                pixels[x, y] = mid
+    for i in range(S):
+        pixels[i, 0] = hi
+        pixels[0, i] = hi
+        pixels[i, S - 1] = deep
+        pixels[S - 1, i] = deep
+    return image
+
+
 def oak_leaves(rng):
     image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     pixels = image.load()
@@ -252,6 +277,8 @@ BLOCKS.update({
     "oak_log_top": oak_log_top,
     "coal_ore": coal_ore,
     "iron_ore": iron_ore,
+    "diamond_ore": diamond_ore,
+    "diamond_block": diamond_block,
     "oak_leaves": oak_leaves,
     "crafting_table_top": crafting_table_top,
     "crafting_table_side": crafting_table_side,
@@ -259,7 +286,7 @@ BLOCKS.update({
 })
 
 # Order must stay aligned with src/core/blocks/registry.ts and the renderer's
-# 4x9 atlas constants.  The final cell is intentionally transparent.
+# 4x10 atlas constants.  The trailing cells stay transparent for future blocks.
 ATLAS_ORDER = [
     "stone", "dirt", "grass_top", "grass_side",
     "cobblestone", "sand", "oak_log_top", "oak_log_side",
@@ -269,7 +296,8 @@ ATLAS_ORDER = [
     "soul_sand", "glowstone", "nether_quartz_ore", "lava",
     "bedrock", "nether_portal", "sandstone", "cactus",
     "ice", "snow", "spruce_log", "spruce_leaves",
-    "coal_block", "iron_block", "quartz_block",
+    "coal_block", "iron_block", "quartz_block", "diamond_ore",
+    "diamond_block",
 ]
 
 ICON_FACES = {
@@ -282,6 +310,7 @@ ICON_FACES = {
     "oak_planks": ("oak_planks", "oak_planks"),
     "coal_ore": ("coal_ore", "coal_ore"),
     "iron_ore": ("iron_ore", "iron_ore"),
+    "diamond_ore": ("diamond_ore", "diamond_ore"),
     "furnace": ("cobblestone", "furnace_front"),
     "oak_leaves": ("oak_leaves", "oak_leaves"),
     "crafting_table": ("crafting_table_top", "crafting_table_side"),
@@ -300,6 +329,7 @@ ICON_FACES = {
     "coal_block": ("coal_block", "coal_block"),
     "iron_block": ("iron_block", "iron_block"),
     "quartz_block": ("quartz_block", "quartz_block"),
+    "diamond_block": ("diamond_block", "diamond_block"),
 }
 
 
@@ -314,7 +344,7 @@ def build_tiles():
 
 
 def build_atlas(tiles):
-    atlas = Image.new("RGBA", (S * 4, S * 9), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (S * 4, S * 10), (0, 0, 0, 0))
     for index, name in enumerate(ATLAS_ORDER):
         atlas.paste(tiles[name].convert("RGBA"), ((index % 4) * S, (index // 4) * S))
     return atlas

@@ -275,6 +275,11 @@ WOOD_TO_IRON = {
     (198, 160, 100): (230, 230, 236),  # WOOD_HI → 亮银
     (124, 94, 50): (150, 150, 158),    # WOOD_LO → 暗银
 }
+WOOD_TO_DIAMOND = {
+    (164, 127, 69): (79, 201, 190),    # WOOD    → 蓝绿钻石
+    (198, 160, 100): (139, 246, 231),  # WOOD_HI → 高光
+    (124, 94, 50): (37, 151, 148),     # WOOD_LO → 阴影
+}
 
 
 def make_torch():
@@ -388,6 +393,25 @@ def make_ingot(table):
     return im
 
 
+def make_diamond():
+    """钻石：原创蓝绿宝石切面，不复用原版像素图。"""
+    im, px = blank()
+    gem = [
+        (8, 2),
+        (7, 3), (8, 3), (9, 3),
+        (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+        (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5), (11, 5),
+        (6, 6), (7, 6), (8, 6), (9, 6), (10, 6),
+        (7, 7), (8, 7), (9, 7),
+        (8, 8),
+    ]
+    shade_head(px, gem, "#4fc9be", "#8bf6e7", "#259794")
+    for x, y in [(8, 3), (7, 4), (8, 4), (6, 5)]:
+        px[x, y] = hx("#d9fffa")
+    add_outline(px, OUTLINE_STONE)
+    return im
+
+
 def center_png(name):
     """把手绘图标的图案 bbox 平移居中到 16×16 正中（用户画时常偏，物品栏/手持会歪）。"""
     p = os.path.join(ICON, f"{name}.png")
@@ -429,6 +453,12 @@ def main():
         "iron_sword": recolor("wooden_sword", WOOD_TO_IRON),
         "iron_hoe": recolor("wooden_hoe", WOOD_TO_IRON),
         "iron_ingot": make_ingot(WOOD_TO_IRON),
+        "diamond_pickaxe": recolor("wooden_pickaxe", WOOD_TO_DIAMOND),
+        "diamond_axe": recolor("wooden_axe", WOOD_TO_DIAMOND),
+        "diamond_shovel": recolor("wooden_shovel", WOOD_TO_DIAMOND),
+        "diamond_sword": recolor("wooden_sword", WOOD_TO_DIAMOND),
+        "diamond_hoe": recolor("wooden_hoe", WOOD_TO_DIAMOND),
+        "diamond": make_diamond(),
     }
     for name, im in out.items():
         im.save(os.path.join(ICON, f"{name}.png"))

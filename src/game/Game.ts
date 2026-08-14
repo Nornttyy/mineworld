@@ -69,7 +69,7 @@ import {
 } from '../core/inventory/inventory';
 import { readMove, consumeJump, type MoveKeys } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
-import { TouchControls, supportsTouchControls, type TouchWorldPoint } from '../input/TouchControls';
+import { TouchControls, supportsTouchControls } from '../input/TouchControls';
 import { Hotbar } from '../ui/hotbar';
 import { setIconTexturePack } from '../ui/itemIcons';
 import { StatusBar } from '../ui/statusBar';
@@ -85,10 +85,27 @@ import {
   eat,
   trackFall,
   tickOxygen,
+  canSprint,
   MAX_FOOD,
   type Survival,
 } from '../core/survival/survival';
-import { APPLE, EGG, FLINT, ARROW, BOW, FLINT_AND_STEEL, isFood, foodValue, toolOf, itemMaxStack } from '../core/items/items';
+import {
+  APPLE,
+  EGG,
+  FLINT,
+  ARROW,
+  BOW,
+  FLINT_AND_STEEL,
+  DIAMOND_PICKAXE,
+  DIAMOND_AXE,
+  DIAMOND_SHOVEL,
+  DIAMOND_SWORD,
+  DIAMOND_HOE,
+  isFood,
+  foodValue,
+  toolOf,
+  itemMaxStack,
+} from '../core/items/items';
 import { ignitePortal, mapPortalCoord, buildDestinationPortal } from '../core/world/portalFill';
 import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
@@ -111,10 +128,11 @@ const AIR = 0;
 const CREATIVE_LOADOUT: { id: number; count: number }[] = [
   { id: 3, count: 64 }, { id: 2, count: 64 }, { id: 1, count: 64 }, { id: 4, count: 64 }, // 草/土/石/圆石
   { id: 7, count: 64 }, { id: 6, count: 64 }, { id: 5, count: 64 }, { id: 21, count: 64 }, { id: 14, count: 64 }, // 木板/原木/沙/荧石/火把
-  { id: 15, count: 64 }, { id: 26, count: 64 }, { id: 32, count: 64 }, { id: 33, count: 64 }, { id: 34, count: 64 }, // 砂砾/沙石/煤块/铁块/石英块
+  { id: 15, count: 64 }, { id: 26, count: 64 }, { id: 32, count: 64 }, { id: 33, count: 64 }, { id: 34, count: 64 }, { id: 36, count: 64 }, // 砂砾/沙石/煤块/铁块/石英块/钻石块
   { id: 18, count: 64 }, { id: 19, count: 64 }, { id: 20, count: 64 }, { id: 10, count: 64 }, { id: 30, count: 64 }, // 黑曜石/地狱岩/灵魂沙/树叶/云杉木
-  { id: 8, count: 64 }, { id: 12, count: 64 }, { id: 11, count: 64 }, { id: 13, count: 64 }, { id: 27, count: 64 }, { id: 28, count: 64 }, // 煤矿/铁矿/工作台/熔炉/仙人掌/冰
-  { id: 269, count: 1 }, { id: 270, count: 1 }, { id: 271, count: 1 }, { id: 272, count: 1 }, // 铁镐/斧/锹/剑
+  { id: 8, count: 64 }, { id: 12, count: 64 }, { id: 35, count: 64 }, { id: 11, count: 64 }, { id: 13, count: 64 }, { id: 27, count: 64 }, { id: 28, count: 64 }, // 煤矿/铁矿/钻石矿/工作台/熔炉/仙人掌/冰
+  { id: 269, count: 1 }, // 铁镐：保留一把用于查看铁阶段；其余格留给钻石工具与弓箭
+  { id: DIAMOND_PICKAXE, count: 1 }, { id: DIAMOND_AXE, count: 1 }, { id: DIAMOND_SHOVEL, count: 1 }, { id: DIAMOND_SWORD, count: 1 }, { id: DIAMOND_HOE, count: 1 },
   { id: BOW, count: 1 }, { id: ARROW, count: 64 },
 ];
 
@@ -130,7 +148,7 @@ const JUMP_EXHAUSTION = 0.05;
 const SPRINT_JUMP_EXHAUSTION = 0.2;
 const BREAK_EXHAUSTION = 0.005;
 const DAMAGE_EXHAUSTION = 0.1;
-const MOB_REACH = 3.5; // 攻击实体距离（格，≈MC）
+const MOB_REACH = 3.0; // Java 1.12 生存近战实体距离（格）
 const MOB_CAP = 16; // 玩家附近生物上限（性能保险）
 const MOB_DESPAWN_R = 88; // 超出此横向距离即卸载（略小于渲染半径，让落在身后的及时清掉、腾出名额）
 const MOB_NEAR_R = 48; // 统计/维持种群的半径
@@ -151,11 +169,11 @@ const BOW_DAMAGE = 9; // 满蓄力伤害(1.12 满蓄力 9,暴击可到 10)
 const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
 const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
 
-// 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6（非剑按拳算）。
+// 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6 / 钻石剑 7（非剑按拳算）。
 function mobDamage(heldId: number | null): number {
   if (heldId == null) return 1;
   const t = toolOf(heldId);
-  if (t?.kind === 'sword') return t.tier === 1 ? 4 : t.tier === 2 ? 5 : 6;
+  if (t?.kind === 'sword') return t.tier === 1 ? 4 : t.tier === 2 ? 5 : t.tier === 3 ? 6 : 7;
   return 1;
 }
 
@@ -202,9 +220,6 @@ export class Game {
   private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
   private readonly touch: TouchControls | null;
-  /** 只给触屏按下坐标换算相机射线复用，避免每一次轻点/长按都创建 Three.js 对象。 */
-  private readonly touchRaycaster = new THREE.Raycaster();
-  private readonly touchNdc = new THREE.Vector2();
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   private readonly physWorld: VoxelWorld;
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
@@ -235,8 +250,8 @@ export class Game {
   /** 触屏空白世界区域当前已经开始的长按行为，确保拖动/系统取消不会误射弓或遗留挖掘状态。 */
   private touchHoldAction: 'primary' | 'use' | null = null;
   /**
-   * 长按挖掘时锁定手指按下瞬间命中的方块。
-   * 这样玩家按画面边缘挖方块不会在下一帧又跳回屏幕中心准星；桌面端保持动态准星挖掘。
+   * 长按挖掘时锁定中央箭头在长按开始瞬间命中的方块。
+   * 因而手指随后用于转镜头也不会中断挖掘；桌面端保持动态准星挖掘。
    */
   private touchDigging = false;
   private touchDigHit: RayHit | null = null;
@@ -261,6 +276,8 @@ export class Game {
   private readonly wateredChunks = new Set<string>(); // 已增量激活过「能流动的水」的区块，避免重复扫描
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   private fov = 70;
+  // 当前实际应用到物理的疾跑状态；FOV 和疲劳必须读它，不能只读按键。
+  private actualSprinting = false;
   private shadowTick = 99; // 阴影节流计数；首帧即更新一次 shadow map
   private evictCt = 0; // 区块数据驱逐节流计数（治越走越卡的内存泄漏）
   private last = 0;
@@ -405,10 +422,10 @@ export class Game {
     this.touch = touchEnabled
       ? new TouchControls(document.getElementById('touch-controls') as HTMLElement, {
           look: (yaw, pitch) => this.look.rotate(yaw, pitch),
-          interactTap: (point) => this.onTouchInteractTap(point),
-          interactHoldStart: (point) => this.beginTouchHoldAction(point),
-          interactHoldEnd: (point) => this.endTouchHoldAction(point),
-          interactHoldCancel: (point) => this.cancelTouchHoldAction(point),
+          interactTap: () => this.onTouchInteractTap(),
+          interactHoldStart: () => this.beginTouchHoldAction(),
+          interactHoldEnd: () => this.endTouchHoldAction(),
+          interactHoldCancel: () => this.cancelTouchHoldAction(),
           inventory: () => {
             if (this.furnaceKey) this.closeFurnace();
             else if (this.craftingGrid > 0) this.closeCrafting();
@@ -532,8 +549,8 @@ export class Game {
   }
 
   /**
-   * 开始左键/长按的主操作。传入 aim 时代表触屏手指按下的位置；不传时保持桌面准星行为。
-   * 触屏挖掘会记住这一次命中，不会在玩家仍按着手指时偷偷改用屏幕中心的目标。
+   * 开始左键/长按的主操作。触屏会传入“中央箭头在按住开始时”的射线并锁定命中；
+   * 桌面端不传，保持动态准星行为。
    */
   private beginPrimaryAction(aim?: InteractionRay): void {
     if (!this.isGameplayActive()) return;
@@ -550,7 +567,7 @@ export class Game {
       }
       return;
     }
-    // 传入 aim 即代表直接触屏：即便按下位置没有命中方块，也绝不能退回中间准星开始挖。
+    // 传入 aim 即代表触屏：即便箭头当时没有命中方块，也绝不能在玩家转镜头后换目标。
     this.touchDigging = aim !== undefined;
     this.touchDigHit = aim ? this.rayHitFor(aim) : null;
     this.digging = true;
@@ -570,9 +587,10 @@ export class Game {
    * 手机版《我的世界》式直接触控：空白世界区域轻点是使用/放置，长按则按手持物决定挖掘/攻击或吃东西/拉弓。
    * TouchControls 保证一次手势只会进入其中一个分支，不能先放方块再开始挖。
    */
-  private onTouchInteractTap(point: TouchWorldPoint): void {
+  private onTouchInteractTap(): void {
     if (!this.isGameplayActive()) return;
-    const hit = this.rayHitAtTouchPoint(point);
+    // 手机版点击哪一边都只触发“使用”，实际目标始终以中央箭头为准。
+    const hit = this.rayHit();
     if (this.useTargetedBlock(hit)) return;
     const stack = this.inv[this.hotbar.index];
     if (this.tryIgnitePortal(hit, stack?.id ?? null)) return;
@@ -587,19 +605,18 @@ export class Game {
     return isFood(stack.id) && this.survival.food < MAX_FOOD;
   }
 
-  private beginTouchHoldAction(point: TouchWorldPoint): void {
+  private beginTouchHoldAction(): void {
     if (!this.isGameplayActive() || this.touchHoldAction !== null) return;
     if (this.shouldUseHeldItemOnTouchHold() && this.beginHeldItemUse()) {
       this.touchHoldAction = 'use';
       return;
     }
     this.touchHoldAction = 'primary';
-    this.beginPrimaryAction(this.touchRayAt(point));
+    // 把中央箭头此刻命中的方块锁定；之后拖动右手转镜头也不会重置裂纹进度。
+    this.beginPrimaryAction(this.crosshairRay());
   }
 
-  private endTouchHoldAction(point: TouchWorldPoint): void {
-    // 抬手坐标由输入层一并传入，当前目标始终固定为按下坐标，故这里无需重新取射线。
-    void point;
+  private endTouchHoldAction(): void {
     const action = this.touchHoldAction;
     this.touchHoldAction = null;
     if (action === 'primary') {
@@ -612,9 +629,7 @@ export class Game {
     }
   }
 
-  private cancelTouchHoldAction(point: TouchWorldPoint): void {
-    // 拖动/系统取消后不能改为目标处的点击；保留参数是为了与触控输入接口一致。
-    void point;
+  private cancelTouchHoldAction(): void {
     const action = this.touchHoldAction;
     this.touchHoldAction = null;
     if (action === 'primary') {
@@ -869,6 +884,8 @@ export class Game {
         if (this.flyTapWindow > 0) this.flyTapWindow--;
         if (!this.creative) this.flying = false;
         this.crouching = this.flying ? false : m.crouch; // 飞行时 Shift=下降，不当下蹲(相机不下沉)
+        // Java 1.12 生存模式食物值至少 7 才能疾跑；创造模式不受饥饿限制。
+        this.actualSprinting = m.sprint && (this.creative || canSprint(this.survival));
         this.player = step(
           this.player,
           {
@@ -877,7 +894,7 @@ export class Game {
             yaw: this.look.yaw,
             jump: jumped,
             swimUp: m.jumpHeld,
-            sprint: m.sprint,
+            sprint: this.actualSprinting,
             crouch: this.flying ? false : m.crouch, // 下蹲：减速 + 不走下边缘 + 矮碰撞
             slow: this.eating, // 吃东西减速（同 MC 用物品 ≈20% 速度）
             fly: this.flying, // 创造飞行：无重力，竖直由下面 flyUp/flyDown 控制
@@ -887,7 +904,7 @@ export class Game {
           this.physWorld,
         );
         this.publishMultiplayerState();
-        this.stepSurvival(m.sprint, jumped);
+        this.stepSurvival(this.actualSprinting, jumped);
         if (++this.worldTime >= DAY_LENGTH) this.worldTime = 0; // 昼夜推进：每模拟刻 +1（暂停即冻结）
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
         if (++this.fluidTick >= 5) {
@@ -937,7 +954,7 @@ export class Game {
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
-      const wantFov = playing && this.readMovement().sprint ? 80 : 70;
+      const wantFov = playing && this.actualSprinting ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
       this.renderer.camera.updateProjectionMatrix();
@@ -1316,27 +1333,6 @@ export class Game {
     return { origin, direction: { x: cy * cp, y: sp, z: sy * cp } };
   }
 
-  /**
-   * 触屏点击坐标 → 相机射线。坐标是 viewport CSS 像素，先相对 canvas 换为 NDC，
-   * 再由当前透视相机反投影；因此点到画面哪个位置，就真正选那个位置的方块/生物。
-   */
-  private touchRayAt(point: TouchWorldPoint): InteractionRay {
-    const rect = this.canvas.getBoundingClientRect();
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || rect.width <= 0 || rect.height <= 0) return this.crosshairRay();
-    const u = Math.max(0, Math.min(1, (point.x - rect.left) / rect.width));
-    const v = Math.max(0, Math.min(1, (point.y - rect.top) / rect.height));
-    const camera = this.renderer.camera;
-    // input event 有可能正好落在两帧渲染之间；强制更新矩阵，避免拿到上一帧相机方向。
-    camera.updateMatrixWorld();
-    this.touchNdc.set(u * 2 - 1, 1 - v * 2);
-    this.touchRaycaster.setFromCamera(this.touchNdc, camera);
-    const ray = this.touchRaycaster.ray;
-    return {
-      origin: { x: ray.origin.x, y: ray.origin.y, z: ray.origin.z },
-      direction: { x: ray.direction.x, y: ray.direction.y, z: ray.direction.z },
-    };
-  }
-
   /** 选中判定共用同一条射线；草丛也可被选中，水/空气会穿透。 */
   private rayHitFor(aim: InteractionRay): RayHit | null {
     // 选中判定用 isTargetableId(实心 + 草丛)，让草丛能被瞄准/打掉；非 isSolidId 否则射线穿草打到后面方块。
@@ -1350,10 +1346,6 @@ export class Game {
 
   private rayHit(): RayHit | null {
     return this.rayHitFor(this.crosshairRay());
-  }
-
-  private rayHitAtTouchPoint(point: TouchWorldPoint): RayHit | null {
-    return this.rayHitFor(this.touchRayAt(point));
   }
 
   // 记录方块改动到存档 delta
@@ -1485,13 +1477,13 @@ export class Game {
       this.crack.hide();
       return;
     }
-    // 桌面端按住左键时仍跟随准星；触屏端长按则锁定手指按下处的命中，不能跳回画面中心。
+    // 桌面端按住左键时仍跟随准星；触屏端长按则锁定中央箭头开始时的命中，转镜头不打断进度。
     const hit = this.touchDigging ? this.touchDigHit : this.rayHit();
     if (!hit) {
       this.digProgress = 0;
       this.digTarget = null;
       this.crack.hide();
-      // 触屏按下位置本来就没方块时，不能等玩家之后转镜头再从屏幕中心开始挖。
+      // 中央箭头开始时本来就没方块，不能等玩家之后转镜头再换目标开始挖。
       if (this.touchDigging) this.stopDigging();
       return;
     }

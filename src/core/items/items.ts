@@ -43,11 +43,18 @@ export const BOW = 292; // 3 线+3 棍 合成；蓄力射箭（在 Game 里特�
 export const GUNPOWDER = 293; // 苦力怕掉落（0-2）
 export const FLINT_AND_STEEL = 294; // 燧石+铁锭；点燃下界传送门
 export const NETHER_QUARTZ = 295; // 下界石英矿掉落
+// 1.12 钻石阶段：数值沿用 Java 版工具耐久/挖掘速度。
+export const DIAMOND = 296;
+export const DIAMOND_PICKAXE = 297;
+export const DIAMOND_AXE = 298;
+export const DIAMOND_SHOVEL = 299;
+export const DIAMOND_SWORD = 300;
+export const DIAMOND_HOE = 301;
 
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
   kind: ToolKind;
-  tier: number; // 1=木 2=石（采集门槛：needsTool 方块需对应 kind 的工具，tier 影响掉落上限/后续）
+  tier: number; // 1=木 2=石 3=铁 4=钻石（采集门槛：needsTool 方块需对应 kind 的工具，tier 影响掉落上限/后续）
   speed: number; // 挖掘速度倍率（对口方块）
   maxDurability: number; // 最大耐久（用尽即损坏）。1:1 MC：木=59，石=131。
 }
@@ -62,7 +69,8 @@ interface ItemDef {
 // 工具：剑/锄不是挖矿工具，速度压低
 function toolDef(name: string, kind: ToolKind, tier: number, baseSpeed: number): ItemDef {
   const speed = kind === 'sword' ? 1.5 : kind === 'hoe' ? 1 : baseSpeed;
-  const maxDurability = tier === 1 ? 59 : tier === 2 ? 131 : 250; // 木59/石131/铁250（同 MC）
+  const maxDurability = tier === 1 ? 59 : tier === 2 ? 131 : tier === 3 ? 250 : 1561;
+  // Java 1.12：木59 / 石131 / 铁250 / 钻石1561。
   return { name, maxStack: 1, food: null, tool: { kind, tier, speed, maxDurability } };
 }
 
@@ -70,6 +78,7 @@ export const ITEMS: Record<number, ItemDef> = {
   [APPLE]: { name: 'apple', maxStack: 64, food: { nutrition: 4, saturationModifier: 0.3 }, tool: null },
   [FLINT_AND_STEEL]: { name: 'flint_and_steel', maxStack: 1, food: null, tool: null },
   [NETHER_QUARTZ]: { name: 'nether_quartz', maxStack: 64, food: null, tool: null },
+  [DIAMOND]: { name: 'diamond', maxStack: 64, food: null, tool: null },
   [STICK]: { name: 'stick', maxStack: 64, food: null, tool: null },
   [COAL]: { name: 'coal', maxStack: 64, food: null, tool: null },
   [WOODEN_PICKAXE]: toolDef('wooden_pickaxe', 'pickaxe', 1, 2),
@@ -88,6 +97,11 @@ export const ITEMS: Record<number, ItemDef> = {
   [IRON_SWORD]: toolDef('iron_sword', 'sword', 3, 6),
   [IRON_HOE]: toolDef('iron_hoe', 'hoe', 3, 6),
   [IRON_INGOT]: { name: 'iron_ingot', maxStack: 64, food: null, tool: null },
+  [DIAMOND_PICKAXE]: toolDef('diamond_pickaxe', 'pickaxe', 4, 8),
+  [DIAMOND_AXE]: toolDef('diamond_axe', 'axe', 4, 8),
+  [DIAMOND_SHOVEL]: toolDef('diamond_shovel', 'shovel', 4, 8),
+  [DIAMOND_SWORD]: toolDef('diamond_sword', 'sword', 4, 8),
+  [DIAMOND_HOE]: toolDef('diamond_hoe', 'hoe', 4, 8),
   // 生物掉落 + 熟食（食物值 1:1 MC）
   [RAW_PORKCHOP]: { name: 'raw_porkchop', maxStack: 64, food: { nutrition: 3, saturationModifier: 0.3 }, tool: null },
   [COOKED_PORKCHOP]: { name: 'cooked_porkchop', maxStack: 64, food: { nutrition: 8, saturationModifier: 0.8 }, tool: null },

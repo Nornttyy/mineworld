@@ -1,8 +1,9 @@
 import { World } from '../world/world';
 import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
-import { fbm2, hash2, valueNoise3 } from '../math/noise';
-import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, isSolidId, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND } from '../blocks/registry';
+import { fbm2, hash2, hash3, valueNoise3 } from '../math/noise';
+import { makeRng } from '../math/rng';
+import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, isSolidId, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND, DIAMOND_ORE } from '../blocks/registry';
 import { biomeAt, biomeForest as _biomeForest } from './biome';
 
 // Re-export biomeForest so existing callers (incl. biome.test.ts if any) still work.
@@ -61,15 +62,127 @@ function caveAt(wx: number, wy: number, wz: number, hmin: number, seed: number):
   return Math.abs(valueNoise3(wxw / 18, wyw / 18, wzw / 18, seed + 333) - 0.5) < 0.04;
 }
 
-// 矿石(仅石层、非洞穴格)：煤各深度、铁偏中下层。返回石头或矿石 id。
-function oreAt(wx: number, wy: number, wz: number, height: number, seed: number): number {
-  const coal = valueNoise3(wx / 4.5, wy / 4.5, wz / 4.5, seed + 101);
-  if (coal > 0.84) return COAL_ORE;
-  const iron = valueNoise3(wx / 4, wy / 4, wz / 4, seed + 202);
-  if (iron > 0.83 && wy <= height * 0.6) return IRON_ORE;
+// 非矿石的石层填充：砂砾仍沿用当前噪声团，煤/铁/钻石则在整列完成后由「矿脉」阶段覆盖。
+// 这样不会再出现原先每格 16% 左右随机成煤/铁、像斑点噪声而不是矿脉的问题。
+function stoneOrGravelAt(wx: number, wy: number, wz: number, seed: number): number {
   const gravel = valueNoise3(wx / 5, wy / 5, wz / 5, seed + 303);
   if (gravel > 0.82) return GRAVEL; // 砂砾团（挖掉小概率出燧石）
   return STONE;
+}
+
+/**
+ * 1.12 风格的主世界矿脉规则。数量/大小沿用经典 16×16 区块的大致节奏：
+ * 煤多、铁中等、钻石很稀少且只在极深层。
+ *
+ * 当前世界仍维持既有 192 高度；Y 范围相对于基岩底部，故没有改海平面/高度设定。
+ */
+export interface OverworldOreRule {
+  id: number;
+  attempts: number;
+  size: number;
+  minY: number;
+  maxY: number;
+  salt: number;
+}
+
+export const OVERWORLD_ORE_RULES: readonly OverworldOreRule[] = [
+  { id: COAL_ORE, attempts: 20, size: 17, minY: 5, maxY: 128, salt: 0x2c10a1 },
+  { id: IRON_ORE, attempts: 20, size: 9, minY: 5, maxY: 64, salt: 0x1f30b2 },
+  { id: DIAMOND_ORE, attempts: 1, size: 8, minY: 5, maxY: 16, salt: 0x4d1a93 },
+];
+
+// 一条原版 WorldGenMinable 风格的矿脉横向最远只会伸出源区块约 4 格；扫描 3×3 源区块即可。
+// 仍明确写成常量，若未来把矿脉半径调大，审查时能一眼看出需要扩大这里。
+const ORE_SOURCE_MARGIN = 1;
+
+const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
+
+// 每个「源区块 × 矿种 × 尝试」有独立 RNG。目标区块从相同源区块重放同一条矿脉，
+// 所以即使两侧区块按任意顺序生成，跨边界的矿脉也不会断。
+function oreAttemptRng(seed: number, sourceCx: number, sourceCz: number, rule: OverworldOreRule, attempt: number): () => number {
+  const h = hash3(sourceCx, sourceCz, attempt, (seed + rule.salt) | 0);
+  return makeRng(Math.floor(h * 0x1_0000_0000));
+}
+
+/** 把一个来自 sourceCx/sourceCz 的矿脉，写入目标 chunk 内的那一段。只替换 STONE，绝不覆盖洞穴、土层、砂砾或玩家建造。 */
+function placeOreVein(
+  chunk: Chunk,
+  targetCx: number,
+  targetCz: number,
+  sourceCx: number,
+  sourceCz: number,
+  seed: number,
+  rule: OverworldOreRule,
+  attempt: number,
+): void {
+  const rng = oreAttemptRng(seed, sourceCx, sourceCz, rule, attempt);
+  const baseX = sourceCx * CHUNK_W + rng() * CHUNK_W;
+  const baseZ = sourceCz * CHUNK_W + rng() * CHUNK_W;
+  const y0 = rule.minY + Math.floor(rng() * (rule.maxY - rule.minY + 1));
+  // 原版矿脉端点有小幅纵向差，不能全是整齐水平的一条线。
+  const y1 = clamp(y0 + Math.floor(rng() * 5) - 2, rule.minY, rule.maxY);
+  const angle = rng() * Math.PI;
+  const halfLength = rule.size / 8;
+  const x0 = baseX + Math.sin(angle) * halfLength;
+  const x1 = baseX - Math.sin(angle) * halfLength;
+  const z0 = baseZ + Math.cos(angle) * halfLength;
+  const z1 = baseZ - Math.cos(angle) * halfLength;
+
+  // WorldGenMinable 的思想：沿短线插值一组椭球，首尾细、中间稍粗。
+  // size 是「块数级别」而非每格噪声概率，形状会连成自然的小矿脉。
+  for (let step = 0; step < rule.size; step++) {
+    const t = step / rule.size;
+    const cx = x0 + (x1 - x0) * t;
+    const cy = y0 + (y1 - y0) * t;
+    const cz = z0 + (z1 - z0) * t;
+    const diameter = (Math.sin(Math.PI * t) + 1) * rng() * rule.size / 16 + 1;
+    const rx = diameter / 2;
+    const ry = diameter * (0.55 + rng() * 0.15) / 2; // 竖向略扁，避免圆球感
+    const rz = rx;
+    const minX = Math.floor(cx - rx);
+    const maxX = Math.floor(cx + rx);
+    // 矿脉的「可见格」也要守住规则的高度带，而不只是中心点守住；
+    // 否则低 Y 的钻石端部会偶尔蹭到 Y=17，或煤脉长到 Y=129。
+    const minY = Math.max(rule.minY, Math.floor(cy - ry));
+    const maxY = Math.min(rule.maxY, CHUNK_H - 1, Math.floor(cy + ry));
+    const minZ = Math.floor(cz - rz);
+    const maxZ = Math.floor(cz + rz);
+    for (let wx = minX; wx <= maxX; wx++) {
+      if (worldToChunk(wx) !== targetCx) continue;
+      const nx = (wx + 0.5 - cx) / rx;
+      const nx2 = nx * nx;
+      if (nx2 >= 1) continue;
+      for (let wz = minZ; wz <= maxZ; wz++) {
+        if (worldToChunk(wz) !== targetCz) continue;
+        const nz = (wz + 0.5 - cz) / rz;
+        const nxz2 = nx2 + nz * nz;
+        if (nxz2 >= 1) continue;
+        for (let wy = minY; wy <= maxY; wy++) {
+          const ny = (wy + 0.5 - cy) / ry;
+          if (nxz2 + ny * ny >= 1) continue;
+          const lx = localCoord(wx);
+          const lz = localCoord(wz);
+          if (chunk.get(lx, wy, lz) === STONE) chunk.set(lx, wy, lz, rule.id);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 给当前区块盖上来自自身及四周源区块的矿脉段。
+ * 不读取相邻 chunk 的数据、只重放其确定性候选，故 worker 并行/加载顺序不会影响结果。
+ */
+export function decorateOverworldOres(chunk: Chunk, cx: number, cz: number, seed: number): void {
+  for (const rule of OVERWORLD_ORE_RULES) {
+    for (let sourceCx = cx - ORE_SOURCE_MARGIN; sourceCx <= cx + ORE_SOURCE_MARGIN; sourceCx++) {
+      for (let sourceCz = cz - ORE_SOURCE_MARGIN; sourceCz <= cz + ORE_SOURCE_MARGIN; sourceCz++) {
+        for (let attempt = 0; attempt < rule.attempts; attempt++) {
+          placeOreVein(chunk, cx, cz, sourceCx, sourceCz, seed, rule, attempt);
+        }
+      }
+    }
+  }
 }
 
 // 某世界列 (wx,wz) 的地表高度（用世界坐标采样，跨区块连续，确定性）。
@@ -262,18 +375,18 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
           // 沙滩/水边：沙覆盖，不受群系影响（保持原行为）
           if (y === height) id = SAND;
           else if (y >= height - 3) id = SAND;
-          else id = oreAt(wx, y, wz, height, seed);
+          else id = stoneOrGravelAt(wx, y, wz, seed);
         } else if (biome === 'desert') {
           // 沙漠：地表~3格沙 + 下方~4格沙石 + 再下石/矿
           if (y === height) id = SAND;
           else if (y >= height - 3) id = SAND;
           else if (y >= height - 7) id = SANDSTONE;
-          else id = oreAt(wx, y, wz, height, seed);
+          else id = stoneOrGravelAt(wx, y, wz, seed);
         } else {
           // 温带(plains/forest) + 雪原：草顶 + 土填充（雪原地表草，Task 3.2 再加雪层）
           if (y === height) id = GRASS;
           else if (y >= height - 3) id = DIRT;
-          else id = oreAt(wx, y, wz, height, seed);
+          else id = stoneOrGravelAt(wx, y, wz, seed);
         }
         c.set(lx, y, lz, id);
       }
@@ -295,6 +408,10 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
       }
     }
   }
+
+  // 煤/铁/钻石矿脉在地形、洞穴、水面均落定后统一覆盖石头；因此不会填洞、不会压住土层，
+  // 并且跨区块候选由 decorateOverworldOres 自己重放，生成顺序不会导致接缝断矿。
+  decorateOverworldOres(c, cx, cz, seed);
 
   // 装饰：种橡树（仅平原/森林群系）。外扩 TREE_MARGIN 遍历，让邻列的树把枝叶探进本区块（接缝处不断树）。
   const x0 = cx * CHUNK_W;
