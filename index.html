@@ -857,10 +857,7 @@
       #touch-controls {
         position: fixed;
         inset: 0;
-        /*
-         * 触控区刻意为快捷栏留出一整行：方向键和右侧动作键都不会压到选物品的区域。
-         * 这套排布按 Bedrock Crosshair 模式：右下是「剑/挖」和「手/放」，上面是跳/蹲。
-         */
+        /* 触控区为快捷栏留出一整行；右侧空白处直接用于看视角与互动。 */
         --touch-safe-left: max(14px, env(safe-area-inset-left));
         --touch-safe-right: max(14px, env(safe-area-inset-right));
         --touch-hotbar-clear: max(76px, calc(env(safe-area-inset-bottom) + 66px));
@@ -877,11 +874,11 @@
       }
       .touch-look {
         position: absolute;
-        /* 右半屏专门负责转视角，和左侧十字方向键彻底分开，双指时不会抢手势。 */
-        left: 50%;
-        right: 0;
-        top: max(58px, env(safe-area-inset-top));
-        bottom: max(66px, calc(env(safe-area-inset-bottom) + 56px));
+        /*
+         * 这是触屏版的“世界操作面”：按钮和快捷栏层级更高，会自动避开它；
+         * 其余空白处都能轻点互动、长按挖掘，并可拖动看视角。
+         */
+        inset: 0;
         pointer-events: auto;
         touch-action: none;
         z-index: 0;
@@ -897,7 +894,8 @@
         grid-template-columns: repeat(3, 62px);
         grid-template-rows: repeat(3, 62px);
         gap: 4px;
-        pointer-events: none;
+        /* 十字键整块区域吞掉空格/中心触摸，防止左手松开时穿透到底层世界操作面。 */
+        pointer-events: auto;
         z-index: 2;
       }
       .touch-dpad::before {
@@ -993,16 +991,6 @@
         filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.5));
         pointer-events: none;
       }
-      .touch-action-button {
-        width: 72px;
-        height: 72px;
-        border-radius: 12px;
-      }
-      .touch-action-button .touch-icon {
-        width: 66%;
-        height: 66%;
-        stroke-width: 4.5;
-      }
       #touch-jump {
         right: calc(var(--touch-safe-right) + 4px);
         bottom: calc(var(--touch-hotbar-clear) + 96px);
@@ -1010,19 +998,11 @@
         height: 64px;
       }
       #touch-crouch {
-        right: calc(var(--touch-safe-right) + 92px);
+        /* 与跳跃键留出 12px 空隙，也避开左侧十字键。 */
+        right: calc(var(--touch-safe-right) + 80px);
         bottom: calc(var(--touch-hotbar-clear) + 96px);
         width: 64px;
         height: 64px;
-      }
-      /* Bedrock Crosshair：左键是剑/攻击（长按=挖），右键是手/放置或使用。 */
-      #touch-mine {
-        right: calc(var(--touch-safe-right) + 84px);
-        bottom: calc(var(--touch-hotbar-clear) + 10px);
-      }
-      #touch-use {
-        right: var(--touch-safe-right);
-        bottom: calc(var(--touch-hotbar-clear) + 10px);
       }
       #touch-pause,
       #touch-inventory {
@@ -1165,7 +1145,7 @@
         #touch-right::after { border-top-width: 12px; border-bottom-width: 12px; border-left-width: 17px; }
       }
 
-      /* 窄竖屏使用 50px 单键（仍高于旧版 44px），让右侧动作组和左侧方向键有明确间隔。 */
+      /* 窄竖屏使用 50px 单键（仍高于旧版 44px），让右侧操作空白区保持充足。 */
       @media (pointer: coarse) and (orientation: portrait) and (max-width: 480px) {
         #touch-controls {
           --touch-safe-left: max(12px, env(safe-area-inset-left));
@@ -1196,24 +1176,14 @@
         #touch-left::after { border-top-width: 11px; border-bottom-width: 11px; border-right-width: 16px; }
         #touch-right::after { border-top-width: 11px; border-bottom-width: 11px; border-left-width: 16px; }
       }
-      /* 320px 竖屏：右侧改为单列，彻底消除动作键与方向键的命中区重叠。 */
+      /* 320px 一类的窄竖屏，把右侧两个功能键改为单列，保留方向键和空白互动区的间隔。 */
       @media (pointer: coarse) and (orientation: portrait) and (max-width: 360px) {
-        #touch-mine {
-          right: var(--touch-safe-right);
-          bottom: calc(var(--touch-hotbar-clear) + 94px);
-        }
-        #touch-use {
-          right: var(--touch-safe-right);
-          bottom: calc(var(--touch-hotbar-clear) + 10px);
-        }
-        #touch-jump {
-          right: calc(var(--touch-safe-right) + 4px);
-          bottom: calc(var(--touch-hotbar-clear) + 180px);
-        }
+        #touch-jump,
         #touch-crouch {
-          right: calc(var(--touch-safe-right) + 4px);
-          bottom: calc(var(--touch-hotbar-clear) + 256px);
+          right: var(--touch-safe-right);
         }
+        #touch-crouch { bottom: calc(var(--touch-hotbar-clear) + 92px); }
+        #touch-jump { bottom: calc(var(--touch-hotbar-clear) + 168px); }
       }
       /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
       #boot {
@@ -1347,7 +1317,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-B5oQMOCG.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-BhFSs8YQ.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1386,8 +1356,8 @@
         <p class="ctrl">
           <span class="desktop-help">WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
           空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span>
-          <span class="touch-help">左侧方向键移动 · 右半屏拖动视角 · 点快捷栏选物品<br />
-          按住“挖/打”挖掘 · “放/用”交互 · 双击前进后按住可疾跑</span>
+          <span class="touch-help">左侧方向键移动 · 空白处拖动视角 · 点快捷栏选物品<br />
+          轻点空白处互动 · 长按空白处挖掘 · 双击前进后按住可疾跑</span>
         </p>
         <button id="about-close" class="btn">关闭</button>
       </div>
@@ -1461,7 +1431,7 @@
     <div id="hotbar"></div>
     <div id="hurt"></div>
     <div id="touch-controls" aria-hidden="true">
-      <div class="touch-look" aria-label="拖动视角"></div>
+      <div class="touch-look" aria-label="空白处可拖动视角；轻点互动，长按挖掘"></div>
       <div class="touch-dpad" role="group" aria-label="移动方向键">
         <button id="touch-forward" class="touch-dpad-button" type="button" aria-label="前进"></button>
         <button id="touch-left" class="touch-dpad-button" type="button" aria-label="向左移动"></button>
@@ -1476,12 +1446,6 @@
       </button>
       <button id="touch-crouch" class="touch-button" type="button" aria-label="下蹲">
         <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 14v33M18 34l14 14 14-14" /></svg>
-      </button>
-      <button id="touch-mine" class="touch-button touch-action-button" type="button" aria-label="攻击或挖掘">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M14 17c11-8 26-6 36 4M15 17l5 10M49 21l-8 5M34 27L14 50M29 35l6 6" /></svg>
-      </button>
-      <button id="touch-use" class="touch-button touch-action-button" type="button" aria-label="放置或使用">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M22 51V32c0-4 6-4 6 0v5V20c0-4 6-4 6 0v15V21c0-4 6-4 6 0v15V26c0-4 6-4 6 0v15c0 7-5 12-12 12H29c-4 0-7-2-9-5l-6-9c-2-3 3-7 6-4l2 3" /></svg>
       </button>
       <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">
         <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 50V17M18 30l14-14 14 14" /></svg>
