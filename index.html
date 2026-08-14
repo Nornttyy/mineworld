@@ -922,19 +922,25 @@
         touch-action: none;
         z-index: 0;
       }
-      /* 类似手机版《我的世界》的十字方向键：四个方向可同时按，方便斜走。 */
+      /*
+       * 类似手机版《我的世界》的十字方向键，不过移动由整块方向盘接收：
+       * 左拇指不用抬起，直接在盘上滑到八个方向即可切换行走方向。
+       */
       .touch-dpad {
         position: absolute;
         left: var(--touch-safe-left);
         bottom: calc(var(--touch-hotbar-clear) + 10px);
         width: 194px;
         height: 194px;
+        --touch-dpad-stick-x: 0px;
+        --touch-dpad-stick-y: 0px;
         display: grid;
         grid-template-columns: repeat(3, 62px);
         grid-template-rows: repeat(3, 62px);
         gap: 4px;
-        /* 十字键整块区域吞掉空格/中心触摸，防止左手松开时穿透到底层世界操作面。 */
+        /* 方向盘的整个正方形都是命中区；角落可自然进入左前、右前等八向移动。 */
         pointer-events: auto;
+        touch-action: none;
         z-index: 2;
       }
       .touch-dpad::before {
@@ -968,8 +974,8 @@
           inset 1px 1px 0 rgba(255, 255, 255, 0.2);
         display: grid;
         place-items: center;
-        pointer-events: auto;
-        touch-action: none;
+        /* 箭头只是 MC 风格的外观，真实手势由整块 .touch-dpad 接收。 */
+        pointer-events: none;
         z-index: 1;
         transition: background 80ms ease-out, transform 80ms ease-out, border-color 80ms ease-out;
       }
@@ -989,10 +995,41 @@
       #touch-back::after { border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 19px solid currentColor; }
       #touch-left::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-right: 19px solid currentColor; }
       #touch-right::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-left: 19px solid currentColor; }
-      .touch-dpad-button.pressed {
+      .touch-dpad[data-forward='1'] #touch-forward,
+      .touch-dpad[data-forward='-1'] #touch-back,
+      .touch-dpad[data-right='-1'] #touch-left,
+      .touch-dpad[data-right='1'] #touch-right {
         border-color: rgba(237, 252, 255, 0.88);
         background: rgba(107, 164, 194, 0.78);
-        transform: scale(0.92);
+        transform: scale(0.94);
+      }
+      /* 拇指的小方块只在按住移动盘时出现，跟随手指但不会遮住四个方向箭头。 */
+      .touch-dpad-stick {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 42px;
+        height: 42px;
+        box-sizing: border-box;
+        border: 2px solid rgba(244, 252, 255, 0.9);
+        border-radius: 12px;
+        background:
+          linear-gradient(135deg, rgba(172, 222, 244, 0.82), rgba(59, 104, 130, 0.86)),
+          rgba(42, 76, 95, 0.82);
+        box-shadow:
+          0 2px 0 rgba(0, 0, 0, 0.3),
+          inset 1px 1px 0 rgba(255, 255, 255, 0.35);
+        opacity: 0.48;
+        pointer-events: none;
+        transform: translate(-50%, -50%) translate3d(var(--touch-dpad-stick-x), var(--touch-dpad-stick-y), 0);
+        transition: transform 44ms linear, opacity 100ms ease-out, background 100ms ease-out;
+        z-index: 3;
+      }
+      .touch-dpad[data-moving='true'] .touch-dpad-stick {
+        opacity: 1;
+        background:
+          linear-gradient(135deg, rgba(190, 236, 255, 0.95), rgba(74, 136, 170, 0.96)),
+          rgba(50, 89, 110, 0.92);
       }
       .touch-button {
         position: absolute;
@@ -1173,11 +1210,8 @@
           width: 54px;
           height: 54px;
         }
-        .touch-dpad-button {
-          width: 54px;
-          height: 54px;
-          border-radius: 13px;
-        }
+        .touch-dpad-button { width: 54px; height: 54px; border-radius: 13px; }
+        .touch-dpad-stick { width: 38px; height: 38px; border-radius: 11px; }
         #touch-forward::after { border-left-width: 12px; border-right-width: 12px; border-bottom-width: 17px; }
         #touch-back::after { border-left-width: 12px; border-right-width: 12px; border-top-width: 17px; }
         #touch-left::after { border-top-width: 12px; border-bottom-width: 12px; border-right-width: 17px; }
@@ -1205,11 +1239,8 @@
           height: 50px;
           border-radius: 12px;
         }
-        .touch-dpad-button {
-          width: 50px;
-          height: 50px;
-          border-radius: 12px;
-        }
+        .touch-dpad-button { width: 50px; height: 50px; border-radius: 12px; }
+        .touch-dpad-stick { width: 36px; height: 36px; border-radius: 10px; }
         #touch-forward::after { border-left-width: 11px; border-right-width: 11px; border-bottom-width: 16px; }
         #touch-back::after { border-left-width: 11px; border-right-width: 11px; border-top-width: 16px; }
         #touch-left::after { border-top-width: 11px; border-bottom-width: 11px; border-right-width: 16px; }
@@ -1356,7 +1387,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-CXIpdBp7.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-n3FFXTdU.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1395,7 +1426,7 @@
         <p class="ctrl">
           <span class="desktop-help">WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
           空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span>
-          <span class="touch-help">左侧方向键移动 · 空白处拖动视角 · 点快捷栏选物品<br />
+          <span class="touch-help">左侧滑动方向盘移动 · 空白处拖动视角 · 点快捷栏选物品<br />
           轻点空白处互动 · 长按空白处挖掘 · 双击前进后按住可疾跑</span>
         </p>
         <button id="about-close" class="btn">关闭</button>
@@ -1469,11 +1500,12 @@
     <div id="hurt"></div>
     <div id="touch-controls" aria-hidden="true">
       <div class="touch-look" aria-label="空白处可拖动视角；轻点互动，长按挖掘"></div>
-      <div class="touch-dpad" role="group" aria-label="移动方向键">
-        <button id="touch-forward" class="touch-dpad-button" type="button" aria-label="前进"></button>
-        <button id="touch-left" class="touch-dpad-button" type="button" aria-label="向左移动"></button>
-        <button id="touch-right" class="touch-dpad-button" type="button" aria-label="向右移动"></button>
-        <button id="touch-back" class="touch-dpad-button" type="button" aria-label="后退"></button>
+      <div id="touch-dpad" class="touch-dpad" role="group" aria-label="可滑动的八方向移动盘">
+        <span id="touch-forward" class="touch-dpad-button" aria-hidden="true"></span>
+        <span id="touch-left" class="touch-dpad-button" aria-hidden="true"></span>
+        <span id="touch-right" class="touch-dpad-button" aria-hidden="true"></span>
+        <span id="touch-back" class="touch-dpad-button" aria-hidden="true"></span>
+        <span class="touch-dpad-stick" aria-hidden="true"></span>
       </div>
       <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">
         <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M21 16v32M43 16v32" /></svg>
