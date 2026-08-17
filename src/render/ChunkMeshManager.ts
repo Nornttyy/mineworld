@@ -7,11 +7,13 @@ import { loadWaterFrames, loadTorchTexture } from './atlas';
 import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
+import { makeCloudShadowTexture, makeDirectionalWaveTexture } from './surfaceNoise';
+import { WATER_RENDER_LAYER } from './renderLayers';
 
 const perfNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
-const SHADOW_MAP_SIZE = 1024; // 阴影贴图分辨率
+const SHADOW_MAP_SIZE = 2048; // 标准档 2K；高档会在 setLightingQuality 中升级为 4K
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
@@ -38,6 +40,7 @@ const MC_LIGHT_GLSL =
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
+  ice: THREE.Mesh | null;
   cutout: THREE.Mesh | null;
   water: THREE.Mesh | null;
   torch: THREE.Mesh | null;
@@ -55,11 +58,14 @@ export class ChunkMeshManager {
   // 粗光照网格(worker 随网格传回,4×48×4/区块)：实体(生物/掉落物/手持)环境光照采样用
   private readonly lightGrids = new Map<string, Uint8Array>();
   private readonly opaqueMat: THREE.MeshBasicMaterial;
+  private readonly iceMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
   private readonly torchMat: THREE.MeshBasicMaterial;
   private readonly waterFrames: THREE.Texture[];
   private readonly waterTex: THREE.Texture;
+  private readonly cloudNoiseTex: THREE.DataTexture;
+  private readonly waterWaveTex: THREE.DataTexture;
   private waterAnimT = 0;
   private waterFrame = 0;
   // 共享光照 uniform：uSkyMul=天光昼夜系数(白天1/夜≈0.05)；uSkyTint=天光着色(白天白/夜暗蓝)。
@@ -72,9 +78,17 @@ export class ChunkMeshManager {
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
   private readonly uTime = { value: 0 };
-  private readonly uSkyRefl = { value: new THREE.Color(0.55, 0.72, 0.95) }; // 地平线色(掠角反射)
-  private readonly uSkyTop = { value: new THREE.Color(0.35, 0.55, 0.85) }; // 天顶色(俯角反射)
+  private readonly uSkyRefl = { value: new THREE.Color().setRGB(0.55, 0.72, 0.95, THREE.SRGBColorSpace) }; // 地平线色(掠角反射)
+  private readonly uSkyTop = { value: new THREE.Color().setRGB(0.35, 0.55, 0.85, THREE.SRGBColorSpace) }; // 天顶色(俯角反射)
   private readonly uSunDir = { value: new THREE.Vector3(0.4, 0.85, 0.3) };
+  // Renderer 先画一张“无水”的 HDR 颜色+深度图，水面再采样它做真实屏幕空间折射。
+  private readonly uRefractionColor: { value: THREE.Texture | null } = { value: null };
+  private readonly uRefractionDepth: { value: THREE.Texture | null } = { value: null };
+  private readonly uRefractionSize = { value: new THREE.Vector2(1, 1) };
+  private readonly uHasRefraction = { value: 0 };
+  private readonly uReflectionColor: { value: THREE.Texture | null } = { value: null };
+  private readonly uReflectionMatrix = { value: new THREE.Matrix4() };
+  private readonly uHasReflection = { value: 0 };
   // 真实投影阴影：太阳 DirectionalLight 自动渲出 shadow map，方块 shader 手动采样它(自带 uniform 名，不依赖 three.js 给 Basic 材质填灯光 uniform)。
   private readonly sun = new THREE.DirectionalLight(0xffffff, 0); // 强度 0：只用它的 shadow map，不给材质打光(方块走自有天光 shader)
   private readonly uShadowMap: { value: THREE.Texture | null } = { value: null };
@@ -107,6 +121,9 @@ export class ChunkMeshManager {
     // → 平地/受光面零自阴影(shadow acne)。曾用正面+bias=0.004 仍在"高"档把玩家周围
     // ±36 格窗口内整片压暗 27%(假自阴影)，窗口外没阴影 → "玩家周围比远处暗"(用户报)。
     this.opaqueMat.shadowSide = THREE.BackSide;
+    // 冰独立成批：光影档由材质内部完成折射+倒影后以不透明结果写入，避免普通 alpha 叠加排序错误。
+    this.iceMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
+    this.iceMat.shadowSide = THREE.BackSide;
     // 镂空(树叶)：alpha-test 裁切 + 双面渲染（透过近处孔能看到远端叶面，茂密感）
     this.cutoutMat = new THREE.MeshBasicMaterial({
       map: atlas,
@@ -119,17 +136,23 @@ export class ChunkMeshManager {
     this.waterFrames = loadWaterFrames(WATER_FRAMES);
     this.waterTex = this.waterFrames[0].clone();
     this.waterTex.needsUpdate = true;
+    this.cloudNoiseTex = makeCloudShadowTexture(128);
+    this.waterWaveTex = makeDirectionalWaveTexture();
     this.waterMat = new THREE.MeshBasicMaterial({
       map: this.waterTex,
       vertexColors: true,
       transparent: true,
       opacity: 0.78,
       depthWrite: false,
+      side: THREE.DoubleSide,
     });
+    // 水下仰视也能看到水面；单 pass 避免透明 DoubleSide 默认前后各画一次造成叠色和双倍 fill-rate。
+    this.waterMat.forceSinglePass = true;
     // 不透明/镂空吃天光shader；水另走"天光 + 光影(波动/菲涅尔反射/高光)"shader
-    this.installLight(this.opaqueMat);
-    this.installLight(this.cutoutMat, true); // 树叶(cutout)随风轻摆
+    this.installLight(this.opaqueMat, false, true);
+    this.installLight(this.cutoutMat, true, false); // 树叶(cutout)随风轻摆
     this.installWaterShader(this.waterMat);
+    this.installIceShader(this.iceMat);
     // 火把：贴火把纹理的交叉 billboard，自发光(不参与天光,始终全亮)，alpha-test 抠出火把形、双面可见
     this.torchMat = new THREE.MeshBasicMaterial({
       map: loadTorchTexture(),
@@ -195,7 +218,7 @@ export class ChunkMeshManager {
   }
 
   // 给方块材质注入"天光×昼夜 + 方块光"的合成。顶点算亮度系数 vLF + 天光着色 vTint，片元相乘。
-  private installLight(mat: THREE.MeshBasicMaterial, sway = false): void {
+  private installLight(mat: THREE.MeshBasicMaterial, sway = false, underwater = false): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyTint = this.uSkyTint;
       shader.uniforms.uSkyDarken = this.uSkyDarken;
@@ -208,9 +231,9 @@ export class ChunkMeshManager {
       shader.uniforms.uSunUp = this.uSunUp;
       shader.uniforms.uShaders = this.uShaders; // 光影开关：阳光泽面/草木摆动门控
       shader.uniforms.uSunDirW = this.uSunDir; // 阳光方向(世界系,阳光泽面用;与水面共用)
-      if (sway) {
-        shader.uniforms.uTime = this.uTime;
-      }
+      shader.uniforms.uTime = this.uTime;
+      shader.uniforms.uSurfaceNoise = { value: this.cloudNoiseTex };
+      shader.uniforms.uWaterWaves = { value: this.waterWaveTex };
       // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
       // 位移按【世界坐标(原始 position)+时间】→相邻顶点共享相位、无裂缝。×uShaders=只在光影开时摆。
       const swayCode = sway
@@ -224,20 +247,23 @@ export class ChunkMeshManager {
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
             (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
-            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\n' + MC_BRIGHT_GLSL,
+            (underwater ? 'attribute float aUnderwater;\n' : '') +
+            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' + MC_BRIGHT_GLSL,
         )
         .replace(
           '#include <begin_vertex>',
           '#include <begin_vertex>\n' + swayCode + MC_LIGHT_GLSL + '\n' +
             'vSky = aLight.x;\n' +
             'vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' + // 世界坐标(阳光泽面法线/视线用)
+            (underwater ? 'vUnderwater = aUnderwater;\n' : 'vUnderwater = 0.0;\n') +
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\n' +
+          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
+            'uniform float uTime;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
             // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
             // 【整片永远判成阴影、全场 50% 压暗】,窗口外正常 → 用户报"开光影后玩家周围比远处暗"。
@@ -245,25 +271,34 @@ export class ChunkMeshManager {
             'float mwShadow(vec4 sc){\n' +
             '  vec3 c = sc.xyz / sc.w;\n' +
             '  if (c.z >= 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;\n' +
-            // depth pass 渲背面(shadowSide=BackSide)后受光面无自遮挡，bias 只需盖住数值误差。
-            '  float bias = 0.0015;\n' +
-            // 逐像素随机旋转采样盘：把少抽样的"两段式硬边"打散成柔噪(免费软影)
-            '  float ra = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831;\n' +
-            '  vec2 rc = vec2(cos(ra), sin(ra));\n' +
-            '  vec2 o1 = vec2(0.9 * rc.x - 0.3 * rc.y, 0.9 * rc.y + 0.3 * rc.x);\n' +
+            // 背面深度 pass 只需很小的数值 bias；旧值 0.0015 相当于约 0.39 格，会让影子悬浮。
+            '  float bias = 0.00032;\n' +
+            // 固定世界锁定的 Poisson 采样，不再按 gl_FragCoord 随机旋转，镜头移动时影边不会爬噪。
+            '  float r = mix(1.35, 2.75, uHq);\n' +
             '  float s = 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + o1 * uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy - o1 * uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '  if (uHq > 0.5) {\n' + // 高档再补 2 抽样(4-tap 软影);标准 2-tap 省采样(集显友好)
-            '    vec2 o2 = vec2(-0.3 * rc.x - 0.9 * rc.y, -0.3 * rc.y + 0.9 * rc.x);\n' +
-            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy + o2 * uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '    s += (c.z - bias <= mwUnpackDepth(texture2D(uShadowMap, c.xy - o2 * uShadowTexel))) ? 1.0 : 0.0;\n' +
-            '    s /= 4.0;\n' +
-            '  } else { s /= 2.0; }\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.613, 0.617)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.170,-0.040)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.299,-0.791)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.646, 0.494)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.768,-0.250)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.421,-0.644)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.904, 0.032)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.058, 0.934)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '  if (uHq > 0.5) {\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.332, 0.220)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.292, 0.821)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.744,-0.312)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.897, 0.195)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.079,-0.956)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.508, 0.246)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2(-0.482,-0.512)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s += (c.z-bias <= mwUnpackDepth(texture2D(uShadowMap,c.xy+vec2( 0.255,-0.356)*uShadowTexel*r)))?1.0:0.0;\n' +
+            '    s /= 16.0;\n' +
+            '  } else { s /= 8.0; }\n' +
             // 阴影相机窗口(玩家±36格)边缘渐隐：到边界 12% 内阴影淡出为无 —— 窗口外本就无阴影，
             // 不渐隐会形成一圈"里暗外亮"的硬边亮环("玩家周围比远处暗"观感的一部分)。
             '  float m = min(min(c.x, 1.0 - c.x), min(c.y, 1.0 - c.y));\n' +
-            '  return mix(1.0, s, smoothstep(0.0, 0.12, m));\n' +
+            '  return mix(1.0, s, smoothstep(0.0, 0.08, m));\n' +
             '}',
         )
         .replace(
@@ -273,12 +308,22 @@ export class ChunkMeshManager {
             'if (uShadowOn > 0.5) {\n' +
             '  float sh = mwShadow(vShadowCoord);\n' +
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
-            '  vis = mix(1.0, mix(0.5, 1.0, sh), gate);\n' + // 阴影处降到 50%(更明确的影)
+            '  vis = mix(1.0, mix(0.61, 1.0, sh), gate);\n' +
             '}\n' +
             // 暖阳冷影(光影包核心质感)：影子里偏蓝(天空光补光),而不是单纯变暗的灰
-            'vec3 shTint = mix(vec3(0.80, 0.88, 1.18), vec3(1.0), vis);\n' +
+            'vec3 shTint = mix(vec3(0.9, 0.95, 1.06), vec3(1.0), vis);\n' +
             'diffuseColor.rgb *= vLF * vTint * vis * shTint;\n' +
-            // 方块保持经典哑光：只留轻微暖阳层次，避免强镜面把 16×16 像素纹理洗成塑料。
+            // 大尺度缓慢云影：一张 CPU 预生成的无缝纹理只采 1 次，给开阔地增加动态明暗，
+            // 不做昂贵的片元 FBM，也不会像正弦条纹一样露出重复方向。
+            'float cloud = 0.0;\n' +
+            'float openSun = vSky * uSunUp * uShaders * vis;\n' +
+            'if (openSun > 0.003) {\n' +
+            '  vec2 cuv = vWp.xz * 0.0055 + vec2(uTime * 0.0014, uTime * 0.0008);\n' +
+            '  cloud = smoothstep(0.54, 0.78, texture2D(uSurfaceNoise, cuv).b);\n' +
+            '  float cloudDim = cloud * mix(0.75, 1.0, uHq) * openSun;\n' +
+            '  diffuseColor.rgb *= vec3(1.0) - vec3(0.11, 0.085, 0.045) * cloudDim;\n' +
+            '}\n' +
+            // 方块保持经典哑光：只留暖阳层次，避免强镜面把 16×16 像素纹理洗成塑料。
             // 法线=屏幕导数(免顶点法线),sign(dot(N,V)) 归正朝观察者(解旧"朝向未定"问题)；
             // 门控=受天光面×白天×阴影可见×光影开(影子里/洞里/夜里/关光影都没有)。
             'float sunLit = vSky * uSunUp * uShaders * vis;\n' +
@@ -286,11 +331,25 @@ export class ChunkMeshManager {
             '  vec3 Nw = normalize(cross(dFdx(vWp), dFdy(vWp)));\n' +
             '  vec3 Vd = normalize(cameraPosition - vWp);\n' +
             '  Nw *= sign(dot(Nw, Vd));\n' +
-            '  float nd = max(dot(Nw, normalize(uSunDirW)), 0.0);\n' +
-            '  diffuseColor.rgb *= 1.0 + vec3(0.12, 0.09, 0.04) * nd * sunLit;\n' + // 轻微直射面暖亮
-            '  vec3 Hh = normalize(normalize(uSunDirW) + Vd);\n' +
-            '  float sp = pow(max(dot(Nw, Hh), 0.0), 28.0);\n' +
-            '  diffuseColor.rgb += vec3(1.0, 0.95, 0.8) * sp * 0.035 * sunLit;\n' + // 极弱高光：保留光向，不覆盖像素颗粒
+            '  vec3 sunDir = normalize(uSunDirW);\n' +
+            '  float nd = max(dot(Nw, sunDir), 0.0);\n' +
+            '  float sunHeight = clamp(sunDir.y * 3.0, 0.0, 1.0);\n' +
+            '  vec3 sunTone = mix(vec3(1.32, 0.66, 0.22), vec3(1.04, 0.98, 0.86), sunHeight);\n' +
+            '  diffuseColor.rgb *= 1.0 + sunTone * nd * sunLit * (1.0 - cloud * 0.7) * 0.075;\n' +
+            '}\n' +
+            // 焦散投射在真正的水底方块上，而不是加在水面颜色里。连续水深控制衰减，洞穴/夜晚不自发光。
+            'if (uShaders > 0.5 && vUnderwater > 0.05 && uSunUp > 0.01) {\n' +
+            '  vec2 sunProjected = vWp.xz - normalize(uSunDirW).xz / max(normalize(uSunDirW).y, 0.25) * vWp.y;\n' +
+            '  vec2 cUv0 = sunProjected * 0.145 + vec2(uTime * 0.011, -uTime * 0.008);\n' +
+            '  vec2 cUv1 = vec2(cUv0.x * 0.76 - cUv0.y * 0.65, cUv0.x * 0.65 + cUv0.y * 0.76) * 1.65 + vec2(-uTime * 0.007, uTime * 0.012);\n' +
+            '  float crest0 = texture2D(uWaterWaves, cUv0).a;\n' +
+            '  float crest1 = texture2D(uWaterWaves, cUv1).a;\n' +
+            '  float c0 = smoothstep(0.62, 0.91, crest0);\n' +
+            '  float c1 = smoothstep(0.62, 0.91, crest1);\n' +
+            '  float caustic = pow(max(c0, c1) * 0.55 + c0 * c1 * 0.75, 1.8);\n' +
+            '  float depthFade = exp(-vUnderwater * 0.3) * smoothstep(0.02, 0.25, vUnderwater);\n' +
+            '  vec3 causticColor = mix(vec3(0.52, 0.76, 0.66), vec3(1.18, 1.08, 0.78), uSunUp);\n' +
+            '  diffuseColor.rgb += diffuseColor.rgb * causticColor * caustic * depthFade * uSunUp * 0.44;\n' +
             '}',
         );
     };
@@ -326,9 +385,8 @@ export class ChunkMeshManager {
     }
   }
 
-  // 水面专用：天光烤进顶点 + "光影"(uShaders 开时)。
-  // 水面【几何平静不动】(不抬降、不穿帮)；"会动"的是【波纹本身】——片元里的程序波纹(高度+坡度)，
-  //   相位 ±t 多向行波 → 波纹明暗带 + 鳞光反射在水面上【看得见地流动】(波纹飘动，不是整片水起伏)。
+  // 水面专用：经典档保留 16px 帧动画；光影档改走廉价的双层法线纹理、深度吸收、
+  // Fresnel 天空反射、岸线细浪和双层太阳倒影。几何只做厘米级涌浪，防止远海出现白色“冰架”。
   private installWaterShader(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
@@ -339,82 +397,464 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
       shader.uniforms.uSunDir = this.uSunDir;
-      // 顶点：烤天光 + 传世界坐标；水面顶点按波高【上下起伏】(仅光影开,aTop 标记的水面顶点动、侧壁底不动→免穿帮)。
+      shader.uniforms.uHq = this.uHq;
+      shader.uniforms.uSurfaceNoise = { value: this.waterWaveTex };
+      shader.uniforms.uCloudNoise = { value: this.cloudNoiseTex };
+      shader.uniforms.uRefractionColor = this.uRefractionColor;
+      shader.uniforms.uRefractionDepth = this.uRefractionDepth;
+      shader.uniforms.uRefractionSize = this.uRefractionSize;
+      shader.uniforms.uHasRefraction = this.uHasRefraction;
+      shader.uniforms.uReflectionColor = this.uReflectionColor;
+      shader.uniforms.uReflectionMatrix = this.uReflectionMatrix;
+      shader.uniforms.uHasReflection = this.uHasReflection;
+
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nattribute float aTop;\nvarying float vWaterDepth;\nvarying float vSkyVis;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform float uShaders;\nuniform float uTime;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\n' +
-            // 顶点端波高噪声(与片元同款,vertex 独立定义)→ 抬降水面顶点
-            'float mwHv(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
-            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
-            'float mwWaveV(vec2 q, float t){ return mwHv(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwHv(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }\n' + MC_BRIGHT_GLSL,
+          `#include <common>
+attribute vec2 aLight;
+attribute float aTop;
+attribute float aShore;
+uniform vec3 uSkyTint;
+uniform float uSkyDarken;
+uniform float uShaders;
+uniform float uTime;
+uniform float uHq;
+uniform mat4 uReflectionMatrix;
+varying float vLF;
+varying vec3 vTint;
+varying vec3 vWPos;
+varying float vWaterDepth;
+varying float vSkyVis;
+varying float vShore;
+varying vec4 vReflectionCoord;
+float mwWaveV(vec2 p, float t) {
+  float a = sin(dot(p, vec2(0.78, 0.63)) * 0.449 + t * 0.72) * 0.045;
+  float b = sin(dot(p, vec2(-0.42, 0.91)) * 0.785 - t * 0.54) * 0.026;
+  float c = sin(dot(p, vec2(0.96, -0.28)) * 1.396 + t * 0.39) * 0.013;
+  float d = sin(dot(p, vec2(-0.83, -0.56)) * 2.513 - t * 0.31) * 0.006 * uHq;
+  return a + b + c + d;
+}
+${MC_BRIGHT_GLSL}`,
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\n' + MC_LIGHT_GLSL + '\n' +
-            'vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-            // 水面顶点起伏 ±0.08 格(aTop>0=平静水面;≤0=瀑布/侧壁底不动→不撕缝)。
-            // ⚠️ 曾 ±0.3：远处海面被顶成一层层"白色冰架阶梯"(用户截图)。MC 光影的涌浪也只是轻微起伏。
-            'transformed.y += (mwWaveV(mwWp0.xz, uTime) - 0.5) * 0.24 * step(0.5, aTop) * uShaders;\n' +
-            'vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWaterDepth = abs(aTop);\n' + // |aTop|=水柱深度,给片元按深度调透明
-            'vSkyVis = aLight.x;', // 原始天光可见度(不随昼夜)：洞穴湖=0 → 不反射天空/无粼光/无焦散(暗处水发光 bug)
+          `#include <begin_vertex>
+${MC_LIGHT_GLSL}
+vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;
+transformed.y += mwWaveV(mwWp0.xz, uTime) * step(0.45, aTop) * uShaders;
+vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vWaterDepth = abs(aTop);
+vSkyVis = aLight.x;
+vShore = aShore;
+vReflectionCoord = uReflectionMatrix * vec4(vWPos, 1.0);`,
         );
-      // 片元：程序波纹法线 → 扰动反射/高光。相位 ±t 多向缓流=真实流动(各层方向/速度不同,无传送带感)。
+
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nuniform float uSkyMul;\nuniform float uShaders;\nuniform float uTime;\nuniform vec3 uSkyRefl;\nuniform vec3 uSkyTop;\nuniform vec3 uSunDir;\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec3 vWPos;\nvarying float vWaterDepth;\nvarying float vSkyVis;\n' +
-            // 值噪声 + 两层不同尺度/方向滚动 → 不重复的混沌波纹(比正弦波自然、飘动不规则)。
-            'float mwH(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);\n' +
-            '  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);\n' +
-            '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }\n' +
-            'float mwWave(vec2 q, float t){\n' +
-            '  return mwH(q * 0.5 + vec2(t * 0.30, t * 0.21)) * 0.6 + mwH(q * 1.3 + vec2(-t * 0.26, t * 0.42)) * 0.4; }',
+          `#include <common>
+uniform float uSkyMul;
+uniform float uShaders;
+uniform float uTime;
+uniform float uHq;
+uniform vec3 uSkyRefl;
+uniform vec3 uSkyTop;
+uniform vec3 uSunDir;
+uniform sampler2D uSurfaceNoise;
+uniform sampler2D uCloudNoise;
+uniform sampler2D uRefractionColor;
+uniform sampler2D uRefractionDepth;
+uniform vec2 uRefractionSize;
+uniform float uHasRefraction;
+uniform sampler2D uReflectionColor;
+uniform float uHasReflection;
+varying float vLF;
+varying vec3 vTint;
+varying vec3 vWPos;
+varying float vWaterDepth;
+varying float vSkyVis;
+varying float vShore;
+varying vec4 vReflectionCoord;
+vec2 mwTurn(vec2 p) { return vec2(p.x * 0.8 - p.y * 0.6, p.x * 0.6 + p.y * 0.8); }
+float mwLinearDepth(float z) {
+  float n = 0.1;
+  float f = 1000.0;
+  float ndc = z * 2.0 - 1.0;
+  return (2.0 * n * f) / max(0.0001, f + n - ndc * (f - n));
+}`,
+        )
+        // 光影水完全由程序材质着色，跳过原 16px map 采样；off 档仍保留经典帧动画。
+        .replace(
+          '#include <map_fragment>',
+          `#ifdef USE_MAP
+if (uShaders < 0.5) diffuseColor *= texture2D(map, vMapUv);
+#endif`,
         )
         .replace(
           '#include <color_fragment>',
-          '#include <color_fragment>\ndiffuseColor.rgb *= vLF * vTint;\n' +
-            'if (uShaders > 0.5) {\n' +
-            // 真实水(MC 光影风)：丢掉像素贴图，改 清澈碧水 + 天空反射 + 菲涅尔 + 焦散 + 太阳粼光。
-            '  vec3 V = normalize(cameraPosition - vWPos);\n' +
-            '  float dist = length(cameraPosition - vWPos);\n' +
-            // 几何法线(屏幕空间导数)：竖直侧壁(岸边落差的水墙)不做波纹/天空反射——
-            // 否则被菲涅尔刷成白色竖条纹"冰架"(用户截图里海边的白架子)。
-            '  vec3 gNa = cross(dFdx(vWPos), dFdy(vWPos));\n' +
-            '  float horiz = smoothstep(0.35, 0.7, abs(normalize(gNa).y));\n' + // 1=水平水面 0=竖直侧壁
-            '  float nf = 1.0 - smoothstep(24.0, 90.0, dist);\n' + // 波纹随距离衰减:远处波纹是亚像素噪声,会闪成白碎条
-            '  vec2 wq = vWPos.xz; float e = 0.35;\n' + // 噪声法线:有限差分求坡度→法线(不规则波纹)
-            '  float h0 = mwWave(wq, uTime);\n' +
-            '  float hx = mwWave(wq + vec2(e, 0.0), uTime);\n' +
-            '  float hz = mwWave(wq + vec2(0.0, e), uTime);\n' +
-            '  float ns = nf * horiz;\n' +
-            '  vec3 N = normalize(vec3((h0 - hx) / e * ns * 1.6, 1.0, (h0 - hz) / e * ns * 1.6));\n' +
-            '  float above = clamp(V.y * 4.0 + 0.2, 0.0, 1.0) * horiz * vSkyVis;\n' + // 水下看上来/侧壁/洞穴湖(见不到天) → 无天空反射
-            '  vec3 Rr = reflect(-V, N);\n' + // 反射光线 → 取天空渐变(俯角见天顶、掠角见地平线)
-            '  vec3 skyR = mix(uSkyRefl, uSkyTop, clamp(Rr.y, 0.0, 1.0)) * 0.95;\n' +
-            '  float fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0), 0.0, 0.45);\n' + // Schlick,封顶→透底为主
-            '  float dN = smoothstep(0.0, 1.0, clamp((vWaterDepth - 0.5) / 6.5, 0.0, 1.0));\n' + // 浅↔深平滑过渡
-            '  vec3 base = mix(vec3(0.10, 0.60, 0.76), vec3(0.01, 0.32, 0.60), dN) * vLF * vTint;\n' + // 浅水碧青→深水湛蓝
-            // 焦散：浅水底游动的亮网纹(MC 光影签名效果)。波谷脊线→细亮纹；深水/夜晚/侧壁淡出。
-            '  float cav = mwWave(wq * 1.6 + vec2(uTime * 0.12, -uTime * 0.09), uTime * 0.8);\n' +
-            '  float caust = pow(1.0 - abs(cav - 0.5) * 2.0, 5.0);\n' +
-            '  base += vec3(0.50, 0.58, 0.55) * (caust * (1.0 - dN) * 0.85 * uSkyMul * horiz * vSkyVis) * vLF;\n' + // 焦散=阳光效应,洞穴湖(vSkyVis=0)没有
-            '  vec3 col = mix(base, skyR, fres * above);\n' +
-            '  vec3 Rs = reflect(-normalize(uSunDir), N);\n' +
-            '  col += pow(max(dot(Rs, V), 0.0), 90.0) * uSkyMul * vec3(1.0, 0.97, 0.88) * 1.4 * above * (0.3 + 0.7 * nf);\n' + // 太阳粼光(pow90+1.4:大亮闪,>bloom阈值→辉光)
-            '  diffuseColor.rgb = col;\n' +
-            // 透明度：MC 感=一格浅水也明显偏蓝。⚠️ 曾 0.06≈隐形——沙滩浅海像没有水、只剩灰污渍(用户截图)。
-            '  float depthA = mix(0.34, 0.80, dN);\n' +
-            '  float topA = mix(depthA, 0.85, fres * above);\n' + // 掠角(高fres)反射更实
-            '  diffuseColor.a = mix(0.58, topA, horiz);\n' + // 侧壁固定 0.58 半透蓝(同 MC 原版水墙感)
-            '}',
+          `#include <color_fragment>
+float mwFaceShade = clamp(max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b), 0.48, 1.0);
+if (uShaders < 0.5) {
+  diffuseColor.rgb *= vLF * vTint;
+} else if (uHasRefraction > 0.5) {
+  vec3 toEye = cameraPosition - vWPos;
+  float dist = length(toEye);
+  vec3 V = toEye / max(dist, 0.0001);
+  vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  faceN *= sign(dot(faceN, V));
+  float horiz = smoothstep(0.5, 0.92, abs(faceN.y));
+
+  // 三层方向不同的微波法线。坡度严格控制在真实水面的范围，避免旧版大片灰色油污。
+  vec2 p = vWPos.xz;
+  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.037 + vec2(uTime * 0.0065, -uTime * 0.0042));
+  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.091 + vec2(-uTime * 0.011, uTime * 0.007));
+  vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.21 + vec2(uTime * 0.016, uTime * 0.012));
+  vec2 slope = (rippleA.rg * 2.0 - 1.0) * 0.095;
+  slope += (rippleB.rg * 2.0 - 1.0) * 0.08;
+  slope += (rippleC.rg * 2.0 - 1.0) * mix(0.034, 0.045, uHq);
+  slope *= horiz;
+  vec3 waveN = normalize(vec3(-slope.x, 1.0, -slope.y));
+  vec3 N = normalize(mix(faceN, waveN, horiz));
+
+  // 无水 HDR RT 的真实屏幕空间折射：用微法线轻推 UV，并用深度拒绝前景串色。
+  vec2 screenUv = gl_FragCoord.xy / max(uRefractionSize, vec2(1.0));
+  vec2 maxRefraction = vec2(6.0) / max(uRefractionSize, vec2(1.0));
+  vec2 refrOffset = clamp(slope * mix(0.01, 0.016, uHq), -maxRefraction, maxRefraction);
+  vec2 refrUv = clamp(screenUv + refrOffset, vec2(0.002), vec2(0.998));
+  float centerDepth = texture2D(uRefractionDepth, screenUv).r;
+  float centerDistance = mwLinearDepth(centerDepth);
+  float waterDistance = mwLinearDepth(gl_FragCoord.z);
+  float centerThickness = max(0.0, centerDistance - waterDistance);
+  float sceneDepth = texture2D(uRefractionDepth, refrUv).r;
+  float sampledDistance = mwLinearDepth(sceneDepth);
+  float depthDiscontinuity = abs(sampledDistance - centerDistance);
+  if (sceneDepth <= gl_FragCoord.z + 0.00012 || depthDiscontinuity > max(0.8, centerThickness * 0.25)) {
+    refrUv = screenUv;
+    sceneDepth = centerDepth;
+    sampledDistance = centerDistance;
+  }
+  float sceneDistance = sampledDistance;
+  float thickness = clamp(sceneDistance - waterDistance, 0.0, 48.0);
+  float blurPx = clamp(thickness * 0.08, 0.0, 3.0);
+  vec2 blurStep = vec2(blurPx) / max(uRefractionSize, vec2(1.0));
+  vec3 opaqueBehind = texture2D(uRefractionColor, refrUv).rgb * 0.4;
+  opaqueBehind += texture2D(uRefractionColor, refrUv + vec2( blurStep.x, 0.0)).rgb * 0.15;
+  opaqueBehind += texture2D(uRefractionColor, refrUv + vec2(-blurStep.x, 0.0)).rgb * 0.15;
+  opaqueBehind += texture2D(uRefractionColor, refrUv + vec2(0.0,  blurStep.y)).rgb * 0.15;
+  opaqueBehind += texture2D(uRefractionColor, refrUv + vec2(0.0, -blurStep.y)).rgb * 0.15;
+
+  // Beer-Lambert 吸收与水体散射：浅水保留清晰水底，深水逐渐转为青蓝而非一层透明贴纸。
+  vec3 transmittance = exp(-vec3(0.115, 0.052, 0.028) * thickness);
+  vec3 waterScatter = vec3(0.005, 0.072, 0.14) * mix(0.62, 1.0, vLF) * vTint;
+  vec3 refracted = opaqueBehind * transmittance + waterScatter * (vec3(1.0) - transmittance);
+
+  // 天空与云层反射。用反射光线和虚拟云层求交，同一噪声也驱动地面云影，方向一致。
+  vec3 R = reflect(-V, N);
+  float skyHeight = smoothstep(-0.02, 0.72, R.y);
+  vec3 reflectedSky = mix(uSkyRefl, uSkyTop, skyHeight);
+  float cloudTravel = max(0.0, 196.0 - vWPos.y) / max(R.y, 0.08);
+  vec2 cloudUv = (p + R.xz * min(cloudTravel, 1200.0)) * 0.0034 + vec2(uTime * 0.0014, uTime * 0.0008);
+  float cloudA = texture2D(uCloudNoise, cloudUv).b;
+  float cloudB = texture2D(uCloudNoise, cloudUv * 1.83 + vec2(0.31, -0.17)).b;
+  float cloud = smoothstep(0.55, 0.79, cloudA * 0.68 + cloudB * 0.32) * smoothstep(0.01, 0.18, R.y);
+  vec3 cloudColor = mix(vec3(0.34, 0.41, 0.5), vec3(1.22, 1.16, 1.04), uSkyMul);
+  reflectedSky = mix(reflectedSky, cloudColor, cloud * 0.72);
+
+  // 海平面镜像相机提供真实岸线、树林、云和日月倒影；微法线只做小幅扰动。
+  vec2 reflectionUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
+  reflectionUv += slope * mix(0.008, 0.014, uHq);
+  float reflectionInside = step(0.002, reflectionUv.x) * step(reflectionUv.x, 0.998)
+    * step(0.002, reflectionUv.y) * step(reflectionUv.y, 0.998);
+  if (uHasReflection > 0.5 && reflectionInside > 0.5) {
+    vec2 reflectionTexel = vec2(1.5) / max(uRefractionSize, vec2(1.0));
+    vec3 planarReflection = texture2D(uReflectionColor, reflectionUv).rgb * 0.4;
+    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2( reflectionTexel.x, 0.0)).rgb * 0.15;
+    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(-reflectionTexel.x, 0.0)).rgb * 0.15;
+    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(0.0,  reflectionTexel.y)).rgb * 0.15;
+    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(0.0, -reflectionTexel.y)).rgb * 0.15;
+    reflectedSky = mix(reflectedSky, planarReflection, 0.81);
+  }
+
+  float NoV = clamp(abs(dot(N, V)), 0.0, 1.0);
+  float fresnel = 0.02 + 0.98 * pow(1.0 - NoV, 5.0);
+  float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
+  vec3 col = mix(refracted, reflectedSky, fresnel * reflectionGate);
+
+  // 低粗糙度 GGX 太阳反光：只让真正的 HDR 粼光进入 Bloom，普通水色不会发白。
+  vec3 L = normalize(uSunDir);
+  vec3 H = normalize(L + V);
+  float NoL = max(dot(N, L), 0.0);
+  float NoH = max(dot(N, H), 0.0);
+  float roughness = mix(0.082, 0.064, uHq);
+  float alpha2 = roughness * roughness;
+  float ggxDenom = NoH * NoH * (alpha2 - 1.0) + 1.0;
+  float D = alpha2 / max(0.0005, 3.14159265 * ggxDenom * ggxDenom);
+  float specEnergy = min(5.0, D * 0.04) * NoL;
+  specEnergy += pow(NoH, 28.0) * 0.16 * NoL;
+  specEnergy *= mix(0.68, 1.18, rippleB.b * 0.6 + rippleC.b * 0.4);
+  float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
+  vec3 sunColor = mix(vec3(2.8, 0.92, 0.18), vec3(3.25, 2.92, 2.36), sunHeight);
+  float sunVisible = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
+  col += sunColor * specEnergy * sunVisible;
+
+  // 岸边只保留窄接触泡沫，不再把整片浅海刷成白边。
+  float contact = 1.0 - smoothstep(0.055, 0.42, thickness);
+  float shore = smoothstep(0.12, 0.86, vShore) * horiz;
+  float foamNoise = smoothstep(0.58, 0.88, rippleA.a * 0.55 + rippleC.a * 0.45);
+  float foam = max(contact * 0.48, shore * (0.14 + foamNoise * 0.36)) * vSkyVis;
+  vec3 foamColor = mix(vec3(0.16, 0.31, 0.39), vec3(0.74, 0.91, 0.96), uSkyMul);
+  col = mix(col, foamColor, clamp(foam, 0.0, 0.34));
+
+  // 远景只做一次统一大气融合；折射源本身已带雾，避免旧版重复雾化成灰白海面。
+  float atmosphere = 0.0;
+  vec3 atmosphereColor = uSkyRefl;
+  #ifdef USE_FOG
+    atmosphereColor = fogColor;
+    #ifdef FOG_EXP2
+      atmosphere = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+    #else
+      atmosphere = smoothstep(fogNear, fogFar, vFogDepth);
+    #endif
+  #else
+    atmosphere = smoothstep(68.0, 96.0, dist);
+  #endif
+  col = mix(col, atmosphereColor, atmosphere);
+  float below = smoothstep(0.02, 0.28, -V.y) * horiz;
+  col = mix(col, col * vec3(0.54, 0.82, 1.08) + vec3(0.0, 0.016, 0.035), below * 0.34);
+  diffuseColor.rgb = col;
+  diffuseColor.a = mix(0.86, 0.985, horiz);
+} else {
+  vec3 toEye = cameraPosition - vWPos;
+  float dist = length(toEye);
+  vec3 V = toEye / max(dist, 0.0001);
+
+  // Only horizontal faces receive sky reflection. This is the main guard against
+  // bright vertical “ice shelves” along distant chunk and waterfall walls.
+  vec3 geoN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  float horiz = smoothstep(0.46, 0.82, abs(geoN.y));
+  float nearDetail = 1.0 - smoothstep(30.0, 100.0, dist);
+  vec2 p = vWPos.xz;
+  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.026 + vec2(uTime * 0.0062, -uTime * 0.0041));
+  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.073 + vec2(-uTime * 0.0103, uTime * 0.0074));
+  vec2 slope = (rippleA.rg * 2.0 - 1.0) * 0.72 + (rippleB.rg * 2.0 - 1.0) * 0.38;
+  float ridge = rippleA.a * 0.62 + rippleB.a * 0.48;
+  if (uHq > 0.5) {
+    vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.17 + vec2(uTime * 0.014, uTime * 0.009));
+    slope += (rippleC.rg * 2.0 - 1.0) * 0.18 * nearDetail;
+    ridge += rippleC.a * 0.16;
+  }
+  slope *= mix(0.28, 1.0, nearDetail) * horiz;
+  vec3 N = normalize(vec3(slope.x * 0.86, 1.0, slope.y * 0.86));
+
+  // Beer-Lambert-style view-path absorption: clear cyan shallows, saturated blue
+  // depths, and denser water at a grazing angle without block-by-block cutoffs.
+  float opticalDepth = max(0.12, vWaterDepth) / max(abs(V.y), 0.22);
+  float absorption = 1.0 - exp(-opticalDepth * 0.34);
+  float deep = smoothstep(0.16, 0.91, absorption);
+  vec3 shallowWater = vec3(0.004, 0.19, 0.32);
+  vec3 deepWater = vec3(0.002, 0.045, 0.15);
+  vec3 base = mix(shallowWater, deepWater, deep) * vLF * vTint * mwFaceShade;
+
+  float skyGate = smoothstep(-0.015, 0.025, V.y) * horiz * vSkyVis;
+  vec3 reflected = reflect(-V, N);
+  float skyHeight = smoothstep(0.0, 0.78, clamp(reflected.y, 0.0, 1.0));
+  vec3 skyReflection = mix(uSkyRefl, uSkyTop, skyHeight) * mix(0.72, 0.92, skyHeight);
+  skyReflection /= vec3(1.0) + skyReflection * 0.12;
+  float fresnel = min(0.62, 0.025 + 0.975 * pow(1.0 - max(dot(V, N), 0.0), 5.0));
+  vec3 col = mix(base, skyReflection, fresnel * skyGate);
+
+  // Interference ridges imitate the moving caustic web visible through shallow
+  // water. It is deliberately sunlight/sky gated so cave lakes never self-glow.
+  float caustic = pow(smoothstep(0.42, 0.93, ridge), 2.0);
+  col += vec3(0.23, 0.52, 0.62) * caustic * (1.0 - deep) * 0.24 * uSkyMul * vSkyVis * horiz;
+
+  // Broad lobe forms a continuous sun road; sharp lobe breaks it into HDR sparks
+  // which bloom. Low sun is amber, noon is warm white.
+  vec3 L = normalize(uSunDir);
+  vec3 H = normalize(L + V);
+  float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
+  float sunVisible = smoothstep(0.01, 0.18, L.y) * uSkyMul * skyGate;
+  float nh = max(dot(N, H), 0.0);
+  float broadSpec = pow(nh, 20.0) * 0.27;
+  float sparkle = pow(nh, 110.0) * (1.25 + uHq * 0.55) * mix(0.65, 1.15, rippleB.b);
+  vec3 sunColor = mix(vec3(1.45, 0.48, 0.12), vec3(1.22, 1.08, 0.82), sunHeight);
+  col += sunColor * (broadSpec + sparkle) * sunVisible * mix(0.72, 1.0, nearDetail);
+
+  // Exact mesher-provided shoreline mask: a narrow, animated contact line instead
+  // of whitening every shallow-water tile.
+  float shore = smoothstep(0.06, 0.72, vShore) * horiz;
+  float foamBreakup = smoothstep(0.3, 0.86, rippleA.a * 0.7 + rippleB.a * 0.52);
+  float foam = shore * (0.22 + foamBreakup * 0.78) * (0.38 + uSkyMul * 0.62) * vSkyVis;
+  vec3 foamColor = mix(vec3(0.12, 0.34, 0.5), vec3(0.72, 0.92, 1.08), uSkyMul);
+  col = mix(col, foamColor, min(0.48, foam * 0.42));
+  col += foamColor * foam * 0.1;
+
+  // The newly double-sided surface remains readable from below instead of
+  // disappearing when the player swims underwater and looks up.
+  float below = smoothstep(0.015, 0.24, -V.y) * horiz;
+  col = mix(col, col * vec3(0.46, 0.8, 1.12) + vec3(0.0, 0.018, 0.045), below * 0.38);
+  diffuseColor.rgb = col;
+
+  float depthAlpha = mix(0.25, 0.76, absorption);
+  float topAlpha = clamp(depthAlpha + fresnel * skyGate * 0.23 + foam * 0.16, 0.24, 0.88);
+  diffuseColor.a = mix(0.52, topAlpha, horiz);
+}`,
+        )
+        // 折射源本身已经经过场景雾；光影水在上面的材质分支做一次距离大气融合，
+        // 这里仅让经典水走 three.js 默认雾，避免水面被二次洗成灰白。
+        .replace(
+          '#include <fog_fragment>',
+          `#ifdef USE_FOG
+if (uShaders < 0.5) {
+  #ifdef FOG_EXP2
+    float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+  #else
+    float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+  #endif
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor);
+}
+#endif`,
+        );
+    };
+  }
+
+  /** 冰面独立材质：无水场景折射 + 平面倒影 + 低粗糙度高光，最终以 opaque 合成写入。 */
+  private installIceShader(mat: THREE.MeshBasicMaterial): void {
+    mat.onBeforeCompile = (shader): void => {
+      shader.uniforms.uSkyTint = this.uSkyTint;
+      shader.uniforms.uSkyDarken = this.uSkyDarken;
+      shader.uniforms.uShaders = this.uShaders;
+      shader.uniforms.uTime = this.uTime;
+      shader.uniforms.uSunDir = this.uSunDir;
+      shader.uniforms.uSunUp = this.uSunUp;
+      shader.uniforms.uSkyRefl = this.uSkyRefl;
+      shader.uniforms.uSkyTop = this.uSkyTop;
+      shader.uniforms.uWaterWaves = { value: this.waterWaveTex };
+      shader.uniforms.uRefractionColor = this.uRefractionColor;
+      shader.uniforms.uRefractionDepth = this.uRefractionDepth;
+      shader.uniforms.uRefractionSize = this.uRefractionSize;
+      shader.uniforms.uHasRefraction = this.uHasRefraction;
+      shader.uniforms.uReflectionColor = this.uReflectionColor;
+      shader.uniforms.uReflectionMatrix = this.uReflectionMatrix;
+      shader.uniforms.uHasReflection = this.uHasReflection;
+
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+attribute vec2 aLight;
+uniform vec3 uSkyTint;
+uniform float uSkyDarken;
+uniform mat4 uReflectionMatrix;
+varying float vLF;
+varying vec3 vTint;
+varying float vSkyVis;
+varying vec3 vWPos;
+varying vec4 vReflectionCoord;
+${MC_BRIGHT_GLSL}`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+${MC_LIGHT_GLSL}
+vSkyVis = aLight.x;
+vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vReflectionCoord = uReflectionMatrix * vec4(vWPos, 1.0);`,
+        );
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uShaders;
+uniform float uTime;
+uniform float uSunUp;
+uniform vec3 uSunDir;
+uniform vec3 uSkyRefl;
+uniform vec3 uSkyTop;
+uniform sampler2D uWaterWaves;
+uniform sampler2D uRefractionColor;
+uniform sampler2D uRefractionDepth;
+uniform vec2 uRefractionSize;
+uniform float uHasRefraction;
+uniform sampler2D uReflectionColor;
+uniform float uHasReflection;
+varying float vLF;
+varying vec3 vTint;
+varying float vSkyVis;
+varying vec3 vWPos;
+varying vec4 vReflectionCoord;
+vec2 mwIceTurn(vec2 p) { return vec2(p.x * 0.78 - p.y * 0.63, p.x * 0.63 + p.y * 0.78); }`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+if (uShaders < 0.5 || uHasRefraction < 0.5) {
+  diffuseColor.rgb *= vLF * vTint;
+} else {
+  vec3 toEye = cameraPosition - vWPos;
+  vec3 V = normalize(toEye);
+  vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  faceN *= sign(dot(faceN, V));
+  float horiz = smoothstep(0.45, 0.9, abs(faceN.y));
+  // 冰的微表面固定在世界坐标，不跟水纹一起流动；两层方向交错形成细小晶纹。
+  vec4 iceWave0 = texture2D(uWaterWaves, vWPos.xz * 0.12 + vec2(0.17, 0.43));
+  vec4 iceWave1 = texture2D(uWaterWaves, mwIceTurn(vWPos.xz) * 0.27 + vec2(0.61, 0.09));
+  vec2 slope = ((iceWave0.rg * 2.0 - 1.0) * 0.032 + (iceWave1.rg * 2.0 - 1.0) * 0.016) * horiz;
+  vec3 microN = normalize(vec3(-slope.x, 1.0, -slope.y));
+  vec3 N = normalize(mix(faceN, microN, horiz));
+
+  vec2 screenUv = gl_FragCoord.xy / max(uRefractionSize, vec2(1.0));
+  vec2 maxOffset = vec2(4.0) / max(uRefractionSize, vec2(1.0));
+  vec2 refrUv = clamp(screenUv + clamp(slope * 0.007, -maxOffset, maxOffset), vec2(0.002), vec2(0.998));
+  float refrDepth = texture2D(uRefractionDepth, refrUv).r;
+  if (refrDepth <= gl_FragCoord.z + 0.0001) refrUv = screenUv;
+  vec2 refrBlur = vec2(1.25) / max(uRefractionSize, vec2(1.0));
+  vec3 behind = texture2D(uRefractionColor, refrUv).rgb * 0.4;
+  behind += texture2D(uRefractionColor, refrUv + vec2( refrBlur.x, 0.0)).rgb * 0.15;
+  behind += texture2D(uRefractionColor, refrUv + vec2(-refrBlur.x, 0.0)).rgb * 0.15;
+  behind += texture2D(uRefractionColor, refrUv + vec2(0.0,  refrBlur.y)).rgb * 0.15;
+  behind += texture2D(uRefractionColor, refrUv + vec2(0.0, -refrBlur.y)).rgb * 0.15;
+
+  float NoV = clamp(abs(dot(N, V)), 0.0, 1.0);
+  float opticalPath = 0.82 / max(NoV, 0.24);
+  vec3 transmission = exp(-vec3(0.035, 0.018, 0.008) * opticalPath);
+  vec3 iceScatter = vec3(0.055, 0.16, 0.27) * vLF * vTint;
+  vec3 transmitted = behind * transmission + iceScatter * (vec3(1.0) - transmission);
+
+  vec3 R = reflect(-V, N);
+  vec3 reflected = mix(uSkyRefl, uSkyTop, smoothstep(0.0, 0.72, R.y));
+  vec2 reflectionUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001) + slope * 0.006;
+  float inside = step(0.002, reflectionUv.x) * step(reflectionUv.x, 0.998)
+    * step(0.002, reflectionUv.y) * step(reflectionUv.y, 0.998);
+  if (uHasReflection > 0.5 && inside > 0.5) {
+    vec2 rBlur = vec2(2.0) / max(uRefractionSize, vec2(1.0));
+    vec3 rp = texture2D(uReflectionColor, reflectionUv).rgb * 0.5;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(rBlur.x, 0.0)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv - vec2(rBlur.x, 0.0)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(0.0, rBlur.y)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv - vec2(0.0, rBlur.y)).rgb * 0.125;
+    reflected = mix(reflected, rp, 0.82);
+  }
+
+  float fresnel = 0.04 + 0.96 * pow(1.0 - NoV, 5.0);
+  vec3 col = mix(transmitted, reflected, fresnel * vSkyVis);
+  float texLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float frost = max(smoothstep(0.58, 0.96, texLuma) * 0.72, pow(max(iceWave0.a, iceWave1.a), 4.0) * 0.42);
+  vec3 iceBody = vec3(0.31, 0.53, 0.78) * vLF * vTint * mix(0.86, 1.08, frost);
+  // 保留大部分真实透射/倒影，只用一层薄霜把它与流动水区分开。
+  col = mix(col, iceBody, 0.12 + frost * 0.16);
+  col = mix(col, col * vec3(0.86, 0.96, 1.06) + vec3(0.018, 0.042, 0.07), 0.08);
+
+  vec3 L = normalize(uSunDir);
+  vec3 H = normalize(L + V);
+  float iceSpec = pow(max(dot(N, H), 0.0), 52.0) * max(dot(N, L), 0.0);
+  vec3 sunColor = mix(vec3(1.8, 0.68, 0.2), vec3(2.4, 2.2, 1.85), clamp(L.y * 3.0, 0.0, 1.0));
+  col += sunColor * iceSpec * uSunUp * vSkyVis * 0.65;
+  diffuseColor.rgb = col;
+  diffuseColor.a = 1.0;
+}`,
         );
     };
   }
@@ -445,6 +885,22 @@ export class ChunkMeshManager {
     this.uShaders.value = q !== 'off' ? 1 : 0;
     this.sun.castShadow = q !== 'off';
     this.uHq.value = q === 'high' ? 1 : 0;
+    const shadowSize = q === 'high' ? 4096 : SHADOW_MAP_SIZE;
+    if (this.sun.shadow.mapSize.x !== shadowSize) {
+      this.sun.shadow.mapSize.set(shadowSize, shadowSize);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+      this.uShadowTexel.value.set(1 / shadowSize, 1 / shadowSize);
+    }
+    const shadowHalf = q === 'high' ? 56 : 46;
+    const sc = this.sun.shadow.camera;
+    if (sc.left !== -shadowHalf) {
+      sc.left = -shadowHalf;
+      sc.right = shadowHalf;
+      sc.top = shadowHalf;
+      sc.bottom = -shadowHalf;
+      sc.updateProjectionMatrix();
+    }
     if (q === 'off') this.uShadowOn.value = 0;
   }
 
@@ -455,8 +911,30 @@ export class ChunkMeshManager {
 
   /** 水面反射的天空色：地平线色(掠角) + 天顶色(俯角) → 反射出天空渐变(更真实)。 */
   setSkyReflection(horizon: [number, number, number], top?: [number, number, number]): void {
-    this.uSkyRefl.value.setRGB(horizon[0], horizon[1], horizon[2]);
-    if (top) this.uSkyTop.value.setRGB(top[0], top[1], top[2]);
+    // skyStateAt 返回的是显示用 sRGB；shader/RT 在 linear 空间工作。旧代码直接当 linear
+    // 会把地平线反射抬得过亮，远海因此泛白成一层层“冰架”。
+    this.uSkyRefl.value.setRGB(horizon[0], horizon[1], horizon[2], THREE.SRGBColorSpace);
+    if (top) this.uSkyTop.value.setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
+  }
+
+  /** 接收 Renderer 的无水场景颜色/深度；尺寸是物理像素，对齐 gl_FragCoord。 */
+  setWaterRefraction(
+    color: THREE.Texture | null,
+    depth: THREE.Texture | null,
+    physicalWidth: number,
+    physicalHeight: number,
+  ): void {
+    this.uRefractionColor.value = color;
+    this.uRefractionDepth.value = depth;
+    this.uRefractionSize.value.set(Math.max(1, physicalWidth), Math.max(1, physicalHeight));
+    this.uHasRefraction.value = color && depth ? 1 : 0;
+  }
+
+  /** 接收海平面镜像相机的 HDR 倒影及世界坐标→倒影 UV 矩阵。 */
+  setWaterReflection(color: THREE.Texture | null, textureMatrix?: THREE.Matrix4): void {
+    this.uReflectionColor.value = color;
+    if (textureMatrix) this.uReflectionMatrix.value.copy(textureMatrix);
+    this.uHasReflection.value = color ? 1 : 0;
   }
 
   /** 太阳方向(世界系，驱动水面镜面高光)。 */
@@ -467,8 +945,10 @@ export class ChunkMeshManager {
   /** 切换方块图集（卡通/经典材质切换）：换不透明/镂空材质的贴图；水有独立纹理不受影响。 */
   setAtlas(tex: THREE.Texture): void {
     this.opaqueMat.map = tex;
+    this.iceMat.map = tex;
     this.cutoutMat.map = tex;
     this.opaqueMat.needsUpdate = true;
+    this.iceMat.needsUpdate = true;
     this.cutoutMat.needsUpdate = true;
   }
 
@@ -476,6 +956,8 @@ export class ChunkMeshManager {
    *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {
     this.uTime.value += dt; // 驱动光影水面波动
+    // 光影水跳过经典 map 采样；此时不再每 90ms 把 16px 帧重传 GPU。
+    if (this.uShaders.value > 0.5) return;
     this.waterAnimT += dt;
     const FRAME_DUR = 0.09; // 每帧约 90ms（接近 MC 水的节奏）
     while (this.waterAnimT >= FRAME_DUR) {
@@ -517,10 +999,13 @@ export class ChunkMeshManager {
     for (const w of this.meshWorkers) w.terminate(); // 终止网格化 worker(否则线程/内存常驻)
     this.meshWorkers.length = 0;
     this.opaqueMat.dispose();
+    this.iceMat.dispose();
     this.cutoutMat.dispose();
     this.waterMat.dispose();
     this.torchMat.dispose();
     this.waterTex.dispose();
+    this.cloudNoiseTex.dispose();
+    this.waterWaveTex.dispose();
     this.leafDepthMat?.dispose();
     this.scene.remove(this.sun);
     this.scene.remove(this.sun.target);
@@ -533,7 +1018,10 @@ export class ChunkMeshManager {
     g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
     if (data.light && data.light.length) g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
+    if (data.underwater && data.underwater.length)
+      g.setAttribute('aUnderwater', new THREE.BufferAttribute(data.underwater, 1)); // 不透明：面外水柱深度(水底焦散)
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
+    if (data.shore && data.shore.length) g.setAttribute('aShore', new THREE.BufferAttribute(data.shore, 1)); // 仅水：精确岸线覆盖率(细浪/泡沫)
     if (data.sway && data.sway.length) g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     return g;
@@ -567,7 +1055,7 @@ export class ChunkMeshManager {
     this.lightGrids.delete(k);
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) {
+    for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch]) {
       if (mesh) {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
@@ -581,6 +1069,7 @@ export class ChunkMeshManager {
     if (data.indices.length === 0) return null;
     const mesh = new THREE.Mesh(this.buildGeo(data), mat);
     mesh.position.set(cx * CHUNK_W, 0, cz * CHUNK_W);
+    if (mat === this.waterMat || mat === this.iceMat) mesh.layers.set(WATER_RENDER_LAYER);
     this.scene.add(mesh);
     return mesh;
   }
@@ -615,7 +1104,7 @@ export class ChunkMeshManager {
   pipelineStats(): { meshed: number; visible: number; pending: number; queued: number } {
     let visible = 0;
     for (const m of this.meshes.values())
-      if ([m.opaque, m.cutout, m.water, m.torch].some((s) => s && s.visible)) visible++;
+      if ([m.opaque, m.ice, m.cutout, m.water, m.torch].some((s) => s && s.visible)) visible++;
     return { meshed: this.meshes.size, visible, pending: this.meshPending.size, queued: this.meshQueueLen() };
   }
 
@@ -623,18 +1112,23 @@ export class ChunkMeshManager {
     this.unload(this.key(cx, cz));
     this.lightGrids.set(this.key(cx, cz), mesh.light3d); // 实体照明粗网格(unload 已清旧的)
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const im = this.addMesh(mesh.ice, this.iceMat, cx, cz);
     const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
     const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
     const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
     // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
     om.castShadow = true;
     om.receiveShadow = true;
+    if (im) {
+      im.castShadow = true;
+      im.receiveShadow = true;
+    }
     if (cm) {
       cm.castShadow = true;
       cm.receiveShadow = true;
       if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
     }
-    this.meshes.set(this.key(cx, cz), { opaque: om, cutout: cm, water: wm, torch: tm });
+    this.meshes.set(this.key(cx, cz), { opaque: om, ice: im, cutout: cm, water: wm, torch: tm });
     // 注意：dirty 由派发方(rebuild 派 worker 时 / rebuildSync 同步重建后)清，applyMesh 不清——
     // 否则"派发后又被编辑(dirty=true)"的区块，等旧 worker 结果上屏时会被误清回 false → 丢改动。
   }
@@ -736,7 +1230,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
+      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = vis;
     }
   }
 
@@ -746,7 +1240,7 @@ export class ChunkMeshManager {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ)) continue;
-      for (const mesh of [m.opaque, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = false;
+      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch]) if (mesh) mesh.visible = false;
     }
   }
 

@@ -353,6 +353,12 @@ export class Game {
     this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
+    this.renderer.setWaterRefractionSink((color, depth, width, height) =>
+      this.chunks.setWaterRefraction(color, depth, width, height),
+    );
+    this.renderer.setWaterReflectionSink((color, textureMatrix) =>
+      this.chunks.setWaterReflection(color, textureMatrix),
+    );
     this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     // welcome 到创建 Game 之间可能已经收到了别人的方块包；MultiplayerClient 会排队，直到这里世界/网格都就绪后再交付。
@@ -2012,13 +2018,15 @@ export class Game {
     const t = s.worldTint;
     const mx = Math.max(t[0], t[1], t[2], 0.001);
     // 白天把天光色调暖 → 阳光照到的地面/开阔处泛暖金(MC 光影感)；夜晚不动(保留冷蓝)。
-    // day=1 白天→0 午夜；暖到 (1, 0.95, 0.85)。仅染受天光的面(洞内/夜晚不暖)。
+    // day=1 白天→0 午夜；只给直射层很轻的暖色。旧 (1,.95,.85) 会把雪/白云染黄、草地推成荧光绿。
     const day = 1 - skyDarkenAt(this.worldTime) / 11;
-    this.chunks.setTint([t[0] / mx, (t[1] / mx) * (1 - day * 0.05), (t[2] / mx) * (1 - day * 0.15)]);
+    this.chunks.setTint([t[0] / mx, (t[1] / mx) * (1 - day * 0.02), (t[2] / mx) * (1 - day * 0.06)]);
     // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
     const darken = skyDarkenAt(this.worldTime);
-    this.skyDarkenNow = darken; // 供实体环境光照(entityLight)用
-    this.chunks.setSkyDarken(darken);
+    // 光影档保留更可读的冷色月夜（最大约 9.5 而不是 11）；洞穴仍因无天光保持黑暗。
+    const renderedDarken = this.lightingQuality === 'off' ? darken : darken * 0.86;
+    this.skyDarkenNow = renderedDarken; // 供实体环境光照(entityLight)用
+    this.chunks.setSkyDarken(renderedDarken);
     this.chunks.setSkyMul(1 - darken / 11); // 仅供水面太阳粼光强度(白天 1、夜 0)
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);

@@ -7,6 +7,7 @@ import { ChunkMeshManager } from './ChunkMeshManager';
 import { loadAtlas } from './atlas';
 import { makeSkyTexture, HORIZON_COLOR } from './sky';
 import { browserViewportSize } from './browserViewport';
+import { WATER_RENDER_LAYER } from './renderLayers';
 
 // 主菜单旋转全景：低空飞过无限世界（与游戏同款地形：水/海滩），相机缓缓前飞 + 转向，
 // 区块随飞随加载。固定种子、纯装饰，与玩家存档/游戏无关。独立画布，不冲突。
@@ -31,6 +32,7 @@ export class MenuBackground {
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 分辨率按设备(保清晰)。⚠️ 不加 powerPreference(部分机器会创建上下文失败)
     this.scene.background = makeSkyTexture();
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 40, RADIUS * 16); // 雾在加载边缘前盖住
+    this.camera.layers.enable(WATER_RENDER_LAYER); // 菜单仍需看见独立水层（这里只走经典水，不做折射 pass）
 
     this.world = new ChunkWorld(seed);
     this.seekWater(); // 起点设到附近的水边，开局就有湖

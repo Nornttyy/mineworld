@@ -40,79 +40,86 @@ uniform float uAO;
 
 varying vec2 vUv;
 
+// Three.js Neutral tone mapping 的同等曲线：中间调几乎不动，只在 0.76 以上
+// 滚降 HDR 高光并轻微降饱和。比逐通道 clamp 更能保住雪、云和太阳边缘的层次。
+vec3 mwNeutralToneMap(vec3 color) {
+  color = max(color, vec3(0.0)) * 0.98;
+  const float startCompression = 0.76;
+  const float desaturation = 0.15;
+  float x = min(color.r, min(color.g, color.b));
+  float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  color -= offset;
+  float peak = max(color.r, max(color.g, color.b));
+  if (peak < startCompression) return color;
+  float d = 1.0 - startCompression;
+  float newPeak = 1.0 - d * d / (peak + d - startCompression);
+  color *= newPeak / max(peak, 1e-5);
+  float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+  return mix(color, vec3(newPeak), g);
+}
+
+// 准确的 IEC sRGB OETF。旧 pow(1/2.2) 会把暗部抬得过高，并放大线性空间噪点。
+vec3 mwLinearToSRGB(vec3 color) {
+  color = max(color, vec3(0.0));
+  vec3 lo = color * 12.92;
+  vec3 hi = 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055;
+  return mix(lo, hi, step(vec3(0.0031308), color));
+}
+
+// 体积光源只存在于太阳附近的天空。地形仍由深度遮挡，但远处普通天空
+// 不再被当成整屏面光源，从根本上去掉“白纱”。
+float mwSunSource(vec2 uv) {
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+  float sky = step(0.9999, texture2D(tDepth, uv).x);
+  float radial = 1.0 - smoothstep(0.025, 0.16, length(uv - uSunUV));
+  return sky * radial;
+}
+
 void main() {
   vec3 scene = texture2D(tColor, vUv).rgb;
   vec3 bloomColor = texture2D(tBloom, vUv).rgb;
 
-  // AO：只压暗场景色（环境光遮蔽），不影响体积光光束或 bloom 辉光。
-  // uAO = 0 时 mix 结果 = 1.0 → 无任何暗化（完全兜底）。
-  // tAO.r = 1（全白）时也无暗化；tAO.r = 0（完全遮蔽）× uAO 最多暗化 uAO 比例。
-  float aoValue = texture2D(tAO, vUv).r;
-  float aoFactor = mix(1.0, aoValue, uAO);
-  scene *= aoFactor;
-
-  // 太阳不可见时（强度 0）跳过体积光采样循环，但 bloom 仍叠加。
-  if (uIntensity <= 0.001) {
-    // 合成是自定义 ShaderMaterial，three.js 不自动做 linear→sRGB；RT 存的是线性场景，
-    // 故这里手动 sRGB 编码，否则直接输出线性值会整体偏暗。
-    // ⚠️ 不要在这里加全局提亮(曾有 ×1.15 暖偏移把画面洗白)。下面是【纯饱和度】提升：
-    //    保持亮度不变、只把颜色往外推 → "光影包的浓郁感"，安全不洗白。
-    vec3 outc = scene + bloomColor * uBloom;
-    // 暖色白平衡(SEUS 1.12 风)：先暖移再按亮度归一 → 只改色相不提亮(提亮=旧洗白教训)
-    vec3 wb = outc * vec3(1.035, 1.0, 0.94);
-    wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-    float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
-    outc = mix(vec3(lumc), wb, 1.18);
-    outc *= 1.08; // 曝光
-
-  // 高光软肩：>0.85 的分量平滑滚降(不再硬剪成死白,太阳周边天空保留层次)
-  vec3 ex = max(outc - vec3(0.85), vec3(0.0));
-  outc = min(outc, vec3(0.85)) + ex / (1.0 + ex * 1.8);
-  // 输出抖动：打散 8-bit 量化(天空渐变不再有色带)
-  float dn = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-  outc += vec3((dn - 0.5) * (1.5 / 255.0));
-    gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
-    return;
+  // AO 只压场景本体，不压 Bloom/体积光。uAO=0 时不去采样未绑定的兜底纹理。
+  if (uAO > 0.001) {
+    float aoValue = texture2D(tAO, vUv).r;
+    scene *= mix(1.0, aoValue, uAO);
   }
 
-  // 每步从当前像素向太阳 UV 方向移动一格（等分 [vUv → sunUV]）。
-  vec2 dir = (uSunUV - vUv) / float(${S});
-  vec2 uv = vUv;
-  float illum = 1.0;
   float shaft = 0.0;
-
-  for (int i = 0; i < ${S}; i++) {
-    uv += dir;
-    // UV 超出 [0,1] → 视为天空（不读纹理，直接计为 lit）。
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-      shaft += illum * uWeight;
-    } else {
-      float d = texture2D(tDepth, uv).x; // 深度缓冲：天空 ≈ 1.0
-      // step(edge, x) = 1 if x >= edge，0 otherwise；0.9999 ≈ far plane
-      float lit = step(0.9999, d);
-      shaft += lit * illum * uWeight;
+  if (uIntensity > 0.001) {
+    // 每步从当前像素走向太阳。uDecay 以 24 samples 为基准换算每步衰减，
+    // 因此 24/48/64 samples 改变的只是平滑度，不会让高档反而更暗。
+    vec2 dir = (uSunUV - vUv) / float(${S});
+    vec2 uv = vUv;
+    float illum = 1.0;
+    float weightSum = 0.0;
+    float stepDecay = pow(clamp(uDecay, 0.001, 0.9999), 24.0 / float(${S}));
+    for (int i = 0; i < ${S}; i++) {
+      uv += dir;
+      shaft += mwSunSource(uv) * illum;
+      weightSum += illum;
+      illum *= stepDecay;
     }
-    illum *= uDecay;
+    // 用实际几何权重和归一，不再简单除 samples。UV 越界时 source=0，
+    // 不会像旧实现一样在太阳靠近屏幕边缘时突然把全屏提亮。
+    shaft = (shaft / max(weightSum, 1e-5)) * uWeight;
   }
 
-  // 归一化：除以采样数，避免 weight×decay 累加超出合理范围。
-  shaft /= float(${S});
+  // Bloom 在 Renderer 中仍保留档位差异；这里收敛到原合成量的 42%，
+  // 得到明显但不蒙白的 HDR 辉光。
+  vec3 hdr = scene + shaft * uSunColor * uIntensity + bloomColor * (uBloom * 0.42);
+  vec3 outc = mwNeutralToneMap(hdr);
 
-  // 体积光光束 + bloom 辉光叠加到场景色（AO 已乘到 scene 上）；纯饱和度提升(不提亮,见上)；末尾手动 sRGB 编码
-  vec3 outc = scene + shaft * uSunColor * uIntensity + bloomColor * uBloom;
-  vec3 wb = outc * vec3(1.035, 1.0, 0.94);
-  wb *= dot(outc, vec3(0.2126, 0.7152, 0.0722)) / max(dot(wb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-  float lumc = dot(wb, vec3(0.2126, 0.7152, 0.0722));
-  outc = mix(vec3(lumc), wb, 1.18);
-  outc *= 1.08; // 曝光
+  // 只给中间调增加很少的色彩密度；高光自动降饱和，防止草地荧光绿/夕阳死橙。
+  float luma = dot(outc, vec3(0.2126, 0.7152, 0.0722));
+  float vibrance = mix(1.04, 0.93, smoothstep(0.68, 0.96, luma));
+  outc = mix(vec3(luma), outc, vibrance);
 
-  // 高光软肩：>0.85 的分量平滑滚降(不再硬剪成死白,太阳周边天空保留层次)
-  vec3 ex = max(outc - vec3(0.85), vec3(0.0));
-  outc = min(outc, vec3(0.85)) + ex / (1.0 + ex * 1.8);
-  // 输出抖动：打散 8-bit 量化(天空渐变不再有色带)
+  vec3 encoded = mwLinearToSRGB(clamp(outc, 0.0, 1.0));
+  // 抖动必须加在编码后的 8-bit 输出域。±0.5 code value 只打散天空色带，不污染暗部。
   float dn = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-  outc += vec3((dn - 0.5) * (1.5 / 255.0));
-  gl_FragColor = vec4(pow(clamp(outc, 0.0, 1.0), vec3(0.4545)), 1.0);
+  encoded += vec3((dn - 0.5) / 255.0);
+  gl_FragColor = vec4(clamp(encoded, 0.0, 1.0), 1.0);
 }
 `.trim();
 
@@ -121,14 +128,15 @@ void main() {
       tColor: { value: null },
       tDepth: { value: null },
       tBloom: { value: null },
-      tAO:    { value: null },   // AO 灰度纹理（1 = 无遮蔽；null → uAO=0 兜底）
+      tAO: { value: null }, // AO 灰度纹理（1 = 无遮蔽；null → uAO=0 兜底）
       uSunUV: { value: new THREE.Vector2(0.5, 0.5) },
       uSunColor: { value: new THREE.Color(1.0, 0.95, 0.8) },
       uIntensity: { value: 0.0 },
       uDecay: { value: 0.96 },
-      uWeight: { value: 0.5 },
+      // 归一化后的光束增益：只作用于局部太阳 mask，不再是整片天空的白纱。
+      uWeight: { value: 0.9 },
       uBloom: { value: 0.0 },
-      uAO:    { value: 0.0 },   // AO 强度 0..1（0 = 不开 AO，完全兜底）
+      uAO: { value: 0.0 }, // AO 强度 0..1（0 = 不开 AO，完全兜底）
     },
     vertexShader,
     fragmentShader,

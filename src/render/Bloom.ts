@@ -1,10 +1,9 @@
 /**
  * Bloom — 低分辨率辉光后处理（1/4 分辨率内部缓冲，游戏画面全分辨率不糊）
  *
- * 流程（3 个全屏 pass）：
- *   Pass 1  亮部提取 + 降采样：读场景 RT 颜色 → max(0, color - threshold) → bloomA（1/4 res）
- *   Pass 2  横向高斯模糊（9 taps）：bloomA → bloomB
- *   Pass 3  纵向高斯模糊（9 taps）：bloomB → bloomA（结果最终留在 bloomA）
+ * 流程（5 个全屏 pass）：
+ *   Pass 1  HDR 亮部提取 + 5-tap 抗闪烁降采 → bloomA（1/4 res）
+ *   Pass 2..5  两轮横/纵 9-tap 高斯模糊，结果最终留在 bloomA
  *
  * 调用方：
  *   bloom.setSize(w4, h4)            — 每次 resize 时调（传 1/4 CSS 像素尺寸）
@@ -28,16 +27,36 @@ void main() {
 const EXTRACT_FRAG = /* glsl */ `
 uniform sampler2D tScene;
 uniform float uThreshold;
+uniform float uKnee;
+uniform vec2 uSourceTexel;
 varying vec2 vUv;
-void main() {
-  vec3 c = texture2D(tScene, vUv).rgb;
+
+vec3 extractHighlight(vec2 sampleUv) {
+  vec3 c = texture2D(tScene, sampleUv).rgb;
   // 亮度（感知加权）
   float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  // 亮部提取：亮度超过阈值的部分保留，其余置零
-  float contribution = max(0.0, luma - uThreshold);
+  // Soft-knee 只让真正的 HDR 光源/镜面高光进入 Bloom。
+  // 普通天空、雪和沙子都在 1.0 左右，最多只落在很轻的 knee 尾端，
+  // 不会再整片被抽出后糊成白纱。
+  float soft = clamp(luma - uThreshold + uKnee, 0.0, 2.0 * uKnee);
+  soft = soft * soft / max(4.0 * uKnee, 0.0001);
+  float contribution = max(luma - uThreshold, soft);
   // 按比例缩放颜色，保持色调
   float scale = (luma > 0.0001) ? (contribution / luma) : 0.0;
-  gl_FragColor = vec4(c * scale, 1.0);
+  return c * scale;
+}
+
+void main() {
+  // 1/4 分辨率直接单点取样会让细小水光/火光随镜头闪烁。
+  // 在【亮部提取后】再做 5-tap 抗闪烁降采：不会把普通像素平均成伪高光，
+  // 同时能保留小面积 HDR 高光。
+  vec2 o = uSourceTexel * 1.5;
+  vec3 result = extractHighlight(vUv) * 0.20;
+  result += extractHighlight(vUv + vec2(-o.x, -o.y)) * 0.20;
+  result += extractHighlight(vUv + vec2( o.x, -o.y)) * 0.20;
+  result += extractHighlight(vUv + vec2(-o.x,  o.y)) * 0.20;
+  result += extractHighlight(vUv + vec2( o.x,  o.y)) * 0.20;
+  gl_FragColor = vec4(result, 1.0);
 }
 `.trim();
 
@@ -117,9 +136,11 @@ export class Bloom {
     this.extractMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: null },
-        // 0.7 时白天亮沙/雪/整片天空都过阈值 → 画面蒙白纱。0.78 留太阳/高光/岩浆/粼光等真亮源(0.82 用户嫌淡)。
-        // 0.74:亮沙(luma≈0.69)仍不过阈,但天空亮带/粼光/太阳有明显辉光(用户要更夸张)
-        uThreshold: { value: 0.74 },
+        // 场景 RT 是线性 HalfFloat：1.0 以上才是真 HDR。1.05 会排除天空/雪/沙，
+        // 0.22 soft knee 让水面高光和火光跨阈值时不会突然闪变。
+        uThreshold: { value: 1.05 },
+        uKnee: { value: 0.22 },
+        uSourceTexel: { value: new THREE.Vector2(1, 1) },
       },
       vertexShader: EXTRACT_VERT,
       fragmentShader: EXTRACT_FRAG,
@@ -160,6 +181,8 @@ export class Bloom {
     const h = Math.max(1, Math.round(quarterCssH));
     this.bloomA = this.buildRT(w, h);
     this.bloomB = this.buildRT(w, h);
+    // 输入场景 RT 是 Bloom RT 的 4 倍宽高（调用方传入物理像素 / 4）。
+    this.extractMat.uniforms['uSourceTexel'].value.set(1.0 / (w * 4.0), 1.0 / (h * 4.0));
     // 更新模糊 pass 的 texel size（1/width, 1/height）
     this.blurMat.uniforms['uTexelSize'].value.set(1.0 / w, 1.0 / h);
   }

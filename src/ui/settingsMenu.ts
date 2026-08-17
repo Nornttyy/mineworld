@@ -51,7 +51,7 @@ export class SettingsMenu {
           <select id="set-lighting" style="background:#16212e;color:#dce8f2;border:2px solid #5a7390;padding:2px 6px;font-family:'Zpix',monospace;font-size:14px;cursor:pointer;">
             <option value="off">关</option>
             <option value="standard">标准</option>
-            <option value="high">高</option>
+            <option value="high">超高</option>
           </select>
         </label>
         <div style="display:flex;align-items:center;gap:12px;">

@@ -5,6 +5,17 @@ import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 import { browserViewportSize } from './browserViewport';
+import { WATER_RENDER_LAYER } from './renderLayers';
+import { PlanarReflection } from './PlanarReflection';
+
+type WaterRefractionSink = (
+  color: THREE.Texture | null,
+  depth: THREE.Texture | null,
+  physicalWidth: number,
+  physicalHeight: number,
+) => void;
+
+type WaterReflectionSink = (color: THREE.Texture | null, textureMatrix?: THREE.Matrix4) => void;
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
 interface GodRayOpts {
@@ -49,6 +60,10 @@ export class Renderer {
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
+  private refractionRT: THREE.WebGLRenderTarget | null = null; // 无水场景：给超高质水面做屏幕空间折射
+  private waterRefractionSink: WaterRefractionSink | null = null;
+  private planarReflection: PlanarReflection | null = null;
+  private waterReflectionSink: WaterReflectionSink | null = null;
   private readonly godStd = new GodRays(24); // standard 档：24 采样
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
@@ -95,6 +110,7 @@ export class Renderer {
     this.setSkyColors([0.3, 0.52, 0.79], [0.81, 0.9, 0.97]);
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
+    this.camera.layers.enable(WATER_RENDER_LAYER); // 主 pass 同时看地形(layer0)和水(layer1)
     this.resize();
     window.addEventListener('resize', this.onViewportChange);
     window.addEventListener('orientationchange', this.onViewportChange);
@@ -153,6 +169,16 @@ export class Renderer {
       this.rt.dispose();
       this.rt = this.buildRT(w, h);
     }
+    if (this.refractionRT !== null) {
+      this.refractionRT.dispose();
+      this.refractionRT = this.buildRefractionRT(w, h);
+      this.publishRefractionTarget();
+    }
+    if (this.planarReflection !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.planarReflection.resize(Math.max(1, Math.round(w * pr)), Math.max(1, Math.round(h * pr)));
+      this.publishReflectionTarget();
+    }
     // Bloom RT 重建为 1/4 分辨率（CSS 像素，Bloom 内部乘 pr）。
     if (this.bloom !== null) {
       const pr = this.gl.getPixelRatio();
@@ -176,6 +202,18 @@ export class Renderer {
     this.gl.shadowMap.needsUpdate = true;
   }
 
+  /** Chunk water shader subscribes once; Renderer republishes textures after enable/resize/disable. */
+  setWaterRefractionSink(sink: WaterRefractionSink | null): void {
+    this.waterRefractionSink = sink;
+    this.publishRefractionTarget();
+  }
+
+  /** Water shader subscribes to the live planar-reflection texture and projective matrix. */
+  setWaterReflectionSink(sink: WaterReflectionSink | null): void {
+    this.waterReflectionSink = sink;
+    this.publishReflectionTarget();
+  }
+
   /**
    * 每帧由 Game 调用：设置 god-ray 参数。
    * opts = null 或 quality='off' → 关闭后处理，render() 走原直接路径（零 RT 开销）。
@@ -187,6 +225,16 @@ export class Renderer {
         this.rt.dispose();
         this.rt = null;
       }
+      if (this.refractionRT !== null) {
+        this.refractionRT.dispose();
+        this.refractionRT = null;
+      }
+      this.publishRefractionTarget();
+      if (this.planarReflection !== null) {
+        this.planarReflection.dispose();
+        this.planarReflection = null;
+      }
+      this.publishReflectionTarget();
       if (this.bloom !== null) {
         this.bloom.dispose();
         this.bloom = null;
@@ -201,6 +249,18 @@ export class Renderer {
     // 确保 RT 已建（首次开启或 resize 中途重建）。
     if (this.rt === null) {
       this.rt = this.buildRT(this.viewportW, this.viewportH);
+    }
+    if (this.refractionRT === null) {
+      this.refractionRT = this.buildRefractionRT(this.viewportW, this.viewportH);
+      this.publishRefractionTarget();
+    }
+    if (this.planarReflection === null) {
+      const pr = this.gl.getPixelRatio();
+      this.planarReflection = new PlanarReflection(
+        Math.max(1, Math.round(this.viewportW * pr)),
+        Math.max(1, Math.round(this.viewportH * pr)),
+      );
+      this.publishReflectionTarget();
     }
     // 确保 Bloom 已建。
     if (this.bloom === null) {
@@ -234,7 +294,32 @@ export class Renderer {
       return;
     }
 
-    // ── Step 1: 场景渲到 RT（颜色 + 深度）──
+    // ── Step -1: 海平面镜像场景 → 真实倒影 RT ──
+    // 反射相机只看 layer0，因此不会递归画水；oblique near-plane 裁掉水面以下地形。
+    if (this.planarReflection !== null) {
+      this.planarReflection.render(
+        this.gl,
+        this.scene,
+        this.camera,
+        (reflectionCamera) => this.skyDome.position.copy(reflectionCamera.position),
+        () => this.skyDome.position.copy(this.camera.position),
+      );
+      this.publishReflectionTarget();
+    }
+
+    // ── Step 0: 无水场景 → 折射 RT ──
+    // 水单独放在 layer1；临时关掉该层，得到不会“边写边采样”的干净颜色/深度。
+    // 之后主 pass 的水 shader 用法线扰动屏幕 UV，形成真实地形折射。
+    if (this.refractionRT !== null) {
+      const layerMask = this.camera.layers.mask;
+      this.camera.layers.disable(WATER_RENDER_LAYER);
+      this.gl.setRenderTarget(this.refractionRT);
+      this.gl.clear();
+      this.gl.render(this.scene, this.camera);
+      this.camera.layers.mask = layerMask;
+    }
+
+    // ── Step 1: 完整场景渲到 RT（颜色 + 深度）──
     this.gl.setRenderTarget(this.rt);
     this.gl.clear(); // 清颜色 + 深度（autoClear 默认 true）
     this.gl.render(this.scene, this.camera);
@@ -312,5 +397,45 @@ export class Renderer {
       samples: 4, // MSAA(three 自动 resolve;深度纹理照常给 god-ray)
     });
     return rt;
+  }
+
+  /** 全物理分辨率折射源；保留线性 HDR 颜色和深度，避免水底发灰、边缘穿帮。 */
+  private buildRefractionRT(cssW: number, cssH: number): THREE.WebGLRenderTarget {
+    const pr = this.gl.getPixelRatio();
+    const w = Math.max(1, Math.round(cssW * pr));
+    const h = Math.max(1, Math.round(cssH * pr));
+    const depthTexture = new THREE.DepthTexture(w, h, THREE.UnsignedIntType);
+    const rt = new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType,
+      depthTexture,
+      depthBuffer: true,
+    });
+    rt.texture.magFilter = THREE.LinearFilter;
+    rt.texture.minFilter = THREE.LinearFilter;
+    rt.texture.generateMipmaps = false;
+    return rt;
+  }
+
+  private publishRefractionTarget(): void {
+    if (!this.waterRefractionSink) return;
+    if (!this.refractionRT) {
+      this.waterRefractionSink(null, null, 1, 1);
+      return;
+    }
+    this.waterRefractionSink(
+      this.refractionRT.texture,
+      this.refractionRT.depthTexture,
+      this.refractionRT.width,
+      this.refractionRT.height,
+    );
+  }
+
+  private publishReflectionTarget(): void {
+    if (!this.waterReflectionSink) return;
+    if (!this.planarReflection) {
+      this.waterReflectionSink(null);
+      return;
+    }
+    this.waterReflectionSink(this.planarReflection.texture, this.planarReflection.textureMatrix);
   }
 }

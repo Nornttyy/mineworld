@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ICE } from '../blocks/registry';
 import { ChunkWorld } from '../world/chunkWorld';
 import { meshChunk } from './mesher';
 
@@ -78,6 +79,52 @@ describe('水面高度·头顶有方块（修：放方块后水不再变整块 /
     lone.setBlock(9, Y - 1, 9, STONE);
     lone.setWater(9, Y, 9, 7, false, false);
     expect(maxDepth(lone)).toBeCloseTo(0.25, 5);
+  });
+
+  it('独立岸线 mask：湖心=0、岸角>0，浅水湖心不会被误判成泡沫', () => {
+    const pool = new ChunkWorld(99);
+    for (let dx = 0; dx < 3; dx++)
+      for (let dz = 0; dz < 3; dz++) {
+        pool.setBlock(4 + dx, Y - 1, 4 + dz, STONE);
+        pool.setWater(4 + dx, Y, 4 + dz, 7, false, false);
+      }
+    const shore = meshChunk(pool, 0, 0).water.shore;
+    expect(shore).toBeDefined();
+    expect(shore?.length).toBe(meshChunk(pool, 0, 0).water.positions.length / 3);
+    expect(Math.min(...(shore ?? []))).toBe(0); // 四列都为水的湖心角
+    expect(Math.max(...(shore ?? []))).toBeCloseTo(0.75, 5); // 最外角仅一列有水
+
+    const lone = new ChunkWorld(99);
+    lone.setBlock(9, Y - 1, 9, STONE);
+    lone.setWater(9, Y, 9, 7, false, false);
+    const loneShore = meshChunk(lone, 0, 0).water.shore;
+    expect(loneShore && [...loneShore].every((v) => Math.abs(v - 0.75) < 1e-5)).toBe(true);
+  });
+
+  it('海冰边界：冻结表层仍算湿润，不被误判成干岸泡沫', () => {
+    const frozenEdge = new ChunkWorld(99);
+    for (let x = 4; x <= 6; x++)
+      for (let z = 4; z <= 6; z++) {
+        frozenEdge.setBlock(x, Y - 1, z, STONE);
+        frozenEdge.setWater(x, Y, z, 8, false, false);
+      }
+    for (let z = 4; z <= 6; z++) frozenEdge.setBlock(7, Y, z, ICE);
+
+    const water = meshChunk(frozenEdge, 0, 0).water;
+    const sharedEdge: number[] = [];
+    const sharedShore: number[] = [];
+    for (let i = 0; i < water.positions.length / 3; i++) {
+      const x = water.positions[i * 3];
+      const y = water.positions[i * 3 + 1];
+      const z = water.positions[i * 3 + 2];
+      if (Math.abs(x - 7) < 1e-5 && Math.abs(z - 5) < 1e-5 && y > Y + 0.5) {
+        sharedEdge.push(y);
+        sharedShore.push(water.shore?.[i] ?? -1);
+      }
+    }
+
+    expect(sharedEdge.length).toBeGreaterThan(0);
+    expect(sharedShore.every((shore) => Math.abs(shore) < 1e-5)).toBe(true);
   });
 
   it('bug1: 头顶有方块的水仍画出顶面(覆盖格的水看得见，不是隐形空洞)', () => {

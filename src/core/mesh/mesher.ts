@@ -88,7 +88,9 @@ export interface MeshData {
   colors: Float32Array;
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
+  underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
   top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
+  shore?: Float32Array; // 仅水：角周围缺水覆盖率 0..1；精确画岸边细浪，不把整片浅水误判成岸线
   sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
 }
 
@@ -176,10 +178,12 @@ interface FaceArrays {
   C: number[];
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
+  UW: number[]; // 仅不透明网格：面外连续水柱深度 0..8；其他网格留空
   T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
+  SH: number[]; // 仅水用：每顶点岸线覆盖率 0..1；其余网格留空
   SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], T: [], SW: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], UW: [], T: [], SH: [], SW: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -189,13 +193,16 @@ const toMeshData = (a: FaceArrays): MeshData => {
     // 顶点数没超 Uint16 上限就用 Uint16(绝大多数区块如此)，否则退回 Uint32
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
+    underwater: a.UW.length ? new Float32Array(a.UW) : undefined,
     top: a.T.length ? new Float32Array(a.T) : undefined,
+    shore: a.SH.length ? new Float32Array(a.SH) : undefined,
     sway: a.SW.length ? new Float32Array(a.SW) : undefined,
   };
 };
 
 export interface ChunkMesh {
   opaque: MeshData;
+  ice: MeshData; // 冰：独立材质批次（网格阶段仍按 opaque 邻居剔面）
   cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
   torch: MeshData; // 火把：暖色小十字，自发光(不参与天光 shader)
@@ -216,6 +223,7 @@ export function meshChunkData(
   const ox = cx * CHUNK_W;
   const oz = cz * CHUNK_W;
   const op = emptyArrays();
+  const ice = emptyArrays();
   const cut = emptyArrays();
   const wa = emptyArrays();
   const to = emptyArrays(); // 火把
@@ -254,6 +262,13 @@ export function meshChunkData(
     if (ly >= CHUNK_H || ly < 0) return 0;
     return blkLight[lx + HALO + (lz + HALO) * LW + ly * LW * LW];
   };
+  // 从面外那个水格往上数到水面，让底部/侧壁顶点知道自己上方有多深的水。
+  // 封顶 8 格：足够做焦散强度和水下吸收渐变，也避免深海每个面无界扫描。
+  const underwaterDepthAt = (wx: number, wy: number, wz: number): number => {
+    let depth = 0;
+    for (let yy = wy; yy < CHUNK_H && depth < 8 && waterAmount(wx, yy, wz) > 0; yy++) depth++;
+    return depth;
+  };
   // 平滑光照(同 MC smooth lighting)：某面某角，取"面外格 + 两条边格 + 对角格"中【非遮挡】格的
   // (天光,方块光) 平均 → 顶点间渐变、柔和的明暗，而不是整面一个平铺光值。(ex,ey,ez)=面外那一格(local)。
   const cornerLight = (ex: number, ey: number, ez: number, f: number, k: number): [number, number] => {
@@ -283,6 +298,7 @@ export function meshChunkData(
     const ex = lx + d.o[0]; // 该面朝向(外侧)那一格 → 取它的光
     const ey = ly + d.o[1];
     const ez = lz + d.o[2];
+    const underwaterDepth = a === op ? underwaterDepthAt(ox + ex, ey, oz + ez) : 0;
     const base = a.P.length / 3;
     const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
@@ -294,6 +310,7 @@ export function meshChunkData(
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
       a.L.push(sky, blk);
+      if (a === op) a.UW.push(underwaterDepth);
     }
     // 按 AO 翻转四边形对角线，避免梯度插值出现折痕
     if (ao[0] + ao[2] > ao[1] + ao[3]) {
@@ -383,8 +400,11 @@ export function meshChunkData(
   // 起伏权重：1=平静水面(湖/海,头顶是空气)→可大幅上下起伏；0=水柱内/瀑布体(头顶还是水)→不起伏，避免流水/瀑布撕缝。每个水格设一次。
   let waterWobble = 1;
   // 某列在 wy 层的水柱深度(向上+向下数连续水格,封顶 7)；非水=0。
+  const isFrozenWater = (wx: number, wy: number, wz: number): boolean => getBlock(wx, wy, wz) === ICE;
   const colDepth = (wx: number, wy: number, wz: number): number => {
-    if (waterAmount(wx, wy, wz) === 0) return 0;
+    // 海冰替代了最上层水格；把它视为水柱的冻结表层，避免相邻海水的深度/透明度
+    // 在冰边突然掉到 0，形成一圈浅色硬缝。
+    if (waterAmount(wx, wy, wz) === 0 && !isFrozenWater(wx, wy, wz)) return 0;
     let wd = 1;
     for (let yy = wy + 1; wd < 7 && yy < CHUNK_H && waterAmount(wx, yy, wz) > 0; yy++) wd++;
     for (let yy = wy - 1; wd < 7 && yy >= 0 && waterAmount(wx, yy, wz) > 0; yy--) wd++;
@@ -396,6 +416,18 @@ export function meshChunkData(
   // 平均被拉低 → 水在岸线处自然变透明淡出。
   const cornerDepth = (cwx: number, wy: number, cwz: number): number =>
     (colDepth(cwx - 1, wy, cwz - 1) + colDepth(cwx, wy, cwz - 1) + colDepth(cwx - 1, wy, cwz) + colDepth(cwx, wy, cwz)) / 4;
+  // 四列都为水=湖心(0)；缺水列越多越靠岸(最高 1)。岸线与 waterDepth 分开，
+  // 这样一整片只有一格深的浅滩仍是清水，不会被错误铺满白色泡沫。
+  const cornerShore = (cwx: number, wy: number, cwz: number): number => {
+    const isWet = (wx: number, wz: number): boolean =>
+      waterAmount(wx, wy, wz) > 0 || isFrozenWater(wx, wy, wz);
+    const wetCount =
+      Number(isWet(cwx - 1, cwz - 1)) +
+      Number(isWet(cwx, cwz - 1)) +
+      Number(isWet(cwx - 1, cwz)) +
+      Number(isWet(cwx, cwz));
+    return 1 - wetCount / 4;
+  };
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
@@ -418,6 +450,7 @@ export function meshChunkData(
       // 平静水(waterWobble=1)整面随涌浪起伏；瀑布/落水体(=0)不起伏 → 流水不撕缝。
       const wob = (topFace || yArr[k] > 0.01) ? waterWobble : 0; // 0/1 起伏 gate
       wa.T.push((wob > 0 ? 1 : -1) * cornerDepth(wx, ly, wz)); // aTop=带符号【逐角】水深:|值|=深度(片元调透明),符号=起伏 gate
+      wa.SH.push(cornerShore(wx, ly, wz));
     }
     wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
@@ -450,7 +483,7 @@ export function meshChunkData(
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const id = getBlock(ox + lx, ly, oz + lz);
-        if (isOpaque(id)) {
+        if (isOpaque(id) && id !== ICE) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             // 不透明面：邻格也不透明才剔除（露给空气/水都要画）
@@ -503,11 +536,11 @@ export function meshChunkData(
             emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.45 : 0.82); // 草矮、长草高
           }
         } else if (id === ICE) {
-          // 冰：solid+transparent 但非 cutout；按不透明方块渲染（贴图本身无 alpha，走 opaque 批）
+          // 冰独立成批，供渲染层使用透射/反射材质；邻居仍按 opaque 剔面，不改变原有接缝。
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
-            emit(op, lx, ly, lz, id, f);
+            emit(ice, lx, ly, lz, id, f);
           }
         } else if (id === LAVA) {
           // 岩浆：solid:false+transparent，但必须渲染——否则洞穴里隐身、玩家会掉进看不见的岩浆(致命)。
@@ -547,7 +580,14 @@ export function meshChunkData(
     }
   }
 
-  return { opaque: toMeshData(op), cutout: toMeshData(cut), water: toMeshData(wa), torch: toMeshData(to), light3d };
+  return {
+    opaque: toMeshData(op),
+    ice: toMeshData(ice),
+    cutout: toMeshData(cut),
+    water: toMeshData(wa),
+    torch: toMeshData(to),
+    light3d,
+  };
 }
 
 // 主线程入口(同步；用于 remeshDirty 即时重建、无 Worker 测试回退)：包一层 ChunkWorld 的访问器。
