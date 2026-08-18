@@ -13,7 +13,7 @@ function fakeRenderer(renderImpl?: () => void) {
   const clear = vi.fn();
   const depthMask = vi.fn();
   const xr = { enabled: true };
-  const shadowMap = { autoUpdate: true };
+  const shadowMap = { autoUpdate: true, needsUpdate: true };
   const renderer = {
     xr,
     shadowMap,
@@ -78,7 +78,10 @@ describe('PlanarReflection', () => {
   it('mirrors position and orientation and builds world-space projective UVs', () => {
     const reflection = new PlanarReflection(320, 180);
     const source = sourceCamera();
-    const fake = fakeRenderer();
+    const fake = fakeRenderer(() => {
+      expect(fake.shadowMap.autoUpdate).toBe(false);
+      expect(fake.shadowMap.needsUpdate).toBe(false);
+    });
     const scene = new THREE.Scene();
     const order: string[] = [];
 
@@ -96,6 +99,8 @@ describe('PlanarReflection', () => {
 
     expect(order).toEqual(['before', 'after']);
     expect(fake.render).toHaveBeenCalledWith(scene, reflection.camera);
+    expect(fake.shadowMap.autoUpdate).toBe(true);
+    expect(fake.shadowMap.needsUpdate).toBe(true);
     expect(reflection.camera.position.x).toBeCloseTo(source.position.x, 8);
     expect(reflection.camera.position.y).toBeCloseTo(2 * SEA_SURFACE_Y - source.position.y, 8);
     expect(reflection.camera.position.z).toBeCloseTo(source.position.z, 8);
@@ -157,6 +162,7 @@ describe('PlanarReflection', () => {
     expect(after).toHaveBeenCalledOnce();
     expect(fake.xr.enabled).toBe(true);
     expect(fake.shadowMap.autoUpdate).toBe(true);
+    expect(fake.shadowMap.needsUpdate).toBe(true);
     expect(fake.setRenderTarget).toHaveBeenLastCalledWith(null);
     expect(fake.setViewport).toHaveBeenLastCalledWith(expect.any(THREE.Vector4));
     expect(fake.setScissor).toHaveBeenLastCalledWith(expect.any(THREE.Vector4));

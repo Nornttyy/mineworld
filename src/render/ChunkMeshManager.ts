@@ -543,17 +543,35 @@ varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
 varying vec3 vWaterBaseWPos;
+varying vec2 vWaveSlope;
+varying float vWaveHeight;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
 varying vec4 vReflectionCoord;
-float mwWaveV(vec2 p, float t) {
-  // 大波慢推轮廓，小波更快掠过。总峰值 < 0.1 格，满水面不会穿过上方方块。
-  float a = sin(dot(p, vec2(0.84, 0.54)) * 0.36 + t * 0.50) * 0.058;
-  float b = sin(dot(p, vec2(-0.48, 0.88)) * 0.70 - t * 0.68) * 0.026;
-  float c = sin(dot(p, vec2(0.94, -0.34)) * 1.15 + t * 0.92) * 0.009;
-  float d = sin(dot(p, vec2(-0.72, -0.69)) * 1.70 - t * 1.25) * 0.003 * uHq;
-  return a + b + c + d;
+vec3 mwWaveField(vec2 p, float t) {
+  // 有界低频波群：长涌浪承载轮廓，两组交叉波打散平膜感。q 严格位于 [-1,1]，
+  // 非对称整形后的水位范围为 [-0.18,+0.09] 格，波谷明显而波峰不会越过方块顶。
+  vec2 dg = vec2(-0.300, 0.954);
+  vec2 d1 = vec2(0.821, 0.571);
+  vec2 d2 = vec2(-0.419, 0.908);
+  vec2 d3 = vec2(0.960, -0.280);
+  float pg = dot(p, dg) * 0.075 - t * 0.07;
+  float sg = sin(pg);
+  float cg = cos(pg);
+  float group = 0.76 + 0.24 * sg;
+  vec2 groupGrad = 0.24 * 0.075 * cg * dg;
+  float p1 = dot(p, d1) * 0.22 + t * 0.26;
+  float p2 = dot(p, d2) * 0.58 - t * 0.50;
+  float p3 = dot(p, d3) * 0.92 + t * 0.70;
+  float s1 = sin(p1), s2 = sin(p2), s3 = sin(p3);
+  float q = 0.46 * group * s1 + 0.38 * s2 + 0.16 * s3;
+  vec2 qGrad = 0.46 * (groupGrad * s1 + group * cos(p1) * 0.22 * d1)
+    + 0.38 * cos(p2) * 0.58 * d2
+    + 0.16 * cos(p3) * 0.92 * d3;
+  float h = 0.135 * q - 0.045 * q * q;
+  vec2 hGrad = (0.135 - 0.09 * q) * qGrad;
+  return vec3(h, hGrad);
 }
 ${MC_BRIGHT_GLSL}`,
         )
@@ -563,11 +581,25 @@ ${MC_BRIGHT_GLSL}`,
 ${MC_LIGHT_GLSL}
 vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterBaseWPos = mwWp0;
-// 岸边与浅水连续减弱，而不是用 step 切出突然静止的硬带；aTop<0 的侧壁/瀑布锚点保持不动。
+// 岸边与浅水连续锚定；aTop<0 的侧壁底点/瀑布锚点保持不动。
 float mwMovable = step(0.001, aTop);
-float mwDepthGate = smoothstep(0.08, 0.70, abs(aTop));
-float mwEdgeGate = mix(0.08, 1.0, pow(1.0 - clamp(aShore, 0.0, 1.0), 1.4));
-transformed.y += mwWaveV(mwWp0.xz, uTime) * mwMovable * mwDepthGate * mwEdgeGate * uShaders;
+float mwDepthGate = smoothstep(0.12, 0.55, abs(aTop));
+float mwWet = 1.0 - clamp(aShore, 0.0, 1.0);
+float mwEdgeGate = smoothstep(0.08, 0.95, mwWet);
+float mwWaveGate = mwMovable * mwDepthGate * mwEdgeGate * uShaders;
+vec3 mwWave = mwWaveField(mwWp0.xz, uTime);
+// cornerH 在瀑布接合处可能恰好为整数 1；按当前顶点余量双向限位，
+// 防止波峰穿入上层方块，也防极浅流水的波谷掉进本格底面。
+float mwBaseFrac = fract(transformed.y);
+if (mwMovable > 0.5 && mwBaseFrac < 0.001) mwBaseFrac = 1.0;
+float mwRawDisp = mwWave.x * mwWaveGate;
+float mwDisp = mwRawDisp;
+mwDisp = clamp(mwDisp, -max(mwBaseFrac - 0.02, 0.0), max(0.98 - mwBaseFrac, 0.0));
+vWaveHeight = mwDisp;
+// 位移触及方块上下界时把解析坡度同步压平，避免“顶点没动、法线还在翻”的假闪光。
+float mwSlopeFree = 1.0 - step(0.0001, abs(mwRawDisp - mwDisp));
+vWaveSlope = mwWave.yz * mwWaveGate * mwSlopeFree;
+transformed.y += mwDisp;
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterDepth = abs(aTop);
 vSkyVis = aLight.x;
@@ -602,6 +634,8 @@ varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
 varying vec3 vWaterBaseWPos;
+varying vec2 vWaveSlope;
+varying float vWaveHeight;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -640,7 +674,10 @@ if (uShaders < 0.5) {
   vec3 stableV = stableToEye / max(length(stableToEye), 0.0001);
   vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
   faceN *= sign(dot(faceN, V));
-  float horiz = smoothstep(0.5, 0.92, abs(faceN.y));
+  // 用未位移网格识别顶面/侧壁，避免浪峰把材质分支本身来回切换。
+  vec3 baseFaceN = normalize(cross(dFdx(vWaterBaseWPos), dFdy(vWaterBaseWPos)));
+  baseFaceN *= sign(dot(baseFaceN, V));
+  float horiz = smoothstep(0.5, 0.92, abs(baseFaceN.y));
 
   // 大中小四级波谱：A/B 保留到远景，C/D 按屏幕足迹淡出，避免细波小于一像素后闪烁。
   vec2 p = vWPos.xz;
@@ -661,11 +698,14 @@ if (uShaders < 0.5) {
   detailN += normalC * 0.03 * midVis;
   detailN += normalD * 0.01 * microVis * nearDetail * uHq;
   detailN *= horiz;
-  // faceN 已含顶点位移形成的大波。旧 mix(..., waveN, horiz) 在顶面把它完全覆盖，
-  // 所以轮廓虽动、反射却像一张平膜；这里把几何梯度与纹理微法线真正相加。
-  float faceSide = faceN.y < 0.0 ? -1.0 : 1.0;
-  float signedY = faceSide * max(abs(faceN.y), 0.18);
-  vec2 geomGradient = -faceN.xz / signedY;
+  // 顶点函数同时给出解析坡度。它比逐三角形 faceN 连续，长浪经过网格对角线时不会
+  // 突然换法线；侧壁仍使用真实几何法线，保持瀑布与水下表面方向正确。
+  float faceSide = baseFaceN.y < 0.0 ? -1.0 : 1.0;
+  float signedBaseY = faceSide * max(abs(baseFaceN.y), 0.18);
+  vec2 baseGradient = -baseFaceN.xz / signedBaseY;
+  vec2 geomGradient = baseGradient + vWaveSlope;
+  vec3 geomTopN = normalize(vec3(-geomGradient.x, 1.0, -geomGradient.y)) * faceSide;
+  vec3 geomN = normalize(mix(faceN, geomTopN, horiz));
   vec2 totalGradient = geomGradient - detailN;
   vec3 topN = normalize(vec3(-totalGradient.x, 1.0, -totalGradient.y)) * faceSide;
   vec3 N = normalize(mix(faceN, topN, horiz));
@@ -675,8 +715,11 @@ if (uShaders < 0.5) {
   vec3 macroN = normalize(mix(faceN, macroTopN, horiz));
   // 屏幕空间折射/倒影必须使用 view-space 倾斜；直接拿世界 XZ 会在玩家转向时改变扰动方向。
   vec3 flatN = vec3(0.0, faceSide, 0.0);
+  vec2 geomTilt = (viewMatrix * vec4(geomN - flatN, 0.0)).xy;
   vec2 macroTilt = (viewMatrix * vec4(macroN - flatN, 0.0)).xy;
   vec2 fullTilt = (viewMatrix * vec4(N - flatN, 0.0)).xy;
+  vec2 macroNoiseTilt = macroTilt - geomTilt;
+  vec2 microTilt = fullTilt - macroTilt;
 
   // 无水 HDR RT 的真实屏幕空间折射：用微法线轻推 UV，并用深度拒绝前景串色。
   vec2 screenUv = gl_FragCoord.xy / max(uRefractionSize, vec2(1.0));
@@ -684,7 +727,9 @@ if (uShaders < 0.5) {
   // 屏幕边缘逐渐收回扰动/模糊，避免 ClampToEdge 把最后一列像素拉成固定竖色带。
   float screenEdgeFade = smoothstep(0.002, 0.022, screenEdge);
   vec2 maxRefraction = vec2(7.0) / max(uRefractionSize, vec2(1.0));
-  vec2 refrPx = macroTilt * mix(22.0, 26.0, uHq) + (fullTilt - macroTilt) * mix(6.0, 8.0, uHq);
+  vec2 refrPx = geomTilt * mix(36.0, 40.0, uHq)
+    + macroNoiseTilt * mix(10.0, 12.0, uHq)
+    + microTilt * mix(3.0, 4.0, uHq);
   vec2 refrOffset = clamp(refrPx, vec2(-7.0), vec2(7.0)) * screenEdgeFade / max(uRefractionSize, vec2(1.0));
   refrOffset = clamp(refrOffset, -maxRefraction, maxRefraction);
   vec2 provisionalUv = clamp(screenUv + refrOffset, vec2(0.004), vec2(0.996));
@@ -727,15 +772,24 @@ if (uShaders < 0.5) {
   vec3 transmittance = exp(-vec3(0.19, 0.088, 0.052) * opticalThickness);
   vec3 waterScatter = vec3(0.022, 0.09, 0.125) * mix(0.62, 1.0, vLF) * vTint;
   waterScatter *= mix(0.45, 1.0, uSkyMul);
-  // 深水折射会被吸收成近似常量；用稳定 A/B 大波给散射留下极轻的明暗起伏，
-  // 近景仍能看见水在运动，又不会把高频波重新变成闪点。
+  // 深水折射会被吸收成近似常量；只用低频分量留下宽缓明暗，不让微法线变成闪点。
   float broadRelief = (rippleA.b - 0.5) * 0.65 + (rippleB.b - 0.5) * 0.35;
-  waterScatter *= 1.0 + broadRelief * 0.07 * nearDetail * horiz;
   float scatterAmount = 1.0 - exp(-opticalThickness * 0.29);
   vec3 refracted = opaqueBehind * transmittance + waterScatter * scatterAmount;
   // 只让体色随真实光程缓慢增长；浅水约 1%，不再盖一层固定的有色玻璃膜。
   float bodyTint = (1.0 - exp(-opticalThickness * 0.2)) * 0.07;
   refracted = mix(refracted, waterScatter, bodyTint);
+  // 波峰只有约 +0.09 格、波谷可达 -0.18 格，按两侧各自范围归一后做宽面明暗。
+  // 这层始终低于 HDR/Bloom，只让正午俯视能读出浪峰和浪谷，不会产生白色闪点。
+  float waveRelief = vWaveHeight >= 0.0
+    ? clamp(vWaveHeight / 0.09, 0.0, 1.0)
+    : clamp(vWaveHeight / 0.18, -1.0, 0.0);
+  vec2 waveLightDir = normalize(uSunDir.xz + vec2(0.0001, 0.0));
+  float slopeRelief = clamp(-dot(vWaveSlope, waveLightDir) * 9.0, -1.0, 1.0);
+  float relief = (waveRelief * 0.13 + slopeRelief * 0.055 + broadRelief * 0.06)
+    * nearDetail * horiz;
+  relief = clamp(relief, -0.16, 0.14);
+  refracted *= 1.0 + relief;
 
   // 天空与云层反射。用反射光线和虚拟云层求交，同一噪声也驱动地面云影，方向一致。
   vec3 R = reflect(-V, macroN);
@@ -751,12 +805,18 @@ if (uShaders < 0.5) {
   float cloudB = texture2D(uCloudNoise, cloudUv * 1.83 + vec2(0.31, -0.17)).b;
   float cloud = smoothstep(0.55, 0.79, cloudA * 0.68 + cloudB * 0.32) * smoothstep(0.01, 0.18, R.y);
   vec3 cloudColor = mix(uSkyRefl * 1.25, vec3(1.22, 1.16, 1.04), uSkyMul);
-  float proceduralCloudMix = cloud * 0.38;
+  // Planar RT 已经含真实云，这里只做少量兜底；过重会把浪面盖成大片灰斑。
+  float proceduralCloudMix = cloud * 0.22;
 
-  // 海平面镜像相机只跟随连续 A/B 大波；C/D 不再让整幅倒影逐帧抖焦。
+  // 镜像倒影由解析几何长浪主导，仅叠亚像素级 A/B 宏观纹理。
+  // C/D 微波仍只参与折射与粗糙度，不能把高对比 RT 切成碎亮点。
   vec2 reflectionBaseUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
   vec2 reflectionUv = reflectionBaseUv;
-  vec2 reflectionPx = clamp(macroTilt * mix(25.0, 29.0, uHq), vec2(-4.0), vec2(4.0));
+  vec2 reflectionPx = clamp(
+    geomTilt * mix(30.0, 34.0, uHq) + macroNoiseTilt * mix(6.0, 8.0, uHq),
+    vec2(-4.0),
+    vec2(4.0)
+  );
   reflectionUv += reflectionPx / max(uRefractionSize, vec2(1.0));
   if (uHasReflection > 0.5) {
     float reflectionBlur = 1.6 + surfaceRoughness * 4.0 + 3.0 * pow(1.0 - NoV, 1.5) + smoothstep(30.0, 110.0, dist);
@@ -795,7 +855,17 @@ if (uShaders < 0.5) {
     reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix);
   }
 
-  float fresnel = min(0.68, 0.02 + 0.98 * pow(1.0 - NoV, 5.0));
+  float stableFresnel = min(0.68, 0.02 + 0.98 * pow(1.0 - NoV, 5.0));
+  // 只让解析几何长浪影响 Fresnel，并严格限制在稳定平面的窄范围内。
+  // 因而掠视角会出现连续的明暗浪带，但 A/B/C/D 细波不会把天空切成闪烁亮岛。
+  float geomNoV = clamp(abs(dot(geomN, V)), 0.0, 1.0);
+  float geomFresnel = min(0.68, 0.02 + 0.98 * pow(1.0 - geomNoV, 5.0));
+  float fresnel = mix(stableFresnel, geomFresnel, 0.55);
+  fresnel = clamp(
+    fresnel,
+    max(0.015, stableFresnel - 0.022),
+    min(0.68, stableFresnel + 0.032)
+  );
   float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
   vec3 col = mix(refracted, reflectedSky * 0.94, fresnel * reflectionGate);
 

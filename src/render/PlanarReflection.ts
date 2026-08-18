@@ -125,13 +125,18 @@ export class PlanarReflection {
     const previousScissorTest = renderer.getScissorTest();
     const previousXrEnabled = renderer.xr.enabled;
     const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+    const previousShadowNeedsUpdate = renderer.shadowMap.needsUpdate;
 
     try {
       before?.(this.camera, this.renderTarget);
       renderer.xr.enabled = false;
-      // The main pass owns shadow-map updates. Reusing it keeps the reflected
-      // scene coherent and avoids replacing the shared sun shadow texture.
+      // The main pass owns shadow-map updates. `autoUpdate=false` is not enough:
+      // three.js still renders a shadow map when `needsUpdate=true`. Because the
+      // reflection pass runs first, it used to consume the six-frame dirty pulse
+      // and briefly render a different shoreline/object set into this RT. Preserve
+      // the pulse for the following main-camera pass instead.
       renderer.shadowMap.autoUpdate = false;
+      renderer.shadowMap.needsUpdate = false;
       renderer.setRenderTarget(this.renderTarget);
       renderer.setViewport(0, 0, this.renderTarget.width, this.renderTarget.height);
       renderer.setScissorTest(false);
@@ -141,6 +146,7 @@ export class PlanarReflection {
     } finally {
       renderer.xr.enabled = previousXrEnabled;
       renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
+      renderer.shadowMap.needsUpdate = previousShadowNeedsUpdate;
       renderer.setRenderTarget(previousTarget);
       renderer.setViewport(this.savedViewport);
       renderer.setScissor(this.savedScissor);
