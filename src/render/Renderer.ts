@@ -296,7 +296,12 @@ export class Renderer {
 
     // ── Step -1: 海平面镜像场景 → 真实倒影 RT ──
     // 反射相机只看 layer0，因此不会递归画水；oblique near-plane 裁掉水面以下地形。
-    if (this.planarReflection !== null) {
+    // 镜像相机越过反射平面后，oblique clip 会翻转并产生巨大投影项；水下禁用平面倒影，
+    // 交给天空 Fresnel/水下散射兜底。浮出水面下一帧会自动恢复。
+    if (
+      this.planarReflection !== null &&
+      this.camera.position.y > this.planarReflection.planeY + 0.05
+    ) {
       this.planarReflection.render(
         this.gl,
         this.scene,
@@ -305,6 +310,8 @@ export class Renderer {
         () => this.skyDome.position.copy(this.camera.position),
       );
       this.publishReflectionTarget();
+    } else if (this.planarReflection !== null) {
+      this.publishReflectionTarget(false);
     }
 
     // ── Step 0: 无水场景 → 折射 RT ──
@@ -430,9 +437,9 @@ export class Renderer {
     );
   }
 
-  private publishReflectionTarget(): void {
+  private publishReflectionTarget(available = true): void {
     if (!this.waterReflectionSink) return;
-    if (!this.planarReflection) {
+    if (!this.planarReflection || !available) {
       this.waterReflectionSink(null);
       return;
     }

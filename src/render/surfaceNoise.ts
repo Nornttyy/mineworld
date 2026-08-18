@@ -144,34 +144,58 @@ interface DirectionalWave {
   readonly amplitude: number;
 }
 
-// Integer wave vectors make every component exactly periodic over the tile.
-// Most energy travels along +X/+Z with a narrow angular spread, while weaker
-// cross waves break up parallel bands. This is closer to wind-driven water
-// than isotropic value noise and remains suitable for two rotated flow-map
-// samples in the water shader.
+// Integer wave vectors make every component exactly periodic over the tile. The
+// spectrum deliberately spreads comparable energy across four direction bands:
+// a single dominant band made the old normal map read as endless parallel brush
+// strokes once the planar reflection stretched it towards the horizon. Co-prime
+// frequencies plus per-wave packets keep the tile seamless without exposing a
+// smaller repeating sub-pattern.
 const DIRECTIONAL_WAVES: readonly DirectionalWave[] = [
-  { kx: 3, ky: 1, amplitude: 0.32 },
-  { kx: 4, ky: 1, amplitude: 0.27 },
-  { kx: 5, ky: 2, amplitude: 0.23 },
-  { kx: 7, ky: 2, amplitude: 0.19 },
-  { kx: 9, ky: 3, amplitude: 0.155 },
-  { kx: 11, ky: 4, amplitude: 0.126 },
-  { kx: 14, ky: 5, amplitude: 0.1 },
-  { kx: 17, ky: 6, amplitude: 0.079 },
-  { kx: 21, ky: 7, amplitude: 0.062 },
-  { kx: 26, ky: 9, amplitude: 0.048 },
-  { kx: 32, ky: 11, amplitude: 0.037 },
-  { kx: 39, ky: 14, amplitude: 0.028 },
-  { kx: 5, ky: -2, amplitude: 0.105 },
-  { kx: 8, ky: -3, amplitude: 0.077 },
-  { kx: 13, ky: -5, amplitude: 0.052 },
-  { kx: 20, ky: -7, amplitude: 0.035 },
-  { kx: -2, ky: 6, amplitude: 0.055 },
-  { kx: -3, ky: 10, amplitude: 0.036 },
+  { kx: 4, ky: 1, amplitude: 0.18 },
+  { kx: 1, ky: 5, amplitude: 0.175 },
+  { kx: 5, ky: 3, amplitude: 0.16 },
+  { kx: -3, ky: 6, amplitude: 0.155 },
+  { kx: 7, ky: -2, amplitude: 0.142 },
+  { kx: 2, ky: 8, amplitude: 0.138 },
+  { kx: 8, ky: 5, amplitude: 0.123 },
+  { kx: -6, ky: 9, amplitude: 0.12 },
+  { kx: 11, ky: -5, amplitude: 0.104 },
+  { kx: 5, ky: 12, amplitude: 0.102 },
+  { kx: 13, ky: 8, amplitude: 0.086 },
+  { kx: -9, ky: 14, amplitude: 0.083 },
+  { kx: 16, ky: -7, amplitude: 0.071 },
+  { kx: 7, ky: 17, amplitude: 0.069 },
+  { kx: 19, ky: 11, amplitude: 0.058 },
+  { kx: -12, ky: 20, amplitude: 0.057 },
+  { kx: 23, ky: -10, amplitude: 0.047 },
+  { kx: 11, ky: 24, amplitude: 0.046 },
+  { kx: 27, ky: 16, amplitude: 0.038 },
+  { kx: -17, ky: 28, amplitude: 0.037 },
+  { kx: 32, ky: -15, amplitude: 0.03 },
+  { kx: 16, ky: 33, amplitude: 0.029 },
+  { kx: 38, ky: 21, amplitude: 0.023 },
+  { kx: -22, ky: 39, amplitude: 0.022 },
+];
+
+// Low-frequency periodic envelopes turn infinite Fourier crest lines into wave
+// packets. Each carrier uses a different packet direction and phase, so their
+// ends do not line up into a second visible grid.
+const WAVE_PACKETS: readonly (readonly [number, number])[] = [
+  [1, 2],
+  [-2, 1],
+  [3, 1],
+  [-1, 3],
+  [2, -3],
+  [3, -2],
+  [-3, -1],
+  [1, -3],
 ];
 
 const wavePhase = (wave: DirectionalWave, index: number): number =>
   hash(wave.kx + index * 37 + 101, wave.ky - index * 53 - 211) * TAU;
+
+const packetPhase = (wave: DirectionalWave, index: number): number =>
+  hash(wave.ky + index * 61 - 307, wave.kx + index * 43 + 419) * TAU;
 
 /**
  * Build a seamless wind-driven wave tile.
@@ -196,26 +220,47 @@ export function buildDirectionalWaveData(size = DEFAULT_DIRECTIONAL_WAVE_SIZE): 
     const v = y / size;
     for (let x = 0; x < size; x++) {
       const u = x / size;
-      // Low-frequency periodic domain warp bends otherwise parallel crests
-      // without compromising exact tileability.
+      // Two crossed periodic warps bend every direction differently. The warp
+      // frequencies are integer-valued, preserving exact repeat wrapping.
       const warpU =
-        Math.sin(TAU * (2 * u + v) + 1.71) * 0.013 + Math.sin(TAU * (-u + 3 * v) + 4.19) * 0.006;
+        Math.sin(TAU * (2 * u + 3 * v) + 1.71) * 0.012 +
+        Math.sin(TAU * (-3 * u + 2 * v) + 4.19) * 0.007 +
+        Math.sin(TAU * (5 * u - v) + 2.43) * 0.003;
       const warpV =
-        Math.sin(TAU * (u - 2 * v) + 0.63) * 0.009 + Math.sin(TAU * (3 * u + v) + 2.77) * 0.004;
+        Math.sin(TAU * (-2 * u + 3 * v) + 0.63) * 0.011 +
+        Math.sin(TAU * (3 * u + 4 * v) + 2.77) * 0.006 +
+        Math.sin(TAU * (u - 5 * v) + 5.31) * 0.003;
 
       let h = 0;
       let weight = 0;
       for (let i = 0; i < DIRECTIONAL_WAVES.length; i++) {
         const wave = DIRECTIONAL_WAVES[i];
         const phase = wavePhase(wave, i);
-        const theta = TAU * (wave.kx * (u + warpU) + wave.ky * (v + warpV)) + phase;
-        // A weak second harmonic sharpens crests but keeps troughs broad, like
-        // choppy wind water. 2*k is still integer-periodic.
-        const component = Math.sin(theta) + Math.sin(theta * 2 + phase * 0.37) * 0.16;
-        h += component * wave.amplitude;
+        const warpSign = (i & 1) === 0 ? 1 : -1;
+        const theta =
+          TAU *
+            (wave.kx * (u + warpU * warpSign) + wave.ky * (v + warpV * (0.82 - warpSign * 0.18))) +
+          phase;
+        const packetVector = WAVE_PACKETS[i % WAVE_PACKETS.length];
+        const packetTheta =
+          TAU * (packetVector[0] * u + packetVector[1] * v) + packetPhase(wave, i);
+        const packet01 = Math.sin(packetTheta) * 0.5 + 0.5;
+        const packet = 0.22 + smooth(packet01) * 0.78;
+        // Harmonics give a steep front and rounded trough; packet modulation
+        // breaks those fronts into short, irregular crest groups.
+        const component =
+          Math.sin(theta) +
+          Math.sin(theta * 2 + phase * 0.37) * 0.17 +
+          Math.sin(theta * 3 - phase * 0.19) * 0.035;
+        h += component * wave.amplitude * packet;
         weight += wave.amplitude;
       }
-      h /= weight * 1.16;
+      // A small isotropic toroidal detail field prevents calm gaps between wave
+      // packets from exposing the carrier spectrum or a checkerboard repeat.
+      const detail =
+        (periodicNoise(x + 29, y - 47, size, 16) - 0.5) * 0.07 +
+        (periodicNoise(x - 73, y + 31, size, 32) - 0.5) * 0.035;
+      h = h / (weight * 0.92) + detail;
       height[x + y * size] = h;
       lo = Math.min(lo, h);
       hi = Math.max(hi, h);
@@ -226,7 +271,7 @@ export function buildDirectionalWaveData(size = DEFAULT_DIRECTIONAL_WAVE_SIZE): 
   for (let i = 0; i < count; i++) height[i] = (height[i] - lo) / span;
 
   const at = (x: number, y: number): number => height[wrap(x, size) + wrap(y, size) * size];
-  const slopeScale = 5.2 * (size / DEFAULT_DIRECTIONAL_WAVE_SIZE);
+  const slopeScale = 4.8 * (size / DEFAULT_DIRECTIONAL_WAVE_SIZE);
   const curvature = new Float32Array(count);
   let curvatureMax = 1e-6;
 
@@ -250,9 +295,15 @@ export function buildDirectionalWaveData(size = DEFAULT_DIRECTIONAL_WAVE_SIZE): 
       const nx = -dx * invLen;
       const nz = -dz * invLen;
       const h = at(x, y);
-      // Keep the mask sparse enough for sun glints and focused bottom caustics;
-      // it is not intended as a diffuse white pattern on the water surface.
-      const crest = Math.pow(clamp01(curvature[x + y * size] / (curvatureMax * 0.42)), 0.72);
+      // Segment the curvature ridge with an independent toroidal field. This is
+      // the crucial difference between a short sun-glint/caustic crest and the
+      // old full-width parallel white streaks.
+      const segmentField =
+        periodicNoise(x + 83, y - 19, size, 16) * 0.58 +
+        periodicNoise(x - 41, y + 67, size, 32) * 0.42;
+      const segment = smooth(clamp01((segmentField - 0.31) / 0.49));
+      const ridge = clamp01(curvature[x + y * size] / (curvatureMax * 0.36));
+      const crest = Math.pow(ridge, 0.76) * segment;
       const i = (x + y * size) * 4;
       data[i] = Math.round((nx * 0.5 + 0.5) * 255);
       data[i + 1] = Math.round((nz * 0.5 + 0.5) * 255);

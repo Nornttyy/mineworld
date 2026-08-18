@@ -28,4 +28,42 @@ describe('ChunkMeshManager.setWorld', () => {
     expect(cmm.meshes.size).toBe(0);          // 旧网格清空
     expect(cmm.world).toBe(w2);               // 引用已换
   });
+
+  it('光影水写深度并退出透明排序，关闭光影后恢复经典 alpha 水', () => {
+    const cmm: any = new ChunkMeshManager(
+      new THREE.Scene(),
+      new ChunkWorld(2, 'overworld'),
+      new THREE.Texture(),
+    );
+
+    cmm.setLightingQuality('high');
+    expect(cmm.waterMat.transparent).toBe(false);
+    expect(cmm.waterMat.depthWrite).toBe(true);
+    expect(cmm.waterMat.opacity).toBe(1);
+
+    cmm.setLightingQuality('off');
+    expect(cmm.waterMat.transparent).toBe(true);
+    expect(cmm.waterMat.depthWrite).toBe(false);
+    expect(cmm.waterMat.opacity).toBe(0.78);
+    cmm.dispose();
+  });
+
+  it('大角度俯视时不按水平朝向切掉脚下可见区块', () => {
+    const cmm: any = new ChunkMeshManager(
+      new THREE.Scene(),
+      new ChunkWorld(3, 'overworld'),
+      new THREE.Texture(),
+    );
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial());
+    cmm.meshes.set('-4,0', { opaque: mesh, ice: null, cutout: null, water: null, torch: null });
+
+    cmm.cullToView(0, 0, 1, 0, 0);
+    expect(mesh.visible).toBe(false);
+    mesh.visible = true;
+    cmm.cullToView(0, 0, 1, 0, -0.65);
+    expect(mesh.visible).toBe(true);
+
+    cmm.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
 });

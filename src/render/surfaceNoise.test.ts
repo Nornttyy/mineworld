@@ -111,7 +111,7 @@ describe('directional water-wave texture', () => {
     expect(signMatches / signSamples).toBeGreaterThan(0.96);
   });
 
-  it('has directional energy without a discontinuity at the repeating seam', () => {
+  it('spreads energy across directions without a discontinuity at the repeating seam', () => {
     const size = DEFAULT_DIRECTIONAL_WAVE_SIZE;
     const data = buildDirectionalWaveData(size);
     const h = (x: number, y: number): number => data[(x + y * size) * 4 + 2] / 255;
@@ -133,8 +133,49 @@ describe('directional water-wave texture', () => {
     }
     const meanInteriorEdge = interiorEdge / (size * (size - 1));
     const meanSeamEdge = seamEdge / size;
-    expect(energyX / energyY).toBeGreaterThan(1.3);
+    expect(energyX / energyY).toBeGreaterThan(0.68);
+    expect(energyX / energyY).toBeLessThan(1.48);
     expect(meanSeamEdge).toBeLessThan(meanInteriorEdge * 2.2);
+  });
+
+  it('keeps crests short and avoids obvious sub-tile repetition', () => {
+    const size = DEFAULT_DIRECTIONAL_WAVE_SIZE;
+    const data = buildDirectionalWaveData(size);
+    const channelAt = (x: number, y: number, channel: number): number =>
+      data[(((x + size) % size) + ((y + size) % size) * size) * 4 + channel] / 255;
+    const correlation = (channel: number, dx: number, dy: number): number => {
+      let meanA = 0;
+      let meanB = 0;
+      const count = size * size;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          meanA += channelAt(x, y, channel);
+          meanB += channelAt(x + dx, y + dy, channel);
+        }
+      }
+      meanA /= count;
+      meanB /= count;
+      let covariance = 0;
+      let varianceA = 0;
+      let varianceB = 0;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const a = channelAt(x, y, channel) - meanA;
+          const b = channelAt(x + dx, y + dy, channel) - meanB;
+          covariance += a * b;
+          varianceA += a * a;
+          varianceB += b * b;
+        }
+      }
+      return covariance / Math.max(1e-9, Math.sqrt(varianceA * varianceB));
+    };
+
+    // Height should not reveal a half/quarter-tile copy, while the segmented
+    // crest field must lose coherence within a small fraction of the tile.
+    expect(Math.abs(correlation(2, size / 2, 0))).toBeLessThan(0.32);
+    expect(Math.abs(correlation(2, size / 4, size / 4))).toBeLessThan(0.32);
+    expect(Math.abs(correlation(3, 24, 0))).toBeLessThan(0.3);
+    expect(Math.abs(correlation(3, 17, 17))).toBeLessThan(0.3);
   });
 
   it('creates a repeat-wrapped mipmapped texture and rejects undersized tiles', () => {

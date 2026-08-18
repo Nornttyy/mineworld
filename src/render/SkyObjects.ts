@@ -32,22 +32,25 @@ float mwFBM(vec2 p){
   return n / 0.9375;
 }
 void main() {
-  vec2 p = vW.xz * 0.006;
+  // 更高频、稀疏的云团；旧 0.006 在低云平面上会形成遮住半个天空的巨大灰色棉团。
+  vec2 p = vW.xz * 0.0115;
   // domain warp(一次,两处 fbm 共用)：云缘卷曲成团,不是均匀雾斑；第二时间尺度让云形慢慢演变
-  vec2 q = p + 0.42 * vec2(mwFBM(p * 1.7 + vec2(0.0, uTime * 0.0020)), mwFBM(p * 1.7 + vec2(5.2, uTime * 0.0017)));
+  vec2 q = p + 0.28 * vec2(mwFBM(p * 1.7 + vec2(0.0, uTime * 0.0020)), mwFBM(p * 1.7 + vec2(5.2, uTime * 0.0017)));
   vec2 drift = vec2(uTime * 0.0110, uTime * 0.0032); // 整体缓飘
   float d = mwFBM(q + drift);
-  float cov = smoothstep(0.55, 0.595, d); // 收紧云缘，避免低分辨率烟片感
+  float edgeDetail = mwVN((q + drift) * 6.1 + vec2(uTime * 0.001, -uTime * 0.0013));
+  float density = d + (edgeDetail - 0.5) * 0.12;
+  float cov = smoothstep(0.585, 0.65, density);
   if (cov < 0.004) discard;
   // 体积感：朝太阳水平方向偏移再采一次,密度差→向阳侧亮、厚处底部暗(白天云要白,暗部别压狠)
   vec2 sunXZ = normalize(uSunDir.xz + vec2(1e-4, 0.0));
   float d2 = mwFBM(q + drift + sunXZ * 0.085);
-  float lit = clamp(0.76 + (d2 - d) * 6.5, 0.5, 1.04);
+  float lit = clamp(0.82 + (d2 - d) * 4.2, 0.62, 1.03);
   float dense = smoothstep(0.50, 0.88, d); // 厚处更白亮
-  vec3 col = uTint * mix(0.86, 1.02, dense) * lit;
+  vec3 col = uTint * mix(0.9, 1.01, dense) * lit;
   float dist = length(vW.xz - cameraPosition.xz);
   float fade = 1.0 - smoothstep(360.0, 620.0, dist); // 远处淡出融进地平线雾
-  gl_FragColor = vec4(col, cov * 0.8 * fade);
+  gl_FragColor = vec4(col, cov * 0.64 * fade);
   #include <colorspace_fragment>
 }
 `.trim();
@@ -255,7 +258,7 @@ function fbm(x: number, z: number): number {
 const CLOUD_CS = 16; // 每个云格边长（格）
 const CLOUD_TH = 5; // 云层厚度（格）
 const CLOUD_GRID = 28; // 云层覆盖格数（≈448 格，靠雾在地平线淡出）
-const CLOUD_Y = 196; // 云层世界高度（在地形之上、CHUNK_H 上方）
+const CLOUD_Y = 232; // 抬高云层，避免低空巨型云块贴脸遮住大半天空
 const CLOUD_NOISE_SCALE = 0.18; // 噪声频率（越小云团越大越稀）
 const CLOUD_THRESHOLD = 0.62; // 密度阈值（越高云越少）—— 解决"云太多"
 const CLOUD_DRIFT = 0.012; // 每帧飘移（格），缓风

@@ -959,7 +959,13 @@ export class Game {
         this.world.evictBeyond(worldToChunk(Math.floor(this.player.pos.x)), worldToChunk(Math.floor(this.player.pos.z)), evictR);
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
-      this.chunks.cullToView(this.player.pos.x, this.player.pos.z, Math.cos(this.look.yaw), Math.sin(this.look.yaw));
+      this.chunks.cullToView(
+        this.player.pos.x,
+        this.player.pos.z,
+        Math.cos(this.look.yaw),
+        Math.sin(this.look.yaw),
+        this.look.pitch,
+      );
       const wantFov = playing && this.actualSprinting ? 80 : 70;
       this.fov += (wantFov - this.fov) * 0.15;
       this.renderer.camera.fov = this.fov;
