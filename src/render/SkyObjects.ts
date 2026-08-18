@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NO_WATER_REFLECTION_LAYER } from './renderLayers';
 import { DAY_LENGTH, skyStateAt, skyDarkenAt } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
 
@@ -134,11 +135,11 @@ function makeRealSunTex(): THREE.CanvasTexture {
   const cx2 = S / 2;
   const r = S / 2;
   const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,255,1)');     // 中心：纯白
-  g.addColorStop(0.4, 'rgba(255,255,240,1)');   // 内环：近白
-  g.addColorStop(0.7, 'rgba(255,251,214,1)');   // 外环：淡黄(非橙)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); // 中心：纯白
+  g.addColorStop(0.4, 'rgba(255,255,240,1)'); // 内环：近白
+  g.addColorStop(0.7, 'rgba(255,251,214,1)'); // 外环：淡黄(非橙)
   g.addColorStop(0.88, 'rgba(255,248,200,0.5)'); // 边缘：淡黄半透
-  g.addColorStop(1, 'rgba(255,246,190,0)');      // 外缘：透明
+  g.addColorStop(1, 'rgba(255,246,190,0)'); // 外缘：透明
   x.fillStyle = g;
   x.beginPath();
   x.arc(cx2, cx2, r, 0, Math.PI * 2);
@@ -161,11 +162,11 @@ function makeSunGlowTex(): THREE.CanvasTexture {
   const cx2 = S / 2;
   const r = S / 2;
   const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,238,0.30)');    // 中心：淡白黄半透(非橙)
+  g.addColorStop(0, 'rgba(255,255,238,0.30)'); // 中心：淡白黄半透(非橙)
   g.addColorStop(0.25, 'rgba(255,252,224,0.16)'); // 内辉
   g.addColorStop(0.55, 'rgba(255,249,208,0.07)'); // 中辉
-  g.addColorStop(0.8, 'rgba(255,247,198,0.02)');  // 外辉
-  g.addColorStop(1, 'rgba(255,245,188,0)');        // 边缘：全透
+  g.addColorStop(0.8, 'rgba(255,247,198,0.02)'); // 外辉
+  g.addColorStop(1, 'rgba(255,245,188,0)'); // 边缘：全透
   x.fillStyle = g;
   x.beginPath();
   x.arc(cx2, cx2, r, 0, Math.PI * 2);
@@ -187,11 +188,11 @@ function makeRealMoonTex(): THREE.CanvasTexture {
   const r = S / 2;
   // 月面底色：冷白柔和渐变
   const g = x.createRadialGradient(cx2 - r * 0.15, cx2 - r * 0.15, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(245,248,255,1)');   // 高光中心
+  g.addColorStop(0, 'rgba(245,248,255,1)'); // 高光中心
   g.addColorStop(0.55, 'rgba(220,228,242,1)'); // 月面中部
   g.addColorStop(0.82, 'rgba(190,200,220,1)'); // 边缘暗部
   g.addColorStop(0.92, 'rgba(170,180,205,0.5)'); // 柔和边缘
-  g.addColorStop(1, 'rgba(150,165,195,0)');     // 外缘透明
+  g.addColorStop(1, 'rgba(150,165,195,0)'); // 外缘透明
   x.fillStyle = g;
   x.beginPath();
   x.arc(cx2, cx2, r, 0, Math.PI * 2);
@@ -251,7 +252,9 @@ function vnoise(x: number, z: number): number {
   return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
 }
 function fbm(x: number, z: number): number {
-  return vnoise(x, z) * 0.6 + vnoise(x * 2.3 + 5.1, z * 2.3 - 3.7) * 0.3 + vnoise(x * 4.7, z * 4.7) * 0.1;
+  return (
+    vnoise(x, z) * 0.6 + vnoise(x * 2.3 + 5.1, z * 2.3 - 3.7) * 0.3 + vnoise(x * 4.7, z * 4.7) * 0.1
+  );
 }
 
 // —— 立体云参数（MC 风：稀疏的 3D 白盒层）——
@@ -270,14 +273,72 @@ function cloudOn(cx: number, cz: number): boolean {
 
 // 往数组里塞一个白盒（6 面、面亮度烤进顶点色给 3D 立体感）。双面材质 → 不在意绕序。
 const BOX_FACES: { o: number[][]; s: number }[] = [
-  { o: [[1, -1, -1], [1, 1, -1], [1, 1, 1], [1, -1, 1]], s: 0.82 }, // +X
-  { o: [[-1, -1, 1], [-1, 1, 1], [-1, 1, -1], [-1, -1, -1]], s: 0.82 }, // -X
-  { o: [[-1, 1, -1], [-1, 1, 1], [1, 1, 1], [1, 1, -1]], s: 1.0 }, // +Y 顶（最亮）
-  { o: [[-1, -1, 1], [-1, -1, -1], [1, -1, -1], [1, -1, 1]], s: 0.6 }, // -Y 底（最暗）
-  { o: [[1, -1, 1], [1, 1, 1], [-1, 1, 1], [-1, -1, 1]], s: 0.88 }, // +Z
-  { o: [[-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1]], s: 0.88 }, // -Z
+  {
+    o: [
+      [1, -1, -1],
+      [1, 1, -1],
+      [1, 1, 1],
+      [1, -1, 1],
+    ],
+    s: 0.82,
+  }, // +X
+  {
+    o: [
+      [-1, -1, 1],
+      [-1, 1, 1],
+      [-1, 1, -1],
+      [-1, -1, -1],
+    ],
+    s: 0.82,
+  }, // -X
+  {
+    o: [
+      [-1, 1, -1],
+      [-1, 1, 1],
+      [1, 1, 1],
+      [1, 1, -1],
+    ],
+    s: 1.0,
+  }, // +Y 顶（最亮）
+  {
+    o: [
+      [-1, -1, 1],
+      [-1, -1, -1],
+      [1, -1, -1],
+      [1, -1, 1],
+    ],
+    s: 0.6,
+  }, // -Y 底（最暗）
+  {
+    o: [
+      [1, -1, 1],
+      [1, 1, 1],
+      [-1, 1, 1],
+      [-1, -1, 1],
+    ],
+    s: 0.88,
+  }, // +Z
+  {
+    o: [
+      [-1, -1, -1],
+      [-1, 1, -1],
+      [1, 1, -1],
+      [1, -1, -1],
+    ],
+    s: 0.88,
+  }, // -Z
 ];
-function addBox(P: number[], C: number[], I: number[], cx: number, cy: number, cz: number, w: number, h: number, d: number): void {
+function addBox(
+  P: number[],
+  C: number[],
+  I: number[],
+  cx: number,
+  cy: number,
+  cz: number,
+  w: number,
+  h: number,
+  d: number,
+): void {
   const hw = w / 2;
   const hh = h / 2;
   const hd = d / 2;
@@ -298,12 +359,16 @@ function addBox(P: number[], C: number[], I: number[], cx: number, cy: number, c
 export class SkyObjects {
   private readonly sun: THREE.Mesh;
   private readonly moon: THREE.Mesh;
-  private readonly realSun: THREE.Mesh;  // 真实发光太阳（光影开）
-  private readonly sunGlow: THREE.Mesh;  // 太阳柔和光晕（光影开，加法混合）
+  private readonly realSun: THREE.Mesh; // 真实发光太阳（光影开）
+  private readonly sunGlow: THREE.Mesh; // 太阳柔和光晕（光影开，加法混合）
   private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
   private readonly voxelClouds: THREE.Mesh; // 立体方块云（光影关）
   private readonly realClouds: THREE.Mesh; // 程序化真实云（光影开）
-  private readonly cloudUniforms: { uTime: { value: number }; uTint: { value: THREE.Color }; uSunDir: { value: THREE.Vector3 } };
+  private readonly cloudUniforms: {
+    uTime: { value: number };
+    uTint: { value: THREE.Color };
+    uSunDir: { value: THREE.Vector3 };
+  };
   private readonly stars: THREE.Points; // 星空（夜里渐显，随天球转）
   private readonly starGroup: THREE.Group;
   private readonly dir = new THREE.Vector3();
@@ -323,9 +388,19 @@ export class SkyObjects {
     this.realSun = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), sky(makeRealSunTex()));
     this.sunGlow = new THREE.Mesh(
       new THREE.PlaneGeometry(88, 88), // 曾 150：低太阳时半边天全是晕(大白斑)。88≈太阳盘 1.7 倍，点缀即可
-      new THREE.MeshBasicMaterial({ map: makeSunGlowTex(), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }),
+      new THREE.MeshBasicMaterial({
+        map: makeSunGlowTex(),
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        blending: THREE.AdditiveBlending,
+      }),
     );
     this.realMoon = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sky(makeRealMoonTex()));
+    // 水材质已经生成受控的宽太阳光路。若把 HDR 太阳盘/光晕再次画进镜像 RT，
+    // 波纹 UV 会把它切成快速开关的碎白岛；玩家相机启用此层，镜像相机只看 layer 0。
+    this.realSun.layers.set(NO_WATER_REFLECTION_LAYER);
+    this.sunGlow.layers.set(NO_WATER_REFLECTION_LAYER);
     this.realSun.visible = this.sunGlow.visible = this.realMoon.visible = false;
 
     // 立体云：白盒层，半透明、受雾(地平线淡出)、双面(从下抬头也可见)。网格随玩家所在云格重建。
@@ -365,18 +440,37 @@ export class SkyObjects {
     this.starGroup = new THREE.Group();
     this.starGroup.add(this.stars);
     this.stars.renderOrder = -900;
-    for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon]) m.renderOrder = -850;
+    for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon])
+      m.renderOrder = -850;
     this.realClouds.renderOrder = -800;
     this.voxelClouds.renderOrder = -800;
 
-    scene.add(this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.realClouds, this.starGroup);
+    scene.add(
+      this.sun,
+      this.moon,
+      this.realSun,
+      this.sunGlow,
+      this.realMoon,
+      this.voxelClouds,
+      this.realClouds,
+      this.starGroup,
+    );
   }
 
   /** 维度切换：下界隐藏日月云星；主世界按当前光影档恢复。 */
   setDimension(dim: 'overworld' | 'nether'): void {
     this.dim = dim;
     if (dim === 'nether') {
-      for (const m of [this.sun, this.moon, this.realSun, this.sunGlow, this.realMoon, this.voxelClouds, this.realClouds, this.starGroup]) {
+      for (const m of [
+        this.sun,
+        this.moon,
+        this.realSun,
+        this.sunGlow,
+        this.realMoon,
+        this.voxelClouds,
+        this.realClouds,
+        this.starGroup,
+      ]) {
         m.visible = false;
       }
     } else {
@@ -407,7 +501,17 @@ export class SkyObjects {
     for (let i = 0; i < CLOUD_GRID; i++) {
       for (let j = 0; j < CLOUD_GRID; j++) {
         if (!cloudOn(originX + i, originZ + j)) continue;
-        addBox(P, C, I, i * CLOUD_CS + CLOUD_CS / 2, 0, j * CLOUD_CS + CLOUD_CS / 2, w, CLOUD_TH, w);
+        addBox(
+          P,
+          C,
+          I,
+          i * CLOUD_CS + CLOUD_CS / 2,
+          0,
+          j * CLOUD_CS + CLOUD_CS / 2,
+          w,
+          CLOUD_TH,
+          w,
+        );
       }
     }
     const g = new THREE.BufferGeometry();

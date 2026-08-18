@@ -61,6 +61,7 @@ describe('PlanarReflection', () => {
     expect(reflection.renderTarget.texture.type).toBe(THREE.HalfFloatType);
     expect(reflection.renderTarget.texture.colorSpace).toBe(THREE.NoColorSpace);
     expect(reflection.renderTarget.samples).toBe(4);
+    expect(reflection.overscan).toBeCloseTo(1.08);
     expect(reflection.texture).toBe(reflection.renderTarget.texture);
     expect(reflection.camera.layers.isEnabled(0)).toBe(true);
     expect(reflection.camera.layers.isEnabled(1)).toBe(false);
@@ -98,6 +99,14 @@ describe('PlanarReflection', () => {
     expect(reflection.camera.position.x).toBeCloseTo(source.position.x, 8);
     expect(reflection.camera.position.y).toBeCloseTo(2 * SEA_SURFACE_Y - source.position.y, 8);
     expect(reflection.camera.position.z).toBeCloseTo(source.position.z, 8);
+    expect(reflection.camera.projectionMatrix.elements[0]).toBeCloseTo(
+      source.projectionMatrix.elements[0] / reflection.overscan,
+      8,
+    );
+    expect(reflection.camera.projectionMatrix.elements[5]).toBeCloseTo(
+      source.projectionMatrix.elements[5] / reflection.overscan,
+      8,
+    );
 
     const sourceDirection = source.getWorldDirection(new THREE.Vector3());
     const reflectedDirection = reflection.camera.getWorldDirection(new THREE.Vector3());

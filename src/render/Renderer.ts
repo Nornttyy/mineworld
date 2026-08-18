@@ -5,7 +5,7 @@ import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 import { browserViewportSize } from './browserViewport';
-import { WATER_RENDER_LAYER } from './renderLayers';
+import { NO_WATER_REFLECTION_LAYER, WATER_RENDER_LAYER } from './renderLayers';
 import { PlanarReflection } from './PlanarReflection';
 
 type WaterRefractionSink = (
@@ -111,6 +111,7 @@ export class Renderer {
     this.scene.fog = new THREE.Fog(HORIZON_COLOR, 30, 110); // 远处雾化，融入地平线
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.camera.layers.enable(WATER_RENDER_LAYER); // 主 pass 同时看地形(layer0)和水(layer1)
+    this.camera.layers.enable(NO_WATER_REFLECTION_LAYER); // 太阳正常显示，但不进入水面镜像 RT
     this.resize();
     window.addEventListener('resize', this.onViewportChange);
     window.addEventListener('orientationchange', this.onViewportChange);
@@ -176,7 +177,10 @@ export class Renderer {
     }
     if (this.planarReflection !== null) {
       const pr = this.gl.getPixelRatio();
-      this.planarReflection.resize(Math.max(1, Math.round(w * pr)), Math.max(1, Math.round(h * pr)));
+      this.planarReflection.resize(
+        Math.max(1, Math.round(w * pr)),
+        Math.max(1, Math.round(h * pr)),
+      );
       this.publishReflectionTarget();
     }
     // Bloom RT 重建为 1/4 分辨率（CSS 像素，Bloom 内部乘 pr）。

@@ -2063,10 +2063,9 @@ export class Game {
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。
     const t = s.worldTint;
     const mx = Math.max(t[0], t[1], t[2], 0.001);
-    // 白天把天光色调暖 → 阳光照到的地面/开阔处泛暖金(MC 光影感)；夜晚不动(保留冷蓝)。
-    // day=1 白天→0 午夜；只给直射层很轻的暖色。旧 (1,.95,.85) 会把雪/白云染黄、草地推成荧光绿。
-    const day = 1 - skyDarkenAt(this.worldTime) / 11;
-    this.chunks.setTint([t[0] / mx, (t[1] / mx) * (1 - day * 0.02), (t[2] / mx) * (1 - day * 0.06)]);
+    // 环境天光只保留天空本身的色相；暖黄色只交给 terrain shader 的太阳直射层。
+    // 这样受光面暖、阴影冷，不会把整片雪地/天空一起染黄后又互相抵消。
+    this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
     // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
     const darken = skyDarkenAt(this.worldTime);
     // 光影档保留更可读的冷色月夜（最大约 9.5 而不是 11）；洞穴仍因无天光保持黑暗。

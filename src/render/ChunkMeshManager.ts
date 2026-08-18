@@ -388,12 +388,13 @@ export class ChunkMeshManager {
             '  float mwAmbientAmount = max(mwSkyFloor, vSkyBright * mwSkyEnergy) * mwHemi;\n' +
             '  vec3 mwAmbient = mwBlockAlbedo * mwStyleShade * mwSkyColor * mwAmbientAmount;\n' +
             '  mwAmbient *= mix(0.42, 1.0, mwVoxelAO);\n' +
-            '  mwAmbient *= mix(vec3(0.88, 0.94, 1.08), vec3(1.0), mix(1.0, shadowVis, openSun * 0.2));\n' +
+            // 阴影只保留轻微冷色，与暖直射形成清楚色温差；不再把整片环境天光先染暖。
+            '  float mwShadowCool = openSun * (1.0 - shadowVis);\n' +
+            '  mwAmbient *= mix(vec3(1.0), vec3(0.95, 0.98, 1.045), mwShadowCool * 0.65);\n' +
             '  float mwLocalAmount = vBlockBright * (1.0 - vSkyBright * 0.55);\n' +
             '  vec3 mwLocal = mwBlockAlbedo * mwStyleShade * vec3(1.12, 0.66, 0.3) * mwLocalAmount * 0.82;\n' +
             '  mwLocal *= mix(0.68, 1.0, mwVoxelAO);\n' +
             '  diffuseColor.rgb = mwAmbient + mwLocal;\n' +
-            (sway ? '  diffuseColor.rgb *= 1.12;\n' : '') +
             // 大尺度缓慢云影：一张 CPU 预生成的无缝纹理只采 1 次，给开阔地增加动态明暗，
             // 只调制太阳直射，不再让整块贴图随云层一起发灰。
             'float cloud = 0.0;\n' +
@@ -405,10 +406,19 @@ export class ChunkMeshManager {
             'if (openSun > 0.003) {\n' +
             '  vec3 sunDir = normalize(uSunDirW);\n' +
             '  float nd = max(dot(mwShadeN, sunDir), 0.0);\n' +
-            '  float sunHeight = clamp(sunDir.y * 3.0, 0.0, 1.0);\n' +
-            '  vec3 sunTone = mix(vec3(1.26, 0.68, 0.28), vec3(1.08, 1.0, 0.88), sunHeight);\n' +
+            '  float sunHeight = smoothstep(0.05, 0.70, sunDir.y);\n' +
+            // 受光面明确暖黄，但对白色/高饱和材质自动收敛色度，雪不染橙、草不荧光。
+            '  vec3 sunTone = mix(vec3(1.20, 0.84, 0.52), vec3(1.12, 1.02, 0.86), sunHeight);\n' +
+            '  float mwSunAlbedoLuma = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwSunAlbedoChroma = max(max(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b) - min(min(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b);\n' +
+            '  float mwWhiteMask = smoothstep(0.72, 0.92, mwSunAlbedoLuma) * (1.0 - smoothstep(0.08, 0.20, mwSunAlbedoChroma));\n' +
+            '  float mwSaturatedMask = smoothstep(0.18, 0.42, mwSunAlbedoChroma);\n' +
+            '  float mwSunLuma = dot(sunTone, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwSunProtect = max(mwWhiteMask * 0.45, mwSaturatedMask * 0.35);\n' +
+            '  sunTone = mix(sunTone, vec3(mwSunLuma), mwSunProtect);\n' +
             '  float sunCloud = 1.0 - cloud * mix(0.48, 0.62, uHq);\n' +
-            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * 0.48;\n' +
+            '  float mwDirectStrength = mix(0.56, 0.60, uHq);\n' +
+            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * mwDirectStrength;\n' +
             '  mwDirect *= mix(0.84, 1.0, mwVoxelAO);\n' +
             '  diffuseColor.rgb += mwDirect;\n' +
             (sway
@@ -417,7 +427,9 @@ export class ChunkMeshManager {
                 '  vec3 mwTransmission = mix(sunTone, vec3(0.52, 1.02, 0.34), 0.62);\n' +
                 '  diffuseColor.rgb += mwBlockAlbedo * mwTransmission * mwBackLight * openSun * sunCloud * (0.35 + 0.65 * shadowVis) * mix(0.16, 0.24, uHq);\n'
               : '') +
-            '  diffuseColor.rgb = min(diffuseColor.rgb, vec3(0.985));\n' +
+            // 保色相压峰：普通漫反射最高 1.04，略亮但仍低于 Bloom 阈值 1.05。
+            '  float mwDiffusePeak = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);\n' +
+            '  diffuseColor.rgb *= min(1.0, 1.04 / max(mwDiffusePeak, 0.0001));\n' +
             // 只给雪、浅色石材和水下湿面一点材质反应；高色度草/泥土保持粗糙，避免全世界塑料化。
             '  float mwLuma = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwChroma = max(max(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b) - min(min(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b);\n' +
@@ -530,6 +542,7 @@ varying float vSkyBright;
 varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
+varying vec3 vWaterBaseWPos;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -549,6 +562,7 @@ ${MC_BRIGHT_GLSL}`,
           `#include <begin_vertex>
 ${MC_LIGHT_GLSL}
 vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vWaterBaseWPos = mwWp0;
 // 岸边与浅水连续减弱，而不是用 step 切出突然静止的硬带；aTop<0 的侧壁/瀑布锚点保持不动。
 float mwMovable = step(0.001, aTop);
 float mwDepthGate = smoothstep(0.08, 0.70, abs(aTop));
@@ -558,7 +572,9 @@ vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterDepth = abs(aTop);
 vSkyVis = aLight.x;
 vShore = aShore;
-vReflectionCoord = uReflectionMatrix * vec4(vWPos, 1.0);`,
+// 平面倒影必须用未位移的基准水面投影；若再用 vWPos，几何波会把整幅倒影
+// 二次推来推去，快速跑动/转头时就表现为同步闪烁。
+vReflectionCoord = uReflectionMatrix * vec4(mwWp0, 1.0);`,
         );
 
       shader.fragmentShader = shader.fragmentShader
@@ -585,6 +601,7 @@ varying float vSkyBright;
 varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
+varying vec3 vWaterBaseWPos;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -600,17 +617,7 @@ float mwDepthMatch(vec2 uv, float centerDistance, float rejectDistance) {
   float sampleDistance = mwLinearDepth(texture2D(uRefractionDepth, uv).r);
   return 1.0 - smoothstep(rejectDistance * 0.45, rejectDistance, abs(sampleDistance - centerDistance));
 }
-float mwSunGGX(float roughness, float NoV, float NoL, float NoH, float VoH) {
-  float alpha2 = roughness * roughness;
-  float denom = NoH * NoH * (alpha2 - 1.0) + 1.0;
-  float D = alpha2 / max(0.0004, 3.14159265 * denom * denom);
-  float k = (roughness + 1.0) * (roughness + 1.0) * 0.125;
-  float Gv = NoV / max(0.0001, NoV * (1.0 - k) + k);
-  float Gl = NoL / max(0.0001, NoL * (1.0 - k) + k);
-  float F = 0.02 + 0.98 * pow(1.0 - VoH, 5.0);
-  // Cook-Torrance 乘入射余弦后 NoL 抵消。旧版末尾再乘 NoL，会把日出/日落最该震撼的光路压没。
-  return D * Gv * Gl * F / max(0.04, 4.0 * NoV);
-}`,
+`,
         )
         // 光影水完全由程序材质着色，跳过原 16px map 采样；off 档仍保留经典帧动画。
         .replace(
@@ -629,6 +636,8 @@ if (uShaders < 0.5) {
   vec3 toEye = cameraPosition - vWPos;
   float dist = length(toEye);
   vec3 V = toEye / max(dist, 0.0001);
+  vec3 stableToEye = cameraPosition - vWaterBaseWPos;
+  vec3 stableV = stableToEye / max(length(stableToEye), 0.0001);
   vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
   faceN *= sign(dot(faceN, V));
   float horiz = smoothstep(0.5, 0.92, abs(faceN.y));
@@ -730,7 +739,9 @@ if (uShaders < 0.5) {
 
   // 天空与云层反射。用反射光线和虚拟云层求交，同一噪声也驱动地面云影，方向一致。
   vec3 R = reflect(-V, macroN);
-  float NoV = clamp(abs(dot(macroN, V)), 0.0, 1.0);
+  // Fresnel 能量按稳定的基准海平面计算；macroN 仍负责倒影方向/UV 的流动。
+  // 若让移动法线同时控制 Fresnel，掠射角的五次方会把亮天空切成开关式碎白岛。
+  float NoV = clamp(abs(stableV.y), 0.0, 1.0);
   float surfaceRoughness = clamp(0.1 + 0.045 * smoothstep(28.0, 110.0, dist), 0.1, 0.145);
   float skyHeight = smoothstep(-0.02, 0.72, R.y);
   vec3 reflectedSky = mix(uSkyRefl, uSkyTop, skyHeight);
@@ -743,7 +754,8 @@ if (uShaders < 0.5) {
   float proceduralCloudMix = cloud * 0.38;
 
   // 海平面镜像相机只跟随连续 A/B 大波；C/D 不再让整幅倒影逐帧抖焦。
-  vec2 reflectionUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
+  vec2 reflectionBaseUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
+  vec2 reflectionUv = reflectionBaseUv;
   vec2 reflectionPx = clamp(macroTilt * mix(25.0, 29.0, uHq), vec2(-4.0), vec2(4.0));
   reflectionUv += reflectionPx / max(uRefractionSize, vec2(1.0));
   if (uHasReflection > 0.5) {
@@ -763,7 +775,19 @@ if (uShaders < 0.5) {
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(reflectionTexel.x, -reflectionTexel.y)).rgb * 0.0625;
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(-reflectionTexel.x, reflectionTexel.y)).rgb * 0.0625;
     planarReflection /= vec3(1.0) + planarReflection * 0.16;
-    float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0));
+    // 镜像 RT 中仍包含太阳盘/光晕。若让它保留 HDR，再叠下面的稳定太阳光路，
+    // 两套高光会在快速转头时交替跨过亮度阈值。倒影只负责天空与地形，
+    // 唯一允许超过 1 的水面太阳能量由 macro road 输出。
+    float planarPeak = max(max(planarReflection.r, planarReflection.g), planarReflection.b);
+    planarReflection *= min(1.0, 0.9 / max(planarPeak, 0.0001));
+    // 只按未扰动投影坐标做护边，避免转头时扰动本身让整条边界反复开关。
+    // PlanarReflection 已多渲 8% 视野，正常屏幕范围会落在完整权重区。
+    vec2 reflectionGuard = vec2(12.0) / max(uRefractionSize, vec2(1.0));
+    vec2 reflectionFeather = vec2(8.0) / max(uRefractionSize, vec2(1.0));
+    vec2 reflectionEdgeIn = smoothstep(reflectionGuard, reflectionGuard + reflectionFeather, reflectionBaseUv);
+    vec2 reflectionEdgeOut = smoothstep(reflectionGuard, reflectionGuard + reflectionFeather, vec2(1.0) - reflectionBaseUv);
+    float reflectionBlend = reflectionEdgeIn.x * reflectionEdgeIn.y * reflectionEdgeOut.x * reflectionEdgeOut.y;
+    float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0)) * reflectionBlend;
     // 平面 RT 已含真实云；程序云只补 RT 外/低混合区域，避免两套云影重叠滑动。
     reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix * (1.0 - planarMix));
     reflectedSky = mix(reflectedSky, planarReflection, planarMix);
@@ -775,31 +799,15 @@ if (uShaders < 0.5) {
   float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
   vec3 col = mix(refracted, reflectedSky * 0.94, fresnel * reflectionGate);
 
-  // 双瓣太阳反光：macroN 形成稳定连续的光路；完整 N 只叠一层经过 footprint AA 的细闪。
-  // 旧版把法线、粗糙度、crest 开关交给三套独立移动纹理，单帧能量可跳 6 倍，Bloom 只会放大闪烁。
+  // 只保留连续宽太阳光路。full-N/macro-N 窄瓣即使做 footprint AA，
+  // 在快速转头/高 DPI 屏上仍会跨像素形成用户看到的持续闪烁。
   vec3 L = normalize(uSunDir);
-  vec3 H = normalize(L + V);
-  float NoL = max(dot(N, L), 0.0);
-  float NoH = max(dot(N, H), 0.0);
-  float VoH = max(dot(V, H), 0.0);
-  vec3 macroH = normalize(L + V);
-  float macroNoL = max(dot(macroN, L), 0.0);
-  float macroNoH = max(dot(macroN, macroH), 0.0);
-  float macroVoH = max(dot(V, macroH), 0.0);
-  float flatPath = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), L), 0.0), 18.0);
-  float roadRaw = mwSunGGX(0.21, max(NoV, 0.025), max(macroNoL, 0.005), macroNoH, macroVoH) * 0.11;
-  roadRaw += flatPath * 0.06;
+  // 太阳盘已从 planar pass 排除；这里用固定海平面的宽瓣补回唯一的 HDR 光路。
+  // 不再用移动法线驱动窄 GGX 亮岛，跑动和快速转头时高光连续而非逐片开关。
+  float flatPath = pow(max(dot(reflect(-stableV, vec3(0.0, 1.0, 0.0)), L), 0.0), 14.0);
+  float roadRaw = flatPath * 0.1;
   float stableRoad = 0.14 * (1.0 - exp(-roadRaw / 0.14));
-  float crestStable = rippleA.a * 0.65 + rippleC.a * 0.35;
-  float crestAa = fwidth(crestStable) * 1.5;
-  float crestMod = mix(0.65, 1.0, smoothstep(0.28 - crestAa, 0.76 + crestAa, crestStable));
-  float sharpRoughness = mix(0.085, 0.074, uHq) + 0.045 * smoothstep(24.0, 90.0, dist);
-  vec2 normalFootprint = fwidth(detailN);
-  float normalVariance = min(0.004, dot(normalFootprint, normalFootprint) * 0.5);
-  sharpRoughness = min(0.22, sqrt(sharpRoughness * sharpRoughness + normalVariance));
-  float sharpRaw = mwSunGGX(sharpRoughness, max(abs(dot(N, V)), 0.025), max(NoL, 0.005), NoH, VoH);
-  float stableSparkle = 0.18 * (1.0 - exp(-sharpRaw / 0.18)) * crestMod;
-  float specEnergy = 0.3 * (1.0 - exp(-(stableRoad + stableSparkle) / 0.3));
+  float specEnergy = 0.18 * (1.0 - exp(-stableRoad / 0.18));
   float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
   vec3 sunColor = mix(vec3(12.0, 4.5, 1.4), vec3(10.5, 9.8, 8.4), sunHeight);
   float sunVisible = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
@@ -1033,7 +1041,9 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   behind += texture2D(uRefractionColor, refrUv + vec2(0.0,  refrBlur.y)).rgb * 0.15;
   behind += texture2D(uRefractionColor, refrUv + vec2(0.0, -refrBlur.y)).rgb * 0.15;
 
-  float NoV = clamp(abs(dot(N, V)), 0.0, 1.0);
+  // 冰晶微法线只负责折射细节，Fresnel 能量按稳定平面计算；否则相机移动时
+  // pow(1-NoV,5) 会把每个晶纹放大成开关式白斑。
+  float NoV = clamp(abs(V.y), 0.0, 1.0);
   float opticalPath = 0.82 / max(NoV, 0.24);
   vec3 transmission = exp(-vec3(0.035, 0.018, 0.008) * opticalPath);
   vec3 iceScatter = vec3(0.055, 0.16, 0.27) * vLF * vTint;
@@ -1041,17 +1051,28 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
 
   vec3 R = reflect(-V, N);
   vec3 reflected = mix(uSkyRefl, uSkyTop, smoothstep(0.0, 0.72, R.y));
-  vec2 reflectionUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001) + slope * 0.006;
-  float inside = step(0.002, reflectionUv.x) * step(reflectionUv.x, 0.998)
-    * step(0.002, reflectionUv.y) * step(reflectionUv.y, 0.998);
-  if (uHasReflection > 0.5 && inside > 0.5) {
-    vec2 rBlur = vec2(2.0) / max(uRefractionSize, vec2(1.0));
-    vec3 rp = texture2D(uReflectionColor, reflectionUv).rgb * 0.5;
-    rp += texture2D(uReflectionColor, reflectionUv + vec2(rBlur.x, 0.0)).rgb * 0.125;
-    rp += texture2D(uReflectionColor, reflectionUv - vec2(rBlur.x, 0.0)).rgb * 0.125;
-    rp += texture2D(uReflectionColor, reflectionUv + vec2(0.0, rBlur.y)).rgb * 0.125;
-    rp += texture2D(uReflectionColor, reflectionUv - vec2(0.0, rBlur.y)).rgb * 0.125;
-    reflected = mix(reflected, rp, 0.82);
+  vec2 reflectionBaseUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
+  if (uHasReflection > 0.5) {
+    vec2 rBlur = vec2(3.5) / max(uRefractionSize, vec2(1.0));
+    vec2 rMargin = rBlur * 1.5 + vec2(0.002);
+    vec2 reflectionUv = clamp(reflectionBaseUv, rMargin, vec2(1.0) - rMargin);
+    vec3 rp = texture2D(uReflectionColor, reflectionUv).rgb * 0.25;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2( rBlur.x, 0.0)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(-rBlur.x, 0.0)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(0.0,  rBlur.y)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(0.0, -rBlur.y)).rgb * 0.125;
+    rp += texture2D(uReflectionColor, reflectionUv + rBlur).rgb * 0.0625;
+    rp += texture2D(uReflectionColor, reflectionUv - rBlur).rgb * 0.0625;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(rBlur.x, -rBlur.y)).rgb * 0.0625;
+    rp += texture2D(uReflectionColor, reflectionUv + vec2(-rBlur.x, rBlur.y)).rgb * 0.0625;
+    float rpPeak = max(max(rp.r, rp.g), rp.b);
+    rp *= min(1.0, 0.9 / max(rpPeak, 0.0001));
+    vec2 rGuard = vec2(12.0) / max(uRefractionSize, vec2(1.0));
+    vec2 rFeather = vec2(8.0) / max(uRefractionSize, vec2(1.0));
+    vec2 rEdgeIn = smoothstep(rGuard, rGuard + rFeather, reflectionBaseUv);
+    vec2 rEdgeOut = smoothstep(rGuard, rGuard + rFeather, vec2(1.0) - reflectionBaseUv);
+    float reflectionBlend = rEdgeIn.x * rEdgeIn.y * rEdgeOut.x * rEdgeOut.y;
+    reflected = mix(reflected, rp, 0.62 * reflectionBlend);
   }
 
   float fresnel = 0.04 + 0.96 * pow(1.0 - NoV, 5.0);
@@ -1064,10 +1085,11 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   col = mix(col, col * vec3(0.86, 0.96, 1.06) + vec3(0.018, 0.042, 0.07), 0.08);
 
   vec3 L = normalize(uSunDir);
-  vec3 H = normalize(L + V);
-  float iceCrest = smoothstep(0.26, 0.78, max(iceWave0.a, iceWave1.a));
-  float icePath = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), L), 0.0), 32.0);
-  float iceSpec = min(0.42, icePath * 0.04 + pow(max(dot(N, H), 0.0), 72.0) * iceCrest * 0.34);
+  // 一条连续的宽冰面光路取代 pow(N·H,72) 针状亮片。后者在高 DPI/跑动时
+  // 会逐像素跨过 Bloom 阈值；宽瓣仍然明亮，但不会一块一块闪烁。
+  float icePath = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), L), 0.0), 18.0);
+  float iceSpecRaw = icePath * 0.08;
+  float iceSpec = 0.12 * (1.0 - exp(-iceSpecRaw / 0.12));
   vec3 sunColor = mix(vec3(11.0, 4.1, 1.3), vec3(9.5, 9.0, 8.0), clamp(L.y * 3.0, 0.0, 1.0));
   col += sunColor * iceSpec * uSunUp * vSkyVis;
   diffuseColor.rgb = col;

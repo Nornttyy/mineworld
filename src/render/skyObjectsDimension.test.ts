@@ -9,26 +9,40 @@ import { describe, it, beforeAll, expect } from 'vitest';
 // so createRadialGradient().addColorStop() and all other chained calls are no-ops.
 function makeRecursiveProxy(): any {
   return new Proxy(function () {}, {
-    get() { return makeRecursiveProxy(); },
-    apply() { return makeRecursiveProxy(); },
-    set() { return true; },
+    get() {
+      return makeRecursiveProxy();
+    },
+    apply() {
+      return makeRecursiveProxy();
+    },
+    set() {
+      return true;
+    },
   });
 }
 const fakeCanvas = () => ({
-  width: 0, height: 0,
+  width: 0,
+  height: 0,
   getContext: () => makeRecursiveProxy(),
-  addEventListener() {}, style: {},
+  addEventListener() {},
+  style: {},
 });
 beforeAll(() => {
   if (typeof (globalThis as any).document === 'undefined') {
     (globalThis as any).document = {
-      createElementNS: () => ({ addEventListener() {}, removeEventListener() {}, setAttribute() {}, style: {} }),
+      createElementNS: () => ({
+        addEventListener() {},
+        removeEventListener() {},
+        setAttribute() {},
+        style: {},
+      }),
       createElement: () => fakeCanvas(),
     };
   }
 });
 
 import { SkyObjects } from './SkyObjects';
+import { NO_WATER_REFLECTION_LAYER } from './renderLayers';
 
 describe('SkyObjects.setDimension', () => {
   it('setDimension("nether") hides all 6 sky objects', () => {
@@ -62,5 +76,14 @@ describe('SkyObjects.setDimension', () => {
     const so = new SkyObjects(new THREE.Scene()) as any;
     so.setLightingQuality('standard');
     expect(so.lq).toBe('standard');
+  });
+
+  it('keeps the HDR sun and glow out of the planar reflection layer', () => {
+    const so = new SkyObjects(new THREE.Scene()) as any;
+    expect(so.realSun.layers.isEnabled(NO_WATER_REFLECTION_LAYER)).toBe(true);
+    expect(so.realSun.layers.isEnabled(0)).toBe(false);
+    expect(so.sunGlow.layers.isEnabled(NO_WATER_REFLECTION_LAYER)).toBe(true);
+    expect(so.sunGlow.layers.isEnabled(0)).toBe(false);
+    expect(so.realMoon.layers.isEnabled(0)).toBe(true);
   });
 });

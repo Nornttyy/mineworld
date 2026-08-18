@@ -11,6 +11,8 @@ export interface PlanarReflectionOptions {
   clipBias?: number;
   /** MSAA samples resolved into the sampled reflection texture. */
   samples?: number;
+  /** Extra field of view kept around the screen so wave UV offsets never clamp to one edge texel. */
+  overscan?: number;
 }
 
 export type PlanarReflectionHook = (
@@ -52,6 +54,7 @@ export class PlanarReflection {
   readonly renderTarget: THREE.WebGLRenderTarget;
   readonly planeY: number;
   readonly clipBias: number;
+  readonly overscan: number;
 
   private readonly plane = new THREE.Plane();
   private readonly cameraPlane = new THREE.Plane();
@@ -70,6 +73,7 @@ export class PlanarReflection {
   constructor(width = 1, height = 1, options: PlanarReflectionOptions = {}) {
     this.planeY = options.planeY ?? SEA_SURFACE_Y;
     this.clipBias = options.clipBias ?? 0.001;
+    this.overscan = THREE.MathUtils.clamp(options.overscan ?? 1.08, 1, 1.2);
     this.plane.set(this.planeNormal, -this.planeY);
 
     this.renderTarget = new THREE.WebGLRenderTarget(
@@ -181,6 +185,10 @@ export class PlanarReflection {
     this.camera.filmGauge = sourceCamera.filmGauge;
     this.camera.filmOffset = sourceCamera.filmOffset;
     this.camera.projectionMatrix.copy(sourceCamera.projectionMatrix);
+    // 留出约 8% 反射视野护边。主相机屏幕边缘因此仍落在 RT 内部，
+    // 水波的 2–4px UV 扰动不会把整列像素 clamp 到同一个边缘 texel 后同步闪烁。
+    this.camera.projectionMatrix.elements[0] /= this.overscan;
+    this.camera.projectionMatrix.elements[5] /= this.overscan;
 
     this.applyObliqueNearPlane();
     this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
