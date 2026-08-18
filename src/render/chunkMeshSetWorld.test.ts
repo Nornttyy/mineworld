@@ -6,7 +6,12 @@ import { describe, it, beforeAll, expect } from 'vitest';
 beforeAll(() => {
   if (typeof (globalThis as any).document === 'undefined') {
     (globalThis as any).document = {
-      createElementNS: () => ({ addEventListener() {}, removeEventListener() {}, setAttribute() {}, style: {} }),
+      createElementNS: () => ({
+        addEventListener() {},
+        removeEventListener() {},
+        setAttribute() {},
+        style: {},
+      }),
       createElement: () => ({ getContext: () => null, addEventListener() {}, style: {} }),
     };
   }
@@ -21,12 +26,13 @@ describe('ChunkMeshManager.setWorld', () => {
     const w1 = new ChunkWorld(1, 'overworld');
     const cmm: any = new ChunkMeshManager(scene, w1, new THREE.Texture());
     cmm.setFogFar(48);
-    cmm.update(0, 0, 2, 9999); cmm.flushMesh(64);
+    cmm.update(0, 0, 2, 9999);
+    cmm.flushMesh(64);
     expect(cmm.meshes.size).toBeGreaterThan(0);
     const w2 = new ChunkWorld(1, 'nether');
     cmm.setWorld(w2);
-    expect(cmm.meshes.size).toBe(0);          // 旧网格清空
-    expect(cmm.world).toBe(w2);               // 引用已换
+    expect(cmm.meshes.size).toBe(0); // 旧网格清空
+    expect(cmm.world).toBe(w2); // 引用已换
   });
 
   it('光影水写深度并退出透明排序，关闭光影后恢复经典 alpha 水', () => {
@@ -40,6 +46,12 @@ describe('ChunkMeshManager.setWorld', () => {
     expect(cmm.waterMat.transparent).toBe(false);
     expect(cmm.waterMat.depthWrite).toBe(true);
     expect(cmm.waterMat.opacity).toBe(1);
+    expect(cmm.sun.castShadow).toBe(true);
+
+    cmm.setSunEnabled(false);
+    expect(cmm.sun.castShadow).toBe(false);
+    cmm.setSunEnabled(true);
+    expect(cmm.sun.castShadow).toBe(true);
 
     cmm.setLightingQuality('off');
     expect(cmm.waterMat.transparent).toBe(true);

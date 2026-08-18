@@ -247,11 +247,16 @@ export function buildDirectionalWaveData(size = DEFAULT_DIRECTIONAL_WAVE_SIZE): 
         const packet01 = Math.sin(packetTheta) * 0.5 + 0.5;
         const packet = 0.22 + smooth(packet01) * 0.78;
         // Harmonics give a steep front and rounded trough; packet modulation
-        // breaks those fronts into short, irregular crest groups.
+        // breaks those fronts into short, irregular crest groups. Fade the
+        // third harmonic out of the highest carriers: after domain warp those
+        // frequencies approach the 256px tile Nyquist limit and would alias as
+        // frame-to-frame glitter once sampled by a moving water surface.
+        const waveNumber = Math.hypot(wave.kx, wave.ky);
+        const harmonic3 = 0.035 * (1 - smooth(clamp01((waveNumber - 18) / 12)));
         const component =
           Math.sin(theta) +
           Math.sin(theta * 2 + phase * 0.37) * 0.17 +
-          Math.sin(theta * 3 - phase * 0.19) * 0.035;
+          Math.sin(theta * 3 - phase * 0.19) * harmonic3;
         h += component * wave.amplitude * packet;
         weight += wave.amplitude;
       }

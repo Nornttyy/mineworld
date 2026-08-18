@@ -1,5 +1,17 @@
+import * as THREE from 'three';
 import { describe, it, expect } from 'vitest';
-import { heldRenderKind, mcSwingPose } from './FirstPersonHand';
+import {
+  FirstPersonHand,
+  handBlockMaterialProfile,
+  heldRenderKind,
+  mcSwingPose,
+} from './FirstPersonHand';
+
+type InspectableHand = {
+  item: THREE.Mesh | null;
+  skyLight: THREE.HemisphereLight;
+  sunLight: THREE.DirectionalLight;
+};
 
 // 手持渲染分类：方块=3D 立方体，物品(食物/工具/材料)=平面图标精灵，其余=只露手臂。
 describe('FirstPersonHand heldRenderKind', () => {
@@ -46,5 +58,78 @@ describe('mcSwingPose（1:1 复刻 MC 挥击）', () => {
     const m = mcSwingPose(0.25);
     expect(m.tx).toBeLessThan(0); // 右手往左(中间)
     expect(m.tz).toBeLessThan(0); // 往画面里(前方)
+  });
+});
+
+describe('FirstPersonHand 光影材质', () => {
+  it('粗糙方块保持哑光，矿物块更细腻但不金属化', () => {
+    const dirt = handBlockMaterialProfile(2);
+    const iron = handBlockMaterialProfile(33);
+    expect(dirt.roughness).toBeGreaterThanOrEqual(0.85);
+    expect(iron.roughness).toBeLessThan(dirt.roughness);
+    expect(iron.specularIntensity).toBeGreaterThan(dirt.specularIntensity);
+  });
+
+  it('光影档用 Physical 材质，off 档恢复原版 Basic 材质', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    hand.setLightingQuality('high');
+    hand.setHeld(2);
+    const shaded = (hand as unknown as InspectableHand).item as THREE.Mesh;
+    expect(shaded.material).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    expect((shaded.material as THREE.MeshPhysicalMaterial).roughness).toBeGreaterThanOrEqual(0.85);
+    expect((shaded.material as THREE.MeshPhysicalMaterial).metalness).toBe(0);
+
+    hand.setLightingQuality('off');
+    const classic = (hand as unknown as InspectableHand).item as THREE.Mesh;
+    expect(classic.material).toBeInstanceOf(THREE.MeshBasicMaterial);
+  });
+
+  it('相机转向时太阳会同步变换到手持相机空间', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    hand.setLightingQuality('high');
+    const skyColor = new THREE.Color(1, 1, 1);
+    const sun = new THREE.Vector3(1, 0.5, 0).normalize();
+    hand.setLighting({
+      skyLevel: 15,
+      blockLevel: 0,
+      skyDarken: 0,
+      sunEnabled: true,
+      skyColor,
+      sunDirectionWorld: sun,
+      cameraQuaternion: new THREE.Quaternion(),
+    });
+    const before = (hand as unknown as InspectableHand).sunLight.position.clone();
+    hand.setLighting({
+      skyLevel: 15,
+      blockLevel: 0,
+      skyDarken: 0,
+      sunEnabled: true,
+      skyColor,
+      sunDirectionWorld: sun,
+      cameraQuaternion: new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        Math.PI / 2,
+      ),
+    });
+    const after = (hand as unknown as InspectableHand).sunLight.position;
+    expect(after.distanceTo(before)).toBeGreaterThan(1);
+  });
+
+  it('无光处保留微弱轮廓，下界不会出现假太阳', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    hand.setLightingQuality('high');
+    hand.setLighting({
+      skyLevel: 15, // 模拟切维度时光照网格尚未就绪的 fallback
+      blockLevel: 0,
+      skyDarken: 0,
+      sunEnabled: false,
+      skyColor: new THREE.Color(0.3, 0.08, 0.04),
+      sunDirectionWorld: new THREE.Vector3(0.7, 0.7, 0),
+      cameraQuaternion: new THREE.Quaternion(),
+    });
+    const inspect = hand as unknown as InspectableHand;
+    expect(inspect.skyLight.intensity).toBeGreaterThan(0);
+    expect(inspect.skyLight.intensity).toBeLessThan(0.05);
+    expect(inspect.sunLight.intensity).toBe(0);
   });
 });

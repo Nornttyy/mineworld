@@ -34,6 +34,7 @@ const MC_BRIGHT_GLSL =
 const MC_LIGHT_GLSL =
   '{ float skyLv = aLight.x*15.0; float blkLv = aLight.y*15.0;' +
   ' float bs = mcBright(max(skyLv - uSkyDarken, 0.0)); float bb = mcBright(blkLv);' +
+  ' vSkyBright = bs; vBlockBright = bb;' +
   ' float drkFloor = (skyLv < 0.5) ? 0.03 : 0.04;' + // 纯无天光(洞穴/地下)底光。曾 0.012≈纯黑一片；MC moody 亮度下光照0也约 3~5% 灰,保留一点轮廓感,火把依旧必需
   ' vLF = max(bs, bb) * 0.96 + drkFloor;' +
   ' float sf = (bs + bb) > 0.0001 ? bs / (bs + bb) : 1.0;' +
@@ -117,6 +118,8 @@ export class ChunkMeshManager {
   private readonly editKeys = new Set<string>(); // 标记"此区块的重建是编辑触发"，供 worker 回调分流到优先队列
   private readonly priorityQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = [];
   private fogCullR2 = (FOG_FAR_BLOCKS / CHUNK_W) ** 2; // 雾剔除距离²(区块²)；随渲染距离由 setFogFar 改
+  private lightingQuality: LightingQuality | null = null;
+  private sunEnabled = true;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -260,7 +263,7 @@ export class ChunkMeshManager {
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
             (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
             (underwater ? 'attribute float aUnderwater;\n' : '') +
-            'varying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
+            'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
             MC_BRIGHT_GLSL,
         )
         .replace(
@@ -277,7 +280,7 @@ export class ChunkMeshManager {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
+          '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
             'uniform float uTime;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
@@ -321,41 +324,121 @@ export class ChunkMeshManager {
           '#include <color_fragment>',
           '#include <color_fragment>\n' +
             'vec3 mwAlbedo = diffuseColor.rgb;\n' +
+            // 原网格颜色同时烤了固定面亮度与体素 AO。光影档先还原真正贴图色，
+            // 再让天空、火把、太阳与 AO 各自作用；否则 X/Z 面永远保持原版固定明暗。
+            '#ifdef USE_COLOR\n' +
+            '  float mwBakedShade = max(vColor.r, 0.001);\n' +
+            '#else\n' +
+            '  float mwBakedShade = 1.0;\n' +
+            '#endif\n' +
+            'vec3 mwBlockAlbedo = clamp(mwAlbedo / mwBakedShade, 0.0, 1.25);\n' +
+            'vec3 mwView = normalize(cameraPosition - vWp);\n' +
+            'vec3 mwGeomN = normalize(cross(dFdx(vWp), dFdy(vWp)));\n' +
+            'mwGeomN *= sign(dot(mwGeomN, mwView));\n' +
+            'float mwFaceShade = mwGeomN.y > 0.5 ? 1.0 : (mwGeomN.y < -0.5 ? 0.5 : (abs(mwGeomN.x) > 0.5 ? 0.6 : 0.8));\n' +
+            'float mwVoxelAO = clamp(mwBakedShade / mwFaceShade, 0.5, 1.0);\n' +
+            'float mwStyleShade = mix(1.0, mwFaceShade, 0.12);\n' +
+            // 从 16px 图集相邻像素即时构造微法线。它只影响近景太阳/材质反应，
+            // 远处按屏幕 footprint 自动淡出，保持像素边缘稳定且不产生闪纹。
+            'vec3 mwShadeN = mwGeomN;\n' +
+            'float mwTileIndex = -1.0;\n' +
+            '#ifdef USE_MAP\n' +
+            '  vec2 mwAtlasSize = vec2(64.0, 160.0);\n' +
+            '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
+            '  vec2 mwTileSize = vec2(0.25, 0.1);\n' +
+            '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
+            '  mwTileIndex = floor(vMapUv.x * 4.0) + floor((1.0 - vMapUv.y) * 10.0) * 4.0;\n' +
+            '  vec2 mwUvMin = mwTileBase + mwTexel * 0.55;\n' +
+            '  vec2 mwUvMax = mwTileBase + mwTileSize - mwTexel * 0.55;\n' +
+            '  float mwHL = dot(texture2D(map, clamp(vMapUv - vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwHR = dot(texture2D(map, clamp(vMapUv + vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwHD = dot(texture2D(map, clamp(vMapUv - vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwHU = dot(texture2D(map, clamp(vMapUv + vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  vec3 mwDp1 = dFdx(vWp); vec3 mwDp2 = dFdy(vWp);\n' +
+            '  vec2 mwDuv1 = dFdx(vMapUv); vec2 mwDuv2 = dFdy(vMapUv);\n' +
+            '  vec3 mwDp2Perp = cross(mwDp2, mwGeomN);\n' +
+            '  vec3 mwDp1Perp = cross(mwGeomN, mwDp1);\n' +
+            '  vec3 mwT = mwDp2Perp * mwDuv1.x + mwDp1Perp * mwDuv2.x;\n' +
+            '  vec3 mwB = mwDp2Perp * mwDuv1.y + mwDp1Perp * mwDuv2.y;\n' +
+            '  float mwInvBasis = inversesqrt(max(0.000001, max(dot(mwT, mwT), dot(mwB, mwB))));\n' +
+            '  float mwBump = mix(0.24, 0.36, uHq);\n' +
+            '  vec3 mwTangentN = normalize(vec3(-(mwHR - mwHL) * mwBump, -(mwHU - mwHD) * mwBump, 1.0));\n' +
+            '  vec3 mwPixelN = normalize(mwT * mwInvBasis * mwTangentN.x + mwB * mwInvBasis * mwTangentN.y + mwGeomN * mwTangentN.z);\n' +
+            '  float mwFootprint = max(length(dFdx(vMapUv) * mwAtlasSize), length(dFdy(vMapUv) * mwAtlasSize));\n' +
+            '  float mwDetailVis = (1.0 - smoothstep(0.72, 2.0, mwFootprint)) * uShaders;\n' +
+            '  mwShadeN = normalize(mix(mwGeomN, mwPixelN, mwDetailVis));\n' +
+            '#endif\n' +
             'float shadowVis = 1.0;\n' +
             'if (uShadowOn > 0.5) {\n' +
             '  float sh = mwShadow(vShadowCoord);\n' +
             '  float gate = vSky * uSunUp;\n' + // 只在受天光的面+白天投影：洞内/夜里不被二次压暗
             '  shadowVis = mix(1.0, sh, gate);\n' +
             '}\n' +
-            // 高质量光照必须把天空环境光与太阳直射分开：阴影只挡直射，不再把环境光/火把一起乘黑。
-            // 白天满天光先留 58% 冷色环境层，下面再叠最多 42% 暖阳；夜晚/洞穴完全沿用 MC 光照曲线。
             'float openSun = vSky * uSunUp * uShaders;\n' +
-            'float ambientScale = mix(1.0, 0.58, openSun);\n' +
-            'vec3 ambientShadowTint = mix(vec3(0.88, 0.94, 1.05), vec3(1.0), shadowVis);\n' +
-            'diffuseColor.rgb = mwAlbedo * vLF * vTint * ambientScale;\n' +
-            'diffuseColor.rgb *= mix(vec3(1.0), ambientShadowTint, openSun * 0.34);\n' +
+            'if (uShaders < 0.5) {\n' +
+            '  diffuseColor.rgb = mwAlbedo * vLF * vTint;\n' +
+            '} else {\n' +
+            // 天空是冷色半球光，火把是独立暖色局部光；体素 AO 主要压环境层，
+            // 不再把二者先 max 后一起乘进贴图，阴影也只遮太阳直射。
+            '  float mwSkyFloor = vSky < 0.03 ? 0.03 : 0.04;\n' +
+            '  float mwSkyEnergy = mix(0.88, 0.58, uSunUp);\n' +
+            '  float mwHemiFloor = mix(0.58, 0.45, uSunUp);\n' +
+            '  float mwHemi = mix(mwHemiFloor, 1.0, smoothstep(-0.55, 0.85, mwGeomN.y));\n' +
+            '  vec3 mwSkyColor = mix(vec3(0.72, 0.82, 1.05), vTint, 0.58);\n' +
+            '  float mwAmbientAmount = max(mwSkyFloor, vSkyBright * mwSkyEnergy) * mwHemi;\n' +
+            '  vec3 mwAmbient = mwBlockAlbedo * mwStyleShade * mwSkyColor * mwAmbientAmount;\n' +
+            '  mwAmbient *= mix(0.42, 1.0, mwVoxelAO);\n' +
+            '  mwAmbient *= mix(vec3(0.88, 0.94, 1.08), vec3(1.0), mix(1.0, shadowVis, openSun * 0.2));\n' +
+            '  float mwLocalAmount = vBlockBright * (1.0 - vSkyBright * 0.55);\n' +
+            '  vec3 mwLocal = mwBlockAlbedo * mwStyleShade * vec3(1.12, 0.66, 0.3) * mwLocalAmount * 0.82;\n' +
+            '  mwLocal *= mix(0.68, 1.0, mwVoxelAO);\n' +
+            '  diffuseColor.rgb = mwAmbient + mwLocal;\n' +
+            (sway ? '  diffuseColor.rgb *= 1.12;\n' : '') +
             // 大尺度缓慢云影：一张 CPU 预生成的无缝纹理只采 1 次，给开阔地增加动态明暗，
-            // 不做昂贵的片元 FBM，也不会像正弦条纹一样露出重复方向。
+            // 只调制太阳直射，不再让整块贴图随云层一起发灰。
             'float cloud = 0.0;\n' +
             'if (openSun > 0.003) {\n' +
             '  vec2 cuv = vWp.xz * 0.0055 + vec2(uTime * 0.0014, uTime * 0.0008);\n' +
             '  cloud = smoothstep(0.54, 0.78, texture2D(uSurfaceNoise, cuv).b);\n' +
-            '  float cloudDim = cloud * mix(0.75, 1.0, uHq) * openSun;\n' +
-            '  diffuseColor.rgb *= vec3(1.0) - vec3(0.035, 0.028, 0.018) * cloudDim;\n' +
             '}\n' +
-            // 方块保持经典哑光：只留暖阳层次，避免强镜面把 16×16 像素纹理洗成塑料。
-            // 法线=屏幕导数(免顶点法线),sign(dot(N,V)) 归正朝观察者(解旧"朝向未定"问题)；
-            // 门控=受天光面×白天×阴影可见×光影开(影子里/洞里/夜里/关光影都没有)。
             'float sunLit = openSun * shadowVis;\n' +
-            'if (sunLit > 0.003) {\n' +
-            '  vec3 Nw = normalize(cross(dFdx(vWp), dFdy(vWp)));\n' +
-            '  vec3 Vd = normalize(cameraPosition - vWp);\n' +
-            '  Nw *= sign(dot(Nw, Vd));\n' +
+            'if (openSun > 0.003) {\n' +
             '  vec3 sunDir = normalize(uSunDirW);\n' +
-            '  float nd = max(dot(Nw, sunDir), 0.0);\n' +
+            '  float nd = max(dot(mwShadeN, sunDir), 0.0);\n' +
             '  float sunHeight = clamp(sunDir.y * 3.0, 0.0, 1.0);\n' +
-            '  vec3 sunTone = mix(vec3(1.32, 0.66, 0.22), vec3(1.04, 0.98, 0.86), sunHeight);\n' +
-            '  diffuseColor.rgb += mwAlbedo * vLF * sunTone * nd * sunLit * (1.0 - cloud * 0.78) * 0.42;\n' +
+            '  vec3 sunTone = mix(vec3(1.26, 0.68, 0.28), vec3(1.08, 1.0, 0.88), sunHeight);\n' +
+            '  float sunCloud = 1.0 - cloud * mix(0.48, 0.62, uHq);\n' +
+            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * 0.48;\n' +
+            '  mwDirect *= mix(0.84, 1.0, mwVoxelAO);\n' +
+            '  diffuseColor.rgb += mwDirect;\n' +
+            (sway
+              ? // 叶片/草丛的薄层透光：背向太阳时保留暖绿轮廓，是高质体素光影最明显的陆地层次之一。
+                '  float mwBackLight = pow(max(dot(-mwShadeN, sunDir), 0.0), 0.7);\n' +
+                '  vec3 mwTransmission = mix(sunTone, vec3(0.52, 1.02, 0.34), 0.62);\n' +
+                '  diffuseColor.rgb += mwBlockAlbedo * mwTransmission * mwBackLight * openSun * sunCloud * (0.35 + 0.65 * shadowVis) * mix(0.16, 0.24, uHq);\n'
+              : '') +
+            '  diffuseColor.rgb = min(diffuseColor.rgb, vec3(0.985));\n' +
+            // 只给雪、浅色石材和水下湿面一点材质反应；高色度草/泥土保持粗糙，避免全世界塑料化。
+            '  float mwLuma = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwChroma = max(max(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b) - min(min(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b);\n' +
+            '  float mwMineral = smoothstep(0.12, 0.72, mwLuma) * (1.0 - smoothstep(0.14, 0.42, mwChroma));\n' +
+            '  float mwWet = smoothstep(0.08, 1.0, vUnderwater);\n' +
+            '  float mwIron = 1.0 - step(0.5, abs(mwTileIndex - 33.0));\n' +
+            '  float mwQuartz = 1.0 - step(0.5, abs(mwTileIndex - 34.0));\n' +
+            '  float mwDiamond = 1.0 - step(0.5, abs(mwTileIndex - 36.0));\n' +
+            '  float mwObsidian = 1.0 - step(0.5, abs(mwTileIndex - 18.0));\n' +
+            '  float mwSpecialGloss = max(max(mwIron, mwDiamond), max(mwQuartz * 0.72, mwObsidian));\n' +
+            '  vec3 mwHalf = normalize(sunDir + mwView);\n' +
+            '  float mwSpecPower = mix(28.0, 64.0, uHq) * mix(0.72, 1.12, max(mwMineral, mwSpecialGloss));\n' +
+            '  float mwSpec = pow(max(dot(mwShadeN, mwHalf), 0.0), mwSpecPower);\n' +
+            '  mwSpec *= 0.014 + mwMineral * 0.075 + mwSpecialGloss * 0.12 + mwWet * 0.14;\n' +
+            '  diffuseColor.rgb += sunTone * mwSpec * sunLit * sunCloud;\n' +
+            '}\n' +
+            // 真正发光方块单独输出 HDR，普通雪/沙/天空仍被锁在 1 以下；Bloom 因而只追踪光源与材质高光。
+            '  float mwGlowstone = 1.0 - step(0.5, abs(mwTileIndex - 21.0));\n' +
+            '  float mwLava = 1.0 - step(0.5, abs(mwTileIndex - 23.0));\n' +
+            '  float mwPortal = 1.0 - step(0.5, abs(mwTileIndex - 25.0));\n' +
+            '  diffuseColor.rgb += mwBlockAlbedo * (mwGlowstone * 0.72 + mwLava * 0.9 + mwPortal * 0.62) * mix(0.82, 1.0, uHq);\n' +
             '}\n' +
             // 焦散投射在真正的水底方块上，而不是加在水面颜色里。连续水深控制衰减，洞穴/夜晚不自发光。
             'if (uShaders > 0.5 && vUnderwater > 0.05 && uSunUp > 0.01) {\n' +
@@ -443,6 +526,8 @@ uniform float uTime;
 uniform float uHq;
 uniform mat4 uReflectionMatrix;
 varying float vLF;
+varying float vSkyBright;
+varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
 varying float vWaterDepth;
@@ -450,10 +535,11 @@ varying float vSkyVis;
 varying float vShore;
 varying vec4 vReflectionCoord;
 float mwWaveV(vec2 p, float t) {
-  float a = sin(dot(p, vec2(0.78, 0.63)) * 0.449 + t * 0.72) * 0.045;
-  float b = sin(dot(p, vec2(-0.42, 0.91)) * 0.785 - t * 0.54) * 0.026;
-  float c = sin(dot(p, vec2(0.96, -0.28)) * 1.396 + t * 0.39) * 0.013;
-  float d = sin(dot(p, vec2(-0.83, -0.56)) * 2.513 - t * 0.31) * 0.006 * uHq;
+  // 大波慢推轮廓，小波更快掠过。总峰值 < 0.1 格，满水面不会穿过上方方块。
+  float a = sin(dot(p, vec2(0.84, 0.54)) * 0.36 + t * 0.50) * 0.058;
+  float b = sin(dot(p, vec2(-0.48, 0.88)) * 0.70 - t * 0.68) * 0.026;
+  float c = sin(dot(p, vec2(0.94, -0.34)) * 1.15 + t * 0.92) * 0.009;
+  float d = sin(dot(p, vec2(-0.72, -0.69)) * 1.70 - t * 1.25) * 0.003 * uHq;
   return a + b + c + d;
 }
 ${MC_BRIGHT_GLSL}`,
@@ -463,10 +549,11 @@ ${MC_BRIGHT_GLSL}`,
           `#include <begin_vertex>
 ${MC_LIGHT_GLSL}
 vec3 mwWp0 = (modelMatrix * vec4(transformed, 1.0)).xyz;
-// 岸边/冰边顶点只保留约 18% 几何起伏，避免水面上下穿过固定岸面产生闪缝；
-// 法线波纹与碎高光仍完整保留，所以岸边不会变成一条死直线。
-float mwShoreCalm = mix(0.18, 1.0, 1.0 - smoothstep(0.05, 0.68, aShore));
-transformed.y += mwWaveV(mwWp0.xz, uTime) * step(0.45, aTop) * uShaders * mwShoreCalm;
+// 岸边与浅水连续减弱，而不是用 step 切出突然静止的硬带；aTop<0 的侧壁/瀑布锚点保持不动。
+float mwMovable = step(0.001, aTop);
+float mwDepthGate = smoothstep(0.08, 0.70, abs(aTop));
+float mwEdgeGate = mix(0.08, 1.0, pow(1.0 - clamp(aShore, 0.0, 1.0), 1.4));
+transformed.y += mwWaveV(mwWp0.xz, uTime) * mwMovable * mwDepthGate * mwEdgeGate * uShaders;
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterDepth = abs(aTop);
 vSkyVis = aLight.x;
@@ -494,6 +581,8 @@ uniform float uHasRefraction;
 uniform sampler2D uReflectionColor;
 uniform float uHasReflection;
 varying float vLF;
+varying float vSkyBright;
+varying float vBlockBright;
 varying vec3 vTint;
 varying vec3 vWPos;
 varying float vWaterDepth;
@@ -544,25 +633,51 @@ if (uShaders < 0.5) {
   faceN *= sign(dot(faceN, V));
   float horiz = smoothstep(0.5, 0.92, abs(faceN.y));
 
-  // 三层方向不同的微波法线。坡度严格控制在真实水面的范围，避免旧版大片灰色油污。
+  // 大中小四级波谱：A/B 保留到远景，C/D 按屏幕足迹淡出，避免细波小于一像素后闪烁。
   vec2 p = vWPos.xz;
-  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.037 + vec2(uTime * 0.0065, -uTime * 0.0042));
-  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.091 + vec2(-uTime * 0.011, uTime * 0.007));
-  vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.21 + vec2(uTime * 0.016, uTime * 0.012));
-  vec4 rippleD = texture2D(uSurfaceNoise, mwTurn(p * 0.34) + vec2(-uTime * 0.019, uTime * 0.014));
+  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.028 + vec2(uTime * 0.006, -uTime * 0.0044));
+  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.065 + vec2(-uTime * 0.012, uTime * 0.0085));
+  vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.14 + vec2(uTime * 0.022, uTime * 0.017));
+  vec4 rippleD = texture2D(uSurfaceNoise, mwTurn(p * 0.22) + vec2(-uTime * 0.036, uTime * 0.027));
+  float footprint = max(length(dFdx(p)), length(dFdy(p)));
+  float midVis = 1.0 - smoothstep(0.35, 1.2, footprint);
+  float microVis = 1.0 - smoothstep(0.1, 0.42, footprint);
   float nearDetail = 1.0 - smoothstep(30.0, 100.0, dist);
-  vec2 slope = (rippleA.rg * 2.0 - 1.0) * 0.058;
-  slope += (rippleB.rg * 2.0 - 1.0) * 0.046;
-  slope += (rippleC.rg * 2.0 - 1.0) * 0.028 * nearDetail;
-  slope += (rippleD.rg * 2.0 - 1.0) * 0.016 * nearDetail * uHq;
-  slope *= horiz;
-  vec3 waveN = normalize(vec3(-slope.x, 1.0, -slope.y));
-  vec3 N = normalize(mix(faceN, waveN, horiz));
+  vec2 normalA = rippleA.rg * 2.0 - 1.0;
+  vec2 normalB = rippleB.rg * 2.0 - 1.0;
+  vec2 normalC = rippleC.rg * 2.0 - 1.0;
+  vec2 normalD = rippleD.rg * 2.0 - 1.0;
+  vec2 detailN = normalA * 0.09;
+  detailN += normalB * 0.065 * mix(0.5, 1.0, midVis);
+  detailN += normalC * 0.03 * midVis;
+  detailN += normalD * 0.01 * microVis * nearDetail * uHq;
+  detailN *= horiz;
+  // faceN 已含顶点位移形成的大波。旧 mix(..., waveN, horiz) 在顶面把它完全覆盖，
+  // 所以轮廓虽动、反射却像一张平膜；这里把几何梯度与纹理微法线真正相加。
+  float faceSide = faceN.y < 0.0 ? -1.0 : 1.0;
+  float signedY = faceSide * max(abs(faceN.y), 0.18);
+  vec2 geomGradient = -faceN.xz / signedY;
+  vec2 totalGradient = geomGradient - detailN;
+  vec3 topN = normalize(vec3(-totalGradient.x, 1.0, -totalGradient.y)) * faceSide;
+  vec3 N = normalize(mix(faceN, topN, horiz));
+  vec2 macroDetailN = (normalA * 0.06 + normalB * 0.045 * mix(0.55, 1.0, midVis)) * horiz;
+  vec2 macroGradient = geomGradient - macroDetailN;
+  vec3 macroTopN = normalize(vec3(-macroGradient.x, 1.0, -macroGradient.y)) * faceSide;
+  vec3 macroN = normalize(mix(faceN, macroTopN, horiz));
+  // 屏幕空间折射/倒影必须使用 view-space 倾斜；直接拿世界 XZ 会在玩家转向时改变扰动方向。
+  vec3 flatN = vec3(0.0, faceSide, 0.0);
+  vec2 macroTilt = (viewMatrix * vec4(macroN - flatN, 0.0)).xy;
+  vec2 fullTilt = (viewMatrix * vec4(N - flatN, 0.0)).xy;
 
   // 无水 HDR RT 的真实屏幕空间折射：用微法线轻推 UV，并用深度拒绝前景串色。
   vec2 screenUv = gl_FragCoord.xy / max(uRefractionSize, vec2(1.0));
-  vec2 maxRefraction = vec2(6.0) / max(uRefractionSize, vec2(1.0));
-  vec2 refrOffset = clamp(slope * mix(0.009, 0.013, uHq), -maxRefraction, maxRefraction);
+  float screenEdge = min(min(screenUv.x, 1.0 - screenUv.x), min(screenUv.y, 1.0 - screenUv.y));
+  // 屏幕边缘逐渐收回扰动/模糊，避免 ClampToEdge 把最后一列像素拉成固定竖色带。
+  float screenEdgeFade = smoothstep(0.002, 0.022, screenEdge);
+  vec2 maxRefraction = vec2(7.0) / max(uRefractionSize, vec2(1.0));
+  vec2 refrPx = macroTilt * mix(22.0, 26.0, uHq) + (fullTilt - macroTilt) * mix(6.0, 8.0, uHq);
+  vec2 refrOffset = clamp(refrPx, vec2(-7.0), vec2(7.0)) * screenEdgeFade / max(uRefractionSize, vec2(1.0));
+  refrOffset = clamp(refrOffset, -maxRefraction, maxRefraction);
   vec2 provisionalUv = clamp(screenUv + refrOffset, vec2(0.004), vec2(0.996));
   float centerDepth = texture2D(uRefractionDepth, screenUv).r;
   float centerDistance = mwLinearDepth(centerDepth);
@@ -579,11 +694,11 @@ if (uShaders < 0.5) {
   float thickness = clamp(centerThickness, 0.0, 48.0);
   float blurDepth = min(thickness, max(vWaterDepth * 1.25, 1.0));
   float blurPx = clamp(0.35 + blurDepth * 0.12, 0.35, 2.5);
-  vec2 blurStep = vec2(blurPx) / max(uRefractionSize, vec2(1.0));
-  vec2 refrXp = refrUv + vec2( blurStep.x, 0.0);
-  vec2 refrXm = refrUv + vec2(-blurStep.x, 0.0);
-  vec2 refrYp = refrUv + vec2(0.0,  blurStep.y);
-  vec2 refrYm = refrUv + vec2(0.0, -blurStep.y);
+  vec2 blurStep = vec2(blurPx * screenEdgeFade) / max(uRefractionSize, vec2(1.0));
+  vec2 refrXp = clamp(refrUv + vec2( blurStep.x, 0.0), vec2(0.0005), vec2(0.9995));
+  vec2 refrXm = clamp(refrUv + vec2(-blurStep.x, 0.0), vec2(0.0005), vec2(0.9995));
+  vec2 refrYp = clamp(refrUv + vec2(0.0,  blurStep.y), vec2(0.0005), vec2(0.9995));
+  vec2 refrYm = clamp(refrUv + vec2(0.0, -blurStep.y), vec2(0.0005), vec2(0.9995));
   float tapReject = clamp(centerThickness * 0.08, 0.4, 1.8);
   float wxp = 0.15 * mwDepthMatch(refrXp, centerDistance, tapReject);
   float wxm = 0.15 * mwDepthMatch(refrXm, centerDistance, tapReject);
@@ -603,6 +718,10 @@ if (uShaders < 0.5) {
   vec3 transmittance = exp(-vec3(0.19, 0.088, 0.052) * opticalThickness);
   vec3 waterScatter = vec3(0.022, 0.09, 0.125) * mix(0.62, 1.0, vLF) * vTint;
   waterScatter *= mix(0.45, 1.0, uSkyMul);
+  // 深水折射会被吸收成近似常量；用稳定 A/B 大波给散射留下极轻的明暗起伏，
+  // 近景仍能看见水在运动，又不会把高频波重新变成闪点。
+  float broadRelief = (rippleA.b - 0.5) * 0.65 + (rippleB.b - 0.5) * 0.35;
+  waterScatter *= 1.0 + broadRelief * 0.07 * nearDetail * horiz;
   float scatterAmount = 1.0 - exp(-opticalThickness * 0.29);
   vec3 refracted = opaqueBehind * transmittance + waterScatter * scatterAmount;
   // 只让体色随真实光程缓慢增长；浅水约 1%，不再盖一层固定的有色玻璃膜。
@@ -610,9 +729,9 @@ if (uShaders < 0.5) {
   refracted = mix(refracted, waterScatter, bodyTint);
 
   // 天空与云层反射。用反射光线和虚拟云层求交，同一噪声也驱动地面云影，方向一致。
-  vec3 R = reflect(-V, N);
-  float NoV = clamp(abs(dot(N, V)), 0.0, 1.0);
-  float surfaceRoughness = clamp(0.085 + 0.025 * (1.0 - rippleB.b) + 0.03 * smoothstep(28.0, 110.0, dist), 0.085, 0.145);
+  vec3 R = reflect(-V, macroN);
+  float NoV = clamp(abs(dot(macroN, V)), 0.0, 1.0);
+  float surfaceRoughness = clamp(0.1 + 0.045 * smoothstep(28.0, 110.0, dist), 0.1, 0.145);
   float skyHeight = smoothstep(-0.02, 0.72, R.y);
   vec3 reflectedSky = mix(uSkyRefl, uSkyTop, skyHeight);
   float cloudTravel = max(0.0, 232.0 - vWPos.y) / max(R.y, 0.08);
@@ -623,28 +742,28 @@ if (uShaders < 0.5) {
   vec3 cloudColor = mix(uSkyRefl * 1.25, vec3(1.22, 1.16, 1.04), uSkyMul);
   float proceduralCloudMix = cloud * 0.38;
 
-  // 海平面镜像相机提供真实岸线、树林、云和日月倒影；微法线只做小幅扰动。
+  // 海平面镜像相机只跟随连续 A/B 大波；C/D 不再让整幅倒影逐帧抖焦。
   vec2 reflectionUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
-  reflectionUv += slope * mix(0.004, 0.006, uHq);
-  float reflectionInside = step(0.002, reflectionUv.x) * step(reflectionUv.x, 0.998)
-    * step(0.002, reflectionUv.y) * step(reflectionUv.y, 0.998);
-  if (uHasReflection > 0.5 && reflectionInside > 0.5) {
-    float reflectionBlur = 1.5 + 3.0 * pow(1.0 - NoV, 1.5) + rippleC.b * 0.75;
+  vec2 reflectionPx = clamp(macroTilt * mix(25.0, 29.0, uHq), vec2(-4.0), vec2(4.0));
+  reflectionUv += reflectionPx / max(uRefractionSize, vec2(1.0));
+  if (uHasReflection > 0.5) {
+    float reflectionBlur = 1.6 + surfaceRoughness * 4.0 + 3.0 * pow(1.0 - NoV, 1.5) + smoothstep(30.0, 110.0, dist);
     vec2 reflectionTexel = vec2(reflectionBlur) / max(uRefractionSize, vec2(1.0));
-    float reflectionMargin = max(reflectionTexel.x, reflectionTexel.y) * 1.5 + 0.002;
-    reflectionInside *= step(reflectionMargin, reflectionUv.x) * step(reflectionUv.x, 1.0 - reflectionMargin)
-      * step(reflectionMargin, reflectionUv.y) * step(reflectionUv.y, 1.0 - reflectionMargin);
-    vec3 planarReflection = texture2D(uReflectionColor, reflectionUv).rgb * 0.25;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2( reflectionTexel.x, 0.0)).rgb * 0.125;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(-reflectionTexel.x, 0.0)).rgb * 0.125;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(0.0,  reflectionTexel.y)).rgb * 0.125;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(0.0, -reflectionTexel.y)).rgb * 0.125;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + reflectionTexel).rgb * 0.0625;
-    planarReflection += texture2D(uReflectionColor, reflectionUv - reflectionTexel).rgb * 0.0625;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(reflectionTexel.x, -reflectionTexel.y)).rgb * 0.0625;
-    planarReflection += texture2D(uReflectionColor, reflectionUv + vec2(-reflectionTexel.x, reflectionTexel.y)).rgb * 0.0625;
+    vec2 reflectionMargin = reflectionTexel * 1.5 + vec2(0.002);
+    // 投影与主相机共用同一视锥，波纹最多只把边缘推出 4px。直接把 9 taps
+    // 收进有效范围，比在这里切回另一套程序反射更连续，也不会留下固定竖色带。
+    vec2 reflectionSampleUv = clamp(reflectionUv, reflectionMargin, vec2(1.0) - reflectionMargin);
+    vec3 planarReflection = texture2D(uReflectionColor, reflectionSampleUv).rgb * 0.25;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2( reflectionTexel.x, 0.0)).rgb * 0.125;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(-reflectionTexel.x, 0.0)).rgb * 0.125;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(0.0,  reflectionTexel.y)).rgb * 0.125;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(0.0, -reflectionTexel.y)).rgb * 0.125;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + reflectionTexel).rgb * 0.0625;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv - reflectionTexel).rgb * 0.0625;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(reflectionTexel.x, -reflectionTexel.y)).rgb * 0.0625;
+    planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(-reflectionTexel.x, reflectionTexel.y)).rgb * 0.0625;
     planarReflection /= vec3(1.0) + planarReflection * 0.16;
-    float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0)) * reflectionInside;
+    float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0));
     // 平面 RT 已含真实云；程序云只补 RT 外/低混合区域，避免两套云影重叠滑动。
     reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix * (1.0 - planarMix));
     reflectedSky = mix(reflectedSky, planarReflection, planarMix);
@@ -652,27 +771,35 @@ if (uShaders < 0.5) {
     reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix);
   }
 
-  float fresnel = min(0.68, 0.018 + 0.9 * pow(1.0 - NoV, 5.5));
+  float fresnel = min(0.68, 0.02 + 0.98 * pow(1.0 - NoV, 5.0));
   float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
   vec3 col = mix(refracted, reflectedSky * 0.94, fresnel * reflectionGate);
 
-  // 双瓣 Cook-Torrance 太阳反光：宽瓣形成连续光路，锐瓣只在短波峰上碎裂成 HDR 亮点。
+  // 双瓣太阳反光：macroN 形成稳定连续的光路；完整 N 只叠一层经过 footprint AA 的细闪。
+  // 旧版把法线、粗糙度、crest 开关交给三套独立移动纹理，单帧能量可跳 6 倍，Bloom 只会放大闪烁。
   vec3 L = normalize(uSunDir);
   vec3 H = normalize(L + V);
   float NoL = max(dot(N, L), 0.0);
   float NoH = max(dot(N, H), 0.0);
   float VoH = max(dot(V, H), 0.0);
-  float crest = rippleA.a * 0.45 + rippleC.a * 0.55;
-  float crestWeight = smoothstep(0.22, 0.72, crest) * mix(0.32, 1.0, rippleD.b);
-  float flatPath = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), L), 0.0), 30.0);
-  // 宽瓣只铺一条柔和暖光，不进入大面积过曝；锐瓣才由稀疏 crest 切成 HDR 闪点。
-  float broadSpec = mwSunGGX(0.19, max(NoV, 0.025), max(NoL, 0.005), NoH, VoH) * 0.085;
-  broadSpec = min(0.09, broadSpec + flatPath * 0.025);
-  float sharpRoughness = mix(0.072, 0.052, uHq) * mix(1.15, 0.82, rippleB.b);
-  float sharpSpec = mwSunGGX(sharpRoughness, max(NoV, 0.025), max(NoL, 0.005), NoH, VoH);
-  sharpSpec = sharpSpec / (1.0 + sharpSpec / 1.35);
-  float brokenPath = flatPath * crestWeight * 0.22;
-  float specEnergy = min(0.55, broadSpec + sharpSpec * crestWeight + brokenPath);
+  vec3 macroH = normalize(L + V);
+  float macroNoL = max(dot(macroN, L), 0.0);
+  float macroNoH = max(dot(macroN, macroH), 0.0);
+  float macroVoH = max(dot(V, macroH), 0.0);
+  float flatPath = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), L), 0.0), 18.0);
+  float roadRaw = mwSunGGX(0.21, max(NoV, 0.025), max(macroNoL, 0.005), macroNoH, macroVoH) * 0.11;
+  roadRaw += flatPath * 0.06;
+  float stableRoad = 0.14 * (1.0 - exp(-roadRaw / 0.14));
+  float crestStable = rippleA.a * 0.65 + rippleC.a * 0.35;
+  float crestAa = fwidth(crestStable) * 1.5;
+  float crestMod = mix(0.65, 1.0, smoothstep(0.28 - crestAa, 0.76 + crestAa, crestStable));
+  float sharpRoughness = mix(0.085, 0.074, uHq) + 0.045 * smoothstep(24.0, 90.0, dist);
+  vec2 normalFootprint = fwidth(detailN);
+  float normalVariance = min(0.004, dot(normalFootprint, normalFootprint) * 0.5);
+  sharpRoughness = min(0.22, sqrt(sharpRoughness * sharpRoughness + normalVariance));
+  float sharpRaw = mwSunGGX(sharpRoughness, max(abs(dot(N, V)), 0.025), max(NoL, 0.005), NoH, VoH);
+  float stableSparkle = 0.18 * (1.0 - exp(-sharpRaw / 0.18)) * crestMod;
+  float specEnergy = 0.3 * (1.0 - exp(-(stableRoad + stableSparkle) / 0.3));
   float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
   vec3 sunColor = mix(vec3(12.0, 4.5, 1.4), vec3(10.5, 9.8, 8.4), sunHeight);
   float sunVisible = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
@@ -833,6 +960,8 @@ uniform vec3 uSkyTint;
 uniform float uSkyDarken;
 uniform mat4 uReflectionMatrix;
 varying float vLF;
+varying float vSkyBright;
+varying float vBlockBright;
 varying vec3 vTint;
 varying float vSkyVis;
 varying vec3 vWPos;
@@ -866,6 +995,8 @@ uniform float uHasRefraction;
 uniform sampler2D uReflectionColor;
 uniform float uHasReflection;
 varying float vLF;
+varying float vSkyBright;
+varying float vBlockBright;
 varying vec3 vTint;
 varying float vSkyVis;
 varying vec3 vWPos;
@@ -969,6 +1100,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
    *  投影阴影是光影包第一辨识度(满地树影/山影)——曾只给高档,标准档画面永远是平的
    *  ("还是不像光影"主因之一)。标准用 2-tap 硬一点的影省采样,集显可担。 */
   setLightingQuality(q: LightingQuality): void {
+    if (q === this.lightingQuality) return;
+    this.lightingQuality = q;
     this.uShaders.value = q !== 'off' ? 1 : 0;
     // 光影水已在 shader 内把折射背景、吸收、倒影和高光合成为最终不透明颜色。
     // 它必须进入不透明队列并写深度；继续使用透明排序会让远水覆盖近水、跨 chunk 跳变，
@@ -978,13 +1111,15 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.waterMat.depthWrite = shadedWater;
     this.waterMat.opacity = shadedWater ? 1 : 0.78;
     this.waterMat.needsUpdate = true;
-    this.sun.castShadow = q !== 'off';
+    this.sun.castShadow = q !== 'off' && this.sunEnabled;
     this.uHq.value = q === 'high' ? 1 : 0;
     const shadowSize = q === 'high' ? 4096 : SHADOW_MAP_SIZE;
     if (this.sun.shadow.mapSize.x !== shadowSize) {
       this.sun.shadow.mapSize.set(shadowSize, shadowSize);
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null;
+      // 下一张 shadow map 尚未生成，不能继续采样刚 dispose 的旧纹理。
+      this.uShadowOn.value = 0;
       this.uShadowTexel.value.set(1 / shadowSize, 1 / shadowSize);
     }
     const shadowHalf = q === 'high' ? 56 : 46;
@@ -997,6 +1132,15 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       sc.updateProjectionMatrix();
     }
     if (q === 'off') this.uShadowOn.value = 0;
+  }
+
+  /** 下界没有太阳：关掉不可见的太阳阴影 pass，并防止旧 shadow texture 残留在地形上。 */
+  setSunEnabled(enabled: boolean): void {
+    if (enabled === this.sunEnabled) return;
+    this.sunEnabled = enabled;
+    this.sun.castShadow =
+      enabled && this.lightingQuality !== null && this.lightingQuality !== 'off';
+    if (!enabled) this.uShadowOn.value = 0;
   }
 
   /** 雾剔除距离(随渲染距离)：超出此距离的区块完全在雾里 → 不网格化/不绘制。far 单位=格。 */

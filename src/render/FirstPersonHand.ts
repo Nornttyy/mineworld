@@ -1,11 +1,38 @@
 import * as THREE from 'three';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
+import type { LightingQuality } from '../core/settings';
 import { iconUrl } from '../ui/itemIcons';
 
 // 第一人称手臂 + 手持物：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
 // 挖/放时摆臂，走路时轻微晃动。手持方块=3D 立方体；手持物品(工具/食物/材料)=平面图标精灵；空手只露手臂。
 
 export type HeldKind = 'block' | 'sprite' | 'none';
+
+export interface HandBlockMaterialProfile {
+  roughness: number;
+  specularIntensity: number;
+}
+
+/** 手持块只分少量可靠材质档；绝不把泥土/草统一涂成高光塑料。 */
+export function handBlockMaterialProfile(id: number): HandBlockMaterialProfile {
+  const name = BLOCKS[id]?.name ?? '';
+  if (['obsidian'].includes(name)) return { roughness: 0.38, specularIntensity: 0.62 };
+  if (['iron_block', 'diamond_block', 'quartz_block'].includes(name))
+    return { roughness: 0.54, specularIntensity: 0.5 };
+  if (name.includes('log') || ['oak_planks', 'crafting_table'].includes(name))
+    return { roughness: 0.8, specularIntensity: 0.34 };
+  return { roughness: 0.91, specularIntensity: 0.26 };
+}
+
+export interface HandLightingState {
+  skyLevel: number;
+  blockLevel: number;
+  skyDarken: number;
+  sunEnabled: boolean;
+  skyColor: THREE.Color;
+  sunDirectionWorld: THREE.Vector3;
+  cameraQuaternion: THREE.Quaternion;
+}
 
 // 手持物如何渲染：注册表里的方块画 3D 立方体；有图标的物品(id≥256)画平面精灵；其余只露手臂。
 export function heldRenderKind(id: number | null): HeldKind {
@@ -110,6 +137,17 @@ export class FirstPersonHand {
   private eatT = 0; // 吃东西计时（驱动抖动）
   private hurtT = 0; // 受击抖动余量 1→0（被攻击时置 1，逐帧衰减；驱动手快速抖一下）
   private bright = 1; // 环境亮度(0..1)：洞里/夜里手臂+手持物一起变暗(MC 实体光照)，setBrightness 平滑喂入
+  private lightingQuality: LightingQuality = 'off';
+  private readonly skyLight = new THREE.HemisphereLight(0xdcecff, 0x182031, 0);
+  private readonly skyFill = new THREE.AmbientLight(0xdcecff, 0);
+  private readonly blockLight = new THREE.AmbientLight(0xff8d3a, 0);
+  private readonly sunLight = new THREE.DirectionalLight(0xffffff, 0);
+  private readonly invViewQ = new THREE.Quaternion();
+  private readonly viewSun = new THREE.Vector3();
+  private readonly viewUp = new THREE.Vector3();
+  private readonly coolSky = new THREE.Color().setRGB(0.68, 0.82, 1.0);
+  private readonly lowSun = new THREE.Color().setRGB(1.38, 0.58, 0.16);
+  private readonly noonSun = new THREE.Color().setRGB(1.08, 1.0, 0.88);
 
   constructor(atlas: THREE.Texture) {
     this.atlas = atlas;
@@ -123,6 +161,14 @@ export class FirstPersonHand {
     this.root.position.set(0.5, -0.45, -0.7); // 右下、稍前
     this.root.rotation.set(0.2, -0.5, 0.45); // 斜插入
     this.scene.add(this.root);
+    this.sunLight.castShadow = false;
+    this.scene.add(
+      this.skyLight,
+      this.skyFill,
+      this.blockLight,
+      this.sunLight,
+      this.sunLight.target,
+    );
   }
 
   resize(aspect: number): void {
@@ -151,7 +197,55 @@ export class FirstPersonHand {
     this.bright += (b - this.bright) * 0.12;
     const c = this.bright;
     (this.arm.material as THREE.MeshBasicMaterial).color.setScalar(c);
-    if (this.item) (this.item.material as THREE.MeshBasicMaterial).color.setScalar(c);
+    if (this.item?.material instanceof THREE.MeshBasicMaterial)
+      this.item.material.color.setScalar(c);
+  }
+
+  /** 光影档手持块使用与世界一致的冷天光、暖火光和太阳方向；off 保留原版固定面亮度。 */
+  setLightingQuality(q: LightingQuality): void {
+    if (q === this.lightingQuality) return;
+    this.lightingQuality = q;
+    if (q === 'off') {
+      this.skyLight.intensity = 0;
+      this.skyFill.intensity = 0;
+      this.blockLight.intensity = 0;
+      this.sunLight.intensity = 0;
+    }
+    const id = this.itemId;
+    this.itemId = null;
+    this.setHeld(id);
+  }
+
+  setLighting(state: HandLightingState): void {
+    if (this.lightingQuality === 'off') return;
+    const mcBright = (level: number): number => {
+      const f = THREE.MathUtils.clamp(level, 0, 15) / 15;
+      return f / (4 - 3 * f);
+    };
+    const sky = state.sunEnabled ? mcBright(state.skyLevel - state.skyDarken) : 0;
+    const block = mcBright(state.blockLevel);
+    const approach = (current: number, target: number): number =>
+      current + (target - current) * 0.14;
+    this.skyLight.color.copy(state.skyColor).lerp(this.coolSky, 0.25);
+    this.skyLight.groundColor.setRGB(0.25, 0.3, 0.4);
+    // 世界 shader 在无光处仍留 3–4% 轮廓；手持块保持同样下限，并平滑跨越粗光照格。
+    this.skyLight.intensity = approach(this.skyLight.intensity, Math.max(0.035, sky * 1.05));
+    this.skyFill.color.copy(this.skyLight.color);
+    this.skyFill.intensity = approach(this.skyFill.intensity, Math.max(0.012, sky * 0.32));
+    this.blockLight.color.setRGB(1.0, 0.56, 0.25);
+    this.blockLight.intensity = approach(this.blockLight.intensity, block * 0.62);
+
+    this.invViewQ.copy(state.cameraQuaternion).invert();
+    this.viewSun.copy(state.sunDirectionWorld).applyQuaternion(this.invViewQ).normalize();
+    this.viewUp.set(0, 1, 0).applyQuaternion(this.invViewQ).normalize();
+    this.sunLight.position.copy(this.viewSun).multiplyScalar(5);
+    this.sunLight.target.position.set(0, 0, 0);
+    this.skyLight.position.copy(this.viewUp);
+    const sunHeight = THREE.MathUtils.clamp(state.sunDirectionWorld.y * 3, 0, 1);
+    this.sunLight.color.copy(this.lowSun).lerp(this.noonSun, sunHeight);
+    const sunAccess = state.sunEnabled ? THREE.MathUtils.smoothstep(state.skyLevel, 11, 15) : 0;
+    const sunUp = THREE.MathUtils.smoothstep(state.sunDirectionWorld.y, 0.02, 0.2);
+    this.sunLight.intensity = approach(this.sunLight.intensity, sunAccess * sunUp * 1.55);
   }
 
   setHeld(id: number | null): void {
@@ -160,14 +254,27 @@ export class FirstPersonHand {
     if (this.item) {
       this.root.remove(this.item);
       this.item.geometry.dispose();
+      if (Array.isArray(this.item.material)) {
+        for (const material of this.item.material) material.dispose();
+      } else {
+        this.item.material.dispose();
+      }
       this.item = null;
     }
     const kind = heldRenderKind(id);
     if (kind === 'block' && id !== null) {
-      this.item = new THREE.Mesh(
-        blockCube(id, 0.32),
-        new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true }),
-      );
+      const profile = handBlockMaterialProfile(id);
+      const material =
+        this.lightingQuality === 'off'
+          ? new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true })
+          : new THREE.MeshPhysicalMaterial({
+              map: this.atlas,
+              roughness: profile.roughness,
+              metalness: 0,
+              ior: 1.35,
+              specularIntensity: profile.specularIntensity,
+            });
+      this.item = new THREE.Mesh(blockCube(id, 0.32), material);
       this.item.position.set(-0.02, 0.16, 0.04); // 握在手臂上端
       this.item.rotation.set(-0.1, 0.6, 0.1);
       this.root.add(this.item);
@@ -177,7 +284,12 @@ export class FirstPersonHand {
       if (tex) {
         this.item = new THREE.Mesh(
           new THREE.PlaneGeometry(0.34, 0.34),
-          new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
+          new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            alphaTest: 0.5,
+            side: THREE.DoubleSide,
+          }),
         );
         this.item.position.set(0.04, 0.2, 0.04);
         this.item.rotation.set(0, -0.35, 0.35); // 斜一点，像握着柄

@@ -307,6 +307,8 @@ export class Game {
   private readonly _godSunColor = new THREE.Color();
   private readonly _godSunWorld = new THREE.Vector3();
   private readonly _godFwd = new THREE.Vector3(); // 相机朝向（判太阳是否在前方，防背后投影出 NaN→黑屏）
+  private readonly _handSun = new THREE.Vector3();
+  private readonly _handSkyColor = new THREE.Color();
 
   constructor(canvas: HTMLCanvasElement, save: WorldSave, multiplayer: MultiplayerClient | null = null) {
     const settings = loadSettings();
@@ -360,6 +362,7 @@ export class Game {
       this.chunks.setWaterReflection(color, textureMatrix),
     );
     this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
+    this.chunks.setSunEnabled(this.dimension === 'overworld');
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     // welcome 到创建 Game 之间可能已经收到了别人的方块包；MultiplayerClient 会排队，直到这里世界/网格都就绪后再交付。
     if (this.multiplayer) this.bindMultiplayer(this.multiplayer);
@@ -370,6 +373,7 @@ export class Game {
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
     this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
     this.hand = new FirstPersonHand(atlas);
+    this.hand.setLightingQuality(settings.lightingQuality);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
     this.skyObjects.setLightingQuality(settings.lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
@@ -702,6 +706,7 @@ export class Game {
     this.save.currentDimension = target;
     this.buildDimension(target);
     this.chunks.setWorld(this.world);
+    this.chunks.setSunEnabled(target === 'overworld');
     old.dispose();
     // 流体活跃集：FluidSim 无公开 clear（其 active 集每刻 tick 后自动清空），故无需手动重置——非致命，跳过。
     // 还原目标维度的生物（清掉来源维度的）
@@ -983,11 +988,17 @@ export class Game {
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
       this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
-      // 太阳投影阴影：节流——shadow pass 开销大、太阳走得慢，每 6 帧才摆光 + 重渲一次 shadow map(阴影默认常开，不靠光影开关)
-      if (++this.shadowTick >= 6) {
+      // 太阳投影阴影：只在主世界光影档运行；下界没有太阳，不能残留“隐形太阳”阴影 pass。
+      if (
+        this.dimension === 'overworld' &&
+        this.lightingQuality !== 'off' &&
+        ++this.shadowTick >= 6
+      ) {
         this.shadowTick = 0;
         this.chunks.updateSun(this.worldTime, this.player.pos.x, this.player.pos.y, this.player.pos.z);
         this.renderer.markShadowDirty();
+      } else if (this.dimension !== 'overworld' || this.lightingQuality === 'off') {
+        this.shadowTick = 0;
       }
       this.updateWater();
       this.updateHighlight();
@@ -1009,8 +1020,36 @@ export class Game {
       this.hand.setEating(playing && this.eating);
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
-      // 手持/手臂按玩家眼睛处环境光变暗(MC 实体光照)：洞里/夜里手不再自发光
-      this.hand.setBrightness(this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z));
+      const [handSky, handBlock] = this.chunks.lightLevelAt(
+        this.player.pos.x,
+        this.player.pos.y + EYE,
+        this.player.pos.z,
+      );
+      // 手持/手臂按眼睛处环境光变暗。下界刚切换、光照网格尚未回传时的
+      // [15,0] 是通用 fallback，不是真天光；先压暗它，避免过门后瞬间闪白。
+      const handEntityLight =
+        this.dimension === 'nether' && handSky > 14.5 && handBlock < 0.5
+          ? 0.08
+          : this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z);
+      this.hand.setBrightness(handEntityLight);
+      const handPhi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
+      this._handSun.set(Math.cos(handPhi), Math.sin(handPhi), 0.1).normalize();
+      const handSkyState = skyStateAt(this.worldTime, this.dimension);
+      this._handSkyColor.setRGB(
+        handSkyState.worldTint[0],
+        handSkyState.worldTint[1],
+        handSkyState.worldTint[2],
+        THREE.SRGBColorSpace,
+      );
+      this.hand.setLighting({
+        skyLevel: handSky,
+        blockLevel: handBlock,
+        skyDarken: this.skyDarkenNow,
+        sunEnabled: this.dimension === 'overworld',
+        skyColor: this._handSkyColor,
+        sunDirectionWorld: this._handSun,
+        cameraQuaternion: this.renderer.camera.quaternion,
+      });
       if (this.hand.camera.aspect !== this.renderer.camera.aspect) {
         this.hand.resize(this.renderer.camera.aspect);
       }
@@ -1145,6 +1184,7 @@ export class Game {
   setLightingQuality(q: LightingQuality): void {
     this.lightingQuality = q;
     this.chunks.setLightingQuality(q);
+    this.hand.setLightingQuality(q);
     this.skyObjects.setLightingQuality(q);
     // off 档立即关闭 god-ray 后处理（释放 RT），避免残留
     if (q === 'off') this.renderer.setGodRays(null);
@@ -2094,7 +2134,7 @@ export class Game {
 
     // 强度：太阳高于地平线 + 在屏幕内才有光束；高度平滑过渡（tan-like 0..1）。
     let intensity = 0;
-    if (sunUp > 0 && facing > 0 && onScreen) {
+    if (this.dimension === 'overworld' && sunUp > 0 && facing > 0 && onScreen) {
       // 平滑渐入：太阳刚过地平线时强度 0，正午偏强。历史：0.6=白纱(当时光晕150+泛光1.0+×1.15 齐叠)
       // →0.32 用户嫌淡 →0.45 仍嫌淡 →0.6(白纱三因子已各自治理,现在 0.6 只剩光束本体)。
       intensity = Math.min(0.6, sunUp * 2.6);
