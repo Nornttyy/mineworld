@@ -546,6 +546,7 @@ varying vec3 vWaterBaseWPos;
 varying vec2 vWaveSlope;
 varying float vWaveHeight;
 varying float vWaveTrust;
+varying float vWaveSpatialTrust;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -627,6 +628,9 @@ float mwSpatialTrust = smoothstep(0.72, 0.98, mwDepthGate)
   * smoothstep(0.72, 0.98, mwEdgeGate)
   * smoothstep(0.72, 0.98, mwLevelGate);
 vWaveTrust = mwSpatialTrust * mwLimited.z * (1.0 - mwIntegerTop);
+// 破浪带只需要知道这里是否为开阔、完整的水面，不能混入 limiter 的 capTrust。
+// 否则真正到达浪峰上限时白浪反而会被挖断，运动中又会像闪烁。
+vWaveSpatialTrust = mwSpatialTrust * (1.0 - mwIntegerTop);
 transformed.y += mwDisp;
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterDepth = abs(aTop);
@@ -665,6 +669,7 @@ varying vec3 vWaterBaseWPos;
 varying vec2 vWaveSlope;
 varying float vWaveHeight;
 varying float vWaveTrust;
+varying float vWaveSpatialTrust;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -835,7 +840,7 @@ if (uShaders < 0.5) {
   // Fresnel 能量按稳定的基准海平面计算；macroN 仍负责倒影方向/UV 的流动。
   // 若让移动法线同时控制 Fresnel，掠射角的五次方会把亮天空切成开关式碎白岛。
   float NoV = clamp(abs(stableV.y), 0.0, 1.0);
-  float surfaceRoughness = clamp(0.075 + 0.035 * smoothstep(28.0, 110.0, dist), 0.075, 0.11);
+  float surfaceRoughness = clamp(0.11 + 0.06 * smoothstep(28.0, 110.0, dist), 0.11, 0.17);
   float skyHeight = smoothstep(-0.02, 0.72, R.y);
   vec3 reflectedSky = mix(uSkyRefl, uSkyTop, skyHeight);
   float cloudTravel = max(0.0, 232.0 - vWPos.y) / max(R.y, 0.08);
@@ -847,12 +852,12 @@ if (uShaders < 0.5) {
   // Planar RT 已经含真实云，这里只做少量兜底；过重会把浪面盖成大片灰斑。
   float proceduralCloudMix = cloud * 0.22;
 
-  // 镜像倒影由解析几何长浪主导，仅叠亚像素级 A/B 宏观纹理。
-  // C/D 微波仍只参与折射与粗糙度，不能把高对比 RT 切成碎亮点。
+  // 镜像倒影只由连续的解析几何长浪扭曲。A/B/C/D 动态纹理仍参与折射与
+  // 水面细节，但不再推动高对比倒影，避免树影/云边缘在真机上细碎闪动。
   vec2 reflectionBaseUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
   vec2 reflectionUv = reflectionBaseUv;
   vec2 reflectionPx = clamp(
-    geomTilt * mix(40.0, 44.0, uHq) + macroNoiseTilt * mix(10.0, 12.0, uHq),
+    geomTilt * mix(40.0, 44.0, uHq),
     vec2(-6.0),
     vec2(6.0)
   );
@@ -889,26 +894,27 @@ if (uShaders < 0.5) {
     vec2 reflectionEdgeOut = smoothstep(reflectionGuard, reflectionGuard + reflectionFeather, vec2(1.0) - reflectionBaseUv);
     float reflectionBlend = reflectionEdgeIn.x * reflectionEdgeIn.y * reflectionEdgeOut.x * reflectionEdgeOut.y;
     float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0)) * reflectionBlend;
-    // 平面 RT 已含真实云；程序云只补 RT 外/低混合区域，避免两套云影重叠滑动。
-    reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix * (1.0 - planarMix));
+    // 平面 RT 已含真实云，绝不能再叠一层不同相位的程序云；双云会在水上形成
+    // 与天空不对应的灰斑，运动时也会被误认成反射闪烁。
     reflectedSky = mix(reflectedSky, planarReflection, planarMix);
   } else {
     reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix);
   }
 
-  // 游戏化到约 4% 的表面 F0：俯视时也能读到波纹反射，但远低于旧版镜面塑料。
-  float stableFresnel = min(0.66, 0.04 + 0.96 * pow(1.0 - NoV, 4.4));
+  // 宽而受控的 Fresnel：正视保留少量反射，向掠角平缓增长；旧式五次方在中角
+  // 长期接近零、临近地平线才突然铺成镜面，数学连续但视觉像硬切。
+  float stableFresnel = min(0.52, 0.05 + 0.47 * pow(1.0 - NoV, 3.2));
   // 只让解析几何长浪影响 Fresnel，并严格限制在稳定平面的窄范围内。
   // 因而掠视角会出现连续的明暗浪带，但 A/B/C/D 细波不会把天空切成闪烁亮岛。
   float geomNoV = clamp(abs(dot(geomN, V)), 0.0, 1.0);
-  float geomFresnel = min(0.66, 0.04 + 0.96 * pow(1.0 - geomNoV, 4.4));
+  float geomFresnel = min(0.52, 0.05 + 0.47 * pow(1.0 - geomNoV, 3.2));
   // 低可信岸角使用逐三角 faceN，只让它参与普通折射，不拿来切换高对比反射能量。
   float geomFresnelWeight = 0.72 * smoothstep(0.45, 0.92, waveTrust);
   float fresnel = mix(stableFresnel, geomFresnel, geomFresnelWeight);
   fresnel = clamp(
     fresnel,
-    max(0.015, stableFresnel - 0.035),
-    min(0.66, stableFresnel + 0.055)
+    max(0.02, stableFresnel - 0.025),
+    min(0.52, stableFresnel + 0.04)
   );
   float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
   vec3 col = mix(refracted, reflectedSky * 0.94, fresnel * reflectionGate);
@@ -934,14 +940,90 @@ if (uShaders < 0.5) {
   float crestBias = mix(0.72, 1.0, smoothstep(-0.35, 0.65, waveRelief));
   // 岸角/薄水回退的是每三角 faceN，fwidth 无法跨三角边界做 AA；那里仅保留稳定底带。
   float geomRoadTrust = smoothstep(0.70, 0.95, waveTrust);
-  float roadRaw = flatPath * 0.012;
-  roadRaw += geomPath * geomAA * crestBias * geomRoadTrust * 0.075;
-  roadRaw += macroPath * macroAA * crestBias * geomRoadTrust * 0.035;
-  float specEnergy = 0.14 * (1.0 - exp(-roadRaw / 0.14));
+  float roadRaw = flatPath * 0.006;
+  roadRaw += geomPath * geomAA * crestBias * geomRoadTrust * 0.052;
+  roadRaw += macroPath * macroAA * crestBias * geomRoadTrust * 0.016;
+  float specEnergy = 0.11 * (1.0 - exp(-roadRaw / 0.11));
   float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
   vec3 sunColor = mix(vec3(12.0, 4.5, 1.4), vec3(10.5, 9.8, 8.4), sunHeight);
   float sunVisible = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
   col += sunColor * specEnergy * sunVisible;
+
+  // 开放海面的解析破浪带：与几何中浪使用同一方向、波长和速度，因此白浪会
+  // 一道一道沿真实浪峰推进，而不是粘在屏幕或倒影纹理上的噪点。
+  vec2 breakerP = vWaterBaseWPos.xz;
+  vec2 breakerDir = vec2(-0.419, 0.908);
+  vec2 breakerTangent = vec2(-0.908, -0.419);
+  float breakerSwell = dot(breakerP, vec2(0.821, 0.571)) * 0.20 + uTime * 0.24;
+  float breakerAlong = dot(breakerP, breakerTangent);
+  // 两级低频横向摆动把平行载波弯成自然浪脊；尺度足够大，不会产生屏幕空间噪点。
+  float breakerCurve = sin(
+    breakerAlong * 0.075 - uTime * 0.045 + sin(breakerSwell) * 0.60
+  );
+  float breakerPhase = dot(breakerP, breakerDir) * 0.80 - uTime * 0.58
+    + sin(breakerSwell) * 0.38 + breakerCurve * 0.42;
+  // 浪峰 pi/2 映射到周期坐标 0；相位域 fwidth 在波峰处仍可靠，远景不会缩成闪点。
+  float breakerCycle = fract((breakerPhase - 1.5707963) * 0.1591549431 + 0.5) - 0.5;
+  float breakerWidthWave = 0.5 + 0.5 * sin(
+    breakerAlong * 0.19 - uTime * 0.031 + sin(breakerSwell * 0.73) * 0.42
+  );
+  float breakerWidth = mix(0.72, 1.18, breakerWidthWave);
+  float breakerDistance = abs(breakerCycle) / breakerWidth;
+  float breakerPixel = max(fwidth(breakerCycle) * 1.25, 0.002);
+  float breakerOuter = 1.0 - smoothstep(
+    0.070 - breakerPixel,
+    0.105 + breakerPixel,
+    breakerDistance
+  );
+  float breakerCore = 1.0 - smoothstep(
+    0.026 - breakerPixel,
+    0.052 + breakerPixel,
+    breakerDistance
+  );
+  float breakerSubpixel = 1.0 - smoothstep(0.060, 0.135, fwidth(breakerCycle));
+  breakerOuter *= breakerSubpixel;
+  breakerCore *= breakerSubpixel;
+
+  // 沿浪脊以几十格尺度缓慢分段，最低仍保留连续淡带，不使用高频噪声硬切。
+  float breakerPacket01 = 0.5 + 0.5 * sin(
+    breakerAlong * 0.115 + uTime * 0.025
+    + 0.45 * sin(breakerAlong * 0.043 - uTime * 0.013)
+  );
+  float breakerPacketFine = 0.5 + 0.5 * sin(
+    breakerAlong * 0.28 - uTime * 0.041
+    + 0.55 * sin(breakerAlong * 0.091 + uTime * 0.017)
+  );
+  float breakerPacketField = breakerPacket01 * 0.64 + breakerPacketFine * 0.36;
+  float breakerPacket = mix(0.06, 1.0, smoothstep(0.34, 0.69, breakerPacketField));
+  float breakerFront = mix(
+    0.62,
+    1.0,
+    smoothstep(-0.045 - breakerPixel, 0.070 + breakerPixel, breakerCycle)
+  );
+  // 空间可信度不包含浪峰 limiter；另以水深/岸线/视角筛掉浅滩、瀑布、岸边与水下表面。
+  float breakerTrust = smoothstep(0.45, 0.90, vWaveSpatialTrust)
+    * smoothstep(1.35, 3.0, vWaterDepth)
+    * (1.0 - smoothstep(0.02, 0.22, vShore))
+    * smoothstep(0.015, 0.12, stableV.y)
+    * horiz;
+  // 其他交叉波只温和调制强弱，绝不把整道浪峰瞬间开关。
+  float breakerHeight = mix(0.45, 1.0, smoothstep(0.05, 0.72, waveRelief));
+  float breakerSwellGate = mix(0.55, 1.0, smoothstep(-0.25, 0.65, sin(breakerSwell)));
+  float breakerFoam = (breakerOuter * 0.055 + breakerCore * 0.145)
+    * breakerFront * breakerPacket * breakerHeight * breakerSwellGate
+    * breakerTrust * vSkyVis
+    * mix(0.62, 1.0, pow(1.0 - NoV, 0.65))
+    * mix(0.18, 1.0, clamp(uSkyMul, 0.0, 1.0))
+    * mix(0.90, 1.10, uHq);
+  breakerFoam = clamp(breakerFoam, 0.0, 0.20);
+  // 白沫只能提亮水色，不能把已经更亮的太阳光路压成灰洞；它本身仍为非 HDR，
+  // 因而不会制造新的 Bloom 闪点。
+  vec3 breakerColor = mix(
+    vec3(0.10, 0.22, 0.27),
+    vec3(0.74, 0.87, 0.92),
+    clamp(uSkyMul, 0.0, 1.0)
+  );
+  col = mix(col, max(col, breakerColor), breakerFoam);
 
   // 岸边只保留窄接触泡沫，不再把整片浅海刷成白边。
   float contact = (1.0 - smoothstep(0.055, 0.42, centerThickness)) * smoothstep(0.05, 0.4, vShore);
