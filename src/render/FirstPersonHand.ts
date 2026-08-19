@@ -137,6 +137,7 @@ export class FirstPersonHand {
   private eatT = 0; // 吃东西计时（驱动抖动）
   private hurtT = 0; // 受击抖动余量 1→0（被攻击时置 1，逐帧衰减；驱动手快速抖一下）
   private bright = 1; // 环境亮度(0..1)：洞里/夜里手臂+手持物一起变暗(MC 实体光照)，setBrightness 平滑喂入
+  private underwater = false;
   private lightingQuality: LightingQuality = 'off';
   private readonly skyLight = new THREE.HemisphereLight(0xdcecff, 0x182031, 0);
   private readonly skyFill = new THREE.AmbientLight(0xdcecff, 0);
@@ -148,6 +149,8 @@ export class FirstPersonHand {
   private readonly coolSky = new THREE.Color().setRGB(0.68, 0.82, 1.0);
   private readonly lowSun = new THREE.Color().setRGB(1.38, 0.58, 0.16);
   private readonly noonSun = new THREE.Color().setRGB(1.08, 1.0, 0.88);
+  private readonly underwaterTint = new THREE.Color().setRGB(0.62, 0.84, 0.96);
+  private readonly neutralTint = new THREE.Color(1, 1, 1);
 
   constructor(atlas: THREE.Texture) {
     this.atlas = atlas;
@@ -195,10 +198,14 @@ export class FirstPersonHand {
   /** 环境亮度(由 Game 每帧采玩家眼睛处光照传入)：乘到手臂/手持材质色上。内部平滑,跨光照格不跳变。 */
   setBrightness(b: number): void {
     this.bright += (b - this.bright) * 0.12;
-    const c = this.bright;
-    (this.arm.material as THREE.MeshBasicMaterial).color.setScalar(c);
-    if (this.item?.material instanceof THREE.MeshBasicMaterial)
-      this.item.material.color.setScalar(c);
+    this.applyViewTint();
+  }
+
+  /** 覆盖层不经过世界后处理，因此在这里施加相同的近距离水体光谱过滤。 */
+  setUnderwater(underwater: boolean): void {
+    if (underwater === this.underwater) return;
+    this.underwater = underwater;
+    this.applyViewTint();
   }
 
   /** 光影档手持块使用与世界一致的冷天光、暖火光和太阳方向；off 保留原版固定面亮度。 */
@@ -227,6 +234,7 @@ export class FirstPersonHand {
     const approach = (current: number, target: number): number =>
       current + (target - current) * 0.14;
     this.skyLight.color.copy(state.skyColor).lerp(this.coolSky, 0.25);
+    if (this.underwater) this.skyLight.color.multiply(this.underwaterTint);
     this.skyLight.groundColor.setRGB(0.25, 0.3, 0.4);
     // 世界 shader 在无光处仍留 3–4% 轮廓；手持块保持同样下限，并平滑跨越粗光照格。
     this.skyLight.intensity = approach(this.skyLight.intensity, Math.max(0.035, sky * 1.05));
@@ -243,9 +251,13 @@ export class FirstPersonHand {
     this.skyLight.position.copy(this.viewUp);
     const sunHeight = THREE.MathUtils.clamp(state.sunDirectionWorld.y * 3, 0, 1);
     this.sunLight.color.copy(this.lowSun).lerp(this.noonSun, sunHeight);
+    if (this.underwater) this.sunLight.color.multiply(this.underwaterTint);
     const sunAccess = state.sunEnabled ? THREE.MathUtils.smoothstep(state.skyLevel, 11, 15) : 0;
     const sunUp = THREE.MathUtils.smoothstep(state.sunDirectionWorld.y, 0.02, 0.2);
-    this.sunLight.intensity = approach(this.sunLight.intensity, sunAccess * sunUp * 1.55);
+    this.sunLight.intensity = approach(
+      this.sunLight.intensity,
+      sunAccess * sunUp * 1.55 * (this.underwater ? 0.62 : 1.0),
+    );
   }
 
   setHeld(id: number | null): void {
@@ -295,6 +307,20 @@ export class FirstPersonHand {
         this.item.rotation.set(0, -0.35, 0.35); // 斜一点，像握着柄
         this.root.add(this.item);
       }
+    }
+    this.applyViewTint();
+  }
+
+  private applyViewTint(): void {
+    const tint = this.underwater ? this.underwaterTint : this.neutralTint;
+    const armMaterial = this.arm.material as THREE.MeshBasicMaterial;
+    armMaterial.color.copy(tint).multiplyScalar(this.bright);
+    if (!this.item || Array.isArray(this.item.material)) return;
+    if (this.item.material instanceof THREE.MeshPhysicalMaterial) {
+      // 物理材质的亮度来自灯光，只乘水体色；避免与环境光再重复变暗。
+      this.item.material.color.copy(tint);
+    } else if (this.item.material instanceof THREE.MeshBasicMaterial) {
+      this.item.material.color.copy(tint).multiplyScalar(this.bright);
     }
   }
 

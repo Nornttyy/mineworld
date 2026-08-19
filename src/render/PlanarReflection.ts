@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SEA_LEVEL } from '../core/worldgen/terrain';
+import { SKY_RENDER_LAYER } from './renderLayers';
 
 /** Full source-water height: block y plus the mesher's 8/9 top surface. */
 export const SEA_SURFACE_Y = SEA_LEVEL + 8 / 9;
@@ -95,6 +96,7 @@ export class PlanarReflection {
     // Layer 0 is opaque/cutout terrain, entities, sky and clouds. Water is
     // assigned layer 1 by ChunkMeshManager and must never enter this pass.
     this.camera.layers.set(0);
+    this.camera.layers.enable(SKY_RENDER_LAYER);
   }
 
   get texture(): THREE.Texture {

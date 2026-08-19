@@ -2160,8 +2160,17 @@ export class Game {
     const ey = Math.floor(this.player.pos.y + EYE);
     const ez = Math.floor(this.player.pos.z);
     const under = isWaterId(this.world.getBlock(ex, ey, ez));
-    this.renderer.scene.fog = under ? this.underFog : this.normalFog;
-    if (this.underwaterEl) this.underwaterEl.style.display = under ? 'block' : 'none';
+    // 光影档由全屏深度重建真实水中光程；若再叠 16 格的旧蓝雾，会把水下压成
+    // 一整块纯蓝。旧雾只留给 off 档，高档让 Beer-Lambert 吸收决定能见度。
+    this.renderer.scene.fog =
+      under && this.lightingQuality === 'off' ? this.underFog : this.normalFog;
+    this.renderer.setUnderwater(under);
+    this.chunks.setCameraUnderwater(under);
+    this.hand.setUnderwater(under);
+    // 关闭光影时没有 HDR 后处理，才保留旧遮罩作兼容；标准/高档由深度吸收完成水下效果。
+    if (this.underwaterEl)
+      this.underwaterEl.style.display =
+        under && this.lightingQuality === 'off' ? 'block' : 'none';
   }
 
   private updateHighlight(): void {

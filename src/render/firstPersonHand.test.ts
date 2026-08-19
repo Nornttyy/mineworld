@@ -9,6 +9,7 @@ import {
 
 type InspectableHand = {
   item: THREE.Mesh | null;
+  arm: THREE.Mesh;
   skyLight: THREE.HemisphereLight;
   sunLight: THREE.DirectionalLight;
 };
@@ -131,5 +132,22 @@ describe('FirstPersonHand 光影材质', () => {
     expect(inspect.skyLight.intensity).toBeGreaterThan(0);
     expect(inspect.skyLight.intensity).toBeLessThan(0.05);
     expect(inspect.sunLight.intensity).toBe(0);
+  });
+
+  it('水下会给覆盖层手臂与物品施加一致的青蓝光谱过滤', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    hand.setLightingQuality('high');
+    hand.setHeld(2);
+    hand.setUnderwater(true);
+
+    const inspect = hand as unknown as InspectableHand;
+    const armColor = (inspect.arm.material as THREE.MeshBasicMaterial).color;
+    const itemColor = (inspect.item?.material as THREE.MeshPhysicalMaterial).color;
+    expect(armColor.b).toBeGreaterThan(armColor.r);
+    expect(itemColor.b).toBeGreaterThan(itemColor.r);
+
+    hand.setUnderwater(false);
+    expect((inspect.item?.material as THREE.MeshPhysicalMaterial).color.r).toBeCloseTo(1);
+    expect((inspect.item?.material as THREE.MeshPhysicalMaterial).color.g).toBeCloseTo(1);
   });
 });

@@ -37,6 +37,7 @@ uniform float uDecay;
 uniform float uWeight;
 uniform float uBloom;
 uniform float uAO;
+uniform float uUnderwater;
 
 varying vec2 vUv;
 
@@ -75,6 +76,13 @@ float mwSunSource(vec2 uv) {
   return sky * radial;
 }
 
+float mwLinearDepth(float z) {
+  const float n = 0.1;
+  const float f = 1000.0;
+  float ndc = z * 2.0 - 1.0;
+  return (2.0 * n * f) / max(0.0001, f + n - ndc * (f - n));
+}
+
 void main() {
   vec3 scene = texture2D(tColor, vUv).rgb;
   vec3 bloomColor = texture2D(tBloom, vUv).rgb;
@@ -83,6 +91,34 @@ void main() {
   if (uAO > 0.001) {
     float aoValue = texture2D(tAO, vUv).r;
     scene *= mix(1.0, aoValue, uAO);
+  }
+
+  // 水体中的多次散射会优先柔化远处细节。四个邻点只在深度接近时参与，
+  // 因此不会把前景轮廓抹进远景，也不是一张固定的屏幕模糊滤镜。
+  float underwaterPath = 0.0;
+  if (uUnderwater > 0.001) {
+    underwaterPath = min(mwLinearDepth(texture2D(tDepth, vUv).r), 38.0);
+    vec2 pixel = max(fwidth(vUv), vec2(1.0 / 4096.0));
+    float radiusPx = mix(0.65, 2.35, smoothstep(4.0, 32.0, underwaterPath));
+    vec2 dx = vec2(pixel.x * radiusPx, 0.0);
+    vec2 dy = vec2(0.0, pixel.y * radiusPx);
+    vec2 uvXp = clamp(vUv + dx, vec2(0.001), vec2(0.999));
+    vec2 uvXm = clamp(vUv - dx, vec2(0.001), vec2(0.999));
+    vec2 uvYp = clamp(vUv + dy, vec2(0.001), vec2(0.999));
+    vec2 uvYm = clamp(vUv - dy, vec2(0.001), vec2(0.999));
+    float wxp = 0.15 * exp(-abs(min(mwLinearDepth(texture2D(tDepth, uvXp).r), 38.0) - underwaterPath) * 0.32);
+    float wxm = 0.15 * exp(-abs(min(mwLinearDepth(texture2D(tDepth, uvXm).r), 38.0) - underwaterPath) * 0.32);
+    float wyp = 0.15 * exp(-abs(min(mwLinearDepth(texture2D(tDepth, uvYp).r), 38.0) - underwaterPath) * 0.32);
+    float wym = 0.15 * exp(-abs(min(mwLinearDepth(texture2D(tDepth, uvYm).r), 38.0) - underwaterPath) * 0.32);
+    float blurWeight = 0.4 + wxp + wxm + wyp + wym;
+    vec3 diffused = scene * 0.4;
+    diffused += texture2D(tColor, uvXp).rgb * wxp;
+    diffused += texture2D(tColor, uvXm).rgb * wxm;
+    diffused += texture2D(tColor, uvYp).rgb * wyp;
+    diffused += texture2D(tColor, uvYm).rgb * wym;
+    diffused /= max(blurWeight, 0.0001);
+    float diffusion = (1.0 - exp(-underwaterPath * 0.045)) * 0.32 * uUnderwater;
+    scene = mix(scene, diffused, diffusion);
   }
 
   float shaft = 0.0;
@@ -108,6 +144,21 @@ void main() {
   // Bloom 在 Renderer 中仍保留档位差异；这里收敛到原合成量的 42%，
   // 得到明显但不蒙白的 HDR 辉光。
   vec3 hdr = scene + shaft * uSunColor * uIntensity + bloomColor * (uBloom * 0.42);
+
+  // 水下不再盖一张固定蓝色 DOM 遮罩。利用主场景深度估计每条视线在水中的
+  // 光程，按 Beer-Lambert 吸收红光，并加入随距离增长的环境散射。
+  // 天空深度没有真实交点，因此把它视为一段有限的开阔水体，而不是 1000 格黑洞。
+  if (uUnderwater > 0.001) {
+    float waterPath = underwaterPath;
+    waterPath = mix(0.0, waterPath, uUnderwater);
+    vec3 sigmaA = vec3(0.052, 0.021, 0.010);
+    vec3 transmittance = exp(-sigmaA * waterPath);
+    float scatter = 1.0 - exp(-waterPath * 0.055);
+    vec3 waterLight = vec3(0.012, 0.105, 0.165) * (0.55 + 0.45 * uUnderwater);
+    hdr = hdr * transmittance + waterLight * scatter;
+    // 水中高频 Bloom 会像屏幕贴片；真实水体会先吸收并扩散这些能量。
+    hdr = mix(hdr, hdr * vec3(0.88, 0.97, 1.03), uUnderwater * 0.18);
+  }
   vec3 outc = mwNeutralToneMap(hdr);
 
   // 只给中间调增加很少的色彩密度；高光自动降饱和，防止草地荧光绿/夕阳死橙。
@@ -137,6 +188,7 @@ void main() {
       uWeight: { value: 0.9 },
       uBloom: { value: 0.0 },
       uAO: { value: 0.0 }, // AO 强度 0..1（0 = 不开 AO，完全兜底）
+      uUnderwater: { value: 0.0 },
     },
     vertexShader,
     fragmentShader,

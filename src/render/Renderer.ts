@@ -5,8 +5,9 @@ import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 import { browserViewportSize } from './browserViewport';
-import { NO_WATER_REFLECTION_LAYER, WATER_RENDER_LAYER } from './renderLayers';
+import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER, WATER_RENDER_LAYER } from './renderLayers';
 import { PlanarReflection } from './PlanarReflection';
+import { PlanarRefraction } from './PlanarRefraction';
 
 type WaterRefractionSink = (
   color: THREE.Texture | null,
@@ -60,13 +61,15 @@ export class Renderer {
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
-  private refractionRT: THREE.WebGLRenderTarget | null = null; // 无水场景：给超高质水面做屏幕空间折射
+  private planarRefraction: PlanarRefraction | null = null; // 独立相机：只捕获水面以下的真实场景
   private waterRefractionSink: WaterRefractionSink | null = null;
   private planarReflection: PlanarReflection | null = null;
   private waterReflectionSink: WaterReflectionSink | null = null;
   private readonly godStd = new GodRays(24); // standard 档：24 采样
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
+  private underwaterTarget = 0;
+  private underwaterAmount = 0;
 
   // Bloom 后处理（1/4 分辨率内部缓冲）
   private bloom: Bloom | null = null;
@@ -104,6 +107,7 @@ export class Renderer {
       fog: false,
     });
     this.skyDome = new THREE.Mesh(domeGeo, domeMat);
+    this.skyDome.layers.set(SKY_RENDER_LAYER);
     this.skyDome.frustumCulled = false;
     this.skyDome.renderOrder = -1000; // 最先画，地形随后盖上来(穹顶不写深度)
     this.scene.add(this.skyDome);
@@ -112,6 +116,7 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.camera.layers.enable(WATER_RENDER_LAYER); // 主 pass 同时看地形(layer0)和水(layer1)
     this.camera.layers.enable(NO_WATER_REFLECTION_LAYER); // 太阳正常显示，但不进入水面镜像 RT
+    this.camera.layers.enable(SKY_RENDER_LAYER); // 天空可进入主画面和镜像反射，但不进入水下折射
     this.resize();
     window.addEventListener('resize', this.onViewportChange);
     window.addEventListener('orientationchange', this.onViewportChange);
@@ -170,9 +175,12 @@ export class Renderer {
       this.rt.dispose();
       this.rt = this.buildRT(w, h);
     }
-    if (this.refractionRT !== null) {
-      this.refractionRT.dispose();
-      this.refractionRT = this.buildRefractionRT(w, h);
+    if (this.planarRefraction !== null) {
+      const pr = this.gl.getPixelRatio();
+      this.planarRefraction.resize(
+        Math.max(1, Math.round(w * pr)),
+        Math.max(1, Math.round(h * pr)),
+      );
       this.publishRefractionTarget();
     }
     if (this.planarReflection !== null) {
@@ -229,9 +237,9 @@ export class Renderer {
         this.rt.dispose();
         this.rt = null;
       }
-      if (this.refractionRT !== null) {
-        this.refractionRT.dispose();
-        this.refractionRT = null;
+      if (this.planarRefraction !== null) {
+        this.planarRefraction.dispose();
+        this.planarRefraction = null;
       }
       this.publishRefractionTarget();
       if (this.planarReflection !== null) {
@@ -254,8 +262,12 @@ export class Renderer {
     if (this.rt === null) {
       this.rt = this.buildRT(this.viewportW, this.viewportH);
     }
-    if (this.refractionRT === null) {
-      this.refractionRT = this.buildRefractionRT(this.viewportW, this.viewportH);
+    if (this.planarRefraction === null) {
+      const pr = this.gl.getPixelRatio();
+      this.planarRefraction = new PlanarRefraction(
+        Math.max(1, Math.round(this.viewportW * pr)),
+        Math.max(1, Math.round(this.viewportH * pr)),
+      );
       this.publishRefractionTarget();
     }
     if (this.planarReflection === null) {
@@ -282,6 +294,11 @@ export class Renderer {
     this.god = opts;
   }
 
+  /** 相机是否位于水下。后处理会平滑过渡，避免穿过浪面时整屏颜色硬切。 */
+  setUnderwater(underwater: boolean): void {
+    this.underwaterTarget = underwater ? 1 : 0;
+  }
+
   /**
    * 主渲染：
    *  - god == null（off 档）→ 直接 gl.render，与改动前完全一致。
@@ -290,6 +307,7 @@ export class Renderer {
    */
   render(): void {
     this.skyDome.position.copy(this.camera.position); // 穹顶跟随相机(玩家永远在天空球心)
+    this.underwaterAmount += (this.underwaterTarget - this.underwaterAmount) * 0.16;
     // ★ off 路径（god===null 或 RT 未就绪）：直接渲染，零后处理开销，与改动前完全一致。
     // bloom 必须依赖 RT（需要场景颜色纹理），故只看 god===null / rt===null 决定直渲。
     // 不再用 intensity<=0.001 做早出（否则太阳不可见时 bloom 也会消失）。
@@ -318,16 +336,26 @@ export class Renderer {
       this.publishReflectionTarget(false);
     }
 
-    // ── Step 0: 无水场景 → 折射 RT ──
-    // 水单独放在 layer1；临时关掉该层，得到不会“边写边采样”的干净颜色/深度。
-    // 之后主 pass 的水 shader 用法线扰动屏幕 UV，形成真实地形折射。
-    if (this.refractionRT !== null) {
-      const layerMask = this.camera.layers.mask;
-      this.camera.layers.disable(WATER_RENDER_LAYER);
-      this.gl.setRenderTarget(this.refractionRT);
-      this.gl.clear();
-      this.gl.render(this.scene, this.camera);
-      this.camera.layers.mask = layerMask;
+    // ── Step 0: 独立的另一介质场景 → 折射 RT ──
+    // 水上时只保留水面以下的真实地形/生物；水下时反向保留水面以上的岸景与天空。
+    // 相机姿态/投影始终与玩家一致，但这不是玩家画面的屏幕拷贝：水面自身不会进入 RT，
+    // 且裁剪平面保证只传输界面另一侧真正存在的内容。
+    if (this.planarRefraction !== null) {
+      const previousFog = this.scene.fog;
+      this.scene.fog = null; // 空气雾不属于水体；水 shader 会按真实光程做吸收/散射。
+      try {
+        this.planarRefraction.render(
+          this.gl,
+          this.scene,
+          this.camera,
+          undefined,
+          undefined,
+          this.underwaterTarget > 0.5 ? 'above' : 'below',
+        );
+      } finally {
+        this.scene.fog = previousFog;
+      }
+      this.publishRefractionTarget();
     }
 
     // ── Step 1: 完整场景渲到 RT（颜色 + 深度）──
@@ -362,6 +390,7 @@ export class Renderer {
     // bloom 强度按档位。曾 1.0/0.6=全画面蒙白纱；0.45/0.3 用户嫌不够夸张 → 0.55/0.38
     // (阈值 0.78 只筛真亮源,高光辉光更明显但亮沙/天空不再整片过阈值)。
     u['uBloom'].value = this.god.quality === 'high' ? 0.68 : 0.5;
+    u['uUnderwater'].value = this.underwaterAmount;
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;
@@ -410,34 +439,17 @@ export class Renderer {
     return rt;
   }
 
-  /** 全物理分辨率折射源；保留线性 HDR 颜色和深度，避免水底发灰、边缘穿帮。 */
-  private buildRefractionRT(cssW: number, cssH: number): THREE.WebGLRenderTarget {
-    const pr = this.gl.getPixelRatio();
-    const w = Math.max(1, Math.round(cssW * pr));
-    const h = Math.max(1, Math.round(cssH * pr));
-    const depthTexture = new THREE.DepthTexture(w, h, THREE.UnsignedIntType);
-    const rt = new THREE.WebGLRenderTarget(w, h, {
-      type: THREE.HalfFloatType,
-      depthTexture,
-      depthBuffer: true,
-    });
-    rt.texture.magFilter = THREE.LinearFilter;
-    rt.texture.minFilter = THREE.LinearFilter;
-    rt.texture.generateMipmaps = false;
-    return rt;
-  }
-
   private publishRefractionTarget(): void {
     if (!this.waterRefractionSink) return;
-    if (!this.refractionRT) {
+    if (!this.planarRefraction) {
       this.waterRefractionSink(null, null, 1, 1);
       return;
     }
     this.waterRefractionSink(
-      this.refractionRT.texture,
-      this.refractionRT.depthTexture,
-      this.refractionRT.width,
-      this.refractionRT.height,
+      this.planarRefraction.texture,
+      this.planarRefraction.depthTexture,
+      this.planarRefraction.renderTarget.width,
+      this.planarRefraction.renderTarget.height,
     );
   }
 
