@@ -1026,7 +1026,7 @@ export class Game {
       this.waterWaveTime += dt;
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
-      this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
+      this.skyObjects.update(this.worldTime, this.renderer.camera.position, dt); // 方块太阳/月亮随昼夜走天球 + 云缓飘
       // 太阳投影阴影：只在主世界光影档运行；下界没有太阳，不能残留“隐形太阳”阴影 pass。
       if (
         this.dimension === 'overworld' &&
@@ -2139,7 +2139,14 @@ export class Game {
     if (this.dimension === 'overworld' && sunElev > -0.15) {
       warmth = Math.max(0, 1 - Math.abs(sunElev) / 0.3) * Math.min(1, (sunElev + 0.15) / 0.15);
     }
-    this.renderer.setSkyColors(s.skyTop, s.skyHorizon, Math.atan2(0.1, Math.cos(sunPhi)), warmth);
+    this.renderer.setSkyColors(
+      s.skyTop,
+      s.skyHorizon,
+      sunPhi,
+      warmth,
+      sunElev,
+      this.dimension === 'overworld',
+    );
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。

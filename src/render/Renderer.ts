@@ -39,6 +39,51 @@ interface GodRayOpts {
   sunColor: THREE.Color;
 }
 
+const SKY_DOME_VERT = /* glsl */ `
+varying vec3 vSkyDir;
+void main() {
+  vSkyDir = normalize(position);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`.trim();
+
+const SKY_DOME_FRAG = /* glsl */ `
+uniform vec3 uSkyTop;
+uniform vec3 uSkyHorizon;
+uniform vec3 uSunDir;
+uniform float uWarmth;
+uniform float uSunVisible;
+varying vec3 vSkyDir;
+void main() {
+  vec3 dir = normalize(vSkyDir);
+  float up = clamp(dir.y, 0.0, 1.0);
+
+  // Rayleigh-like vertical falloff: the pale horizon stays narrow while blue
+  // continues to deepen all the way to the zenith instead of becoming a flat cap.
+  float vertical = pow(smoothstep(0.0, 1.0, up), 0.42);
+  vec3 col = mix(uSkyHorizon, uSkyTop, vertical);
+
+  // A thin optical-depth haze binds terrain fog to the sky without washing the
+  // whole frame white. The actual solar disc remains a separate HDR object.
+  float airMass = exp(-up * 8.0);
+  col = mix(col, uSkyHorizon * 1.025, airMass * 0.10);
+
+  vec3 sunDir = normalize(uSunDir);
+  float sunFacing = max(dot(dir, sunDir), 0.0);
+  float sunAbove = smoothstep(-0.10, 0.24, sunDir.y);
+  float forwardScatter = pow(sunFacing, 7.0) * exp(-up * 3.6);
+  float aureole = pow(sunFacing, 56.0);
+  vec3 scatterTint = mix(vec3(0.30, 0.43, 0.70), vec3(1.0, 0.36, 0.08), uWarmth);
+  col += scatterTint * sunAbove * uSunVisible
+    * (forwardScatter * mix(0.018, 0.13, uWarmth) + aureole * mix(0.012, 0.07, uWarmth));
+
+  // Diffuse sky must remain below the selective bloom threshold. The sun sprite,
+  // water highlights and emissive blocks are the only intended HDR sources.
+  gl_FragColor = vec4(clamp(col, vec3(0.0), vec3(0.985)), 1.0);
+  #include <colorspace_fragment>
+}
+`.trim();
+
 /**
  * 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。
  *
@@ -62,12 +107,18 @@ export class Renderer {
     });
   };
 
-  // 天空穹顶：跟随相机的反面球 + 顶点色渐变。
+  // 天空穹顶：跟随相机的反面球 + 解析大气渐变。
   // ⚠️ 曾用 scene.background 贴 2×256 canvas 渐变——它钉死在【屏幕】上：抬头看天顶还是地平线色、
   //   亮带跟着屏幕下缘走，完全不是 MC 那种"亮带贴住真地平线"的世界天空。穹顶按视线方向渐变才对。
   private readonly skyDome: THREE.Mesh;
-  private readonly skyDomeColors: THREE.BufferAttribute;
-  private lastSky = ''; // 上次套用的天空配色（相同则跳过重算顶点色）
+  private readonly skyUniforms = {
+    uSkyTop: { value: new THREE.Color() },
+    uSkyHorizon: { value: new THREE.Color() },
+    uSunDir: { value: new THREE.Vector3(1, 0, 0.1).normalize() },
+    uWarmth: { value: 0 },
+    uSunVisible: { value: 1 },
+  };
+  private lastSky = ''; // 上次套用的天空配色（相同则跳过 uniform 更新）
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
@@ -105,17 +156,14 @@ export class Renderer {
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.shadowMap.autoUpdate = false; // 不每帧重渲 shadow(开销大)；由 markShadowDirty 节流触发(昼夜慢 + 玩家移动时)
-    // 天空穹顶：半径 750(相机 far 1000 以内)、反面渲染、不写深度(god-ray 深度判定仍视穹顶处为天空)、
-    // 不受雾(fog:false)；每帧跟随相机(见 render)。顶点色由 setSkyColors 按昼夜配色重算。
+    // 天空穹顶：解析大气按真实视线仰角计算，消除旧低细分顶点渐变的平色带。
     const domeGeo = new THREE.SphereGeometry(750, 32, 24);
-    const domeVerts = domeGeo.getAttribute('position').count;
-    this.skyDomeColors = new THREE.BufferAttribute(new Float32Array(domeVerts * 3), 3);
-    domeGeo.setAttribute('color', this.skyDomeColors);
-    const domeMat = new THREE.MeshBasicMaterial({
-      vertexColors: true,
+    const domeMat = new THREE.ShaderMaterial({
+      uniforms: this.skyUniforms,
+      vertexShader: SKY_DOME_VERT,
+      fragmentShader: SKY_DOME_FRAG,
       side: THREE.BackSide,
       depthWrite: false,
-      fog: false,
     });
     this.skyDome = new THREE.Mesh(domeGeo, domeMat);
     this.skyDome.layers.set(SKY_RENDER_LAYER);
@@ -137,41 +185,28 @@ export class Renderer {
     window.visualViewport?.addEventListener('scroll', this.onViewportChange);
   }
 
-  // 昼夜更替：重算穹顶顶点色（配色/太阳方位不变则跳过）。渐变按【视线仰角】走：
-  // 地平线亮带 → 仰角 ~0.45 以上为天顶色（近似 MC：亮带贴住真地平线，与雾色衔接）。
-  // sunAz/warmth(0..1)：日出日落时太阳方位一侧地平线暖亮、背侧偏冷——真实大气的晨昏渐变。
-  setSkyColors(top: RGB, horizon: RGB, sunAz = 0, warmth = 0): void {
-    const sig = `${top.join()}|${horizon.join()}|${Math.round(sunAz * 50)}|${Math.round(warmth * 25)}`;
+  // 昼夜更替：更新解析大气参数。太阳方位/高度驱动局部 Mie 光晕，warmth 只在晨昏升高。
+  setSkyColors(
+    top: RGB,
+    horizon: RGB,
+    sunPhi = 0,
+    warmth = 0,
+    sunElevation = 0,
+    sunVisible = true,
+  ): void {
+    const sig = `${top.join()}|${horizon.join()}|${Math.round(sunPhi * 80)}|${Math.round(warmth * 40)}|${Math.round(sunElevation * 80)}|${sunVisible ? 1 : 0}`;
     if (sig === this.lastSky) return;
     this.lastSky = sig;
-    const cTop = new THREE.Color().setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
-    const cHor = new THREE.Color().setRGB(horizon[0], horizon[1], horizon[2], THREE.SRGBColorSpace);
-    const pos = (this.skyDome.geometry as THREE.SphereGeometry).getAttribute('position');
-    const arr = this.skyDomeColors.array as Float32Array;
-    for (let i = 0; i < pos.count; i++) {
-      const ny = pos.getY(i) / 750; // -1..1 仰角
-      const t = ny <= 0 ? 0 : Math.min(1, ny / 0.45);
-      const s = t * t * (3 - 2 * t); // smoothstep
-      let r = cHor.r + (cTop.r - cHor.r) * s;
-      let g = cHor.g + (cTop.g - cHor.g) * s;
-      let b = cHor.b + (cTop.b - cHor.b) * s;
-      if (warmth > 0.01) {
-        // 太阳方位夹角 → 暖染集中在太阳侧(^2.5)；只染地平线带(1-s)
-        const az = Math.atan2(pos.getZ(i), pos.getX(i));
-        const azFac = Math.pow(Math.max(0, Math.cos(az - sunAz) * 0.5 + 0.5), 2.5);
-        const k = warmth * (1 - s);
-        const shR = 0.88 + (1.24 - 0.88) * azFac; // 背侧偏冷(×0.88) ↔ 太阳侧暖亮(×1.24)
-        const shG = 0.9 + (0.97 - 0.9) * azFac;
-        const shB = 1.05 + (0.75 - 1.05) * azFac;
-        r *= 1 + (shR - 1) * k;
-        g *= 1 + (shG - 1) * k;
-        b *= 1 + (shB - 1) * k;
-      }
-      arr[i * 3] = r;
-      arr[i * 3 + 1] = g;
-      arr[i * 3 + 2] = b;
-    }
-    this.skyDomeColors.needsUpdate = true;
+    this.skyUniforms.uSkyTop.value.setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
+    this.skyUniforms.uSkyHorizon.value.setRGB(
+      horizon[0],
+      horizon[1],
+      horizon[2],
+      THREE.SRGBColorSpace,
+    );
+    this.skyUniforms.uSunDir.value.set(Math.cos(sunPhi), sunElevation, 0.1).normalize();
+    this.skyUniforms.uWarmth.value = THREE.MathUtils.clamp(warmth, 0, 1);
+    this.skyUniforms.uSunVisible.value = sunVisible ? 1 : 0;
   }
 
   resize(): void {

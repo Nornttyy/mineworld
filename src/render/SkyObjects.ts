@@ -33,25 +33,46 @@ float mwFBM(vec2 p){
   return n / 0.9375;
 }
 void main() {
-  // 更高频、稀疏的云团；旧 0.006 在低云平面上会形成遮住半个天空的巨大灰色棉团。
-  vec2 p = vW.xz * 0.0115;
-  // domain warp(一次,两处 fbm 共用)：云缘卷曲成团,不是均匀雾斑；第二时间尺度让云形慢慢演变
-  vec2 q = p + 0.28 * vec2(mwFBM(p * 1.7 + vec2(0.0, uTime * 0.0020)), mwFBM(p * 1.7 + vec2(5.2, uTime * 0.0017)));
-  vec2 drift = vec2(uTime * 0.0110, uTime * 0.0032); // 整体缓飘
-  float d = mwFBM(q + drift);
-  float edgeDetail = mwVN((q + drift) * 6.1 + vec2(uTime * 0.001, -uTime * 0.0013));
-  float density = d + (edgeDetail - 0.5) * 0.12;
-  float cov = smoothstep(0.585, 0.65, density);
-  if (cov < 0.004) discard;
-  // 体积感：朝太阳水平方向偏移再采一次,密度差→向阳侧亮、厚处底部暗(白天云要白,暗部别压狠)
+  // Two independently drifting scales plus a large domain warp form clustered,
+  // asymmetric cloud banks. The old single FBM threshold produced broad grey
+  // cushions whose outlines repeated at one obvious scale.
+  vec2 drift = vec2(uTime * 0.0105, uTime * 0.0031);
+  vec2 p = vW.xz * 0.0094 + drift;
+  vec2 warp = vec2(
+    mwFBM(p * 0.78 + vec2(3.7, uTime * 0.0013)),
+    mwFBM(p * 0.78 + vec2(-8.1, -uTime * 0.0011))
+  ) - 0.5;
+  vec2 q = p + warp * 0.72;
+  float macroShape = mwFBM(q);
+  float billow = mwFBM(q * 2.47 + vec2(13.2, -5.8) - drift * 0.31);
+  float erosion = mwVN(q * 9.3 + vec2(uTime * 0.0012, -uTime * 0.0016));
+  float density = macroShape * 0.70 + billow * 0.30 + (erosion - 0.5) * 0.085;
+  float aa = max(fwidth(density) * 1.65, 0.006);
+  float coverage = smoothstep(0.555 - aa, 0.635 + aa, density);
+  if (coverage < 0.003) discard;
+
+  // Cheap directional self-shadowing: two pairs of value-noise probes follow
+  // the horizontal sun direction. This creates lit rims and readable dark cores
+  // without the flat blurred-grey look or a costly volumetric ray march.
   vec2 sunXZ = normalize(uSunDir.xz + vec2(1e-4, 0.0));
-  float d2 = mwFBM(q + drift + sunXZ * 0.085);
-  float lit = clamp(0.82 + (d2 - d) * 4.2, 0.62, 1.03);
-  float dense = smoothstep(0.50, 0.88, d); // 厚处更白亮
-  vec3 col = uTint * mix(0.9, 1.01, dense) * lit;
+  float lightA = mwVN(q * 3.1 + sunXZ * 0.72);
+  float darkA = mwVN(q * 3.1 - sunXZ * 0.38);
+  float lightB = mwVN(q * 6.4 + sunXZ * 1.15 + vec2(7.0, -11.0));
+  float darkB = mwVN(q * 6.4 - sunXZ * 0.52 + vec2(7.0, -11.0));
+  float directional = clamp(0.5 + (lightA - darkA) * 1.15 + (lightB - darkB) * 0.42, 0.0, 1.0);
+  float core = smoothstep(0.61, 0.79, density);
+  float sunHeight = smoothstep(-0.08, 0.45, uSunDir.y);
+  vec3 shadowTint = uTint * mix(0.56, 0.76, sunHeight);
+  vec3 lightTint = mix(uTint * 0.94, vec3(1.0, 0.965, 0.90), sunHeight * 0.62);
+  float illumination = clamp(0.22 + directional * 0.72 - core * 0.18, 0.08, 0.96);
+  vec3 col = mix(shadowTint, lightTint, illumination);
+  float silverLining = (1.0 - core) * pow(directional, 2.0) * sunHeight;
+  col += vec3(1.0, 0.94, 0.82) * silverLining * 0.10;
+
   float dist = length(vW.xz - cameraPosition.xz);
-  float fade = 1.0 - smoothstep(360.0, 620.0, dist); // 远处淡出融进地平线雾
-  gl_FragColor = vec4(col, cov * 0.64 * fade);
+  float fade = 1.0 - smoothstep(430.0, 690.0, dist);
+  float alpha = coverage * mix(0.42, 0.76, core) * fade;
+  gl_FragColor = vec4(col, alpha);
   #include <colorspace_fragment>
 }
 `.trim();
@@ -264,7 +285,7 @@ const CLOUD_GRID = 28; // 云层覆盖格数（≈448 格，靠雾在地平线�
 const CLOUD_Y = 232; // 抬高云层，避免低空巨型云块贴脸遮住大半天空
 const CLOUD_NOISE_SCALE = 0.18; // 噪声频率（越小云团越大越稀）
 const CLOUD_THRESHOLD = 0.62; // 密度阈值（越高云越少）—— 解决"云太多"
-const CLOUD_DRIFT = 0.012; // 每帧飘移（格），缓风
+const CLOUD_DRIFT_SPEED = 0.72; // 每秒飘移（格），与旧 60 FPS 下的速度一致
 
 // 某世界云格是否有云（确定性，世界固定 → 可走出云底，符合 MC）。
 function cloudOn(cx: number, cz: number): boolean {
@@ -495,6 +516,21 @@ export class SkyObjects {
   /** 光影画质：off=方块像素日月+MC 体素云；standard/high=真实日月+光晕+程序化真实云。 */
   setLightingQuality(q: LightingQuality): void {
     this.lq = q;
+    if (this.dim === 'nether') {
+      for (const object of [
+        this.sun,
+        this.moon,
+        this.realSun,
+        this.sunGlow,
+        this.realMoon,
+        this.voxelClouds,
+        this.realClouds,
+        this.starGroup,
+      ]) {
+        object.visible = false;
+      }
+      return;
+    }
     const on = q !== 'off';
     this.voxelClouds.visible = !on;
     this.realClouds.visible = on;
@@ -536,7 +572,7 @@ export class SkyObjects {
   }
 
   /** 每帧：太阳/月亮按世界时间走天球；云层跟玩家、缓飘（立体云世界固定可走出云底）。 */
-  update(worldTime: number, camPos: THREE.Vector3): void {
+  update(worldTime: number, camPos: THREE.Vector3, dt: number): void {
     if (this.dim === 'nether') return; // 下界无日月云，跳过所有定位与云重建
     const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 0=日出
     // 侧倾 0.1≈MC 1.12 celestial angle(正午过天顶,影子极短)；曾 0.28=太阳永到不了头顶,正午影子仍拖长
@@ -555,7 +591,7 @@ export class SkyObjects {
     this.realMoon.position.copy(this.moon.position);
     this.realMoon.lookAt(camPos);
 
-    this.drift += CLOUD_DRIFT; // 缓风（单调，不随昼夜回绕跳变）
+    this.drift += CLOUD_DRIFT_SPEED * Math.max(0, dt); // 缓风按秒推进，不随显示器刷新率改变
 
     // 星空：随天球转(与日月同角速)、夜里渐显(白天 0)。skyDarken 0(白天)..11(半夜)。
     this.starGroup.position.copy(camPos);
@@ -567,7 +603,7 @@ export class SkyObjects {
       // 真实云：平面跟随相机(噪声用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
       // (白天白/黎明黄昏暖/夜暗蓝灰,与方块天光同一套关键帧,天色一致)。
       this.realClouds.position.set(camPos.x, CLOUD_Y, camPos.z);
-      // uTime=drift(≈0.72/s @60fps)：×shader 内 0.011 → ~1.3 格/s 的缓飘(MC 云速量级)
+      // uTime=drift(≈0.72/s)：×shader 内 0.011 → ~1.3 格/s 的缓飘(MC 云速量级)
       this.cloudUniforms.uTime.value = this.drift;
       const wt = skyStateAt(worldTime).worldTint;
       this.cloudUniforms.uTint.value.setRGB(wt[0], wt[1], wt[2], THREE.SRGBColorSpace);

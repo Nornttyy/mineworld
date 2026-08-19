@@ -9,10 +9,12 @@ describe('shared geometric water wave', () => {
   it('keeps the shader-facing coefficients numeric and the requested height curves exact', () => {
     const c = WATER_WAVE_CONSTANTS;
     for (const value of Object.values(c)) {
-      if (Array.isArray(value)) {
-        expect(value.every((component) => Number.isFinite(component))).toBe(true);
-      } else {
+      if (typeof value === 'number') {
         expect(Number.isFinite(value)).toBe(true);
+        expect(value).toBe(Number(value.toFixed(3)));
+      } else {
+        expect(value.every((component) => Number.isFinite(component))).toBe(true);
+        expect(value.every((component) => component === Number(component.toFixed(3)))).toBe(true);
       }
     }
 
@@ -25,9 +27,67 @@ describe('shared geometric water wave', () => {
 
   it('generates stable finite GLSL with the stronger deep-water curve', () => {
     expect(WATER_WAVE_GLSL).toContain('vec3 mwWaveField(vec2 p, float t, float ocean)');
+    expect(WATER_WAVE_GLSL).toContain('float pgw =');
+    expect(WATER_WAVE_GLSL).toContain('float p1w =');
+    expect(WATER_WAVE_GLSL).toContain('float p2w =');
+    expect(WATER_WAVE_GLSL).toContain('float p3w =');
+    expect(WATER_WAVE_GLSL).toContain('groupPhaseGrad');
+    expect(WATER_WAVE_GLSL).toContain('cos(p3w)');
     expect(WATER_WAVE_GLSL).toContain('float oceanH = 0.340 * q + (q * q - 0.170) * 0.040;');
     expect(WATER_WAVE_GLSL).not.toMatch(/NaN|undefined|Infinity/);
     expect(WATER_WAVE_GLSL).not.toMatch(/-0\.000/);
+  });
+
+  it('uses a bounded eight-direction spectrum without expanding the safe waterline envelope', () => {
+    const c = WATER_WAVE_CONSTANTS;
+    const directions = [c.dg, c.dgw, c.d1, c.d1w, c.d2, c.d2w, c.d3, c.d3w];
+    for (const direction of directions) {
+      expect(Math.hypot(direction[0], direction[1])).toBeCloseTo(1, 3);
+    }
+    const headingBins = new Set(
+      directions.map((direction) =>
+        Math.round(Math.atan2(direction[1], direction[0]) / (Math.PI / 12)),
+      ),
+    );
+    expect(headingBins.size).toBeGreaterThanOrEqual(6);
+
+    const waveNumbers = [
+      c.groupWaveNumber,
+      c.groupWarpWaveNumber,
+      c.wave1Number,
+      c.wave1WarpNumber,
+      c.wave2Number,
+      c.wave2WarpNumber,
+      c.wave3Number,
+      c.wave3WarpNumber,
+    ];
+    expect(new Set(waveNumbers).size).toBe(8);
+    expect(Math.max(...waveNumbers) / Math.min(...waveNumbers)).toBeGreaterThan(16);
+    for (const strength of [
+      c.groupWarpStrength,
+      c.wave1WarpStrength,
+      c.wave2WarpStrength,
+      c.wave3WarpStrength,
+    ]) {
+      expect(strength).toBeGreaterThan(0);
+      expect(strength).toBeLessThanOrEqual(0.42);
+    }
+
+    // Phase modulation bends and splits each band but never changes its [-1, 1]
+    // amplitude. The existing CPU waterline early-out therefore stays exact.
+    const maxGroup = c.groupBase + Math.abs(c.groupAmplitude);
+    const maxQ =
+      Math.abs(c.wave1Weight) * maxGroup + Math.abs(c.wave2Weight) + Math.abs(c.wave3Weight);
+    expect(maxGroup).toBe(1);
+    expect(maxQ).toBe(1);
+    const highestCrest = c.oceanLinear * maxQ + c.oceanQuadratic * (maxQ * maxQ - c.quadraticBias);
+    const lowestTrough = -c.oceanLinear * maxQ + c.oceanQuadratic * (maxQ * maxQ - c.quadraticBias);
+    const calmCrest = c.calmLinear * maxQ + c.calmQuadratic * maxQ * maxQ;
+    const calmTrough = -c.calmLinear * maxQ + c.calmQuadratic * maxQ * maxQ;
+    expect(highestCrest).toBeLessThan(0.38);
+    expect(lowestTrough).toBeGreaterThan(-0.32);
+    expect(calmCrest).toBeLessThan(0.091);
+    expect(calmTrough).toBeGreaterThanOrEqual(-0.2);
   });
 
   it('matches centered finite differences for both analytic slopes', () => {
@@ -76,6 +136,104 @@ describe('shared geometric water wave', () => {
         previous = current;
       }
     }
+  });
+
+  it('keeps half-block normal changes and dense one-frame motion below shimmer budgets', () => {
+    let maxHalfBlockSlopeDelta = 0;
+    let maxFrameHeightDelta = 0;
+    let maxFrameSlopeDelta = 0;
+    const frameSeconds = 1 / 60;
+
+    for (const time of [0, 3.75, 9.5, 17.25]) {
+      for (let z = -32; z <= 32; z += 2) {
+        for (let x = -32; x <= 32; x += 2) {
+          const current = sampleWaterWave(x, z, time, 1);
+          const nextX = sampleWaterWave(x + 0.5, z, time, 1);
+          const nextZ = sampleWaterWave(x, z + 0.5, time, 1);
+          maxHalfBlockSlopeDelta = Math.max(
+            maxHalfBlockSlopeDelta,
+            Math.hypot(nextX.slopeX - current.slopeX, nextX.slopeZ - current.slopeZ),
+            Math.hypot(nextZ.slopeX - current.slopeX, nextZ.slopeZ - current.slopeZ),
+          );
+
+          const nextFrame = sampleWaterWave(x, z, time + frameSeconds, 1);
+          maxFrameHeightDelta = Math.max(
+            maxFrameHeightDelta,
+            Math.abs(nextFrame.height - current.height),
+          );
+          maxFrameSlopeDelta = Math.max(
+            maxFrameSlopeDelta,
+            Math.hypot(nextFrame.slopeX - current.slopeX, nextFrame.slopeZ - current.slopeZ),
+          );
+        }
+      }
+    }
+
+    expect(maxHalfBlockSlopeDelta).toBeLessThan(0.08);
+    expect(maxFrameHeightDelta).toBeLessThan(0.0034);
+    expect(maxFrameSlopeDelta).toBeLessThan(0.0028);
+  });
+
+  it('breaks repeated crest spacing into an irregular but coherent train', () => {
+    const peakPositions: number[] = [];
+    const step = 0.1;
+    const z = 7.25;
+    const time = 4.5;
+    let left = sampleWaterWave(-100, z, time, 1).height;
+    let middle = sampleWaterWave(-100 + step, z, time, 1).height;
+    for (let index = 2; index <= 2000; index++) {
+      const x = -100 + index * step;
+      const right = sampleWaterWave(x, z, time, 1).height;
+      if (middle > left && middle >= right) peakPositions.push(x - step);
+      left = middle;
+      middle = right;
+    }
+
+    const intervals = peakPositions
+      .slice(1)
+      .map((position, index) => position - peakPositions[index]);
+    const mean = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+    const deviation = Math.sqrt(
+      intervals.reduce((sum, interval) => sum + (interval - mean) ** 2, 0) / intervals.length,
+    );
+    expect(peakPositions.length).toBeGreaterThan(24);
+    expect(peakPositions.length).toBeLessThan(34);
+    expect(Math.max(...intervals) / Math.min(...intervals)).toBeGreaterThan(2.5);
+    expect(deviation / mean).toBeGreaterThan(0.22);
+  });
+
+  it('keeps the analytic CPU waterline within the half-block GPU triangle surface budget', () => {
+    let maxInterpolationError = 0;
+    const cellSize = 0.5;
+    const fractions = [0.2, 0.5, 0.8] as const;
+
+    for (const time of [0, 2.75, 8.5, 16.25]) {
+      for (let z = -16; z < 16; z += cellSize) {
+        for (let x = -16; x < 16; x += cellSize) {
+          const h00 = sampleWaterWave(x, z, time, 1).height;
+          const h01 = sampleWaterWave(x, z + cellSize, time, 1).height;
+          const h11 = sampleWaterWave(x + cellSize, z + cellSize, time, 1).height;
+          const h10 = sampleWaterWave(x + cellSize, z, time, 1).height;
+
+          for (const u of fractions) {
+            for (const v of fractions) {
+              // Mesher triangles are (00,01,11) and (00,11,10).
+              const interpolated =
+                u <= v
+                  ? h00 * (1 - v) + h01 * (v - u) + h11 * u
+                  : h00 * (1 - u) + h11 * v + h10 * (u - v);
+              const analytic = sampleWaterWave(x + u * cellSize, z + v * cellSize, time, 1).height;
+              maxInterpolationError = Math.max(
+                maxInterpolationError,
+                Math.abs(interpolated - analytic),
+              );
+            }
+          }
+        }
+      }
+    }
+
+    expect(maxInterpolationError).toBeLessThan(0.006);
   });
 
   it('has visible but bounded deep-water height and slope energy on a dense fixed grid', () => {
