@@ -13,14 +13,19 @@ mkdirSync(outdir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+page.on('console', (m) => {
+  if (m.type() === 'error') errors.push('console.error: ' + m.text());
+});
 page.on('pageerror', (e) => {
   // Synthetic headless clicks cannot grant pointer lock; this is expected in screenshots.
   if (!/root document.*pointer lock/i.test(e.message)) errors.push('pageerror: ' + e.message);
 });
 
 await page.addInitScript((q) => {
-  localStorage.setItem('mineworld.settings', JSON.stringify({ volume: 70, lightingQuality: q, texturePack: 'cartoon', renderDistance: 6 }));
+  localStorage.setItem(
+    'mineworld.settings',
+    JSON.stringify({ volume: 70, lightingQuality: q, texturePack: 'cartoon', renderDistance: 6 }),
+  );
 }, quality);
 
 await page.goto(process.env.MW_URL || 'http://localhost:5173/', { waitUntil: 'networkidle' });
@@ -35,9 +40,13 @@ await page.click('#nw-create');
 
 await page.waitForFunction(() => window.__mw, null, { timeout: 60000 });
 // 冻结模拟：退出指针锁。main.ts 在 __mw 赋值【之后】才 requestPointerLock,须等它落地再退,否则重新锁上(竞态)
-await page.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+await page.evaluate(() => {
+  if (document.pointerLockElement) document.exitPointerLock();
+});
 await page.waitForTimeout(600);
-await page.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+await page.evaluate(() => {
+  if (document.pointerLockElement) document.exitPointerLock();
+});
 await page.waitForTimeout(12000); // 等 worker 铺满初始区块(SwiftShader 慢)
 
 // 找出生点附近的地表水
@@ -52,7 +61,10 @@ const info = await page.evaluate(() => {
       for (let y = 100; y > 40; y--) {
         const id = g.world.getBlock(x, y, z);
         if (id === 0) continue;
-        if (id === 9) { water = { x, y, z }; break outer; } // WATER=9
+        if (id === 9) {
+          water = { x, y, z };
+          break outer;
+        } // WATER=9
         break;
       }
     }
@@ -73,6 +85,8 @@ if (info.water) {
   views.push({ name: 'water_noon', time: 6000, pitch: -0.38, water: true });
   views.push({ name: 'water_graze', time: 6000, pitch: -0.1, water: true });
   views.push({ name: 'shore_reflection', time: 6000, pitch: -0.12, shoreReflection: true });
+  views.push({ name: 'water_under', time: 6000, pitch: -0.32, underwater: true });
+  views.push({ name: 'water_under_surface', time: 6000, pitch: 0.38, underwater: true });
 }
 
 for (const v of views) {
@@ -81,24 +95,39 @@ for (const v of views) {
     const sp = window.__spawn;
     g.worldTime = view.time;
     const surfaceY = (x, z) => {
-      for (let y = 130; y > 40; y--) if (g.world.getBlock(Math.round(x), y, Math.round(z)) !== 0) return y + 1;
+      for (let y = 130; y > 40; y--)
+        if (g.world.getBlock(Math.round(x), y, Math.round(z)) !== 0) return y + 1;
       return 80;
     };
-    let px = sp.x, pz = sp.z, yaw = view.yaw ?? 0;
-    if ((view.water || view.shoreReflection) && window.__waterPos) {
+    let px = sp.x,
+      pz = sp.z,
+      yaw = view.yaw ?? 0;
+    if ((view.water || view.shoreReflection || view.underwater) && window.__waterPos) {
       const w = window.__waterPos;
-      const dx = w.x - sp.x, dz = w.z - sp.z;
+      const dx = w.x - sp.x,
+        dz = w.z - sp.z;
       const d = Math.hypot(dx, dz) || 1;
-      if (view.shoreReflection) {
-        px = w.x + (dx / d) * 10; pz = w.z + (dz / d) * 10;
+      if (view.underwater) {
+        px = w.x;
+        pz = w.z;
+        yaw = Math.atan2(sp.z - pz, sp.x - px);
+      } else if (view.shoreReflection) {
+        px = w.x + (dx / d) * 10;
+        pz = w.z + (dz / d) * 10;
         yaw = Math.atan2(sp.z - pz, sp.x - px);
       } else {
-        px = w.x - (dx / d) * 15; pz = w.z - (dz / d) * 15;
+        px = w.x - (dx / d) * 15;
+        pz = w.z - (dz / d) * 15;
         yaw = Math.atan2(w.z - pz, w.x - px);
       }
     }
     const nearWater = (view.water || view.shoreReflection) && window.__waterPos;
-    const py = Math.max(surfaceY(px, pz), nearWater ? window.__waterPos.y + 1 : 0) + 1.2 + (view.up || 0);
+    const py =
+      view.underwater && window.__waterPos
+        ? window.__waterPos.y + 4
+        : Math.max(surfaceY(px, pz), nearWater ? window.__waterPos.y + 1 : 0) +
+          1.2 +
+          (view.up || 0);
     g.player = { pos: { x: px, y: py, z: pz }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     g.prev = g.player; // 冻结时相机用 prev 插值,必须同步,否则相机不跟传送
     g.look.yaw = yaw;

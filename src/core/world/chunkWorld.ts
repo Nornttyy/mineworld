@@ -6,6 +6,10 @@ import ChunkGenWorker from './chunkGen.worker?worker';
 
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+// 水面开阔度会在网格阶段向外查看这些格。水从“有↔无”改变时，必须用同一半径
+// 让相邻区块重建；仅水量变化不改变开阔度，仍走默认 reach=1，避免流体模拟放大重建量。
+export const WATER_WAVE_OPEN_RADIUS = 4;
+
 // 无限世界：按需生成并缓存区块列，提供世界坐标的方块读写。
 export class ChunkWorld {
   private readonly chunks = new Map<string, Chunk>();
@@ -182,6 +186,7 @@ export class ChunkWorld {
     const lx = localCoord(wx);
     const lz = localCoord(wz);
     const c = this.getChunk(cx, cz);
+    const wasWet = c.get(lx, wy, lz) === WATER && flAmount(c.getFluid(lx, wy, lz)) > 0;
     if (amount <= 0) {
       if (c.get(lx, wy, lz) === WATER) c.set(lx, wy, lz, 0);
       c.setFluid(lx, wy, lz, 0);
@@ -190,10 +195,12 @@ export class ChunkWorld {
       c.setFluid(lx, wy, lz, flByte(amount, source, falling));
     }
     c.dirty = true;
-    this.markNeighborsDirty(cx, cz, lx, lz);
+    const isWet = amount > 0;
+    this.markNeighborsDirty(cx, cz, lx, lz, wasWet !== isWet ? WATER_WAVE_OPEN_RADIUS : 1);
   }
 
-  // reach=1(默认,水流用)：仅贴边格(0/15)标脏邻区——覆盖 AO/角高度采样。
+  // reach=1(默认,仅水量变化用)：仅贴边格(0/15)标脏邻区——覆盖 AO/角高度采样。
+  // 水从有↔无的拓扑变化传 WATER_WAVE_OPEN_RADIUS，覆盖水面开阔度的角采样。
   // reach=8(玩家挖/放用,=mesher 光照 HALO)：距边界 8 格内都标脏邻区——放火把/挖洞的【光照】
   //   会渗进邻区顶点光，只标贴边会让光"卡在区块边界"直到邻区因别的原因重建(用户报的光照 bug)。
   //   水流不用 8：流水每 5 刻大量格子变动,×4 重建量会灌爆 mesh worker(挖放是低频操作,没这问题)。

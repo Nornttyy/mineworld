@@ -42,7 +42,7 @@ beforeAll(() => {
 });
 
 import { SkyObjects } from './SkyObjects';
-import { NO_WATER_REFLECTION_LAYER } from './renderLayers';
+import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER } from './renderLayers';
 
 describe('SkyObjects.setDimension', () => {
   it('setDimension("nether") hides all 6 sky objects', () => {
@@ -84,6 +84,9 @@ describe('SkyObjects.setDimension', () => {
     expect(so.realSun.layers.isEnabled(0)).toBe(false);
     expect(so.sunGlow.layers.isEnabled(NO_WATER_REFLECTION_LAYER)).toBe(true);
     expect(so.sunGlow.layers.isEnabled(0)).toBe(false);
-    expect(so.realMoon.layers.isEnabled(0)).toBe(true);
+    expect(so.realMoon.layers.isEnabled(SKY_RENDER_LAYER)).toBe(true);
+    expect(so.realMoon.layers.isEnabled(0)).toBe(false);
+    expect(so.realClouds.layers.isEnabled(SKY_RENDER_LAYER)).toBe(true);
+    expect(so.stars.layers.isEnabled(SKY_RENDER_LAYER)).toBe(true);
   });
 });

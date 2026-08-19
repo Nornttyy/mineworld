@@ -6,6 +6,7 @@ import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames, loadTorchTexture } from './atlas';
 import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
+import { SEA_LEVEL } from '../core/worldgen/terrain';
 import type { LightingQuality } from '../core/settings';
 import { makeCloudShadowTexture, makeDirectionalWaveTexture } from './surfaceNoise';
 import { WATER_RENDER_LAYER } from './renderLayers';
@@ -15,6 +16,7 @@ const perfNow = (): number => (typeof performance !== 'undefined' ? performance.
 const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
 const SHADOW_MAP_SIZE = 2048; // 标准档 2K；高档会在 setLightingQuality 中升级为 4K
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
+const WATER_PLANAR_Y = SEA_LEVEL + 8 / 9;
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
 // 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
@@ -92,6 +94,7 @@ export class ChunkMeshManager {
   private readonly uRefractionDepth: { value: THREE.Texture | null } = { value: null };
   private readonly uRefractionSize = { value: new THREE.Vector2(1, 1) };
   private readonly uHasRefraction = { value: 0 };
+  private readonly uCameraUnderwater = { value: 0 };
   private readonly uReflectionColor: { value: THREE.Texture | null } = { value: null };
   private readonly uReflectionMatrix = { value: new THREE.Matrix4() };
   private readonly uHasReflection = { value: 0 };
@@ -501,8 +504,8 @@ export class ChunkMeshManager {
     }
   }
 
-  // 水面专用：经典档保留 16px 帧动画；光影档改走廉价的双层法线纹理、深度吸收、
-  // Fresnel 天空反射、岸线细浪和双层太阳倒影。几何只做厘米级涌浪，防止远海出现白色“冰架”。
+  // 水面专用：经典档保留 16px 帧动画；光影档使用真实镜像反射、水下专用折射、
+  // 多尺度微表面法线、Beer-Lambert 吸收和单一 GGX 太阳高光。
   private installWaterShader(mat: THREE.MeshBasicMaterial): void {
     mat.onBeforeCompile = (shader): void => {
       shader.uniforms.uSkyMul = this.uSkyMul;
@@ -515,11 +518,11 @@ export class ChunkMeshManager {
       shader.uniforms.uSunDir = this.uSunDir;
       shader.uniforms.uHq = this.uHq;
       shader.uniforms.uSurfaceNoise = { value: this.waterWaveTex };
-      shader.uniforms.uCloudNoise = { value: this.cloudNoiseTex };
       shader.uniforms.uRefractionColor = this.uRefractionColor;
       shader.uniforms.uRefractionDepth = this.uRefractionDepth;
       shader.uniforms.uRefractionSize = this.uRefractionSize;
       shader.uniforms.uHasRefraction = this.uHasRefraction;
+      shader.uniforms.uCameraUnderwater = this.uCameraUnderwater;
       shader.uniforms.uReflectionColor = this.uReflectionColor;
       shader.uniforms.uReflectionMatrix = this.uReflectionMatrix;
       shader.uniforms.uHasReflection = this.uHasReflection;
@@ -531,6 +534,7 @@ export class ChunkMeshManager {
 attribute vec2 aLight;
 attribute float aTop;
 attribute float aShore;
+attribute float aWaveOpen;
 uniform vec3 uSkyTint;
 uniform float uSkyDarken;
 uniform float uShaders;
@@ -544,16 +548,14 @@ varying vec3 vTint;
 varying vec3 vWPos;
 varying vec3 vWaterBaseWPos;
 varying vec2 vWaveSlope;
-varying float vWaveHeight;
 varying float vWaveTrust;
-varying float vWaveSpatialTrust;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
 varying vec4 vReflectionCoord;
-vec3 mwWaveField(vec2 p, float t) {
-  // 有界波群：长涌浪承载轮廓，两组更短的交叉波让坡度第一眼可见。
-  // q 严格位于 [-1,1]；非对称整形范围为 [-0.20,+0.09] 格。
+vec3 mwWaveField(vec2 p, float t, float ocean) {
+  // 有界波群：长涌浪承载轮廓，两组更短的交叉波形成真实几何起伏。
+  // 开阔水面把峰谷差放到约 0.42 格；岸边/薄水仍使用安全的小波形。
   vec2 dg = vec2(-0.300, 0.954);
   vec2 d1 = vec2(0.821, 0.571);
   vec2 d2 = vec2(-0.419, 0.908);
@@ -571,8 +573,11 @@ vec3 mwWaveField(vec2 p, float t) {
   vec2 qGrad = 0.42 * (groupGrad * s1 + group * cos(p1) * 0.20 * d1)
     + 0.40 * cos(p2) * 0.80 * d2
     + 0.18 * cos(p3) * 1.08 * d3;
-  float h = 0.145 * q - 0.055 * q * q;
-  vec2 hGrad = (0.145 - 0.11 * q) * qGrad;
+  float calmH = 0.145 * q - 0.055 * q * q;
+  float oceanH = 0.210 * q + 0.035 * (q * q - 0.17);
+  float h = mix(calmH, oceanH, ocean);
+  float dhdq = mix(0.145 - 0.11 * q, 0.210 + 0.07 * q, ocean);
+  vec2 hGrad = dhdq * qGrad;
   return vec3(h, hGrad);
 }
 // 在顶点接近本水格上下界时，用连续 Hermite 曲线压平位移与导数。
@@ -611,26 +616,27 @@ float mwRawBaseFrac = fract(transformed.y);
 float mwIntegerTop = mwMovable * (1.0 - step(0.001, mwRawBaseFrac));
 float mwBaseFrac = mix(mwRawBaseFrac, 1.0, mwIntegerTop);
 float mwLevelGate = smoothstep(0.08, 0.42, mwBaseFrac);
+float mwOcean = smoothstep(0.35, 0.90, clamp(aWaveOpen, 0.0, 1.0));
 // cornerH=1 的瀑布/水柱接合角固定在整数块顶，不能继续向上起浪。
 float mwWaveGate = mwMovable * mwDepthGate * mwEdgeGate * mwLevelGate
   * (1.0 - mwIntegerTop) * uShaders;
-vec3 mwWave = mwWaveField(mwWp0.xz, uTime);
+vec3 mwWave = mwWaveField(mwWp0.xz, uTime, mwOcean);
 float mwRawDisp = mwWave.x * mwWaveGate;
 vec3 mwLimited = mwLimitWave(
   mwRawDisp,
-  max(mwBaseFrac - 0.02, 0.0),
-  max(0.98 - mwBaseFrac, 0.0)
+  min(max(mwBaseFrac - 0.02, 0.0), mix(0.22, 0.30, mwOcean)),
+  max(0.98 - mwBaseFrac, 0.0) + 0.18 * mwOcean
 );
 float mwDisp = mwLimited.x;
-vWaveHeight = mwDisp;
 vWaveSlope = mwWave.yz * mwWaveGate * mwLimited.y;
 float mwSpatialTrust = smoothstep(0.72, 0.98, mwDepthGate)
   * smoothstep(0.72, 0.98, mwEdgeGate)
   * smoothstep(0.72, 0.98, mwLevelGate);
+// waveOpen 过渡区的位移还包含开阔度梯度，解析式未显式求该项；在那里回退到
+// 2x2 网格导出的真实 face normal，开阔海和安全岸边仍使用连续解析法线。
+float mwOpenTrust = smoothstep(0.30, 0.48, abs(mwOcean - 0.5));
+mwSpatialTrust *= mwOpenTrust;
 vWaveTrust = mwSpatialTrust * mwLimited.z * (1.0 - mwIntegerTop);
-// 破浪带只需要知道这里是否为开阔、完整的水面，不能混入 limiter 的 capTrust。
-// 否则真正到达浪峰上限时白浪反而会被挖断，运动中又会像闪烁。
-vWaveSpatialTrust = mwSpatialTrust * (1.0 - mwIntegerTop);
 transformed.y += mwDisp;
 vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vWaterDepth = abs(aTop);
@@ -653,11 +659,11 @@ uniform vec3 uSkyRefl;
 uniform vec3 uSkyTop;
 uniform vec3 uSunDir;
 uniform sampler2D uSurfaceNoise;
-uniform sampler2D uCloudNoise;
 uniform sampler2D uRefractionColor;
 uniform sampler2D uRefractionDepth;
 uniform vec2 uRefractionSize;
 uniform float uHasRefraction;
+uniform float uCameraUnderwater;
 uniform sampler2D uReflectionColor;
 uniform float uHasReflection;
 varying float vLF;
@@ -667,9 +673,7 @@ varying vec3 vTint;
 varying vec3 vWPos;
 varying vec3 vWaterBaseWPos;
 varying vec2 vWaveSlope;
-varying float vWaveHeight;
 varying float vWaveTrust;
-varying float vWaveSpatialTrust;
 varying float vWaterDepth;
 varying float vSkyVis;
 varying float vShore;
@@ -704,8 +708,16 @@ if (uShaders < 0.5) {
   vec3 toEye = cameraPosition - vWPos;
   float dist = length(toEye);
   vec3 V = toEye / max(dist, 0.0001);
-  vec3 stableToEye = cameraPosition - vWaterBaseWPos;
-  vec3 stableV = stableToEye / max(length(stableToEye), 0.0001);
+  // 介质选择必须与 Renderer 的 half-space capture 使用同一个状态。不能按每个
+  // 波面片元的 V.y 判断，否则浪峰/浪谷会在同一帧混用两张相反含义的折射图。
+  float cameraAbove = 1.0 - step(0.5, uCameraUnderwater);
+  // 镜像/折射 RT 的裁剪面固定在世界海平面；洞穴水、玩家放置的高处水和瀑布
+  // 不能采这张图。它们平滑退回局部水体辐照度，避免出现错误高度的岸景倒影。
+  float planarSea = 1.0 - smoothstep(
+    0.16,
+    0.36,
+    abs(vWaterBaseWPos.y - ${WATER_PLANAR_Y.toFixed(6)})
+  );
   vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
   faceN *= sign(dot(faceN, V));
   // 用未位移网格识别顶面/侧壁，避免浪峰把材质分支本身来回切换。
@@ -761,16 +773,25 @@ if (uShaders < 0.5) {
   vec2 macroNoiseTilt = macroTilt - geomTilt;
   vec2 microTilt = fullTilt - macroTilt;
 
-  // 无水 HDR RT 的真实屏幕空间折射：用微法线轻推 UV，并用深度拒绝前景串色。
+  // Snell 折射方向：空气→水使用 1/1.333；水下看向空气时使用反向折射率。
+  // 折射 RT 由独立水下裁剪相机渲染，屏幕 UV 只负责在该真实场景中寻找命中点。
   vec2 screenUv = gl_FragCoord.xy / max(uRefractionSize, vec2(1.0));
   float screenEdge = min(min(screenUv.x, 1.0 - screenUv.x), min(screenUv.y, 1.0 - screenUv.y));
   // 屏幕边缘逐渐收回扰动/模糊，避免 ClampToEdge 把最后一列像素拉成固定竖色带。
   float screenEdgeFade = smoothstep(0.002, 0.022, screenEdge);
-  vec2 maxRefraction = vec2(7.0) / max(uRefractionSize, vec2(1.0));
-  vec2 refrPx = geomTilt * mix(36.0, 40.0, uHq)
-    + macroNoiseTilt * mix(10.0, 12.0, uHq)
-    + microTilt * mix(3.0, 4.0, uHq);
-  vec2 refrOffset = clamp(refrPx, vec2(-7.0), vec2(7.0)) * screenEdgeFade / max(uRefractionSize, vec2(1.0));
+  vec2 maxRefraction = vec2(8.0) / max(uRefractionSize, vec2(1.0));
+  float eta = mix(1.3330, 0.75019, cameraAbove);
+  vec3 refractedRay = refract(-V, N, eta);
+  vec3 flatRefractedRay = refract(-V, flatN, eta);
+  // 全反射时 refract 返回零向量；该处不应从折射 RT 拉取随机边缘像素。
+  float hasTransmission = step(0.0001, dot(refractedRay, refractedRay));
+  vec2 snellDelta = (viewMatrix * vec4(refractedRay - flatRefractedRay, 0.0)).xy;
+  vec2 refrPx = snellDelta * mix(44.0, 54.0, uHq)
+    + geomTilt * mix(7.0, 9.0, uHq)
+    + macroNoiseTilt * mix(3.0, 4.0, uHq)
+    + microTilt * mix(1.0, 1.5, uHq);
+  refrPx *= hasTransmission;
+  vec2 refrOffset = clamp(refrPx, vec2(-8.0), vec2(8.0)) * screenEdgeFade / max(uRefractionSize, vec2(1.0));
   refrOffset = clamp(refrOffset, -maxRefraction, maxRefraction);
   vec2 provisionalUv = clamp(screenUv + refrOffset, vec2(0.004), vec2(0.996));
   float centerDepth = texture2D(uRefractionDepth, screenUv).r;
@@ -785,7 +806,13 @@ if (uShaders < 0.5) {
   depthValidity *= step(gl_FragCoord.z + 0.00012, sceneDepth);
   vec2 refrUv = clamp(screenUv + refrOffset * depthValidity * depthValidity, vec2(0.004), vec2(0.996));
   // 吸收、模糊、泡沫必须由未扰动中心深度驱动。若跟着折射 UV 走，镜头移动时岸边会闪色/闪泡沫。
-  float thickness = clamp(centerThickness, 0.0, 48.0);
+  // 水上看水底：光程从水面继续走到水下命中点；水下看空气：光程只到
+  // 当前水面。后者不能拿天空深度当成几十格水，否则仰视会变成一片死蓝。
+  float thickness = mix(
+    clamp(dist, 0.0, 48.0),
+    clamp(centerThickness, 0.0, 48.0),
+    cameraAbove
+  );
   float blurDepth = min(thickness, max(vWaterDepth * 1.25, 1.0));
   float blurPx = clamp(0.35 + blurDepth * 0.12, 0.35, 2.5);
   vec2 blurStep = vec2(blurPx * screenEdgeFade) / max(uRefractionSize, vec2(1.0));
@@ -806,70 +833,60 @@ if (uShaders < 0.5) {
   opaqueBehind += texture2D(uRefractionColor, refrYm).rgb * wym;
   opaqueBehind /= max(weightSum, 0.0001);
 
-  // Beer-Lambert 吸收与水体散射：浅水保留清晰水底，深水逐渐转为青蓝而非一层透明贴纸。
-  float verticalThickness = max(vWaterDepth, 0.75);
-  float opticalThickness = max(0.55, min(thickness, mix(verticalThickness, thickness, 0.45)));
-  vec3 transmittance = exp(-vec3(0.19, 0.088, 0.052) * opticalThickness);
-  vec3 waterScatter = vec3(0.022, 0.09, 0.125) * mix(0.62, 1.0, vLF) * vTint;
-  waterScatter *= mix(0.45, 1.0, uSkyMul);
-  // 深水折射会被吸收成近似常量；只用低频分量留下宽缓明暗，不让微法线变成闪点。
-  float broadRelief = (rippleA.b - 0.5) * 0.65 + (rippleB.b - 0.5) * 0.35;
-  float scatterAmount = 1.0 - exp(-opticalThickness * 0.29);
-  vec3 refracted = opaqueBehind * transmittance + waterScatter * scatterAmount;
-  // 只让体色随真实光程缓慢增长；浅水约 1%，不再盖一层固定的有色玻璃膜。
-  float bodyTint = (1.0 - exp(-opticalThickness * 0.2)) * 0.07;
-  refracted = mix(refracted, waterScatter, bodyTint);
-  // 波峰约 +0.09 格、波谷可达 -0.20 格，按两侧各自范围归一后做宽面明暗。
-  // 这层始终低于 HDR/Bloom，只让正午俯视能读出浪峰和浪谷，不会产生白色闪点。
-  float waveRelief = vWaveHeight >= 0.0
-    ? clamp(vWaveHeight / 0.09, 0.0, 1.0)
-    : clamp(vWaveHeight / 0.20, -1.0, 0.0);
-  vec2 waveLightDir = normalize(uSunDir.xz + vec2(0.0001, 0.0));
-  float slopeRelief = clamp(-dot(vWaveSlope, waveLightDir) * 9.0, -1.0, 1.0);
-  // 解析大浪在远景仍保留约六成对比；只有纹理宽面 relief 随距离淡出。
-  // 旧版把整项乘 nearDetail，30--100 格后的海面因此又退化成一张平膜。
-  float relief = (waveRelief * 0.12 + slopeRelief * 0.14)
-    * mix(0.62, 1.0, nearDetail) * horiz;
-  relief += broadRelief * 0.04 * nearDetail * horiz;
-  relief = clamp(relief, -0.18, 0.20);
-  // 明暗波属于水体透射层。若再乘到明亮天空倒影上，日出时浪谷会变成灰黑斑块。
-  refracted *= 1.0 + relief;
+  // 折射 RT 只包含真实的水下几何。颜色完全由光程吸收/散射决定，
+  // 不再叠固定蓝膜、人工明暗条或程序云。
+  float opticalThickness = clamp(thickness, 0.0, 64.0);
+  vec3 sigmaA = vec3(0.160, 0.055, 0.022);
+  vec3 sigmaS = vec3(0.006, 0.018, 0.028);
+  vec3 sigmaT = sigmaA + sigmaS;
+  vec3 transmittance = exp(-sigmaT * opticalThickness);
+  vec3 waterIrradiance = mix(uSkyRefl, uSkyTop, 0.35)
+    * mix(0.35, 1.0, uSkyMul) * mix(0.72, 1.0, vLF) * vTint;
+  vec3 inScatter = waterIrradiance
+    * (sigmaS / max(sigmaT, vec3(0.0001)))
+    * (vec3(1.0) - transmittance);
+  vec3 refracted = opaqueBehind * transmittance + inScatter;
+  float localThickness = clamp(
+    max(vWaterDepth, 0.4) / max(abs(dot(V, baseFaceN)), 0.24),
+    0.0,
+    24.0
+  );
+  vec3 localTransmittance = exp(-sigmaT * localThickness);
+  vec3 localWater = waterIrradiance
+    * (sigmaS / max(sigmaT, vec3(0.0001)))
+    * (vec3(1.0) - localTransmittance);
+  localWater += vec3(0.002, 0.022, 0.052) * (1.0 - localTransmittance.b);
+  refracted = mix(localWater, refracted, planarSea);
 
-  // 天空与云层反射。用反射光线和虚拟云层求交，同一噪声也驱动地面云影，方向一致。
-  vec3 R = reflect(-V, macroN);
-  // Fresnel 能量按稳定的基准海平面计算；macroN 仍负责倒影方向/UV 的流动。
-  // 若让移动法线同时控制 Fresnel，掠射角的五次方会把亮天空切成开关式碎白岛。
-  float NoV = clamp(abs(stableV.y), 0.0, 1.0);
-  float surfaceRoughness = clamp(0.11 + 0.06 * smoothstep(28.0, 110.0, dist), 0.11, 0.17);
+  // 微表面法线的屏幕足迹决定粗糙度。远处或欠采样的波纹会自然变宽，
+  // 不会以单像素亮点跨过 Bloom 阈值后闪烁。
+  vec3 opticalN = normalize(mix(geomN, macroN, 0.72));
+  float normalVariance = 0.5 * (
+    dot(dFdx(opticalN), dFdx(opticalN)) + dot(dFdy(opticalN), dFdy(opticalN))
+  );
+  float baseRoughness = mix(0.18, 0.145, uHq);
+  float surfaceRoughness = clamp(
+    sqrt(baseRoughness * baseRoughness + min(normalVariance, 0.045)),
+    baseRoughness,
+    0.26
+  );
+
+  // 真实镜像相机提供水面以上的天空、云、岸线与生物。这里只做粗糙度预滤，
+  // 不再压峰、不再混一份“玩家当前画面”，Fresnel 会在下一步负责能量分配。
+  vec3 R = reflect(-V, opticalN);
   float skyHeight = smoothstep(-0.02, 0.72, R.y);
-  vec3 reflectedSky = mix(uSkyRefl, uSkyTop, skyHeight);
-  float cloudTravel = max(0.0, 232.0 - vWPos.y) / max(R.y, 0.08);
-  vec2 cloudUv = (p + R.xz * min(cloudTravel, 1200.0)) * 0.0034 + vec2(uTime * 0.0014, uTime * 0.0008);
-  float cloudA = texture2D(uCloudNoise, cloudUv).b;
-  float cloudB = texture2D(uCloudNoise, cloudUv * 1.83 + vec2(0.31, -0.17)).b;
-  float cloud = smoothstep(0.55, 0.79, cloudA * 0.68 + cloudB * 0.32) * smoothstep(0.01, 0.18, R.y);
-  vec3 cloudColor = mix(uSkyRefl * 1.25, vec3(1.22, 1.16, 1.04), uSkyMul);
-  // Planar RT 已经含真实云，这里只做少量兜底；过重会把浪面盖成大片灰斑。
-  float proceduralCloudMix = cloud * 0.22;
-
-  // 镜像倒影只由连续的解析几何长浪扭曲。A/B/C/D 动态纹理仍参与折射与
-  // 水面细节，但不再推动高对比倒影，避免树影/云边缘在真机上细碎闪动。
+  vec3 reflectedRadiance = mix(uSkyRefl, uSkyTop, skyHeight);
   vec2 reflectionBaseUv = vReflectionCoord.xy / max(vReflectionCoord.w, 0.0001);
   vec2 reflectionUv = reflectionBaseUv;
-  vec2 reflectionPx = clamp(
-    geomTilt * mix(40.0, 44.0, uHq),
-    vec2(-6.0),
-    vec2(6.0)
-  );
+  vec2 reflectionPx = clamp(geomTilt * mix(40.0, 44.0, uHq), vec2(-6.0), vec2(6.0));
   reflectionUv += reflectionPx / max(uRefractionSize, vec2(1.0));
   if (uHasReflection > 0.5) {
-    float reflectionBlur = 0.9 + surfaceRoughness * 4.0
-      + 1.8 * pow(1.0 - NoV, 1.5)
-      + 0.5 * smoothstep(30.0, 110.0, dist);
+    float NoVForBlur = clamp(dot(opticalN, V), 0.0, 1.0);
+    float reflectionBlur = 0.8 + surfaceRoughness * 7.0
+      + 1.7 * pow(1.0 - NoVForBlur, 1.5)
+      + 0.6 * smoothstep(30.0, 110.0, dist);
     vec2 reflectionTexel = vec2(reflectionBlur) / max(uRefractionSize, vec2(1.0));
     vec2 reflectionMargin = reflectionTexel * 1.5 + vec2(0.002);
-    // 投影与主相机共用同一视锥，波纹最多只把边缘推出 6px。直接把 9 taps
-    // 收进有效范围，比在这里切回另一套程序反射更连续，也不会留下固定竖色带。
     vec2 reflectionSampleUv = clamp(reflectionUv, reflectionMargin, vec2(1.0) - reflectionMargin);
     vec3 planarReflection = texture2D(uReflectionColor, reflectionSampleUv).rgb * 0.25;
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2( reflectionTexel.x, 0.0)).rgb * 0.125;
@@ -880,158 +897,57 @@ if (uShaders < 0.5) {
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv - reflectionTexel).rgb * 0.0625;
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(reflectionTexel.x, -reflectionTexel.y)).rgb * 0.0625;
     planarReflection += texture2D(uReflectionColor, reflectionSampleUv + vec2(-reflectionTexel.x, reflectionTexel.y)).rgb * 0.0625;
-    planarReflection /= vec3(1.0) + planarReflection * 0.16;
-    // 镜像 RT 中仍包含太阳盘/光晕。若让它保留 HDR，再叠下面的稳定太阳光路，
-    // 两套高光会在快速转头时交替跨过亮度阈值。倒影只负责天空与地形，
-    // 唯一允许超过 1 的水面太阳能量由 macro road 输出。
-    float planarPeak = max(max(planarReflection.r, planarReflection.g), planarReflection.b);
-    planarReflection *= min(1.0, 0.9 / max(planarPeak, 0.0001));
-    // 只按未扰动投影坐标做护边，避免转头时扰动本身让整条边界反复开关。
-    // PlanarReflection 已多渲 8% 视野，正常屏幕范围会落在完整权重区。
     vec2 reflectionGuard = vec2(12.0) / max(uRefractionSize, vec2(1.0));
     vec2 reflectionFeather = vec2(8.0) / max(uRefractionSize, vec2(1.0));
     vec2 reflectionEdgeIn = smoothstep(reflectionGuard, reflectionGuard + reflectionFeather, reflectionBaseUv);
     vec2 reflectionEdgeOut = smoothstep(reflectionGuard, reflectionGuard + reflectionFeather, vec2(1.0) - reflectionBaseUv);
-    float reflectionBlend = reflectionEdgeIn.x * reflectionEdgeIn.y * reflectionEdgeOut.x * reflectionEdgeOut.y;
-    float planarMix = mix(0.52, 0.7, pow(1.0 - NoV, 2.0)) * reflectionBlend;
-    // 平面 RT 已含真实云，绝不能再叠一层不同相位的程序云；双云会在水上形成
-    // 与天空不对应的灰斑，运动时也会被误认成反射闪烁。
-    reflectedSky = mix(reflectedSky, planarReflection, planarMix);
-  } else {
-    reflectedSky = mix(reflectedSky, cloudColor, proceduralCloudMix);
+    float reflectionBlend = reflectionEdgeIn.x * reflectionEdgeIn.y * reflectionEdgeOut.x * reflectionEdgeOut.y
+      * planarSea;
+    reflectedRadiance = mix(reflectedRadiance, planarReflection, reflectionBlend);
   }
 
-  // 宽而受控的 Fresnel：正视保留少量反射，向掠角平缓增长；旧式五次方在中角
-  // 长期接近零、临近地平线才突然铺成镜面，数学连续但视觉像硬切。
-  float stableFresnel = min(0.52, 0.05 + 0.47 * pow(1.0 - NoV, 3.2));
-  // 只让解析几何长浪影响 Fresnel，并严格限制在稳定平面的窄范围内。
-  // 因而掠视角会出现连续的明暗浪带，但 A/B/C/D 细波不会把天空切成闪烁亮岛。
-  float geomNoV = clamp(abs(dot(geomN, V)), 0.0, 1.0);
-  float geomFresnel = min(0.52, 0.05 + 0.47 * pow(1.0 - geomNoV, 3.2));
-  // 低可信岸角使用逐三角 faceN，只让它参与普通折射，不拿来切换高对比反射能量。
-  float geomFresnelWeight = 0.72 * smoothstep(0.45, 0.92, waveTrust);
-  float fresnel = mix(stableFresnel, geomFresnel, geomFresnelWeight);
-  fresnel = clamp(
-    fresnel,
-    max(0.02, stableFresnel - 0.025),
-    min(0.52, stableFresnel + 0.04)
-  );
-  float reflectionGate = horiz * vSkyVis * smoothstep(-0.08, 0.03, V.y);
-  vec3 col = mix(refracted, reflectedSky * 0.94, fresnel * reflectionGate);
+  // 精确介电 Fresnel。水下接近临界角时 Schlick 会一直偏低、到 TIR 又突然跳成1；
+  // Rs/Rp 形式会连续收敛到全反射，因此仰视不出现一圈硬亮边。
+  float NoV = clamp(dot(opticalN, V), 0.0, 1.0);
+  float etaI = mix(1.3330, 1.0, cameraAbove);
+  float etaT = mix(1.0, 1.3330, cameraAbove);
+  float sinT2 = (etaI * etaI / (etaT * etaT)) * max(0.0, 1.0 - NoV * NoV);
+  float cosT = sqrt(max(0.0, 1.0 - sinT2));
+  float rs = (etaI * NoV - etaT * cosT) / max(etaI * NoV + etaT * cosT, 0.0001);
+  float rp = (etaT * NoV - etaI * cosT) / max(etaT * NoV + etaI * cosT, 0.0001);
+  float dielectricF = clamp(0.5 * (rs * rs + rp * rp), 0.0, 1.0);
+  dielectricF = mix(dielectricF, 1.0, step(1.0, sinT2));
+  float reflectionGate = horiz * mix(1.0, vSkyVis, cameraAbove);
+  vec3 F = vec3(dielectricF * reflectionGate);
+  vec3 underwaterReflection = waterIrradiance * vec3(0.22, 0.42, 0.58);
+  vec3 interfaceReflection = mix(underwaterReflection, reflectedRadiance, cameraAbove);
+  vec3 col = refracted * (vec3(1.0) - F) + interfaceReflection * F;
 
-  // 普通水色压在 Bloom 阈值以下；HDR 只留给下面受控的太阳光路。
-  float waterBasePeak = max(max(col.r, col.g), col.b);
-  col *= min(1.0, 1.02 / max(waterBasePeak, 0.0001));
-
-  // 固定平面只提供稳定底带，解析几何浪负责把光路分成连续波带。
-  // 不接入 C/D 微法线或 crest 硬阈值，避免单像素 HDR 亮点重新闪烁。
+  // 单一 GGX 太阳 BRDF：高光由真实浪面法线自然形成，不再画 flat/geom/macro 三条光路。
   vec3 L = normalize(uSunDir);
-  float flatAlign = max(dot(reflect(-stableV, vec3(0.0, 1.0, 0.0)), L), 0.0);
-  float geomAlign = max(dot(reflect(-stableV, geomN), L), 0.0);
-  float macroAlign = max(dot(reflect(-stableV, macroN), L), 0.0);
-  float flatPath = pow(flatAlign, 10.0);
-  float geomPath = pow(geomAlign, 18.0);
-  float macroPath = pow(macroAlign, 32.0);
-  // 小于一个像素的远景波带自动淡出；近中景解析波仍保留完整高光。
-  float geomFootprint = fwidth(geomAlign);
-  float geomAA = 1.0 - smoothstep(0.018, 0.055, geomFootprint);
-  float macroFootprint = fwidth(macroAlign);
-  float macroAA = 1.0 - smoothstep(0.01, 0.038, macroFootprint);
-  float crestBias = mix(0.72, 1.0, smoothstep(-0.35, 0.65, waveRelief));
-  // 岸角/薄水回退的是每三角 faceN，fwidth 无法跨三角边界做 AA；那里仅保留稳定底带。
-  float geomRoadTrust = smoothstep(0.70, 0.95, waveTrust);
-  float roadRaw = flatPath * 0.006;
-  roadRaw += geomPath * geomAA * crestBias * geomRoadTrust * 0.052;
-  roadRaw += macroPath * macroAA * crestBias * geomRoadTrust * 0.016;
-  float specEnergy = 0.11 * (1.0 - exp(-roadRaw / 0.11));
+  vec3 H = normalize(V + L);
+  float NoL = max(dot(opticalN, L), 0.0);
+  float NoH = max(dot(opticalN, H), 0.0);
+  float VoH = max(dot(V, H), 0.0);
+  float alpha = surfaceRoughness * surfaceRoughness;
+  float alpha2 = alpha * alpha;
+  float denom = NoH * NoH * (alpha2 - 1.0) + 1.0;
+  float D = alpha2 / max(3.14159265 * denom * denom, 0.0001);
+  float gv = NoL * sqrt(NoV * NoV * (1.0 - alpha2) + alpha2);
+  float gl = NoV * sqrt(NoL * NoL * (1.0 - alpha2) + alpha2);
+  float visibility = 0.5 / max(gv + gl, 0.0001);
+  vec3 F0 = vec3(0.02037);
+  vec3 specF = F0 + (vec3(1.0) - F0) * pow(1.0 - VoH, 5.0);
   float sunHeight = clamp(L.y * 3.0, 0.0, 1.0);
-  vec3 sunColor = mix(vec3(12.0, 4.5, 1.4), vec3(10.5, 9.8, 8.4), sunHeight);
-  float sunVisible = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
-  col += sunColor * specEnergy * sunVisible;
+  vec3 sunRadiance = mix(vec3(1.45, 0.50, 0.16), vec3(1.20, 1.10, 0.94), sunHeight);
+  float sunVisibility = smoothstep(0.005, 0.16, L.y) * uSkyMul * vSkyVis * horiz;
+  col += sunRadiance * D * visibility * specF * NoL * sunVisibility;
 
-  // 开放海面的解析破浪带：与几何中浪使用同一方向、波长和速度，因此白浪会
-  // 一道一道沿真实浪峰推进，而不是粘在屏幕或倒影纹理上的噪点。
-  vec2 breakerP = vWaterBaseWPos.xz;
-  vec2 breakerDir = vec2(-0.419, 0.908);
-  vec2 breakerTangent = vec2(-0.908, -0.419);
-  float breakerSwell = dot(breakerP, vec2(0.821, 0.571)) * 0.20 + uTime * 0.24;
-  float breakerAlong = dot(breakerP, breakerTangent);
-  // 两级低频横向摆动把平行载波弯成自然浪脊；尺度足够大，不会产生屏幕空间噪点。
-  float breakerCurve = sin(
-    breakerAlong * 0.075 - uTime * 0.045 + sin(breakerSwell) * 0.60
-  );
-  float breakerPhase = dot(breakerP, breakerDir) * 0.80 - uTime * 0.58
-    + sin(breakerSwell) * 0.38 + breakerCurve * 0.42;
-  // 浪峰 pi/2 映射到周期坐标 0；相位域 fwidth 在波峰处仍可靠，远景不会缩成闪点。
-  float breakerCycle = fract((breakerPhase - 1.5707963) * 0.1591549431 + 0.5) - 0.5;
-  float breakerWidthWave = 0.5 + 0.5 * sin(
-    breakerAlong * 0.19 - uTime * 0.031 + sin(breakerSwell * 0.73) * 0.42
-  );
-  float breakerWidth = mix(0.72, 1.18, breakerWidthWave);
-  float breakerDistance = abs(breakerCycle) / breakerWidth;
-  float breakerPixel = max(fwidth(breakerCycle) * 1.25, 0.002);
-  float breakerOuter = 1.0 - smoothstep(
-    0.070 - breakerPixel,
-    0.105 + breakerPixel,
-    breakerDistance
-  );
-  float breakerCore = 1.0 - smoothstep(
-    0.026 - breakerPixel,
-    0.052 + breakerPixel,
-    breakerDistance
-  );
-  float breakerSubpixel = 1.0 - smoothstep(0.060, 0.135, fwidth(breakerCycle));
-  breakerOuter *= breakerSubpixel;
-  breakerCore *= breakerSubpixel;
-
-  // 沿浪脊以几十格尺度缓慢分段，最低仍保留连续淡带，不使用高频噪声硬切。
-  float breakerPacket01 = 0.5 + 0.5 * sin(
-    breakerAlong * 0.115 + uTime * 0.025
-    + 0.45 * sin(breakerAlong * 0.043 - uTime * 0.013)
-  );
-  float breakerPacketFine = 0.5 + 0.5 * sin(
-    breakerAlong * 0.28 - uTime * 0.041
-    + 0.55 * sin(breakerAlong * 0.091 + uTime * 0.017)
-  );
-  float breakerPacketField = breakerPacket01 * 0.64 + breakerPacketFine * 0.36;
-  float breakerPacket = mix(0.06, 1.0, smoothstep(0.34, 0.69, breakerPacketField));
-  float breakerFront = mix(
-    0.62,
-    1.0,
-    smoothstep(-0.045 - breakerPixel, 0.070 + breakerPixel, breakerCycle)
-  );
-  // 空间可信度不包含浪峰 limiter；另以水深/岸线/视角筛掉浅滩、瀑布、岸边与水下表面。
-  float breakerTrust = smoothstep(0.45, 0.90, vWaveSpatialTrust)
-    * smoothstep(1.35, 3.0, vWaterDepth)
-    * (1.0 - smoothstep(0.02, 0.22, vShore))
-    * smoothstep(0.015, 0.12, stableV.y)
-    * horiz;
-  // 其他交叉波只温和调制强弱，绝不把整道浪峰瞬间开关。
-  float breakerHeight = mix(0.45, 1.0, smoothstep(0.05, 0.72, waveRelief));
-  float breakerSwellGate = mix(0.55, 1.0, smoothstep(-0.25, 0.65, sin(breakerSwell)));
-  float breakerFoam = (breakerOuter * 0.055 + breakerCore * 0.145)
-    * breakerFront * breakerPacket * breakerHeight * breakerSwellGate
-    * breakerTrust * vSkyVis
-    * mix(0.62, 1.0, pow(1.0 - NoV, 0.65))
-    * mix(0.18, 1.0, clamp(uSkyMul, 0.0, 1.0))
-    * mix(0.90, 1.10, uHq);
-  breakerFoam = clamp(breakerFoam, 0.0, 0.20);
-  // 白沫只能提亮水色，不能把已经更亮的太阳光路压成灰洞；它本身仍为非 HDR，
-  // 因而不会制造新的 Bloom 闪点。
-  vec3 breakerColor = mix(
-    vec3(0.10, 0.22, 0.27),
-    vec3(0.74, 0.87, 0.92),
-    clamp(uSkyMul, 0.0, 1.0)
-  );
-  col = mix(col, max(col, breakerColor), breakerFoam);
-
-  // 岸边只保留窄接触泡沫，不再把整片浅海刷成白边。
-  float contact = (1.0 - smoothstep(0.055, 0.42, centerThickness)) * smoothstep(0.05, 0.4, vShore);
-  float shore = smoothstep(0.12, 0.86, vShore) * horiz;
-  float foamNoise = smoothstep(0.58, 0.88, rippleA.a * 0.55 + rippleC.a * 0.45);
-  float foam = max(contact * 0.48, shore * (0.14 + foamNoise * 0.36)) * vSkyVis * mix(0.3, 1.0, uSkyMul);
-  vec3 foamColor = mix(vec3(0.16, 0.31, 0.39), vec3(0.74, 0.91, 0.96), uSkyMul);
-  col = mix(col, foamColor, clamp(foam, 0.0, 0.34));
+  // 仅保留由真实深度交界产生的很弱接触泡沫。开放水面不再画周期白线。
+  float contactFoam = (1.0 - smoothstep(0.035, 0.24, centerThickness))
+    * smoothstep(0.16, 0.72, vShore) * vSkyVis * horiz * cameraAbove;
+  vec3 foamColor = mix(vec3(0.12, 0.25, 0.31), vec3(0.68, 0.82, 0.86), uSkyMul);
+  col = mix(col, max(col, foamColor), clamp(contactFoam * 0.12, 0.0, 0.12));
 
   // 远景只做一次统一大气融合；折射源本身已带雾，避免旧版重复雾化成灰白海面。
   float atmosphere = 0.0;
@@ -1403,6 +1319,11 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.uHasRefraction.value = color && depth ? 1 : 0;
   }
 
+  /** 与 Renderer 的折射 half-space 同步；所有水片元必须使用同一个入射介质。 */
+  setCameraUnderwater(underwater: boolean): void {
+    this.uCameraUnderwater.value = underwater ? 1 : 0;
+  }
+
   /** 接收海平面镜像相机的 HDR 倒影及世界坐标→倒影 UV 矩阵。 */
   setWaterReflection(color: THREE.Texture | null, textureMatrix?: THREE.Matrix4): void {
     this.uReflectionColor.value = color;
@@ -1497,9 +1418,16 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
     if (data.shore && data.shore.length)
       g.setAttribute('aShore', new THREE.BufferAttribute(data.shore, 1)); // 仅水：精确岸线覆盖率(细浪/泡沫)
+    if (data.waveOpen && data.waveOpen.length)
+      g.setAttribute('aWaveOpen', new THREE.BufferAttribute(data.waveOpen, 1)); // 仅水：远离岸/冰/顶板才允许真实大浪
     if (data.sway && data.sway.length)
       g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
+    // shader 会把开阔海浪峰抬高约 0.24 格；扩大 CPU 包围球，避免视锥边缘先裁掉浪尖。
+    if (data.top?.length) {
+      g.computeBoundingSphere();
+      if (g.boundingSphere) g.boundingSphere.radius += 0.3;
+    }
     return g;
   }
 

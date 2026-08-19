@@ -44,6 +44,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
       if (md.underwater && md.underwater.length) transfer.push(md.underwater.buffer);
       if (md.top && md.top.length) transfer.push(md.top.buffer);
       if (md.shore && md.shore.length) transfer.push(md.shore.buffer);
+      if (md.waveOpen && md.waveOpen.length) transfer.push(md.waveOpen.buffer);
     };
     const mesh: ChunkMesh = m;
     collect(mesh.opaque);

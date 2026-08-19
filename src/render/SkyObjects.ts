@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NO_WATER_REFLECTION_LAYER } from './renderLayers';
+import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER } from './renderLayers';
 import { DAY_LENGTH, skyStateAt, skyDarkenAt } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
 
@@ -397,8 +397,8 @@ export class SkyObjects {
       }),
     );
     this.realMoon = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sky(makeRealMoonTex()));
-    // 水材质已经生成受控的宽太阳光路。若把 HDR 太阳盘/光晕再次画进镜像 RT，
-    // 波纹 UV 会把它切成快速开关的碎白岛；玩家相机启用此层，镜像相机只看 layer 0。
+    // 水材质会用单一 GGX BRDF 计算太阳。若把 HDR 太阳盘/光晕再次画进镜像 RT，
+    // 同一光源会被计算两次并产生不稳定热像素；玩家相机启用此层，镜像相机排除它。
     this.realSun.layers.set(NO_WATER_REFLECTION_LAYER);
     this.sunGlow.layers.set(NO_WATER_REFLECTION_LAYER);
     this.realSun.visible = this.sunGlow.visible = this.realMoon.visible = false;
@@ -444,6 +444,19 @@ export class SkyObjects {
       m.renderOrder = -850;
     this.realClouds.renderOrder = -800;
     this.voxelClouds.renderOrder = -800;
+
+    // 环境天空独立成层：镜像相机可见，水下折射相机只看 layer0，因而不会把
+    // 玩家看到的天空、云或月亮错误地贴进水面透射。HDR 太阳仍保留专用 layer2。
+    for (const object of [
+      this.sun,
+      this.moon,
+      this.realMoon,
+      this.voxelClouds,
+      this.realClouds,
+      this.starGroup,
+      this.stars,
+    ])
+      object.layers.set(SKY_RENDER_LAYER);
 
     scene.add(
       this.sun,

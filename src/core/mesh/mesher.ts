@@ -1,6 +1,6 @@
 import { Section } from '../world/section';
 import { World } from '../world/world';
-import { ChunkWorld } from '../world/chunkWorld';
+import type { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
 import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS, SNOW_LAYER, ICE, LAVA } from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
@@ -8,6 +8,10 @@ import { computeSkyLight, computeBlockLight } from '../light/skylight';
 const ATLAS_COLS = 4;
 const ATLAS_ROWS = 10; // 4×10=40 槽（18-25 下界, 26-31 群系, 32-36 储存/钻石）；与 gen_textures.py、DropRenderer、FirstPersonHand 同步
 const TILE_PX = 16;
+export const WATER_SURFACE_SUBDIVISIONS = 2;
+// 必须与 ChunkWorld.WATER_WAVE_OPEN_RADIUS 保持一致；这里本地声明可避免 mesh worker
+// 为一个常量反向加载 chunkWorld（以及它引用的 chunk-generation worker）。
+export const WATER_WAVE_OPEN_RADIUS = 4;
 
 // MC 固定面亮度（烤进顶点色）：顺序同 Face 枚举 +X,-X,+Y,-Y,+Z,-Z
 const FACE_SHADE = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8];
@@ -89,8 +93,9 @@ export interface MeshData {
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
-  top?: Float32Array; // 仅水：每顶点是否在水面(1=面顶,0=侧壁底)，光影里只让水面顶点起伏(侧壁底不动,免穿帮)
+  top?: Float32Array; // 仅水：带符号逐角水深；正=可动水面/侧壁上沿，负=固定侧壁底/底面
   shore?: Float32Array; // 仅水：角周围缺水覆盖率 0..1；精确画岸边细浪，不把整片浅水误判成岸线
+  waveOpen?: Float32Array; // 仅水：0..1 几何大浪安全度；远离非水/冰/顶板才趋近 1，固定顶点为 0
   sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
 }
 
@@ -181,9 +186,10 @@ interface FaceArrays {
   UW: number[]; // 仅不透明网格：面外连续水柱深度 0..8；其他网格留空
   T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
   SH: number[]; // 仅水用：每顶点岸线覆盖率 0..1；其余网格留空
+  WO: number[]; // 仅水用：每顶点几何大浪安全度 0..1；固定顶点写 0
   SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], UW: [], T: [], SH: [], SW: [] });
+const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], UW: [], T: [], SH: [], WO: [], SW: [] });
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -196,6 +202,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     underwater: a.UW.length ? new Float32Array(a.UW) : undefined,
     top: a.T.length ? new Float32Array(a.T) : undefined,
     shore: a.SH.length ? new Float32Array(a.SH) : undefined,
+    waveOpen: a.WO.length ? new Float32Array(a.WO) : undefined,
     sway: a.SW.length ? new Float32Array(a.SW) : undefined,
   };
 };
@@ -428,6 +435,42 @@ export function meshChunkData(
       Number(isWet(cwx, cwz));
     return 1 - wetCount / 4;
   };
+
+  // 以世界整数角为中心检查半径 R 内的水面列。非水（含冰）或上方不是空气都视为
+  // 几何大浪障碍；离障碍越远越接近 1。直接按角计算可让相邻格/区块共享完全相同的值。
+  // 采样的列中心位于角坐标 ±(n+0.5)，因此 R=4 最远只读相邻区块局部 0..3/12..15，
+  // 与 ChunkWorld.setWater 的 topology reach=4 精确对应。
+  const waveOpenCache = new Map<string, number>();
+  const cornerWaveOpen = (cwx: number, wy: number, cwz: number): number => {
+    const key = `${cwx},${wy},${cwz}`;
+    const cached = waveOpenCache.get(key);
+    if (cached !== undefined) return cached;
+    const radius = WATER_WAVE_OPEN_RADIUS;
+    const radiusSq = radius * radius;
+    let nearestObstacle = radius;
+    for (let dz = -radius; dz < radius; dz++) {
+      for (let dx = -radius; dx < radius; dx++) {
+        const ddx = dx + 0.5;
+        const ddz = dz + 0.5;
+        const distSq = ddx * ddx + ddz * ddz;
+        if (distSq > radiusSq) continue;
+        const wx = cwx + dx;
+        const wz = cwz + dz;
+        const safeSurface = waterAmount(wx, wy, wz) > 0 && getBlock(wx, wy + 1, wz) === 0;
+        if (!safeSurface) nearestObstacle = Math.min(nearestObstacle, Math.sqrt(distSq));
+      }
+    }
+    const edgeDistance = Math.SQRT1_2; // 紧邻该角的四列中心距离
+    const x = Math.max(0, Math.min(1, (nearestObstacle - edgeDistance) / (radius - edgeDistance)));
+    const open = x * x * (3 - 2 * x); // smoothstep，避免大浪幅度在格边硬切
+    waveOpenCache.set(key, open);
+    return open;
+  };
+
+  // 四角顺序与 DIRS 一致：00=c0、01=c1、11=c2、10=c3。
+  const bilerp = (a00: number, a01: number, a11: number, a10: number, u: number, v: number): number =>
+    (a00 * (1 - v) + a01 * v) * (1 - u) + (a10 * (1 - v) + a11 * v) * u;
+
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
     const shade = FACE_SHADE[f];
@@ -435,24 +478,62 @@ export function meshChunkData(
     const blk = blkAt(lx + d.o[0], ly + d.o[1], lz + d.o[2]) / 15;
     const base = wa.P.length / 3;
     const topFace = f === 2; // Face.PosY=水面
-    for (let k = 0; k < 4; k++) {
-      const corner = d.c[k];
-      const py = ly + yArr[k];
-      wa.P.push(lx + corner[0], py, lz + corner[2]);
-      const wx = ox + lx + corner[0];
-      const wz = oz + lz + corner[2];
-      if (f === 2 || f === 3) wa.U.push(wx, wz); // 顶/底面
-      else if (f === 0 || f === 1) wa.U.push(wz, py); // ±X 侧
-      else wa.U.push(wx, py); // ±Z 侧
-      wa.C.push(shade, shade, shade);
-      wa.L.push(sky, blk);
-      // 水面顶点(顶面全部 + 侧壁上沿 yArr>0)起伏权重=waterWobble；侧壁底沿/底面=0 不动(免穿帮露缝)。
-      // 平静水(waterWobble=1)整面随涌浪起伏；瀑布/落水体(=0)不起伏 → 流水不撕缝。
-      const wob = (topFace || yArr[k] > 0.01) ? waterWobble : 0; // 0/1 起伏 gate
-      wa.T.push((wob > 0 ? 1 : -1) * cornerDepth(wx, ly, wz)); // aTop=带符号【逐角】水深:|值|=深度(片元调透明),符号=起伏 gate
-      wa.SH.push(cornerShore(wx, ly, wz));
+    const bottomFace = f === 3;
+    let uSteps = 1;
+    let vSteps = 1;
+    if (topFace) {
+      uSteps = WATER_SURFACE_SUBDIVISIONS;
+      vSteps = WATER_SURFACE_SUBDIVISIONS;
+    } else if (!bottomFace) {
+      // 暴露侧壁的上沿必须拥有与顶面相同的中间顶点；否则顶面解析位移后会与
+      // 只含两端点的侧壁直线分离。仅沿水平轴细分，固定底边不必增加竖向段。
+      if (d.c[0][1] === d.c[3][1]) uSteps = WATER_SURFACE_SUBDIVISIONS;
+      else vSteps = WATER_SURFACE_SUBDIVISIONS;
     }
-    wa.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+
+    const depthCorners = d.c.map((corner) => cornerDepth(ox + lx + corner[0], ly, oz + lz + corner[2]));
+    const shoreCorners = d.c.map((corner) => cornerShore(ox + lx + corner[0], ly, oz + lz + corner[2]));
+    const openCorners = d.c.map((corner) => cornerWaveOpen(ox + lx + corner[0], ly, oz + lz + corner[2]));
+
+    for (let iv = 0; iv <= vSteps; iv++) {
+      const v = iv / vSteps;
+      for (let iu = 0; iu <= uSteps; iu++) {
+        const u = iu / uSteps;
+        const rx = bilerp(d.c[0][0], d.c[1][0], d.c[2][0], d.c[3][0], u, v);
+        const rz = bilerp(d.c[0][2], d.c[1][2], d.c[2][2], d.c[3][2], u, v);
+        const relY = bilerp(yArr[0], yArr[1], yArr[2], yArr[3], u, v);
+        const py = ly + relY;
+        const wx = ox + lx + rx;
+        const wz = oz + lz + rz;
+        wa.P.push(lx + rx, py, lz + rz);
+        if (topFace || bottomFace) wa.U.push(wx, wz); // 顶/底面
+        else if (f === 0 || f === 1) wa.U.push(wz, py); // ±X 侧
+        else wa.U.push(wx, py); // ±Z 侧
+        wa.C.push(shade, shade, shade);
+        wa.L.push(sky, blk);
+        const depth = bilerp(depthCorners[0], depthCorners[1], depthCorners[2], depthCorners[3], u, v);
+        const shore = bilerp(shoreCorners[0], shoreCorners[1], shoreCorners[2], shoreCorners[3], u, v);
+        // 水面全部 + 侧壁上沿可动；侧壁底沿/底面固定。waveOpen 在固定顶点明确写 0，
+        // 以后 shader 即使单独读取该属性也不会意外移动水底。
+        const movable = waterWobble > 0 && (topFace || relY > 0.01);
+        wa.T.push((movable ? 1 : -1) * depth);
+        wa.SH.push(shore);
+        wa.WO.push(movable
+          ? bilerp(openCorners[0], openCorners[1], openCorners[2], openCorners[3], u, v)
+          : 0);
+      }
+    }
+
+    const row = uSteps + 1;
+    for (let iv = 0; iv < vSteps; iv++) {
+      for (let iu = 0; iu < uSteps; iu++) {
+        const a = base + iv * row + iu;
+        const b = a + row;
+        const c = b + 1;
+        const e = a + 1;
+        wa.I.push(a, b, c, a, c, e);
+      }
+    }
   };
   // 角高度(MC 平均法)：该角周围 4 格水的自身高度平均；近满(≥0.8)权重×10；空气计 0 高度。
   //  只有"上方还是水"(同一水柱内)才算满；头顶是方块【不再】强行灌满——否则流进/放方块后的浅水会被画成整块

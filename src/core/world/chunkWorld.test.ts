@@ -72,6 +72,37 @@ describe('ChunkWorld', () => {
     expect(diag.dirty).toBe(true); // 对角邻块(BUG3 修复后也标)
   });
 
+  it('水拓扑变化按 waveOpen 半径标脏邻块，非零水量变化仍只用一格范围', () => {
+    const w = new ChunkWorld(1);
+    const own = w.getChunk(0, 0);
+    const west = w.getChunk(-1, 0);
+    const Y = 190; // 世界生成高度之上，确保起点不是水
+
+    w.setBlock(3, Y, 8, 0);
+    own.dirty = false;
+    west.dirty = false;
+    w.setWater(3, Y, 8, 8, true, false); // local x=3，落在 waveOpen R=4 的西邻影响带内
+    expect(own.dirty).toBe(true);
+    expect(west.dirty).toBe(true);
+
+    own.dirty = false;
+    west.dirty = false;
+    w.setWater(3, Y, 8, 6, false, false); // 仍然是 wet，只改 amount/source
+    expect(own.dirty).toBe(true);
+    expect(west.dirty).toBe(false); // 高频流体量变化不能扩大到 R=4
+
+    own.dirty = false;
+    west.dirty = false;
+    w.setWater(3, Y, 8, 0, false, false); // wet→dry 同样会改变邻块的开阔度
+    expect(west.dirty).toBe(true);
+
+    w.setBlock(4, Y, 8, 0);
+    own.dirty = false;
+    west.dirty = false;
+    w.setWater(4, Y, 8, 8, true, false); // local x=4 已在角采样半径之外
+    expect(west.dirty).toBe(false);
+  });
+
   it('vertical out of range is air', () => {
     const w = new ChunkWorld(1);
     expect(w.getBlock(0, -1, 0)).toBe(0);
