@@ -43,6 +43,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
       if (md.light && md.light.length) transfer.push(md.light.buffer);
       if (md.underwater && md.underwater.length) transfer.push(md.underwater.buffer);
       if (md.top && md.top.length) transfer.push(md.top.buffer);
+      if (md.topFace && md.topFace.length) transfer.push(md.topFace.buffer);
       if (md.shore && md.shore.length) transfer.push(md.shore.buffer);
       if (md.waveOpen && md.waveOpen.length) transfer.push(md.waveOpen.buffer);
     };

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CAMERA_AUX_RENDER_LAYER } from './renderLayers';
 
 const STAGES = 10;
 
@@ -25,6 +26,7 @@ export class CrackOverlay {
       polygonOffsetUnits: -1,
     });
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(1.002, 1.002, 1.002), mat);
+    this.mesh.layers.set(CAMERA_AUX_RENDER_LAYER);
     this.mesh.renderOrder = 2;
     this.mesh.visible = false;
     scene.add(this.mesh);

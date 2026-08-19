@@ -5,9 +5,14 @@ import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 import { browserViewportSize } from './browserViewport';
-import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER, WATER_RENDER_LAYER } from './renderLayers';
-import { PlanarReflection } from './PlanarReflection';
+import {
+  CAMERA_AUX_RENDER_LAYER,
+  NO_WATER_REFLECTION_LAYER,
+  SKY_RENDER_LAYER,
+  WATER_RENDER_LAYER,
+} from './renderLayers';
 import { PlanarRefraction } from './PlanarRefraction';
+import { PlanarReflection } from './PlanarReflection';
 
 type WaterRefractionSink = (
   color: THREE.Texture | null,
@@ -16,7 +21,12 @@ type WaterRefractionSink = (
   physicalHeight: number,
 ) => void;
 
-type WaterReflectionSink = (color: THREE.Texture | null, textureMatrix?: THREE.Matrix4) => void;
+type WaterReflectionSink = (
+  color: THREE.Texture | null,
+  textureMatrix: THREE.Matrix4 | null,
+  physicalWidth: number,
+  physicalHeight: number,
+) => void;
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
 interface GodRayOpts {
@@ -65,6 +75,7 @@ export class Renderer {
   private waterRefractionSink: WaterRefractionSink | null = null;
   private planarReflection: PlanarReflection | null = null;
   private waterReflectionSink: WaterReflectionSink | null = null;
+  private waterCapturesEnabled = true;
   private readonly godStd = new GodRays(24); // standard 档：24 采样
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
@@ -116,7 +127,8 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.camera.layers.enable(WATER_RENDER_LAYER); // 主 pass 同时看地形(layer0)和水(layer1)
     this.camera.layers.enable(NO_WATER_REFLECTION_LAYER); // 太阳正常显示，但不进入水面镜像 RT
-    this.camera.layers.enable(SKY_RENDER_LAYER); // 天空可进入主画面和镜像反射，但不进入水下折射
+    this.camera.layers.enable(SKY_RENDER_LAYER); // 天空可进入主画面和镜像 RT，但不进入水下折射
+    this.camera.layers.enable(CAMERA_AUX_RENDER_LAYER); // 选框/裂纹/名字牌只属于玩家主画面
     this.resize();
     window.addEventListener('resize', this.onViewportChange);
     window.addEventListener('orientationchange', this.onViewportChange);
@@ -220,10 +232,30 @@ export class Renderer {
     this.publishRefractionTarget();
   }
 
-  /** Water shader subscribes to the live planar-reflection texture and projective matrix. */
+  /** Water shader subscribes to the true mirrored sea-surface scene. */
   setWaterReflectionSink(sink: WaterReflectionSink | null): void {
     this.waterReflectionSink = sink;
     this.publishReflectionTarget();
+  }
+
+  /** Skip both auxiliary water scene passes in dimensions that contain no water. */
+  setWaterCapturesEnabled(enabled: boolean): void {
+    if (enabled === this.waterCapturesEnabled) return;
+    this.waterCapturesEnabled = enabled;
+    if (!enabled) {
+      this.planarRefraction?.dispose();
+      this.planarRefraction = null;
+      this.planarReflection?.dispose();
+      this.planarReflection = null;
+      this.publishRefractionTarget();
+      this.publishReflectionTarget();
+    } else {
+      // Keep the sinks empty until this frame renders fresh captures; otherwise one frame
+      // could sample the previous dimension's scene.
+      this.waterRefractionSink?.(null, null, 1, 1);
+      this.waterReflectionSink?.(null, null, 1, 1);
+      if (this.god !== null) this.ensureWaterCaptureTargets();
+    }
   }
 
   /**
@@ -262,22 +294,7 @@ export class Renderer {
     if (this.rt === null) {
       this.rt = this.buildRT(this.viewportW, this.viewportH);
     }
-    if (this.planarRefraction === null) {
-      const pr = this.gl.getPixelRatio();
-      this.planarRefraction = new PlanarRefraction(
-        Math.max(1, Math.round(this.viewportW * pr)),
-        Math.max(1, Math.round(this.viewportH * pr)),
-      );
-      this.publishRefractionTarget();
-    }
-    if (this.planarReflection === null) {
-      const pr = this.gl.getPixelRatio();
-      this.planarReflection = new PlanarReflection(
-        Math.max(1, Math.round(this.viewportW * pr)),
-        Math.max(1, Math.round(this.viewportH * pr)),
-      );
-      this.publishReflectionTarget();
-    }
+    this.ensureWaterCaptureTargets();
     // 确保 Bloom 已建。
     if (this.bloom === null) {
       const pr = this.gl.getPixelRatio();
@@ -316,11 +333,11 @@ export class Renderer {
       return;
     }
 
-    // ── Step -1: 海平面镜像场景 → 真实倒影 RT ──
-    // 反射相机只看 layer0，因此不会递归画水；oblique near-plane 裁掉水面以下地形。
-    // 镜像相机越过反射平面后，oblique clip 会翻转并产生巨大投影项；水下禁用平面倒影，
-    // 交给天空 Fresnel/水下散射兜底。浮出水面下一帧会自动恢复。
+    // ── Step -1: 海平面镜像相机 → 真实倒影 RT ──
+    // 这里渲染的是镜像世界，不是复制玩家屏幕。斜裁剪面排除水下几何，
+    // water/aux/sun 图层也不进入此 pass，因此岸、树和生物会在正确的接触线下方出现。
     if (
+      this.waterCapturesEnabled &&
       this.planarReflection !== null &&
       this.camera.position.y > this.planarReflection.planeY + 0.05
     ) {
@@ -331,8 +348,8 @@ export class Renderer {
         (reflectionCamera) => this.skyDome.position.copy(reflectionCamera.position),
         () => this.skyDome.position.copy(this.camera.position),
       );
-      this.publishReflectionTarget();
-    } else if (this.planarReflection !== null) {
+      this.publishReflectionTarget(true);
+    } else {
       this.publishReflectionTarget(false);
     }
 
@@ -340,7 +357,7 @@ export class Renderer {
     // 水上时只保留水面以下的真实地形/生物；水下时反向保留水面以上的岸景与天空。
     // 相机姿态/投影始终与玩家一致，但这不是玩家画面的屏幕拷贝：水面自身不会进入 RT，
     // 且裁剪平面保证只传输界面另一侧真正存在的内容。
-    if (this.planarRefraction !== null) {
+    if (this.waterCapturesEnabled && this.planarRefraction !== null) {
       const previousFog = this.scene.fog;
       this.scene.fog = null; // 空气雾不属于水体；水 shader 会按真实光程做吸收/散射。
       try {
@@ -441,7 +458,7 @@ export class Renderer {
 
   private publishRefractionTarget(): void {
     if (!this.waterRefractionSink) return;
-    if (!this.planarRefraction) {
+    if (!this.waterCapturesEnabled || !this.planarRefraction) {
       this.waterRefractionSink(null, null, 1, 1);
       return;
     }
@@ -453,12 +470,30 @@ export class Renderer {
     );
   }
 
-  private publishReflectionTarget(available = true): void {
+  private ensureWaterCaptureTargets(): void {
+    if (!this.waterCapturesEnabled) return;
+    const pr = this.gl.getPixelRatio();
+    const width = Math.max(1, Math.round(this.viewportW * pr));
+    const height = Math.max(1, Math.round(this.viewportH * pr));
+    if (this.planarRefraction === null) {
+      this.planarRefraction = new PlanarRefraction(width, height);
+    }
+    if (this.planarReflection === null) {
+      this.planarReflection = new PlanarReflection(width, height);
+    }
+  }
+
+  private publishReflectionTarget(active = true): void {
     if (!this.waterReflectionSink) return;
-    if (!this.planarReflection || !available) {
-      this.waterReflectionSink(null);
+    if (!active || !this.waterCapturesEnabled || !this.planarReflection) {
+      this.waterReflectionSink(null, null, 1, 1);
       return;
     }
-    this.waterReflectionSink(this.planarReflection.texture, this.planarReflection.textureMatrix);
+    this.waterReflectionSink(
+      this.planarReflection.texture,
+      this.planarReflection.textureMatrix,
+      this.planarReflection.renderTarget.width,
+      this.planarReflection.renderTarget.height,
+    );
   }
 }

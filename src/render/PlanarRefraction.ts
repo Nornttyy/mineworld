@@ -147,7 +147,9 @@ export class PlanarRefraction {
       // they cannot unexpectedly cut holes into the captured underwater scene.
       renderer.localClippingEnabled = false;
       renderer.setRenderTarget(this.renderTarget);
-      renderer.setViewport(0, 0, this.renderTarget.width, this.renderTarget.height);
+      // setRenderTarget() applies the render target's physical viewport. Calling
+      // setViewport() with these physical dimensions would multiply them by DPR
+      // again, shifting the capture on high-DPI displays.
       renderer.setScissorTest(false);
       renderer.state.buffers.depth.setMask(true);
       renderer.clear(true, true, false);

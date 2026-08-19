@@ -94,6 +94,7 @@ export interface MeshData {
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
   top?: Float32Array; // 仅水：带符号逐角水深；正=可动水面/侧壁上沿，负=固定侧壁底/底面
+  topFace?: Float32Array; // 仅水：显式面类别；顶面=1，侧壁/底面=0，避免 shader 在 draw-call 边界用导数猜面
   shore?: Float32Array; // 仅水：角周围缺水覆盖率 0..1；精确画岸边细浪，不把整片浅水误判成岸线
   waveOpen?: Float32Array; // 仅水：0..1 几何大浪安全度；远离非水/冰/顶板才趋近 1，固定顶点为 0
   sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
@@ -184,12 +185,25 @@ interface FaceArrays {
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
   UW: number[]; // 仅不透明网格：面外连续水柱深度 0..8；其他网格留空
-  T: number[]; // 仅水用：每顶点是否在水面(1/0)；其余网格留空
+  T: number[]; // 仅水用：带符号逐角水深；正=可动，负=固定；其余网格留空
+  TF: number[]; // 仅水用：顶面=1，侧壁/底面=0；其余网格留空
   SH: number[]; // 仅水用：每顶点岸线覆盖率 0..1；其余网格留空
   WO: number[]; // 仅水用：每顶点几何大浪安全度 0..1；固定顶点写 0
   SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
 }
-const emptyArrays = (): FaceArrays => ({ P: [], U: [], C: [], I: [], L: [], UW: [], T: [], SH: [], WO: [], SW: [] });
+const emptyArrays = (): FaceArrays => ({
+  P: [],
+  U: [],
+  C: [],
+  I: [],
+  L: [],
+  UW: [],
+  T: [],
+  TF: [],
+  SH: [],
+  WO: [],
+  SW: [],
+});
 const toMeshData = (a: FaceArrays): MeshData => {
   const verts = a.P.length / 3;
   return {
@@ -201,6 +215,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     light: new Float32Array(a.L),
     underwater: a.UW.length ? new Float32Array(a.UW) : undefined,
     top: a.T.length ? new Float32Array(a.T) : undefined,
+    topFace: a.TF.length ? new Float32Array(a.TF) : undefined,
     shore: a.SH.length ? new Float32Array(a.SH) : undefined,
     waveOpen: a.WO.length ? new Float32Array(a.WO) : undefined,
     sway: a.SW.length ? new Float32Array(a.SW) : undefined,
@@ -517,6 +532,7 @@ export function meshChunkData(
         // 以后 shader 即使单独读取该属性也不会意外移动水底。
         const movable = waterWobble > 0 && (topFace || relY > 0.01);
         wa.T.push((movable ? 1 : -1) * depth);
+        wa.TF.push(topFace ? 1 : 0);
         wa.SH.push(shore);
         wa.WO.push(movable
           ? bilerp(openCorners[0], openCorners[1], openCorners[2], openCorners[3], u, v)

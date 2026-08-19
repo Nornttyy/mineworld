@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Particle } from '../core/particles/particles';
+import { CAMERA_AUX_RENDER_LAYER } from './renderLayers';
 
 const MAX = 600; // 同屏粒子上限（预分配缓冲）
 
@@ -28,6 +29,7 @@ export class ParticleRenderer {
       depthWrite: false, // 不写深度，避免粒子互相遮挡/闪烁（仍被地形正确遮挡）
     });
     this.points = new THREE.Points(this.geom, mat);
+    this.points.layers.set(CAMERA_AUX_RENDER_LAYER);
     this.points.frustumCulled = false; // 颗粒分布零散，关剔除免整批消失
     scene.add(this.points);
   }
