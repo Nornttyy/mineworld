@@ -7,7 +7,8 @@ import {
   CLOUD_VOLUME_FRAG,
   CLOUD_VOLUME_VERT,
   cloudStepCount,
-  makeCloudVolumeTexture,
+  makeCloudDetailTexture3D,
+  makeCloudWeatherTexture,
 } from './cloudVolume';
 
 const CELESTIAL_RADIUS = 280;
@@ -305,9 +306,10 @@ export class SkyObjects {
   private readonly sunGlow: THREE.Mesh; // 太阳柔和光晕（光影开，加法混合）
   private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
   private readonly voxelClouds: THREE.Mesh; // 立体方块云（光影关）
-  private readonly realClouds: THREE.Mesh; // 有限高度体积云（光影开）
+  private readonly realClouds: THREE.Mesh; // 多高度三维体积云（光影开）
   private readonly cloudUniforms: {
-    uCloudNoise: { value: THREE.DataTexture };
+    uCloudWeather: { value: THREE.DataTexture };
+    uCloudDetail3D: { value: THREE.Data3DTexture };
     uTime: { value: number };
     uStepCount: { value: number };
     uTint: { value: THREE.Color };
@@ -381,10 +383,11 @@ export class SkyObjects {
     this.voxelClouds = new THREE.Mesh(new THREE.BufferGeometry(), voxelMat);
     this.voxelClouds.frustumCulled = false;
 
-    // 真实云(光影档)：有限高度 slab 内做稳定体积积分。固定 midpoint 采样不使用
-    // jitter/历史帧，云具有真实厚度与自遮蔽，同时不会在移动时闪烁或拖影。
+    // 真实云(光影档)：2D 天气场只控制云团分布，实际形体来自独立的三维密度纹理。
+    // 多高度积云/塔状云/高空薄云在同一世界空间内积分，不再是一张云层平面。
     this.cloudUniforms = {
-      uCloudNoise: { value: makeCloudVolumeTexture() },
+      uCloudWeather: { value: makeCloudWeatherTexture() },
+      uCloudDetail3D: { value: makeCloudDetailTexture3D() },
       uTime: { value: 0 },
       uStepCount: { value: cloudStepCount('standard') },
       uTint: { value: new THREE.Color(1, 1, 1) },
@@ -396,13 +399,16 @@ export class SkyObjects {
       fragmentShader: CLOUD_VOLUME_FRAG,
       transparent: true,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: THREE.BackSide,
     });
     this.realClouds = new THREE.Mesh(
-      new THREE.PlaneGeometry(CLOUD_VOLUME_CONSTANTS.extent, CLOUD_VOLUME_CONSTANTS.extent),
+      new THREE.BoxGeometry(
+        CLOUD_VOLUME_CONSTANTS.extent,
+        CLOUD_VOLUME_CONSTANTS.extent,
+        CLOUD_VOLUME_CONSTANTS.extent,
+      ),
       cloudMat,
     );
-    this.realClouds.rotation.x = -Math.PI / 2;
     this.realClouds.frustumCulled = false;
     this.realClouds.visible = false;
     this.realClouds.onBeforeRender = (_renderer, _scene, camera): void => {
@@ -561,9 +567,9 @@ export class SkyObjects {
     (this.stars.material as THREE.PointsMaterial).opacity = Math.pow(night, 1.5) * 0.9;
 
     if (this.realClouds.visible) {
-      // 体积云入口面跟随相机(密度用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
+      // 三维代理盒跟随相机(密度用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
       // (白天白/黎明黄昏暖/夜暗蓝灰,与方块天光同一套关键帧,天色一致)。
-      this.realClouds.position.set(camPos.x, CLOUD_VOLUME_CONSTANTS.baseY, camPos.z);
+      this.realClouds.position.copy(camPos);
       // uTime=drift(≈0.72/s)，shader 以世界 UV 风向平移，速度与刷新率无关。
       this.cloudUniforms.uTime.value = this.drift;
       const wt = skyStateAt(worldTime).worldTint;
