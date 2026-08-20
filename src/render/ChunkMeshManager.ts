@@ -268,8 +268,8 @@ export class ChunkMeshManager {
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
             (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
-            (underwater ? 'attribute float aUnderwater;\n' : '') +
-            'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
+            (underwater ? 'attribute float aUnderwater;\nattribute float aWetness;\n' : '') +
+            'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             MC_BRIGHT_GLSL,
         )
         .replace(
@@ -280,15 +280,18 @@ export class ChunkMeshManager {
             '\n' +
             'vSky = aLight.x;\n' +
             'vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' + // 世界坐标(阳光泽面法线/视线用)
-            (underwater ? 'vUnderwater = aUnderwater;\n' : 'vUnderwater = 0.0;\n') +
+            (underwater
+              ? 'vUnderwater = aUnderwater;\nvWetness = aWetness;\n'
+              : 'vUnderwater = 0.0;\nvWetness = 0.0;\n') +
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\n' +
+          '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
             'uniform float uTime;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
+            'float mwTile(float id,float target){ return 1.0-step(0.5,abs(id-target)); }\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
             // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
             // 【整片永远判成阴影、全场 50% 压暗】,窗口外正常 → 用户报"开光影后玩家周围比远处暗"。
@@ -348,18 +351,31 @@ export class ChunkMeshManager {
             // 远处按屏幕 footprint 自动淡出，保持像素边缘稳定且不产生闪纹。
             'vec3 mwShadeN = mwGeomN;\n' +
             'float mwTileIndex = -1.0;\n' +
+            'float mwRock = 0.0; float mwSoil = 0.0; float mwGrass = 0.0; float mwSand = 0.0;\n' +
+            'float mwWood = 0.0; float mwSnow = 0.0; float mwFoliage = 0.0; float mwPolished = 0.0;\n' +
+            'float mwTexCavity = 0.0;\n' +
             '#ifdef USE_MAP\n' +
             '  vec2 mwAtlasSize = vec2(64.0, 160.0);\n' +
             '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
             '  vec2 mwTileSize = vec2(0.25, 0.1);\n' +
             '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
             '  mwTileIndex = floor(vMapUv.x * 4.0) + floor((1.0 - vMapUv.y) * 10.0) * 4.0;\n' +
+            '  mwRock = max(max(max(mwTile(mwTileIndex,0.0),mwTile(mwTileIndex,4.0)),max(mwTile(mwTileIndex,9.0),mwTile(mwTileIndex,14.0))),max(max(mwTile(mwTileIndex,16.0),mwTile(mwTileIndex,22.0)),max(mwTile(mwTileIndex,24.0),mwTile(mwTileIndex,35.0))));\n' +
+            '  mwSoil = max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,20.0));\n' +
+            '  mwGrass = max(mwTile(mwTileIndex,2.0),mwTile(mwTileIndex,3.0));\n' +
+            '  mwSand = max(mwTile(mwTileIndex,5.0),mwTile(mwTileIndex,26.0));\n' +
+            '  mwWood = max(max(max(mwTile(mwTileIndex,6.0),mwTile(mwTileIndex,7.0)),mwTile(mwTileIndex,8.0)),max(max(mwTile(mwTileIndex,12.0),mwTile(mwTileIndex,13.0)),mwTile(mwTileIndex,30.0)));\n' +
+            '  mwSnow = mwTile(mwTileIndex,29.0);\n' +
+            '  mwFoliage = max(max(mwTile(mwTileIndex,11.0),mwTile(mwTileIndex,17.0)),mwTile(mwTileIndex,31.0));\n' +
+            '  mwPolished = max(max(mwTile(mwTileIndex,18.0),mwTile(mwTileIndex,33.0)),max(mwTile(mwTileIndex,34.0),mwTile(mwTileIndex,36.0)));\n' +
             '  vec2 mwUvMin = mwTileBase + mwTexel * 0.55;\n' +
             '  vec2 mwUvMax = mwTileBase + mwTileSize - mwTexel * 0.55;\n' +
             '  float mwHL = dot(texture2D(map, clamp(vMapUv - vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwHR = dot(texture2D(map, clamp(vMapUv + vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwHD = dot(texture2D(map, clamp(vMapUv - vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwHU = dot(texture2D(map, clamp(vMapUv + vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  float mwHC = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  mwTexCavity = clamp(((mwHL+mwHR+mwHD+mwHU)*0.25-mwHC)*2.2,0.0,1.0);\n' +
             '  vec3 mwDp1 = dFdx(vWp); vec3 mwDp2 = dFdy(vWp);\n' +
             '  vec2 mwDuv1 = dFdx(vMapUv); vec2 mwDuv2 = dFdy(vMapUv);\n' +
             '  vec3 mwDp2Perp = cross(mwDp2, mwGeomN);\n' +
@@ -367,13 +383,39 @@ export class ChunkMeshManager {
             '  vec3 mwT = mwDp2Perp * mwDuv1.x + mwDp1Perp * mwDuv2.x;\n' +
             '  vec3 mwB = mwDp2Perp * mwDuv1.y + mwDp1Perp * mwDuv2.y;\n' +
             '  float mwInvBasis = inversesqrt(max(0.000001, max(dot(mwT, mwT), dot(mwB, mwB))));\n' +
-            '  float mwBump = mix(0.24, 0.36, uHq);\n' +
+            '  float mwBump = mix(0.22, 0.30, uHq);\n' +
+            '  mwBump = mix(mwBump,mix(0.34,0.46,uHq),mwRock);\n' +
+            '  mwBump = mix(mwBump,mix(0.27,0.36,uHq),max(mwSoil,mwGrass));\n' +
+            '  mwBump = mix(mwBump,mix(0.13,0.19,uHq),mwSand);\n' +
+            '  mwBump = mix(mwBump,mix(0.16,0.23,uHq),mwWood);\n' +
+            '  mwBump = mix(mwBump,mix(0.08,0.13,uHq),max(mwSnow,mwPolished));\n' +
             '  vec3 mwTangentN = normalize(vec3(-(mwHR - mwHL) * mwBump, -(mwHU - mwHD) * mwBump, 1.0));\n' +
             '  vec3 mwPixelN = normalize(mwT * mwInvBasis * mwTangentN.x + mwB * mwInvBasis * mwTangentN.y + mwGeomN * mwTangentN.z);\n' +
             '  float mwFootprint = max(length(dFdx(vMapUv) * mwAtlasSize), length(dFdy(vMapUv) * mwAtlasSize));\n' +
             '  float mwDetailVis = (1.0 - smoothstep(0.72, 2.0, mwFootprint)) * uShaders;\n' +
             '  mwShadeN = normalize(mix(mwGeomN, mwPixelN, mwDetailVis));\n' +
             '#endif\n' +
+            // 大尺度、世界锁定的材质变化打散重复图块；按主面投影，山壁不会被拉成竖条。
+            'float mwNatural = max(max(mwRock,mwSoil),max(mwGrass,max(mwSand,mwSnow)));\n' +
+            'vec2 mwMacroUv = abs(mwGeomN.y)>0.55 ? vWp.xz : (abs(mwGeomN.x)>0.55 ? vWp.zy : vWp.xy);\n' +
+            // 湿沙/湿土先吸收一部分漫反射，再由后面的宽高光恢复湿润亮边，避免简单涂黑或塑料化。
+            'float mwWetMaterial = smoothstep(0.04,0.92,vWetness);\n' +
+            'if(uShaders>0.5){\n' +
+            '  vec2 mwMacroSample = texture2D(uSurfaceNoise,mwMacroUv*0.018+vec2(0.173,0.417)).rg-0.5;\n' +
+            '  float mwMacro = mwMacroSample.x*0.72+mwMacroSample.y*0.28;\n' +
+            '  mwBlockAlbedo *= 1.0+mwMacro*(0.10*mwRock+0.13*mwSoil+0.11*mwGrass+0.08*mwSand+0.04*mwSnow);\n' +
+            '  float mwMatLuma = dot(mwBlockAlbedo,vec3(0.2126,0.7152,0.0722));\n' +
+            '  mwBlockAlbedo = mix(mwBlockAlbedo,vec3(mwMatLuma),mwRock*0.10+mwGrass*0.08+mwSand*0.035);\n' +
+            '  mwBlockAlbedo *= mix(vec3(1.0),vec3(0.98,1.015,0.96),mwGrass);\n' +
+            '  mwBlockAlbedo *= mix(vec3(1.0),vec3(1.035,1.0,0.92),mwSand);\n' +
+            '  mwBlockAlbedo *= mix(vec3(1.0),vec3(0.97,1.0,1.035),mwRock);\n' +
+            '  mwBlockAlbedo *= mix(vec3(1.0),vec3(0.965,0.985,1.0),mwSnow);\n' +
+            '  float mwTopNatural = mwNatural*smoothstep(0.72,0.98,mwGeomN.y);\n' +
+            '  mwShadeN = normalize(mwShadeN+vec3(mwMacroSample.x,0.0,mwMacroSample.y)*mwTopNatural*mix(0.035,0.065,uHq));\n' +
+            '  float mwWetDarken = mix(0.84,0.78,max(mwSoil,mwSand));\n' +
+            '  mwBlockAlbedo *= mix(1.0,mwWetDarken,mwWetMaterial);\n' +
+            '  mwBlockAlbedo *= 1.0-mwTexCavity*(0.035+0.055*max(mwRock,mwSoil))*mwNatural;\n' +
+            '}\n' +
             'float shadowVis = 1.0;\n' +
             'if (uShadowOn > 0.5) {\n' +
             '  float sh = mwShadow(vShadowCoord);\n' +
@@ -412,6 +454,9 @@ export class ChunkMeshManager {
             'if (openSun > 0.003) {\n' +
             '  vec3 sunDir = normalize(uSunDirW);\n' +
             '  float nd = max(dot(mwShadeN, sunDir), 0.0);\n' +
+            // 粗糙天然材质用更宽的漫反射瓣，细小凹凸在逆光侧仍可读；抛光方块保持锐利。
+            '  float mwRoughDiffuse = max(max(mwRock,mwSoil),max(mwGrass,mwSand));\n' +
+            '  nd = mix(nd,sqrt(nd),mwRoughDiffuse*mix(0.10,0.16,uHq));\n' +
             '  float sunHeight = smoothstep(0.05, 0.70, sunDir.y);\n' +
             // 受光面明确暖黄，但对白色/高饱和材质自动收敛色度，雪不染橙、草不荧光。
             '  vec3 sunTone = mix(vec3(1.20, 0.84, 0.52), vec3(1.12, 1.02, 0.86), sunHeight);\n' +
@@ -436,20 +481,18 @@ export class ChunkMeshManager {
             // 保色相压峰：普通漫反射最高 1.04，略亮但仍低于 Bloom 阈值 1.05。
             '  float mwDiffusePeak = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);\n' +
             '  diffuseColor.rgb *= min(1.0, 1.04 / max(mwDiffusePeak, 0.0001));\n' +
-            // 只给雪、浅色石材和水下湿面一点材质反应；高色度草/泥土保持粗糙，避免全世界塑料化。
-            '  float mwLuma = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
-            '  float mwChroma = max(max(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b) - min(min(mwBlockAlbedo.r, mwBlockAlbedo.g), mwBlockAlbedo.b);\n' +
-            '  float mwMineral = smoothstep(0.12, 0.72, mwLuma) * (1.0 - smoothstep(0.14, 0.42, mwChroma));\n' +
-            '  float mwWet = smoothstep(0.08, 1.0, vUnderwater);\n' +
+            // 材质化高光：石/土/草保持哑光，雪是很宽的柔光，金属/石英才有锐亮点；岸边湿面介于两者之间。
+            '  float mwWet = max(smoothstep(0.08,1.0,vUnderwater),mwWetMaterial);\n' +
             '  float mwIron = 1.0 - step(0.5, abs(mwTileIndex - 33.0));\n' +
             '  float mwQuartz = 1.0 - step(0.5, abs(mwTileIndex - 34.0));\n' +
             '  float mwDiamond = 1.0 - step(0.5, abs(mwTileIndex - 36.0));\n' +
             '  float mwObsidian = 1.0 - step(0.5, abs(mwTileIndex - 18.0));\n' +
             '  float mwSpecialGloss = max(max(mwIron, mwDiamond), max(mwQuartz * 0.72, mwObsidian));\n' +
             '  vec3 mwHalf = normalize(sunDir + mwView);\n' +
-            '  float mwSpecPower = mix(28.0, 64.0, uHq) * mix(0.72, 1.12, max(mwMineral, mwSpecialGloss));\n' +
+            '  float mwGloss = max(mwSpecialGloss,max(mwWet*0.62,mwSnow*0.18));\n' +
+            '  float mwSpecPower = mix(18.0,72.0,mwGloss)*mix(0.90,1.08,uHq);\n' +
             '  float mwSpec = pow(max(dot(mwShadeN, mwHalf), 0.0), mwSpecPower);\n' +
-            '  mwSpec *= 0.014 + mwMineral * 0.075 + mwSpecialGloss * 0.12 + mwWet * 0.14;\n' +
+            '  mwSpec *= 0.004+mwRock*0.007+mwSnow*0.018+mwSpecialGloss*0.15+mwWet*0.085;\n' +
             '  diffuseColor.rgb += sunTone * mwSpec * sunLit * sunCloud;\n' +
             '}\n' +
             // 真正发光方块单独输出 HDR，普通雪/沙/天空仍被锁在 1 以下；Bloom 因而只追踪光源与材质高光。
@@ -1441,6 +1484,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     if (data.underwater && data.underwater.length)
       g.setAttribute('aUnderwater', new THREE.BufferAttribute(data.underwater, 1)); // 不透明：面外水柱深度(水底焦散)
+    if (data.wetness && data.wetness.length)
+      g.setAttribute('aWetness', new THREE.BufferAttribute(data.wetness, 1)); // 不透明：水下/岸边湿润度
     if (data.top && data.top.length) g.setAttribute('aTop', new THREE.BufferAttribute(data.top, 1)); // 仅水：水面顶点标记(光影涌浪起伏)
     if (data.topFace && data.topFace.length)
       g.setAttribute('aTopFace', new THREE.BufferAttribute(data.topFace, 1)); // 仅水：顶面=1，侧壁/底面=0，跨 draw-call 稳定判面

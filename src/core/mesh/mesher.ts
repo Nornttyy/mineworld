@@ -93,6 +93,7 @@ export interface MeshData {
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
+  wetness?: Float32Array; // 仅不透明网格：水下/岸边湿润度 0..1，供地表材质做暗色、低粗糙度过渡
   top?: Float32Array; // 仅水：带符号逐角水深；正=可动水面/侧壁上沿，负=固定侧壁底/底面
   topFace?: Float32Array; // 仅水：显式面类别；顶面=1，侧壁/底面=0，避免 shader 在 draw-call 边界用导数猜面
   shore?: Float32Array; // 仅水：角周围缺水覆盖率 0..1；精确画岸边细浪，不把整片浅水误判成岸线
@@ -185,6 +186,7 @@ interface FaceArrays {
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
   UW: number[]; // 仅不透明网格：面外连续水柱深度 0..8；其他网格留空
+  WT: number[]; // 仅不透明网格：逐顶点岸边/水下湿润度 0..1；其他网格留空
   T: number[]; // 仅水用：带符号逐角水深；正=可动，负=固定；其余网格留空
   TF: number[]; // 仅水用：顶面=1，侧壁/底面=0；其余网格留空
   SH: number[]; // 仅水用：每顶点岸线覆盖率 0..1；其余网格留空
@@ -198,6 +200,7 @@ const emptyArrays = (): FaceArrays => ({
   I: [],
   L: [],
   UW: [],
+  WT: [],
   T: [],
   TF: [],
   SH: [],
@@ -214,6 +217,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
     underwater: a.UW.length ? new Float32Array(a.UW) : undefined,
+    wetness: a.WT.length ? new Float32Array(a.WT) : undefined,
     top: a.T.length ? new Float32Array(a.T) : undefined,
     topFace: a.TF.length ? new Float32Array(a.TF) : undefined,
     shore: a.SH.length ? new Float32Array(a.SH) : undefined,
@@ -291,6 +295,37 @@ export function meshChunkData(
     for (let yy = wy; yy < CHUNK_H && depth < 8 && waterAmount(wx, yy, wz) > 0; yy++) depth++;
     return depth;
   };
+  // 岸边湿润度按世界顶点采样，而不是按方块整面硬切。直接浸水为 1；离同高度水面约
+  // 两格内平滑衰减。世界坐标保证相邻方块/区块共享顶点得到完全相同的值。
+  const shoreWetnessCache = new Map<number, number>();
+  const shoreWetnessAt = (vx: number, vy: number, vz: number): number => {
+    const localX = Math.round(vx - ox);
+    const localZ = Math.round(vz - oz);
+    const cacheKey = localX + localZ * 17 + Math.round(vy) * 17 * 17;
+    const cached = shoreWetnessCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+    const bx = Math.floor(vx);
+    const by = Math.floor(vy - 0.001);
+    const bz = Math.floor(vz);
+    let nearest = 99;
+    for (let yy = by - 1; yy <= by; yy++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const amount = waterAmount(bx + dx, yy, bz + dz);
+          if (amount <= 0) continue;
+          const surfaceY = yy + Math.min(1, amount / 9);
+          const vertical = Math.abs(surfaceY - vy);
+          if (vertical > 1.05) continue;
+          const horizontal = Math.hypot(bx + dx + 0.5 - vx, bz + dz + 0.5 - vz);
+          nearest = Math.min(nearest, horizontal + vertical * 0.35);
+        }
+      }
+    }
+    const t = Math.max(0, Math.min(1, (nearest - 0.35) / 2.0));
+    const wetness = 1 - t * t * (3 - 2 * t);
+    shoreWetnessCache.set(cacheKey, wetness);
+    return wetness;
+  };
   // 平滑光照(同 MC smooth lighting)：某面某角，取"面外格 + 两条边格 + 对角格"中【非遮挡】格的
   // (天光,方块光) 平均 → 顶点间渐变、柔和的明暗，而不是整面一个平铺光值。(ex,ey,ez)=面外那一格(local)。
   const cornerLight = (ex: number, ey: number, ez: number, f: number, k: number): [number, number] => {
@@ -332,7 +367,13 @@ export function meshChunkData(
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
       a.L.push(sky, blk);
-      if (a === op) a.UW.push(underwaterDepth);
+      if (a === op) {
+        a.UW.push(underwaterDepth);
+        const vx = ox + lx + corner[0];
+        const vy = ly + corner[1];
+        const vz = oz + lz + corner[2];
+        a.WT.push(underwaterDepth > 0 ? 1 : shoreWetnessAt(vx, vy, vz));
+      }
     }
     // 按 AO 翻转四边形对角线，避免梯度插值出现折痕
     if (ao[0] + ao[2] > ao[1] + ao[3]) {
