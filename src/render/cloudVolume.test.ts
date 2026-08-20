@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  CLOUD_VOLUME_CONSTANTS,
   CLOUD_VOLUME_FRAG,
   buildCloudDetailData,
   cloudStepCount,
@@ -13,6 +14,12 @@ import {
 } from './cloudVolume';
 
 describe('three-dimensional cloud volume', () => {
+  it('keeps the complete proxy cube inside the gameplay far plane', () => {
+    const cornerDistance = (CLOUD_VOLUME_CONSTANTS.extent / 2) * Math.sqrt(3);
+    expect(cornerDistance).toBeLessThan(1000);
+    expect(cornerDistance).toBeGreaterThan(700);
+  });
+
   it('uses fixed quality sample counts and no temporal jitter', () => {
     expect(cloudStepCount('off')).toBe(0);
     expect(cloudStepCount('standard')).toBe(36);

@@ -6,7 +6,9 @@ import { buildCloudShadowData } from './surfaceNoise';
 export const CLOUD_VOLUME_CONSTANTS = {
   minY: 145,
   maxY: 365,
-  extent: 1800,
+  // Proxy only supplies view-ray directions. Keep every cube corner inside the
+  // gameplay camera's 1000-block far plane: 900 / 2 * sqrt(3) ~= 779.
+  extent: 900,
   maxDistance: 850,
   fadeStart: 650,
   weatherTextureSize: 128,
