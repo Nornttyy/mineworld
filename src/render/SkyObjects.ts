@@ -2,77 +2,97 @@ import * as THREE from 'three';
 import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER } from './renderLayers';
 import { DAY_LENGTH, skyStateAt, skyDarkenAt } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
+import {
+  CLOUD_VOLUME_CONSTANTS,
+  CLOUD_VOLUME_FRAG,
+  CLOUD_VOLUME_VERT,
+  cloudStepCount,
+  makeCloudVolumeTexture,
+} from './cloudVolume';
 
-// —— 真实云(光影档)：程序化 shader 云平面 ——
-// 纯片元程序噪声，无贴图(旧 512² 贴图云既糊又是低内存机 OOM 稻草)：任意距离清晰、云形缓慢演变。
-// 形状=4 octave 值噪声 + domain warp(菜花状积云边缘)；体积感=朝太阳方向偏移采样密度差(向阳亮/背阳暗)；
-// 颜色=uTint 随昼夜(白天白/黄昏暖橙/夜暗蓝灰)；世界坐标锚定(平面跟随相机,噪声用世界 XZ→云不跟人跑)。
-const CLOUD_VERT = /* glsl */ `
-varying vec3 vW;
+const CELESTIAL_RADIUS = 280;
+const SUN_DIAMETER = 7.4; // ≈1.5°，旧 52 格巨盘约 10.6°
+const MOON_DIAMETER = 8.8; // ≈1.8°，保留夜间可读性但不再占一大片天
+const SUN_GLOW_DIAMETER = 32; // ≈6.5°，宽晕主要交给天空穹顶的 Mie 散射
+
+const DISC_VERT = /* glsl */ `
+varying vec2 vDisc;
 void main() {
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vW = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp;
+  vDisc = uv * 2.0 - 1.0;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `.trim();
 
-const CLOUD_FRAG = /* glsl */ `
-uniform float uTime;
-uniform vec3 uTint;
-uniform vec3 uSunDir;
-varying vec3 vW;
-float mwH2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float mwVN(vec2 p){
-  vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-  float a = mwH2(i); float b = mwH2(i + vec2(1.0, 0.0)); float c = mwH2(i + vec2(0.0, 1.0)); float d = mwH2(i + vec2(1.0, 1.0));
+const SUN_FRAG = /* glsl */ `
+uniform float uVisibility;
+varying vec2 vDisc;
+void main() {
+  float radius = length(vDisc);
+  float aa = max(fwidth(radius) * 1.35, 0.0015);
+  float mask = (1.0 - smoothstep(1.0 - aa, 1.0 + aa, radius)) * uVisibility;
+  if (mask < 0.001) discard;
+  float mu = sqrt(max(0.0, 1.0 - radius * radius));
+  vec3 limb = mix(vec3(1.0, 0.68, 0.28), vec3(1.0, 0.97, 0.79), pow(mu, 0.55));
+  float radiance = mix(2.8, 4.8, pow(mu, 0.42));
+  gl_FragColor = vec4(limb * radiance, mask);
+  #include <colorspace_fragment>
+}
+`.trim();
+
+const SUN_GLOW_FRAG = /* glsl */ `
+uniform float uVisibility;
+varying vec2 vDisc;
+void main() {
+  float radius = length(vDisc);
+  if (radius >= 1.0) discard;
+  float glow = pow(1.0 - radius, 2.6) * 0.075 * uVisibility;
+  gl_FragColor = vec4(vec3(1.0, 0.78, 0.38) * glow, 1.0);
+  #include <colorspace_fragment>
+}
+`.trim();
+
+const MOON_FRAG = /* glsl */ `
+uniform float uVisibility;
+varying vec2 vDisc;
+
+float mwMoonHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float mwMoonNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = mwMoonHash(i);
+  float b = mwMoonHash(i + vec2(1.0, 0.0));
+  float c = mwMoonHash(i + vec2(0.0, 1.0));
+  float d = mwMoonHash(i + vec2(1.0, 1.0));
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
-float mwFBM(vec2 p){
-  float n = 0.0; float amp = 0.5;
-  for (int o = 0; o < 4; o++) { n += mwVN(p) * amp; p = p * 2.13 + vec2(17.3, 9.1); amp *= 0.5; }
-  return n / 0.9375;
+float mwCrater(vec2 p, vec2 centre, float radius) {
+  float d = length(p - centre) / radius;
+  float bowl = 1.0 - smoothstep(0.0, 0.72, d);
+  float rim = smoothstep(0.64, 0.82, d) * (1.0 - smoothstep(0.82, 1.04, d));
+  return bowl * 0.16 - rim * 0.045;
 }
 void main() {
-  // Two independently drifting scales plus a large domain warp form clustered,
-  // asymmetric cloud banks. The old single FBM threshold produced broad grey
-  // cushions whose outlines repeated at one obvious scale.
-  vec2 drift = vec2(uTime * 0.0105, uTime * 0.0031);
-  vec2 p = vW.xz * 0.0094 + drift;
-  vec2 warp = vec2(
-    mwFBM(p * 0.78 + vec2(3.7, uTime * 0.0013)),
-    mwFBM(p * 0.78 + vec2(-8.1, -uTime * 0.0011))
-  ) - 0.5;
-  vec2 q = p + warp * 0.72;
-  float macroShape = mwFBM(q);
-  float billow = mwFBM(q * 2.47 + vec2(13.2, -5.8) - drift * 0.31);
-  float erosion = mwVN(q * 9.3 + vec2(uTime * 0.0012, -uTime * 0.0016));
-  float density = macroShape * 0.70 + billow * 0.30 + (erosion - 0.5) * 0.085;
-  float aa = max(fwidth(density) * 1.65, 0.006);
-  float coverage = smoothstep(0.555 - aa, 0.635 + aa, density);
-  if (coverage < 0.003) discard;
+  float r2 = dot(vDisc, vDisc);
+  float radius = sqrt(r2);
+  float aa = max(fwidth(radius) * 1.45, 0.0015);
+  float mask = (1.0 - smoothstep(1.0 - aa, 1.0 + aa, radius)) * uVisibility;
+  if (mask < 0.001) discard;
 
-  // Cheap directional self-shadowing: two pairs of value-noise probes follow
-  // the horizontal sun direction. This creates lit rims and readable dark cores
-  // without the flat blurred-grey look or a costly volumetric ray march.
-  vec2 sunXZ = normalize(uSunDir.xz + vec2(1e-4, 0.0));
-  float lightA = mwVN(q * 3.1 + sunXZ * 0.72);
-  float darkA = mwVN(q * 3.1 - sunXZ * 0.38);
-  float lightB = mwVN(q * 6.4 + sunXZ * 1.15 + vec2(7.0, -11.0));
-  float darkB = mwVN(q * 6.4 - sunXZ * 0.52 + vec2(7.0, -11.0));
-  float directional = clamp(0.5 + (lightA - darkA) * 1.15 + (lightB - darkB) * 0.42, 0.0, 1.0);
-  float core = smoothstep(0.61, 0.79, density);
-  float sunHeight = smoothstep(-0.08, 0.45, uSunDir.y);
-  vec3 shadowTint = uTint * mix(0.56, 0.76, sunHeight);
-  vec3 lightTint = mix(uTint * 0.94, vec3(1.0, 0.965, 0.90), sunHeight * 0.62);
-  float illumination = clamp(0.22 + directional * 0.72 - core * 0.18, 0.08, 0.96);
-  vec3 col = mix(shadowTint, lightTint, illumination);
-  float silverLining = (1.0 - core) * pow(directional, 2.0) * sunHeight;
-  col += vec3(1.0, 0.94, 0.82) * silverLining * 0.10;
-
-  float dist = length(vW.xz - cameraPosition.xz);
-  float fade = 1.0 - smoothstep(430.0, 690.0, dist);
-  float alpha = coverage * mix(0.42, 0.76, core) * fade;
-  gl_FragColor = vec4(col, alpha);
+  float sphereZ = sqrt(max(0.0, 1.0 - r2));
+  float maria = mwMoonNoise(vDisc * 2.15 + vec2(4.7, -2.9)) * 0.68
+    + mwMoonNoise(vDisc * 5.4 + vec2(-8.2, 7.1)) * 0.32;
+  float albedo = 0.94 - smoothstep(0.48, 0.73, maria) * 0.18;
+  albedo -= mwCrater(vDisc, vec2(-0.33, 0.24), 0.19);
+  albedo -= mwCrater(vDisc, vec2(0.28, 0.08), 0.14);
+  albedo -= mwCrater(vDisc, vec2(-0.08, -0.34), 0.12);
+  albedo -= mwCrater(vDisc, vec2(0.42, -0.31), 0.085);
+  albedo -= mwCrater(vDisc, vec2(0.02, 0.46), 0.072);
+  float sphereLight = 0.28 + 0.72 * pow(sphereZ, 0.58);
+  vec3 moonTint = mix(vec3(0.46, 0.53, 0.67), vec3(0.82, 0.87, 0.96), sphereLight);
+  gl_FragColor = vec4(moonTint * albedo * sphereLight, mask);
   #include <colorspace_fragment>
 }
 `.trim();
@@ -145,105 +165,6 @@ function makeMoonTex(): THREE.CanvasTexture {
   x.fillRect(4, 9, 2, 3);
   x.fillRect(10, 11, 2, 2);
   return pixelTex(c);
-}
-
-// 真实太阳：径向渐变——中心近白、边缘暖黄、外缘透明的实心亮盘。
-function makeRealSunTex(): THREE.CanvasTexture {
-  const S = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  const cx2 = S / 2;
-  const r = S / 2;
-  const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,255,1)'); // 中心：纯白
-  g.addColorStop(0.4, 'rgba(255,255,240,1)'); // 内环：近白
-  g.addColorStop(0.7, 'rgba(255,251,214,1)'); // 外环：淡黄(非橙)
-  g.addColorStop(0.88, 'rgba(255,248,200,0.5)'); // 边缘：淡黄半透
-  g.addColorStop(1, 'rgba(255,246,190,0)'); // 外缘：透明
-  x.fillStyle = g;
-  x.beginPath();
-  x.arc(cx2, cx2, r, 0, Math.PI * 2);
-  x.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.minFilter = THREE.LinearFilter;
-  t.magFilter = THREE.LinearFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-// 太阳光晕：柔和暖色径向辉光（中心半透明→边缘全透）。
-// ⚠️ 曾是 0.5/0.32/0.14 的浓晕 + 150 大平面：低太阳时叠上 bloom/god-ray 把半边天糊成大白斑
-// (用户截图：水面上一团白雾)。压淡压小——辉光是点缀，主亮感交给 bloom(只作用于真亮源)。
-function makeSunGlowTex(): THREE.CanvasTexture {
-  const S = 128;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  const cx2 = S / 2;
-  const r = S / 2;
-  const g = x.createRadialGradient(cx2, cx2, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(255,255,238,0.30)'); // 中心：淡白黄半透(非橙)
-  g.addColorStop(0.25, 'rgba(255,252,224,0.16)'); // 内辉
-  g.addColorStop(0.55, 'rgba(255,249,208,0.07)'); // 中辉
-  g.addColorStop(0.8, 'rgba(255,247,198,0.02)'); // 外辉
-  g.addColorStop(1, 'rgba(255,245,188,0)'); // 边缘：全透
-  x.fillStyle = g;
-  x.beginPath();
-  x.arc(cx2, cx2, r, 0, Math.PI * 2);
-  x.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.minFilter = THREE.LinearFilter;
-  t.magFilter = THREE.LinearFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-// 真实月亮：冷白圆盘 + 几块淡灰陨石坑斑 + 柔和边缘。
-function makeRealMoonTex(): THREE.CanvasTexture {
-  const S = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  const cx2 = S / 2;
-  const r = S / 2;
-  // 月面底色：冷白柔和渐变
-  const g = x.createRadialGradient(cx2 - r * 0.15, cx2 - r * 0.15, 0, cx2, cx2, r);
-  g.addColorStop(0, 'rgba(245,248,255,1)'); // 高光中心
-  g.addColorStop(0.55, 'rgba(220,228,242,1)'); // 月面中部
-  g.addColorStop(0.82, 'rgba(190,200,220,1)'); // 边缘暗部
-  g.addColorStop(0.92, 'rgba(170,180,205,0.5)'); // 柔和边缘
-  g.addColorStop(1, 'rgba(150,165,195,0)'); // 外缘透明
-  x.fillStyle = g;
-  x.beginPath();
-  x.arc(cx2, cx2, r, 0, Math.PI * 2);
-  x.fill();
-  // 陨石坑斑（淡灰色半透）
-  const craters: [number, number, number][] = [
-    [0.38, 0.32, 0.09],
-    [0.62, 0.55, 0.07],
-    [0.28, 0.6, 0.055],
-    [0.55, 0.3, 0.05],
-    [0.45, 0.68, 0.065],
-  ];
-  for (const [fx, fy, fr] of craters) {
-    const cgx = cx2 + (fx - 0.5) * (S * 0.7);
-    const cgy = cx2 + (fy - 0.5) * (S * 0.7);
-    const cr = fr * S;
-    const cg = x.createRadialGradient(cgx, cgy, 0, cgx, cgy, cr);
-    cg.addColorStop(0, 'rgba(140,150,170,0.28)');
-    cg.addColorStop(0.6, 'rgba(160,168,185,0.12)');
-    cg.addColorStop(1, 'rgba(170,178,195,0)');
-    x.fillStyle = cg;
-    x.beginPath();
-    x.arc(cgx, cgy, cr, 0, Math.PI * 2);
-    x.fill();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.minFilter = THREE.LinearFilter;
-  t.magFilter = THREE.LinearFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 function pixelTex(c: HTMLCanvasElement): THREE.CanvasTexture {
@@ -374,9 +295,9 @@ function addBox(
 }
 
 /** 天空对象：日月(随昼夜东升西落、对侧) + 云 + 星空。
- *  云按光影档切换：off = MC 立体方块云；standard/high = 程序化真实云(shader 平面,有形有影会演变)。
- *  ⚠️ 旧"真实云"是 512² fbm 贴图平面——糊斑 + OOM 稻草,已删；新版纯片元程序噪声(无贴图),
- *  云有清晰边界、向阳亮背阳暗、随昼夜染色。星空两档都有(MC 原版就有星星)。 */
+ *  云按光影档切换：off = MC 立体方块云；standard/high = 有限高度体积云。
+ *  光影档日月使用解析圆盘/球面材质，云用固定步进的 Beer-Lambert 体积积分；
+ *  世界坐标形态、昼夜染色和太阳自遮蔽均连续，不依赖屏幕贴图或历史帧。 */
 export class SkyObjects {
   private readonly sun: THREE.Mesh;
   private readonly moon: THREE.Mesh;
@@ -384,12 +305,17 @@ export class SkyObjects {
   private readonly sunGlow: THREE.Mesh; // 太阳柔和光晕（光影开，加法混合）
   private readonly realMoon: THREE.Mesh; // 真实月亮（光影开）
   private readonly voxelClouds: THREE.Mesh; // 立体方块云（光影关）
-  private readonly realClouds: THREE.Mesh; // 程序化真实云（光影开）
+  private readonly realClouds: THREE.Mesh; // 有限高度体积云（光影开）
   private readonly cloudUniforms: {
+    uCloudNoise: { value: THREE.DataTexture };
     uTime: { value: number };
+    uStepCount: { value: number };
     uTint: { value: THREE.Color };
     uSunDir: { value: THREE.Vector3 };
   };
+  private readonly sunUniforms = { uVisibility: { value: 1 } };
+  private readonly sunGlowUniforms = { uVisibility: { value: 1 } };
+  private readonly moonUniforms = { uVisibility: { value: 1 } };
   private readonly stars: THREE.Points; // 星空（夜里渐显，随天球转）
   private readonly starGroup: THREE.Group;
   private readonly dir = new THREE.Vector3();
@@ -405,19 +331,38 @@ export class SkyObjects {
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), sky(makeSunTex()));
     this.moon = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), sky(makeMoonTex()));
 
-    // 真实日月（光影开时显示）
-    this.realSun = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), sky(makeRealSunTex()));
-    this.sunGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(88, 88), // 曾 150：低太阳时半边天全是晕(大白斑)。88≈太阳盘 1.7 倍，点缀即可
-      new THREE.MeshBasicMaterial({
-        map: makeSunGlowTex(),
+    // 光影档天体使用解析圆盘，不再把低分辨率径向渐变放大成模糊贴片。
+    this.realSun = new THREE.Mesh(
+      new THREE.PlaneGeometry(SUN_DIAMETER, SUN_DIAMETER),
+      new THREE.ShaderMaterial({
+        uniforms: this.sunUniforms,
+        vertexShader: DISC_VERT,
+        fragmentShader: SUN_FRAG,
         transparent: true,
         depthWrite: false,
-        fog: false,
+      }),
+    );
+    this.sunGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(SUN_GLOW_DIAMETER, SUN_GLOW_DIAMETER),
+      new THREE.ShaderMaterial({
+        uniforms: this.sunGlowUniforms,
+        vertexShader: DISC_VERT,
+        fragmentShader: SUN_GLOW_FRAG,
+        transparent: true,
+        depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
     );
-    this.realMoon = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sky(makeRealMoonTex()));
+    this.realMoon = new THREE.Mesh(
+      new THREE.PlaneGeometry(MOON_DIAMETER, MOON_DIAMETER),
+      new THREE.ShaderMaterial({
+        uniforms: this.moonUniforms,
+        vertexShader: DISC_VERT,
+        fragmentShader: MOON_FRAG,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
     // 水材质会用单一 GGX BRDF 计算太阳。若把 HDR 太阳盘/光晕再次画进镜像 RT，
     // 同一光源会被计算两次并产生不稳定热像素；玩家相机启用此层，镜像相机排除它。
     this.realSun.layers.set(NO_WATER_REFLECTION_LAYER);
@@ -436,24 +381,36 @@ export class SkyObjects {
     this.voxelClouds = new THREE.Mesh(new THREE.BufferGeometry(), voxelMat);
     this.voxelClouds.frustumCulled = false;
 
-    // 真实云(光影档)：程序化 shader 云平面，跟随相机、噪声用世界坐标(云世界锚定)。
+    // 真实云(光影档)：有限高度 slab 内做稳定体积积分。固定 midpoint 采样不使用
+    // jitter/历史帧，云具有真实厚度与自遮蔽，同时不会在移动时闪烁或拖影。
     this.cloudUniforms = {
+      uCloudNoise: { value: makeCloudVolumeTexture() },
       uTime: { value: 0 },
+      uStepCount: { value: cloudStepCount('standard') },
       uTint: { value: new THREE.Color(1, 1, 1) },
       uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.28) },
     };
     const cloudMat = new THREE.ShaderMaterial({
       uniforms: this.cloudUniforms,
-      vertexShader: CLOUD_VERT,
-      fragmentShader: CLOUD_FRAG,
+      vertexShader: CLOUD_VOLUME_VERT,
+      fragmentShader: CLOUD_VOLUME_FRAG,
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    this.realClouds = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), cloudMat);
+    this.realClouds = new THREE.Mesh(
+      new THREE.PlaneGeometry(CLOUD_VOLUME_CONSTANTS.extent, CLOUD_VOLUME_CONSTANTS.extent),
+      cloudMat,
+    );
     this.realClouds.rotation.x = -Math.PI / 2;
     this.realClouds.frustumCulled = false;
     this.realClouds.visible = false;
+    this.realClouds.onBeforeRender = (_renderer, _scene, camera): void => {
+      const requested = cloudStepCount(this.lq);
+      this.cloudUniforms.uStepCount.value = camera.layers.isEnabled(NO_WATER_REFLECTION_LAYER)
+        ? requested
+        : Math.min(requested, CLOUD_VOLUME_CONSTANTS.reflectionSteps);
+    };
 
     // 星空：夜里渐显。renderOrder: 穹顶(-1000) < 星(-900) < 日月(-850) < 云(-800) < 地形/水
     // ——透明物按 renderOrder 排序,云画在星和日月之上(云能遮日月/星),都不写深度、被地形正常遮挡。
@@ -513,7 +470,7 @@ export class SkyObjects {
     }
   }
 
-  /** 光影画质：off=方块像素日月+MC 体素云；standard/high=真实日月+光晕+程序化真实云。 */
+  /** 光影画质：off=方块像素日月+MC 体素云；standard/high=解析日月+体积云。 */
   setLightingQuality(q: LightingQuality): void {
     this.lq = q;
     if (this.dim === 'nether') {
@@ -532,6 +489,7 @@ export class SkyObjects {
       return;
     }
     const on = q !== 'off';
+    this.cloudUniforms.uStepCount.value = cloudStepCount(q);
     this.voxelClouds.visible = !on;
     this.realClouds.visible = on;
     this.sun.visible = !on;
@@ -577,7 +535,7 @@ export class SkyObjects {
     const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 0=日出
     // 侧倾 0.1≈MC 1.12 celestial angle(正午过天顶,影子极短)；曾 0.28=太阳永到不了头顶,正午影子仍拖长
     this.dir.set(Math.cos(th), Math.sin(th), 0.1).normalize();
-    const R = 280;
+    const R = CELESTIAL_RADIUS;
     this.sun.position.copy(camPos).addScaledVector(this.dir, R);
     this.sun.lookAt(camPos);
     this.moon.position.copy(camPos).addScaledVector(this.dir, -R);
@@ -590,6 +548,9 @@ export class SkyObjects {
     this.sunGlow.lookAt(camPos);
     this.realMoon.position.copy(this.moon.position);
     this.realMoon.lookAt(camPos);
+    this.sunUniforms.uVisibility.value = THREE.MathUtils.smoothstep(this.dir.y, -0.055, 0.025);
+    this.sunGlowUniforms.uVisibility.value = this.sunUniforms.uVisibility.value;
+    this.moonUniforms.uVisibility.value = THREE.MathUtils.smoothstep(-this.dir.y, -0.055, 0.025);
 
     this.drift += CLOUD_DRIFT_SPEED * Math.max(0, dt); // 缓风按秒推进，不随显示器刷新率改变
 
@@ -600,10 +561,10 @@ export class SkyObjects {
     (this.stars.material as THREE.PointsMaterial).opacity = Math.pow(night, 1.5) * 0.9;
 
     if (this.realClouds.visible) {
-      // 真实云：平面跟随相机(噪声用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
+      // 体积云入口面跟随相机(密度用世界坐标→云世界锚定不跟人跑)；昼夜染色用 worldTint
       // (白天白/黎明黄昏暖/夜暗蓝灰,与方块天光同一套关键帧,天色一致)。
-      this.realClouds.position.set(camPos.x, CLOUD_Y, camPos.z);
-      // uTime=drift(≈0.72/s)：×shader 内 0.011 → ~1.3 格/s 的缓飘(MC 云速量级)
+      this.realClouds.position.set(camPos.x, CLOUD_VOLUME_CONSTANTS.baseY, camPos.z);
+      // uTime=drift(≈0.72/s)，shader 以世界 UV 风向平移，速度与刷新率无关。
       this.cloudUniforms.uTime.value = this.drift;
       const wt = skyStateAt(worldTime).worldTint;
       this.cloudUniforms.uTint.value.setRGB(wt[0], wt[1], wt[2], THREE.SRGBColorSpace);

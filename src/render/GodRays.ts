@@ -38,6 +38,7 @@ uniform float uWeight;
 uniform float uBloom;
 uniform float uAO;
 uniform float uUnderwater;
+uniform vec3 uWaterIrradiance;
 
 varying vec2 vUv;
 
@@ -151,11 +152,16 @@ void main() {
   if (uUnderwater > 0.001) {
     float waterPath = underwaterPath;
     waterPath = mix(0.0, waterPath, uUnderwater);
-    vec3 sigmaA = vec3(0.052, 0.021, 0.010);
-    vec3 transmittance = exp(-sigmaA * waterPath);
-    float scatter = 1.0 - exp(-waterPath * 0.055);
-    vec3 waterLight = vec3(0.012, 0.105, 0.165) * (0.55 + 0.45 * uUnderwater);
-    hdr = hdr * transmittance + waterLight * scatter;
+    // 与水面材质共享同一组吸收/散射系数。水面与此后处理按
+    // uUnderwater 分摊光程，因此穿越浪面时能量连续且不会重复染蓝。
+    vec3 sigmaA = vec3(0.095, 0.028, 0.010);
+    vec3 sigmaS = vec3(0.010, 0.038, 0.055);
+    vec3 sigmaT = sigmaA + sigmaS;
+    vec3 transmittance = exp(-sigmaT * waterPath);
+    vec3 inScatter = uWaterIrradiance
+      * (sigmaS / max(sigmaT, vec3(0.0001)))
+      * (vec3(1.0) - transmittance);
+    hdr = hdr * transmittance + inScatter;
     // 水中高频 Bloom 会像屏幕贴片；真实水体会先吸收并扩散这些能量。
     hdr = mix(hdr, hdr * vec3(0.88, 0.97, 1.03), uUnderwater * 0.18);
   }
@@ -189,6 +195,7 @@ void main() {
       uBloom: { value: 0.0 },
       uAO: { value: 0.0 }, // AO 强度 0..1（0 = 不开 AO，完全兜底）
       uUnderwater: { value: 0.0 },
+      uWaterIrradiance: { value: new THREE.Color(0.04, 0.18, 0.26) },
     },
     vertexShader,
     fragmentShader,

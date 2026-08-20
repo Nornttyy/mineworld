@@ -382,8 +382,8 @@ export class Game {
     this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
-    this.renderer.setWaterRefractionSink((color, depth, width, height) =>
-      this.chunks.setWaterRefraction(color, depth, width, height),
+    this.renderer.setWaterRefractionSink((color, depth, width, height, underwaterAmount) =>
+      this.chunks.setWaterRefraction(color, depth, width, height, underwaterAmount),
     );
     this.renderer.setWaterReflectionSink((color, textureMatrix, width, height) =>
       this.chunks.setWaterReflection(color, textureMatrix, width, height),

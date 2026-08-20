@@ -96,6 +96,7 @@ export class ChunkMeshManager {
   private readonly uRefractionSize = { value: new THREE.Vector2(1, 1) };
   private readonly uHasRefraction = { value: 0 };
   private readonly uCameraUnderwater = { value: 0 };
+  private readonly uUnderwaterAmount = { value: 0 };
   private readonly uReflectionColor: { value: THREE.Texture | null } = { value: null };
   private readonly uReflectionSize = { value: new THREE.Vector2(1, 1) };
   private readonly uReflectionMatrix = { value: new THREE.Matrix4() };
@@ -525,6 +526,7 @@ export class ChunkMeshManager {
       shader.uniforms.uRefractionSize = this.uRefractionSize;
       shader.uniforms.uHasRefraction = this.uHasRefraction;
       shader.uniforms.uCameraUnderwater = this.uCameraUnderwater;
+      shader.uniforms.uUnderwaterAmount = this.uUnderwaterAmount;
       shader.uniforms.uReflectionColor = this.uReflectionColor;
       shader.uniforms.uReflectionSize = this.uReflectionSize;
       shader.uniforms.uReflectionMatrix = this.uReflectionMatrix;
@@ -653,6 +655,7 @@ uniform sampler2D uRefractionDepth;
 uniform vec2 uRefractionSize;
 uniform float uHasRefraction;
 uniform float uCameraUnderwater;
+uniform float uUnderwaterAmount;
 uniform sampler2D uReflectionColor;
 uniform vec2 uReflectionSize;
 uniform float uHasReflection;
@@ -719,10 +722,10 @@ if (uShaders < 0.5) {
 
   // 大中小四级波谱：A/B 保留到远景，C/D 按屏幕足迹淡出，避免细波小于一像素后闪烁。
   vec2 p = vWPos.xz;
-  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.028 + vec2(uTime * 0.006, -uTime * 0.0044));
-  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.065 + vec2(-uTime * 0.012, uTime * 0.0085));
-  vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.14 + vec2(uTime * 0.022, uTime * 0.017));
-  vec4 rippleD = texture2D(uSurfaceNoise, mwTurn(p * 0.22) + vec2(-uTime * 0.036, uTime * 0.027));
+  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.032 + vec2(uTime * 0.006, -uTime * 0.0044));
+  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.082 + vec2(-uTime * 0.012, uTime * 0.0085));
+  vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.19 + vec2(uTime * 0.022, uTime * 0.017));
+  vec4 rippleD = texture2D(uSurfaceNoise, mwTurn(p * 0.31) + vec2(-uTime * 0.036, uTime * 0.027));
   float footprint = max(length(dFdx(p)), length(dFdy(p)));
   float midVis = 1.0 - smoothstep(0.35, 1.2, footprint);
   float microVis = 1.0 - smoothstep(0.1, 0.42, footprint);
@@ -732,9 +735,9 @@ if (uShaders < 0.5) {
   vec2 normalC = rippleC.rg * 2.0 - 1.0;
   vec2 normalD = rippleD.rg * 2.0 - 1.0;
   vec2 detailN = normalA * 0.12;
-  detailN += normalB * 0.085 * mix(0.5, 1.0, midVis);
-  detailN += normalC * 0.03 * midVis;
-  detailN += normalD * 0.008 * microVis * nearDetail * uHq;
+  detailN += normalB * 0.09 * mix(0.5, 1.0, midVis);
+  detailN += normalC * 0.04 * midVis;
+  detailN += normalD * 0.012 * microVis * nearDetail * uHq;
   detailN *= horiz;
   // 顶点函数同时给出解析坡度。它比逐三角形 faceN 连续，长浪经过网格对角线时不会
   // 突然换法线；侧壁仍使用真实几何法线，保持瀑布与水下表面方向正确。
@@ -828,15 +831,21 @@ if (uShaders < 0.5) {
   // 折射 RT 只包含真实的水下几何。颜色完全由光程吸收/散射决定，
   // 不再叠固定蓝膜、人工明暗条或程序云。
   float opticalThickness = clamp(thickness, 0.0, 64.0);
-  vec3 sigmaA = vec3(0.160, 0.055, 0.022);
-  vec3 sigmaS = vec3(0.006, 0.018, 0.028);
+  // 海平面水下视图与全屏后处理平滑分摊同一段 camera→surface 光程。
+  // 介质布尔状态仍只负责选择正确 half-space capture；平滑量只负责能量守恒。
+  float underwaterInterfaceShare = (1.0 - cameraAbove) * seaRefractionGate;
+  opticalThickness *= mix(1.0, 1.0 - uUnderwaterAmount, underwaterInterfaceShare);
+  vec3 sigmaA = vec3(0.095, 0.028, 0.010);
+  vec3 sigmaS = vec3(0.010, 0.038, 0.055);
   vec3 sigmaT = sigmaA + sigmaS;
   vec3 transmittance = exp(-sigmaT * opticalThickness);
-  vec3 waterIrradiance = mix(uSkyRefl, uSkyTop, 0.35)
-    * mix(0.35, 1.0, uSkyMul) * mix(0.72, 1.0, vLF) * vTint;
+  vec3 waterIrradiance = mix(uSkyRefl, uSkyTop, 0.20)
+    * vec3(0.78, 1.08, 1.16)
+    * mix(0.45, 1.0, uSkyMul) * mix(0.80, 1.0, vLF) * vTint;
   vec3 inScatter = waterIrradiance
     * (sigmaS / max(sigmaT, vec3(0.0001)))
     * (vec3(1.0) - transmittance);
+  inScatter *= mix(0.95, 1.15, smoothstep(3.0, 18.0, opticalThickness));
   vec3 refracted = opaqueBehind * transmittance + inScatter;
   float localThickness = clamp(
     max(vWaterDepth, 0.4) / max(abs(dot(V, baseFaceN)), 0.24),
@@ -847,7 +856,7 @@ if (uShaders < 0.5) {
   vec3 localWater = waterIrradiance
     * (sigmaS / max(sigmaT, vec3(0.0001)))
     * (vec3(1.0) - localTransmittance);
-  localWater += vec3(0.002, 0.022, 0.052) * (1.0 - localTransmittance.b);
+  localWater += vec3(0.006, 0.040, 0.062) * (1.0 - localTransmittance.b);
   refracted = mix(localWater, refracted, seaRefractionGate);
 
   // 微表面法线的屏幕足迹决定粗糙度。远处或欠采样的波纹会自然变宽，
@@ -974,6 +983,7 @@ if (uShaders < 0.5) {
   #endif
   col = mix(col, atmosphereColor, atmosphere);
   float below = smoothstep(0.02, 0.28, -V.y) * horiz;
+  below *= 1.0 - seaRefractionGate * uUnderwaterAmount;
   col = mix(col, col * vec3(0.54, 0.82, 1.08) + vec3(0.0, 0.016, 0.035), below * 0.34);
   diffuseColor.rgb = col;
   // 这里已经在 shader 内完成折射合成；alpha 必须为 1，否则 GPU 会把真实场景再混一次，
@@ -988,12 +998,12 @@ if (uShaders < 0.5) {
   float horiz = step(0.5, vTopFace);
   float nearDetail = 1.0 - smoothstep(30.0, 100.0, dist);
   vec2 p = vWPos.xz;
-  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.026 + vec2(uTime * 0.0062, -uTime * 0.0041));
-  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.073 + vec2(-uTime * 0.0103, uTime * 0.0074));
+  vec4 rippleA = texture2D(uSurfaceNoise, p * 0.034 + vec2(uTime * 0.0062, -uTime * 0.0041));
+  vec4 rippleB = texture2D(uSurfaceNoise, mwTurn(p) * 0.09 + vec2(-uTime * 0.0103, uTime * 0.0074));
   vec2 slope = (rippleA.rg * 2.0 - 1.0) * 0.72 + (rippleB.rg * 2.0 - 1.0) * 0.38;
   float ridge = rippleA.a * 0.62 + rippleB.a * 0.48;
   if (uHq > 0.5) {
-    vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.17 + vec2(uTime * 0.014, uTime * 0.009));
+    vec4 rippleC = texture2D(uSurfaceNoise, mwTurn(p.yx) * 0.23 + vec2(uTime * 0.014, uTime * 0.009));
     slope += (rippleC.rg * 2.0 - 1.0) * 0.18 * nearDetail;
     ridge += rippleC.a * 0.16;
   }
@@ -1003,10 +1013,10 @@ if (uShaders < 0.5) {
   // Beer-Lambert-style view-path absorption: clear cyan shallows, saturated blue
   // depths, and denser water at a grazing angle without block-by-block cutoffs.
   float opticalDepth = max(0.12, vWaterDepth) / max(abs(V.y), 0.22);
-  float absorption = 1.0 - exp(-opticalDepth * 0.34);
+  float absorption = 1.0 - exp(-opticalDepth * 0.27);
   float deep = smoothstep(0.16, 0.91, absorption);
-  vec3 shallowWater = vec3(0.004, 0.19, 0.32);
-  vec3 deepWater = vec3(0.002, 0.045, 0.15);
+  vec3 shallowWater = vec3(0.028, 0.32, 0.52);
+  vec3 deepWater = vec3(0.008, 0.12, 0.31);
   vec3 base = mix(shallowWater, deepWater, deep) * vLF * vTint * mwFaceShade;
 
   float skyGate = smoothstep(-0.015, 0.025, V.y) * horiz * vSkyVis;
@@ -1320,11 +1330,13 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     depth: THREE.Texture | null,
     physicalWidth: number,
     physicalHeight: number,
+    underwaterAmount: number,
   ): void {
     this.uRefractionColor.value = color;
     this.uRefractionDepth.value = depth;
     this.uRefractionSize.value.set(Math.max(1, physicalWidth), Math.max(1, physicalHeight));
     this.uHasRefraction.value = color && depth ? 1 : 0;
+    this.uUnderwaterAmount.value = THREE.MathUtils.clamp(underwaterAmount, 0, 1);
   }
 
   /** 与 Renderer 的折射 half-space 同步；所有水片元必须使用同一个入射介质。 */

@@ -19,6 +19,7 @@ type WaterRefractionSink = (
   depth: THREE.Texture | null,
   physicalWidth: number,
   physicalHeight: number,
+  underwaterAmount: number,
 ) => void;
 
 type WaterReflectionSink = (
@@ -132,6 +133,7 @@ export class Renderer {
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
   private underwaterTarget = 0;
   private underwaterAmount = 0;
+  private readonly waterIrradiance = new THREE.Color(0.04, 0.18, 0.26);
 
   // Bloom 后处理（1/4 分辨率内部缓冲）
   private bloom: Bloom | null = null;
@@ -207,6 +209,12 @@ export class Renderer {
     this.skyUniforms.uSunDir.value.set(Math.cos(sunPhi), sunElevation, 0.1).normalize();
     this.skyUniforms.uWarmth.value = THREE.MathUtils.clamp(warmth, 0, 1);
     this.skyUniforms.uSunVisible.value = sunVisible ? 1 : 0;
+    // 与水面 Beer-Lambert 散射共用实际天空亮度。夜晚天空本身很暗，水体便不会
+    // 像旧的固定青色常量那样在午夜/洞穴中自发光。
+    this.waterIrradiance
+      .copy(this.skyUniforms.uSkyHorizon.value)
+      .lerp(this.skyUniforms.uSkyTop.value, 0.2)
+      .multiply(new THREE.Color(0.78, 1.08, 1.16));
   }
 
   resize(): void {
@@ -287,7 +295,7 @@ export class Renderer {
     } else {
       // Keep the sinks empty until this frame renders fresh captures; otherwise one frame
       // could sample the previous dimension's scene.
-      this.waterRefractionSink?.(null, null, 1, 1);
+      this.waterRefractionSink?.(null, null, 1, 1, this.underwaterAmount);
       this.waterReflectionSink?.(null, null, 1, 1);
       if (this.god !== null) this.ensureWaterCaptureTargets();
     }
@@ -443,6 +451,7 @@ export class Renderer {
     // (阈值 0.78 只筛真亮源,高光辉光更明显但亮沙/天空不再整片过阈值)。
     u['uBloom'].value = this.god.quality === 'high' ? 0.68 : 0.5;
     u['uUnderwater'].value = this.underwaterAmount;
+    u['uWaterIrradiance'].value.copy(this.waterIrradiance);
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;
@@ -494,7 +503,7 @@ export class Renderer {
   private publishRefractionTarget(): void {
     if (!this.waterRefractionSink) return;
     if (!this.waterCapturesEnabled || !this.planarRefraction) {
-      this.waterRefractionSink(null, null, 1, 1);
+      this.waterRefractionSink(null, null, 1, 1, this.underwaterAmount);
       return;
     }
     this.waterRefractionSink(
@@ -502,6 +511,7 @@ export class Renderer {
       this.planarRefraction.depthTexture,
       this.planarRefraction.renderTarget.width,
       this.planarRefraction.renderTarget.height,
+      this.underwaterAmount,
     );
   }
 
