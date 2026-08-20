@@ -468,8 +468,11 @@ export class ChunkMeshManager {
             '  float mwSunProtect = max(mwWhiteMask * 0.45, mwSaturatedMask * 0.35);\n' +
             '  sunTone = mix(sunTone, vec3(mwSunLuma), mwSunProtect);\n' +
             '  float sunCloud = 1.0 - cloud * mix(0.48, 0.62, uHq);\n' +
-            '  float mwDirectStrength = mix(0.56, 0.60, uHq);\n' +
-            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * mwDirectStrength;\n' +
+            // 太阳直射比环境层更明亮，向上的天然地表再接一点暖色天空反弹；只作用于受光地面，
+            // 不抬全局曝光，也不会让洞穴、背光面、水面和天空一起变白。
+            '  float mwDirectStrength = mix(0.68, 0.74, uHq);\n' +
+            '  float mwGroundBounce = 1.0+mwNatural*smoothstep(0.68,0.98,mwGeomN.y)*0.07;\n' +
+            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * mwDirectStrength * mwGroundBounce;\n' +
             '  mwDirect *= mix(0.84, 1.0, mwVoxelAO);\n' +
             '  diffuseColor.rgb += mwDirect;\n' +
             (sway
