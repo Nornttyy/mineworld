@@ -127,6 +127,23 @@ describe('PlanarRefraction', () => {
     fake.previousTarget.dispose();
   });
 
+  it('lets setRenderTarget install the physical-pixel viewport without applying DPR twice', () => {
+    const refraction = new PlanarRefraction(2560, 1440);
+    const fake = fakeRenderer();
+
+    refraction.render(fake.renderer, new THREE.Scene(), sourceCamera());
+
+    expect(fake.setRenderTarget).toHaveBeenNthCalledWith(1, refraction.renderTarget);
+    // The only public viewport call restores the canvas viewport. Passing the
+    // already-physical RT size here would become 5120x2880 at DPR=2.
+    expect(fake.setViewport).toHaveBeenCalledTimes(1);
+    expect(fake.setViewport).toHaveBeenCalledWith(new THREE.Vector4(7, 9, 800, 450));
+    expect(fake.setViewport).not.toHaveBeenCalledWith(0, 0, 2560, 1440);
+
+    refraction.dispose();
+    fake.previousTarget.dispose();
+  });
+
   it('installs a downward global plane that keeps only the underwater half-space', () => {
     const planeY = 42;
     const refraction = new PlanarRefraction(320, 180, { planeY, clipBias: 0.01 });

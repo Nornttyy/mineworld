@@ -55,8 +55,8 @@ function valuesAt(
   px: number,
   pz: number,
   minY: number,
-): { y: number; top: number; shore: number; waveOpen: number }[] {
-  const out: { y: number; top: number; shore: number; waveOpen: number }[] = [];
+): { y: number; top: number; topFace: number; shore: number; waveOpen: number }[] {
+  const out: { y: number; top: number; topFace: number; shore: number; waveOpen: number }[] = [];
   for (let i = 0; i < mesh.positions.length / 3; i++) {
     const x = mesh.positions[i * 3];
     const y = mesh.positions[i * 3 + 1];
@@ -65,6 +65,7 @@ function valuesAt(
       out.push({
         y,
         top: mesh.top?.[i] ?? -99,
+        topFace: mesh.topFace?.[i] ?? -99,
         shore: mesh.shore?.[i] ?? -99,
         waveOpen: mesh.waveOpen?.[i] ?? -99,
       });
@@ -92,10 +93,30 @@ describe('water geometry subdivision', () => {
     expect(mesh.colors.length).toBe(vertices * 3);
     expect(mesh.light?.length).toBe(vertices * 2);
     expect(mesh.top?.length).toBe(vertices);
+    expect(mesh.topFace?.length).toBe(vertices);
+    expect(Array.from(mesh.topFace ?? []).every((v) => v === 1)).toBe(true);
     expect(mesh.shore?.length).toBe(vertices);
     expect(mesh.waveOpen?.length).toBe(vertices);
     expect(Array.from(mesh.waveOpen ?? []).every((v) => v === 0)).toBe(true);
     expect(Math.max(...mesh.indices)).toBeLessThan(vertices);
+  });
+
+  it('marks the water top as one and the bottom face as zero', () => {
+    const w = sparseWorld();
+    w.setWater(5, Y, 5);
+    for (const [x, z] of [
+      [4, 5],
+      [6, 5],
+      [5, 4],
+      [5, 6],
+    ])
+      w.setBlock(x, Y, z, STONE); // 封住侧壁，底部留空
+
+    const mesh = w.mesh();
+    const flags = Array.from(mesh.topFace ?? []);
+    expect(flags).toHaveLength(9 + 4); // 3×3 顶面 + 1×1 底面
+    expect(flags.filter((v) => v === 1)).toHaveLength(9);
+    expect(flags.filter((v) => v === 0)).toHaveLength(4);
   });
 
   it('subdivides exposed side upper edges at the same half-block coordinates as the top', () => {
@@ -112,8 +133,14 @@ describe('water geometry subdivision', () => {
     expect(shared).toHaveLength(2); // 顶面东边中点 + 东侧壁上沿中点
     expect(shared[0].y).toBeCloseTo(shared[1].y, 6);
     expect(shared[0].top).toBeCloseTo(shared[1].top, 6);
+    expect(shared.map((v) => v.topFace).sort()).toEqual([0, 1]);
     expect(shared[0].shore).toBeCloseTo(shared[1].shore, 6);
     expect(shared[0].waveOpen).toBeCloseTo(shared[1].waveOpen, 6);
+
+    const faceFlags = Array.from(mesh.topFace ?? []);
+    expect(faceFlags).toHaveLength(mesh.positions.length / 3);
+    expect(faceFlags.filter((v) => v === 1)).toHaveLength(9); // 3×3 顶面格
+    expect(faceFlags.filter((v) => v === 0)).toHaveLength(4 * 6); // 四个 2×1 侧壁格
   });
 });
 
@@ -158,7 +185,13 @@ describe('water waveOpen attribute', () => {
         const y = mesh.positions[i * 3 + 1];
         const z = mesh.positions[i * 3 + 2];
         if (Math.abs(wx - 16) > 1e-5 || y <= Y + 0.8 || z < 0 || z > 16) continue;
-        const value = [y, mesh.top?.[i], mesh.shore?.[i], mesh.waveOpen?.[i]]
+        const value = [
+          y,
+          mesh.top?.[i],
+          mesh.topFace?.[i],
+          mesh.shore?.[i],
+          mesh.waveOpen?.[i],
+        ]
           .map((n) => Number(n).toFixed(6))
           .join(',');
         const prior = values.get(z.toFixed(3));
@@ -173,5 +206,6 @@ describe('water waveOpen attribute', () => {
     expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
     expect(a.size).toBe(16 * WATER_SURFACE_SUBDIVISIONS + 1);
     for (const [z, value] of a) expect(b.get(z)).toBe(value);
+    for (const value of a.values()) expect(value.split(',')[2]).toBe('1.000000');
   });
 });

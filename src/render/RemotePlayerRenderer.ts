@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CAMERA_AUX_RENDER_LAYER } from './renderLayers';
 
 /**
  * 从联机层送来的、可以直接显示的其他玩家状态。
@@ -149,6 +150,7 @@ function makeNameTag(label: string): NameTag {
   texture.magFilter = THREE.LinearFilter;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false });
   const sprite = new THREE.Sprite(material);
+  sprite.layers.set(CAMERA_AUX_RENDER_LAYER);
   sprite.position.set(0, 2.38, 0);
   sprite.scale.set(1.65, 0.4125, 1);
   const tag = { canvas, context, texture, material, sprite };

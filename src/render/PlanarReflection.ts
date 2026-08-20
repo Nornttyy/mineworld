@@ -128,6 +128,8 @@ export class PlanarReflection {
     const previousXrEnabled = renderer.xr.enabled;
     const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
     const previousShadowNeedsUpdate = renderer.shadowMap.needsUpdate;
+    const context = renderer.getContext();
+    const previousDepthMask = Boolean(context.getParameter(context.DEPTH_WRITEMASK));
 
     try {
       before?.(this.camera, this.renderTarget);
@@ -140,15 +142,19 @@ export class PlanarReflection {
       renderer.shadowMap.autoUpdate = false;
       renderer.shadowMap.needsUpdate = false;
       renderer.setRenderTarget(this.renderTarget);
-      renderer.setViewport(0, 0, this.renderTarget.width, this.renderTarget.height);
+      // setRenderTarget() already installs the target's physical-pixel viewport.
+      // WebGLRenderer.setViewport() multiplies its arguments by the canvas DPR;
+      // passing this already-physical RT size here used to double the viewport on
+      // DPR=2 displays and push the mirrored scene centre to the texture's edge.
       renderer.setScissorTest(false);
       renderer.state.buffers.depth.setMask(true);
-      renderer.clear(true, true, true);
+      renderer.clear(true, true, false);
       renderer.render(scene, this.camera);
     } finally {
       renderer.xr.enabled = previousXrEnabled;
       renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
       renderer.shadowMap.needsUpdate = previousShadowNeedsUpdate;
+      renderer.state.buffers.depth.setMask(previousDepthMask);
       renderer.setRenderTarget(previousTarget);
       renderer.setViewport(this.savedViewport);
       renderer.setScissor(this.savedScissor);

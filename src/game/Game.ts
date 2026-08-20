@@ -115,6 +115,15 @@ import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
 import { MultiplayerClient, type BlockEdit } from '../multiplayer/MultiplayerClient';
 import { RemotePlayerRenderer } from '../render/RemotePlayerRenderer';
+import { CAMERA_AUX_RENDER_LAYER } from '../render/renderLayers';
+import {
+  isPointInWater,
+  MAX_SEA_WAVE_DISPLACEMENT,
+  probeSeaWave,
+  SEA_WATER_BASE_Y,
+  type SeaSurfaceWorld,
+  type SeaWaveProbe,
+} from './waterSurface';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
@@ -222,6 +231,8 @@ export class Game {
   private readonly touch: TouchControls | null;
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   private readonly physWorld: VoxelWorld;
+  private readonly playerPhysWorld: VoxelWorld;
+  private readonly waterSurfaceWorld: SeaSurfaceWorld;
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
   private readonly highlight: THREE.LineSegments;
   private readonly underwaterEl: HTMLElement | null;
@@ -275,6 +286,15 @@ export class Game {
   private fluidTick = 0; // 计数：每 5 刻跑一次水模拟（同 MC）
   private readonly wateredChunks = new Set<string>(); // 已增量激活过「能流动的水」的区块，避免重复扫描
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
+  // 与 ChunkMeshManager.animateWater 使用相同 dt，CPU 水线和 GPU 几何浪不会漂移。
+  private waterWaveTime = 0;
+  private waterProbeEpoch = 0;
+  private waterProbeCache: {
+    epoch: number;
+    bx: number;
+    bz: number;
+    probe: SeaWaveProbe | null;
+  } | null = null;
   private fov = 70;
   // 当前实际应用到物理的疾跑状态；FOV 和疲劳必须读它，不能只读按键。
   private actualSprinting = false;
@@ -315,6 +335,13 @@ export class Game {
     setIconTexturePack(settings.texturePack);
     this.canvas = canvas;
     this.save = save;
+    this.waterSurfaceWorld = {
+      // world 会在切维度时替换；闭包必须始终读取当前实例。
+      getBlock: (x, y, z) => this.world.getBlock(x, y, z),
+      waterAmount: (x, y, z) => this.world.waterAmount(x, y, z),
+      isWaterSource: (x, y, z) => this.world.isWaterSource(x, y, z),
+      generatedSurfaceY: (x, z) => columnHeight(x, z, this.save.seed),
+    };
     this.creative = save.gameMode === 'creative';
     this.renderer = new Renderer(canvas);
     this.multiplayer = multiplayer;
@@ -355,12 +382,13 @@ export class Game {
     this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
     this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
-    this.renderer.setWaterRefractionSink((color, depth, width, height) =>
-      this.chunks.setWaterRefraction(color, depth, width, height),
+    this.renderer.setWaterRefractionSink((color, depth, width, height, underwaterAmount) =>
+      this.chunks.setWaterRefraction(color, depth, width, height, underwaterAmount),
     );
-    this.renderer.setWaterReflectionSink((color, textureMatrix) =>
-      this.chunks.setWaterReflection(color, textureMatrix),
+    this.renderer.setWaterReflectionSink((color, textureMatrix, width, height) =>
+      this.chunks.setWaterReflection(color, textureMatrix, width, height),
     );
+    this.renderer.setWaterCapturesEnabled(this.dimension === 'overworld');
     this.chunks.setLightingQuality(settings.lightingQuality); // 光影开关初值(真实水面波动/反射)
     this.chunks.setSunEnabled(this.dimension === 'overworld');
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
@@ -393,6 +421,12 @@ export class Game {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
     };
+    this.playerPhysWorld = {
+      isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
+      // step 只传整数格；玩家专用回调改读真实脚部坐标，避免浪峰上方整格都在游泳。
+      isWater: () =>
+        this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z),
+    };
 
     // 出生：worldSpawn 始终为【主世界】出生点（死亡重生用）；
     //   有存档位置则从那里继续——优先用当前维度的存档位(playerByDimension[dim])，
@@ -421,6 +455,7 @@ export class Game {
       new THREE.EdgesGeometry(box),
       new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }),
     );
+    this.highlight.layers.set(CAMERA_AUX_RENDER_LAYER);
     this.highlight.visible = false;
     this.renderer.scene.add(this.highlight);
 
@@ -707,6 +742,7 @@ export class Game {
     this.buildDimension(target);
     this.chunks.setWorld(this.world);
     this.chunks.setSunEnabled(target === 'overworld');
+    this.renderer.setWaterCapturesEnabled(target === 'overworld');
     old.dispose();
     // 流体活跃集：FluidSim 无公开 clear（其 active 集每刻 tick 后自动清空），故无需手动重置——非致命，跳过。
     // 还原目标维度的生物（清掉来源维度的）
@@ -882,6 +918,7 @@ export class Game {
       if (this.acc > 250) this.acc = 250;
       const playing = this.isGameplayActive();
       while (playing && this.acc >= TICK_MS) {
+        this.waterProbeEpoch++;
         this.prev = this.player;
         const m = this.readMovement();
         const jumped = consumeJump() || (this.touch?.consumeJump() ?? false);
@@ -912,7 +949,7 @@ export class Game {
             flyUp: m.jumpHeld, // 空格按住上升
             flyDown: m.crouch, // Shift 按住下降
           },
-          this.physWorld,
+          this.playerPhysWorld,
         );
         this.publishMultiplayerState();
         this.stepSurvival(this.actualSprinting, jumped);
@@ -923,6 +960,7 @@ export class Game {
           this.activateNearbyWater(); // 先激活探索到的新水 front，再跑模拟让其流动
           this.fluidSim.tick(this.fluidGrid);
           this.chunks.remeshDirty();
+          this.waterProbeEpoch++;
         }
         // 熔炉：每刻推进活跃熔炉的冶炼；打开中的熔炉刷新界面
         for (const st of this.furnaces.values()) {
@@ -985,9 +1023,10 @@ export class Game {
       } else {
         this.crack.hide();
       }
+      this.waterWaveTime += dt;
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
-      this.skyObjects.update(this.worldTime, this.renderer.camera.position); // 方块太阳/月亮随昼夜走天球 + 云缓飘
+      this.skyObjects.update(this.worldTime, this.renderer.camera.position, dt); // 方块太阳/月亮随昼夜走天球 + 云缓飘
       // 太阳投影阴影：只在主世界光影档运行；下界没有太阳，不能残留“隐形太阳”阴影 pass。
       if (
         this.dimension === 'overworld' &&
@@ -1000,9 +1039,9 @@ export class Game {
       } else if (this.dimension !== 'overworld' || this.lightingQuality === 'off') {
         this.shadowTick = 0;
       }
+      this.updateCamera(this.acc / TICK_MS);
       this.updateWater();
       this.updateHighlight();
-      this.updateCamera(this.acc / TICK_MS);
       // 碎屑粒子：每帧推进 + 刷新
       this.particles = stepParticles(this.particles, dt);
       this.particleFx.sync(this.particles);
@@ -1067,6 +1106,41 @@ export class Game {
     requestAnimationFrame(frame);
   }
 
+  /**
+   * 玩家相关的统一水体判定：开阔深海使用真实几何浪高度；洞穴、浅水、
+   * 流水、岸边、下界与关闭光影时仍保持原来的方块水语义。
+   */
+  private pointInWater(x: number, y: number, z: number): boolean {
+    const wavesEnabled = this.dimension === 'overworld' && this.lightingQuality !== 'off';
+    let cachedProbe: SeaWaveProbe | null | undefined;
+    const by = Math.floor(y);
+    if (
+      wavesEnabled &&
+      (by === SEA_LEVEL || by === SEA_LEVEL + 1) &&
+      y >= SEA_WATER_BASE_Y - MAX_SEA_WAVE_DISPLACEMENT &&
+      y <= SEA_WATER_BASE_Y + MAX_SEA_WAVE_DISPLACEMENT
+    ) {
+      const bx = Math.floor(x);
+      const bz = Math.floor(z);
+      const cached = this.waterProbeCache;
+      if (cached && cached.epoch === this.waterProbeEpoch && cached.bx === bx && cached.bz === bz) {
+        cachedProbe = cached.probe;
+      } else {
+        cachedProbe = probeSeaWave(x, z, this.waterSurfaceWorld);
+        this.waterProbeCache = { epoch: this.waterProbeEpoch, bx, bz, probe: cachedProbe };
+      }
+    }
+    return isPointInWater(
+      x,
+      y,
+      z,
+      this.waterWaveTime,
+      this.waterSurfaceWorld,
+      wavesEnabled,
+      cachedProbe,
+    );
+  }
+
   // 每模拟刻推进生命/饥饿：累积疲劳(疾跑/跳)、结算摔落、回血/掉血、判定死亡。
   private stepSurvival(sprint: boolean, jumped: boolean): void {
     if (this.creative) {
@@ -1081,7 +1155,11 @@ export class Game {
     if (jumped) addExhaustion(this.survival, sprint ? SPRINT_JUMP_EXHAUSTION : JUMP_EXHAUSTION);
     const px = Math.floor(this.player.pos.x);
     const pz = Math.floor(this.player.pos.z);
-    const inWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y), pz));
+    const inWater = this.pointInWater(
+      this.player.pos.x,
+      this.player.pos.y,
+      this.player.pos.z,
+    );
     const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
     this.fallDistance = fall.fallDistance;
     if (fall.damage > 0) {
@@ -1097,7 +1175,11 @@ export class Game {
     const bodyLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y + 0.9), pz));
     if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0, true); // MC 1.12 岩浆 4HP/0.5s(无击退;窗口内会对仙人掌1点补差,不再被抢无敌帧)
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
-    const headInWater = isWaterId(this.world.getBlock(px, Math.floor(this.player.pos.y + EYE), pz));
+    const headInWater = this.pointInWater(
+      this.player.pos.x,
+      this.player.pos.y + EYE,
+      this.player.pos.z,
+    );
     const hpBefore = this.survival.health;
     tickOxygen(this.survival, headInWater);
     if (this.survival.health < hpBefore) this.flashHurt();
@@ -2057,7 +2139,14 @@ export class Game {
     if (this.dimension === 'overworld' && sunElev > -0.15) {
       warmth = Math.max(0, 1 - Math.abs(sunElev) / 0.3) * Math.min(1, (sunElev + 0.15) / 0.15);
     }
-    this.renderer.setSkyColors(s.skyTop, s.skyHorizon, Math.atan2(0.1, Math.cos(sunPhi)), warmth);
+    this.renderer.setSkyColors(
+      s.skyTop,
+      s.skyHorizon,
+      sunPhi,
+      warmth,
+      sunElev,
+      this.dimension === 'overworld',
+    );
     const fog = this.normalFog;
     if (fog) fog.color.setRGB(s.skyHorizon[0], s.skyHorizon[1], s.skyHorizon[2], THREE.SRGBColorSpace);
     // 天光色相 → uSkyTint(夜偏蓝)，火把照亮处不变蓝。
@@ -2156,10 +2245,10 @@ export class Game {
   }
 
   private updateWater(): void {
-    const ex = Math.floor(this.player.pos.x);
-    const ey = Math.floor(this.player.pos.y + EYE);
-    const ez = Math.floor(this.player.pos.z);
-    const under = isWaterId(this.world.getBlock(ex, ey, ez));
+    // 视觉介质必须读取本帧真正渲染的插值相机。若读取物理刻的玩家眼睛，
+    // 穿越移动浪面时折射 pass 会有一帧落在错误的一侧。
+    const camera = this.renderer.camera.position;
+    const under = this.pointInWater(camera.x, camera.y, camera.z);
     // 光影档由全屏深度重建真实水中光程；若再叠 16 格的旧蓝雾，会把水下压成
     // 一整块纯蓝。旧雾只留给 off 档，高档让 Beer-Lambert 吸收决定能见度。
     this.renderer.scene.fog =

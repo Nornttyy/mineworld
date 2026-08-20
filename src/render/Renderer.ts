@@ -5,18 +5,29 @@ import { Bloom } from './Bloom';
 import { SSAO } from './SSAO';
 import type { LightingQuality } from '../core/settings';
 import { browserViewportSize } from './browserViewport';
-import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER, WATER_RENDER_LAYER } from './renderLayers';
-import { PlanarReflection } from './PlanarReflection';
+import {
+  CAMERA_AUX_RENDER_LAYER,
+  NO_WATER_REFLECTION_LAYER,
+  SKY_RENDER_LAYER,
+  WATER_RENDER_LAYER,
+} from './renderLayers';
 import { PlanarRefraction } from './PlanarRefraction';
+import { PlanarReflection } from './PlanarReflection';
 
 type WaterRefractionSink = (
   color: THREE.Texture | null,
   depth: THREE.Texture | null,
   physicalWidth: number,
   physicalHeight: number,
+  underwaterAmount: number,
 ) => void;
 
-type WaterReflectionSink = (color: THREE.Texture | null, textureMatrix?: THREE.Matrix4) => void;
+type WaterReflectionSink = (
+  color: THREE.Texture | null,
+  textureMatrix: THREE.Matrix4 | null,
+  physicalWidth: number,
+  physicalHeight: number,
+) => void;
 
 /** God-ray パラメータ（Game から毎フレーム供给）。 */
 interface GodRayOpts {
@@ -28,6 +39,51 @@ interface GodRayOpts {
   /** 太阳光束颜色（黎明偏橙，正午白）。 */
   sunColor: THREE.Color;
 }
+
+const SKY_DOME_VERT = /* glsl */ `
+varying vec3 vSkyDir;
+void main() {
+  vSkyDir = normalize(position);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`.trim();
+
+const SKY_DOME_FRAG = /* glsl */ `
+uniform vec3 uSkyTop;
+uniform vec3 uSkyHorizon;
+uniform vec3 uSunDir;
+uniform float uWarmth;
+uniform float uSunVisible;
+varying vec3 vSkyDir;
+void main() {
+  vec3 dir = normalize(vSkyDir);
+  float up = clamp(dir.y, 0.0, 1.0);
+
+  // Rayleigh-like vertical falloff: the pale horizon stays narrow while blue
+  // continues to deepen all the way to the zenith instead of becoming a flat cap.
+  float vertical = pow(smoothstep(0.0, 1.0, up), 0.42);
+  vec3 col = mix(uSkyHorizon, uSkyTop, vertical);
+
+  // A thin optical-depth haze binds terrain fog to the sky without washing the
+  // whole frame white. The actual solar disc remains a separate HDR object.
+  float airMass = exp(-up * 8.0);
+  col = mix(col, uSkyHorizon * 1.025, airMass * 0.10);
+
+  vec3 sunDir = normalize(uSunDir);
+  float sunFacing = max(dot(dir, sunDir), 0.0);
+  float sunAbove = smoothstep(-0.10, 0.24, sunDir.y);
+  float forwardScatter = pow(sunFacing, 7.0) * exp(-up * 3.6);
+  float aureole = pow(sunFacing, 56.0);
+  vec3 scatterTint = mix(vec3(0.30, 0.43, 0.70), vec3(1.0, 0.36, 0.08), uWarmth);
+  col += scatterTint * sunAbove * uSunVisible
+    * (forwardScatter * mix(0.018, 0.13, uWarmth) + aureole * mix(0.012, 0.07, uWarmth));
+
+  // Diffuse sky must remain below the selective bloom threshold. The sun sprite,
+  // water highlights and emissive blocks are the only intended HDR sources.
+  gl_FragColor = vec4(clamp(col, vec3(0.0), vec3(0.985)), 1.0);
+  #include <colorspace_fragment>
+}
+`.trim();
 
 /**
  * 场景、相机、天空与 WebGL 渲染器；只负责"画"，不含游戏逻辑。
@@ -52,12 +108,18 @@ export class Renderer {
     });
   };
 
-  // 天空穹顶：跟随相机的反面球 + 顶点色渐变。
+  // 天空穹顶：跟随相机的反面球 + 解析大气渐变。
   // ⚠️ 曾用 scene.background 贴 2×256 canvas 渐变——它钉死在【屏幕】上：抬头看天顶还是地平线色、
   //   亮带跟着屏幕下缘走，完全不是 MC 那种"亮带贴住真地平线"的世界天空。穹顶按视线方向渐变才对。
   private readonly skyDome: THREE.Mesh;
-  private readonly skyDomeColors: THREE.BufferAttribute;
-  private lastSky = ''; // 上次套用的天空配色（相同则跳过重算顶点色）
+  private readonly skyUniforms = {
+    uSkyTop: { value: new THREE.Color() },
+    uSkyHorizon: { value: new THREE.Color() },
+    uSunDir: { value: new THREE.Vector3(1, 0, 0.1).normalize() },
+    uWarmth: { value: 0 },
+    uSunVisible: { value: 1 },
+  };
+  private lastSky = ''; // 上次套用的天空配色（相同则跳过 uniform 更新）
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
@@ -65,11 +127,13 @@ export class Renderer {
   private waterRefractionSink: WaterRefractionSink | null = null;
   private planarReflection: PlanarReflection | null = null;
   private waterReflectionSink: WaterReflectionSink | null = null;
+  private waterCapturesEnabled = true;
   private readonly godStd = new GodRays(24); // standard 档：24 采样
   private readonly godHigh = new GodRays(48); // high 档：48 采样
   private god: GodRayOpts | null = null; // null = off，render() 走原路径
   private underwaterTarget = 0;
   private underwaterAmount = 0;
+  private readonly waterIrradiance = new THREE.Color(0.04, 0.18, 0.26);
 
   // Bloom 后处理（1/4 分辨率内部缓冲）
   private bloom: Bloom | null = null;
@@ -94,17 +158,14 @@ export class Renderer {
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.shadowMap.autoUpdate = false; // 不每帧重渲 shadow(开销大)；由 markShadowDirty 节流触发(昼夜慢 + 玩家移动时)
-    // 天空穹顶：半径 750(相机 far 1000 以内)、反面渲染、不写深度(god-ray 深度判定仍视穹顶处为天空)、
-    // 不受雾(fog:false)；每帧跟随相机(见 render)。顶点色由 setSkyColors 按昼夜配色重算。
+    // 天空穹顶：解析大气按真实视线仰角计算，消除旧低细分顶点渐变的平色带。
     const domeGeo = new THREE.SphereGeometry(750, 32, 24);
-    const domeVerts = domeGeo.getAttribute('position').count;
-    this.skyDomeColors = new THREE.BufferAttribute(new Float32Array(domeVerts * 3), 3);
-    domeGeo.setAttribute('color', this.skyDomeColors);
-    const domeMat = new THREE.MeshBasicMaterial({
-      vertexColors: true,
+    const domeMat = new THREE.ShaderMaterial({
+      uniforms: this.skyUniforms,
+      vertexShader: SKY_DOME_VERT,
+      fragmentShader: SKY_DOME_FRAG,
       side: THREE.BackSide,
       depthWrite: false,
-      fog: false,
     });
     this.skyDome = new THREE.Mesh(domeGeo, domeMat);
     this.skyDome.layers.set(SKY_RENDER_LAYER);
@@ -116,7 +177,8 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1000); // FOV 70，同 MC
     this.camera.layers.enable(WATER_RENDER_LAYER); // 主 pass 同时看地形(layer0)和水(layer1)
     this.camera.layers.enable(NO_WATER_REFLECTION_LAYER); // 太阳正常显示，但不进入水面镜像 RT
-    this.camera.layers.enable(SKY_RENDER_LAYER); // 天空可进入主画面和镜像反射，但不进入水下折射
+    this.camera.layers.enable(SKY_RENDER_LAYER); // 天空可进入主画面和镜像 RT，但不进入水下折射
+    this.camera.layers.enable(CAMERA_AUX_RENDER_LAYER); // 选框/裂纹/名字牌只属于玩家主画面
     this.resize();
     window.addEventListener('resize', this.onViewportChange);
     window.addEventListener('orientationchange', this.onViewportChange);
@@ -125,41 +187,34 @@ export class Renderer {
     window.visualViewport?.addEventListener('scroll', this.onViewportChange);
   }
 
-  // 昼夜更替：重算穹顶顶点色（配色/太阳方位不变则跳过）。渐变按【视线仰角】走：
-  // 地平线亮带 → 仰角 ~0.45 以上为天顶色（近似 MC：亮带贴住真地平线，与雾色衔接）。
-  // sunAz/warmth(0..1)：日出日落时太阳方位一侧地平线暖亮、背侧偏冷——真实大气的晨昏渐变。
-  setSkyColors(top: RGB, horizon: RGB, sunAz = 0, warmth = 0): void {
-    const sig = `${top.join()}|${horizon.join()}|${Math.round(sunAz * 50)}|${Math.round(warmth * 25)}`;
+  // 昼夜更替：更新解析大气参数。太阳方位/高度驱动局部 Mie 光晕，warmth 只在晨昏升高。
+  setSkyColors(
+    top: RGB,
+    horizon: RGB,
+    sunPhi = 0,
+    warmth = 0,
+    sunElevation = 0,
+    sunVisible = true,
+  ): void {
+    const sig = `${top.join()}|${horizon.join()}|${Math.round(sunPhi * 80)}|${Math.round(warmth * 40)}|${Math.round(sunElevation * 80)}|${sunVisible ? 1 : 0}`;
     if (sig === this.lastSky) return;
     this.lastSky = sig;
-    const cTop = new THREE.Color().setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
-    const cHor = new THREE.Color().setRGB(horizon[0], horizon[1], horizon[2], THREE.SRGBColorSpace);
-    const pos = (this.skyDome.geometry as THREE.SphereGeometry).getAttribute('position');
-    const arr = this.skyDomeColors.array as Float32Array;
-    for (let i = 0; i < pos.count; i++) {
-      const ny = pos.getY(i) / 750; // -1..1 仰角
-      const t = ny <= 0 ? 0 : Math.min(1, ny / 0.45);
-      const s = t * t * (3 - 2 * t); // smoothstep
-      let r = cHor.r + (cTop.r - cHor.r) * s;
-      let g = cHor.g + (cTop.g - cHor.g) * s;
-      let b = cHor.b + (cTop.b - cHor.b) * s;
-      if (warmth > 0.01) {
-        // 太阳方位夹角 → 暖染集中在太阳侧(^2.5)；只染地平线带(1-s)
-        const az = Math.atan2(pos.getZ(i), pos.getX(i));
-        const azFac = Math.pow(Math.max(0, Math.cos(az - sunAz) * 0.5 + 0.5), 2.5);
-        const k = warmth * (1 - s);
-        const shR = 0.88 + (1.24 - 0.88) * azFac; // 背侧偏冷(×0.88) ↔ 太阳侧暖亮(×1.24)
-        const shG = 0.9 + (0.97 - 0.9) * azFac;
-        const shB = 1.05 + (0.75 - 1.05) * azFac;
-        r *= 1 + (shR - 1) * k;
-        g *= 1 + (shG - 1) * k;
-        b *= 1 + (shB - 1) * k;
-      }
-      arr[i * 3] = r;
-      arr[i * 3 + 1] = g;
-      arr[i * 3 + 2] = b;
-    }
-    this.skyDomeColors.needsUpdate = true;
+    this.skyUniforms.uSkyTop.value.setRGB(top[0], top[1], top[2], THREE.SRGBColorSpace);
+    this.skyUniforms.uSkyHorizon.value.setRGB(
+      horizon[0],
+      horizon[1],
+      horizon[2],
+      THREE.SRGBColorSpace,
+    );
+    this.skyUniforms.uSunDir.value.set(Math.cos(sunPhi), sunElevation, 0.1).normalize();
+    this.skyUniforms.uWarmth.value = THREE.MathUtils.clamp(warmth, 0, 1);
+    this.skyUniforms.uSunVisible.value = sunVisible ? 1 : 0;
+    // 与水面 Beer-Lambert 散射共用实际天空亮度。夜晚天空本身很暗，水体便不会
+    // 像旧的固定青色常量那样在午夜/洞穴中自发光。
+    this.waterIrradiance
+      .copy(this.skyUniforms.uSkyHorizon.value)
+      .lerp(this.skyUniforms.uSkyTop.value, 0.2)
+      .multiply(new THREE.Color(0.78, 1.08, 1.16));
   }
 
   resize(): void {
@@ -220,10 +275,30 @@ export class Renderer {
     this.publishRefractionTarget();
   }
 
-  /** Water shader subscribes to the live planar-reflection texture and projective matrix. */
+  /** Water shader subscribes to the true mirrored sea-surface scene. */
   setWaterReflectionSink(sink: WaterReflectionSink | null): void {
     this.waterReflectionSink = sink;
     this.publishReflectionTarget();
+  }
+
+  /** Skip both auxiliary water scene passes in dimensions that contain no water. */
+  setWaterCapturesEnabled(enabled: boolean): void {
+    if (enabled === this.waterCapturesEnabled) return;
+    this.waterCapturesEnabled = enabled;
+    if (!enabled) {
+      this.planarRefraction?.dispose();
+      this.planarRefraction = null;
+      this.planarReflection?.dispose();
+      this.planarReflection = null;
+      this.publishRefractionTarget();
+      this.publishReflectionTarget();
+    } else {
+      // Keep the sinks empty until this frame renders fresh captures; otherwise one frame
+      // could sample the previous dimension's scene.
+      this.waterRefractionSink?.(null, null, 1, 1, this.underwaterAmount);
+      this.waterReflectionSink?.(null, null, 1, 1);
+      if (this.god !== null) this.ensureWaterCaptureTargets();
+    }
   }
 
   /**
@@ -262,22 +337,7 @@ export class Renderer {
     if (this.rt === null) {
       this.rt = this.buildRT(this.viewportW, this.viewportH);
     }
-    if (this.planarRefraction === null) {
-      const pr = this.gl.getPixelRatio();
-      this.planarRefraction = new PlanarRefraction(
-        Math.max(1, Math.round(this.viewportW * pr)),
-        Math.max(1, Math.round(this.viewportH * pr)),
-      );
-      this.publishRefractionTarget();
-    }
-    if (this.planarReflection === null) {
-      const pr = this.gl.getPixelRatio();
-      this.planarReflection = new PlanarReflection(
-        Math.max(1, Math.round(this.viewportW * pr)),
-        Math.max(1, Math.round(this.viewportH * pr)),
-      );
-      this.publishReflectionTarget();
-    }
+    this.ensureWaterCaptureTargets();
     // 确保 Bloom 已建。
     if (this.bloom === null) {
       const pr = this.gl.getPixelRatio();
@@ -316,11 +376,11 @@ export class Renderer {
       return;
     }
 
-    // ── Step -1: 海平面镜像场景 → 真实倒影 RT ──
-    // 反射相机只看 layer0，因此不会递归画水；oblique near-plane 裁掉水面以下地形。
-    // 镜像相机越过反射平面后，oblique clip 会翻转并产生巨大投影项；水下禁用平面倒影，
-    // 交给天空 Fresnel/水下散射兜底。浮出水面下一帧会自动恢复。
+    // ── Step -1: 海平面镜像相机 → 真实倒影 RT ──
+    // 这里渲染的是镜像世界，不是复制玩家屏幕。斜裁剪面排除水下几何，
+    // water/aux/sun 图层也不进入此 pass，因此岸、树和生物会在正确的接触线下方出现。
     if (
+      this.waterCapturesEnabled &&
       this.planarReflection !== null &&
       this.camera.position.y > this.planarReflection.planeY + 0.05
     ) {
@@ -331,8 +391,8 @@ export class Renderer {
         (reflectionCamera) => this.skyDome.position.copy(reflectionCamera.position),
         () => this.skyDome.position.copy(this.camera.position),
       );
-      this.publishReflectionTarget();
-    } else if (this.planarReflection !== null) {
+      this.publishReflectionTarget(true);
+    } else {
       this.publishReflectionTarget(false);
     }
 
@@ -340,7 +400,7 @@ export class Renderer {
     // 水上时只保留水面以下的真实地形/生物；水下时反向保留水面以上的岸景与天空。
     // 相机姿态/投影始终与玩家一致，但这不是玩家画面的屏幕拷贝：水面自身不会进入 RT，
     // 且裁剪平面保证只传输界面另一侧真正存在的内容。
-    if (this.planarRefraction !== null) {
+    if (this.waterCapturesEnabled && this.planarRefraction !== null) {
       const previousFog = this.scene.fog;
       this.scene.fog = null; // 空气雾不属于水体；水 shader 会按真实光程做吸收/散射。
       try {
@@ -391,6 +451,7 @@ export class Renderer {
     // (阈值 0.78 只筛真亮源,高光辉光更明显但亮沙/天空不再整片过阈值)。
     u['uBloom'].value = this.god.quality === 'high' ? 0.68 : 0.5;
     u['uUnderwater'].value = this.underwaterAmount;
+    u['uWaterIrradiance'].value.copy(this.waterIrradiance);
     // AO：ssao 存在时传贴图和档位强度；否则 uAO=0（shader 中 mix(1,ao,0)=1 → 无暗化，完全兜底）。
     if (this.ssao !== null) {
       u['tAO'].value = this.ssao.texture;
@@ -441,8 +502,8 @@ export class Renderer {
 
   private publishRefractionTarget(): void {
     if (!this.waterRefractionSink) return;
-    if (!this.planarRefraction) {
-      this.waterRefractionSink(null, null, 1, 1);
+    if (!this.waterCapturesEnabled || !this.planarRefraction) {
+      this.waterRefractionSink(null, null, 1, 1, this.underwaterAmount);
       return;
     }
     this.waterRefractionSink(
@@ -450,15 +511,34 @@ export class Renderer {
       this.planarRefraction.depthTexture,
       this.planarRefraction.renderTarget.width,
       this.planarRefraction.renderTarget.height,
+      this.underwaterAmount,
     );
   }
 
-  private publishReflectionTarget(available = true): void {
+  private ensureWaterCaptureTargets(): void {
+    if (!this.waterCapturesEnabled) return;
+    const pr = this.gl.getPixelRatio();
+    const width = Math.max(1, Math.round(this.viewportW * pr));
+    const height = Math.max(1, Math.round(this.viewportH * pr));
+    if (this.planarRefraction === null) {
+      this.planarRefraction = new PlanarRefraction(width, height);
+    }
+    if (this.planarReflection === null) {
+      this.planarReflection = new PlanarReflection(width, height);
+    }
+  }
+
+  private publishReflectionTarget(active = true): void {
     if (!this.waterReflectionSink) return;
-    if (!this.planarReflection || !available) {
-      this.waterReflectionSink(null);
+    if (!active || !this.waterCapturesEnabled || !this.planarReflection) {
+      this.waterReflectionSink(null, null, 1, 1);
       return;
     }
-    this.waterReflectionSink(this.planarReflection.texture, this.planarReflection.textureMatrix);
+    this.waterReflectionSink(
+      this.planarReflection.texture,
+      this.planarReflection.textureMatrix,
+      this.planarReflection.renderTarget.width,
+      this.planarReflection.renderTarget.height,
+    );
   }
 }

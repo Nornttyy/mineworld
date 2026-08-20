@@ -78,6 +78,35 @@ describe('SkyObjects.setDimension', () => {
     expect(so.lq).toBe('standard');
   });
 
+  it('keeps every sky object hidden when lighting quality changes in the nether', () => {
+    const so = new SkyObjects(new THREE.Scene()) as any;
+    so.setDimension('nether');
+    so.setLightingQuality('high');
+    for (const object of [
+      so.sun,
+      so.moon,
+      so.realSun,
+      so.sunGlow,
+      so.realMoon,
+      so.voxelClouds,
+      so.realClouds,
+      so.starGroup,
+    ]) {
+      expect(object.visible).toBe(false);
+    }
+    expect(so.lq).toBe('high');
+  });
+
+  it('advances cloud drift by elapsed seconds instead of display refresh rate', () => {
+    const so = new SkyObjects(new THREE.Scene()) as any;
+    so.setLightingQuality('standard');
+    const camera = new THREE.Vector3(0, 80, 0);
+    so.update(6000, camera, 1 / 30);
+    expect(so.drift).toBeCloseTo(0.024, 8);
+    so.update(6000, camera, 1 / 144);
+    expect(so.drift).toBeCloseTo(0.029, 8);
+  });
+
   it('keeps the HDR sun and glow out of the planar reflection layer', () => {
     const so = new SkyObjects(new THREE.Scene()) as any;
     expect(so.realSun.layers.isEnabled(NO_WATER_REFLECTION_LAYER)).toBe(true);

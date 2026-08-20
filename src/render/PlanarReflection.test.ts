@@ -12,12 +12,17 @@ function fakeRenderer(renderImpl?: () => void) {
   const setScissorTest = vi.fn();
   const clear = vi.fn();
   const depthMask = vi.fn();
+  const glContext = {
+    DEPTH_WRITEMASK: 0x0b72,
+    getParameter: vi.fn(() => false),
+  };
   const xr = { enabled: true };
   const shadowMap = { autoUpdate: true, needsUpdate: true };
   const renderer = {
     xr,
     shadowMap,
     state: { buffers: { depth: { setMask: depthMask } } },
+    getContext: vi.fn(() => glContext),
     getRenderTarget: vi.fn(() => null),
     getViewport: vi.fn((out: THREE.Vector4) => out.copy(viewport)),
     getScissor: vi.fn((out: THREE.Vector4) => out.copy(scissor)),
@@ -131,6 +136,65 @@ describe('PlanarReflection', () => {
     reflection.dispose();
   });
 
+  it('maps a reflected world point to the same screen position as its source-camera mirror', () => {
+    // Regression coordinates from the high-contrast contact-column diagnostic.
+    // This is intentionally independent of the texture matrix: reflecting both
+    // camera forward and up preserves the mirror's reversed handedness, so a real
+    // point's reflected-camera X is the negative of the source camera X for the
+    // corresponding virtual point; Y is unchanged.
+    const planeY = 116 + 8 / 9;
+    const reflection = new PlanarReflection(2560, 1440, { planeY });
+    const source = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 600);
+    const sourceDirection = new THREE.Vector3(
+      -0.8813287166328794,
+      -0.11971220728891936,
+      -0.4570872212180444,
+    );
+    source.position.set(-62.231875913286814, 119.38888888888889, 79.80832611206853);
+    source.lookAt(source.position.clone().add(sourceDirection));
+    source.updateProjectionMatrix();
+    source.updateMatrixWorld(true);
+
+    reflection.render(fakeRenderer().renderer, new THREE.Scene(), source);
+
+    const realPoint = new THREE.Vector3(-77.5, 121, 73);
+    const mirroredPoint = realPoint.clone();
+    mirroredPoint.y = 2 * planeY - mirroredPoint.y;
+    const reflectedNdc = realPoint.clone().project(reflection.camera);
+    const sourceNdc = mirroredPoint.project(source);
+
+    // Overscan widens the reflected projection symmetrically around NDC zero.
+    expect(reflectedNdc.x).toBeCloseTo(-sourceNdc.x / reflection.overscan, 7);
+    expect(reflectedNdc.y).toBeCloseTo(sourceNdc.y / reflection.overscan, 7);
+    expect(reflectedNdc.x).toBeCloseTo(0.04223, 5);
+    expect(reflectedNdc.y).toBeCloseTo(-0.347795, 5);
+
+    const projected = new THREE.Vector4(realPoint.x, realPoint.y, realPoint.z, 1).applyMatrix4(
+      reflection.textureMatrix,
+    );
+    expect(projected.x / projected.w).toBeCloseTo(0.521115, 5);
+    expect(projected.y / projected.w).toBeCloseTo(0.326103, 5);
+
+    reflection.dispose();
+  });
+
+  it('lets setRenderTarget install the physical-pixel viewport without applying DPR twice', () => {
+    const reflection = new PlanarReflection(2560, 1440);
+    const fake = fakeRenderer();
+
+    reflection.render(fake.renderer, new THREE.Scene(), sourceCamera());
+
+    expect(fake.setRenderTarget).toHaveBeenNthCalledWith(1, reflection.renderTarget);
+    // The sole public setViewport call restores the canvas viewport. Calling it
+    // with the RT's already-physical 2560x1440 dimensions would become
+    // 5120x2880 on a DPR=2 renderer and move NDC centre to the target edge.
+    expect(fake.setViewport).toHaveBeenCalledTimes(1);
+    expect(fake.setViewport).toHaveBeenCalledWith(new THREE.Vector4(7, 9, 800, 450));
+    expect(fake.setViewport).not.toHaveBeenCalledWith(0, 0, 2560, 1440);
+
+    reflection.dispose();
+  });
+
   it('uses the water surface as an oblique near plane and clips underwater geometry', () => {
     const reflection = new PlanarReflection(320, 180, { clipBias: 0 });
     const source = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 500);
@@ -168,7 +232,8 @@ describe('PlanarReflection', () => {
     expect(fake.setScissor).toHaveBeenLastCalledWith(expect.any(THREE.Vector4));
     expect(fake.setScissorTest).toHaveBeenLastCalledWith(true);
     expect(fake.depthMask).toHaveBeenCalledWith(true);
-    expect(fake.clear).toHaveBeenCalledWith(true, true, true);
+    expect(fake.depthMask).toHaveBeenLastCalledWith(false);
+    expect(fake.clear).toHaveBeenCalledWith(true, true, false);
 
     reflection.dispose();
   });
