@@ -281,6 +281,12 @@ WOOD_TO_DIAMOND = {
     (124, 94, 50): (37, 151, 148),     # WOOD_LO → 阴影
 }
 
+# 用户手绘木镐的镐头与木柄有一部分共用同一种棕色，不能只靠 RGB 全图替换，
+# 否则柄芯也会变成钻石色。显式标出镐头，保留木镐的轮廓和完整木柄。
+PICKAXE_HEAD_HIGHLIGHT = {(7, 3), (8, 3), (10, 4), (11, 5)}
+PICKAXE_HEAD_BASE = {(9, 3), (10, 3), (11, 4), (12, 5), (12, 6), (12, 7)}
+PICKAXE_HEAD_SHADOW = {(12, 8)}
+
 
 def make_torch():
     """火把：竖木棍 + 顶端火焰团（橙黄火苗）。"""
@@ -376,6 +382,23 @@ def recolor(wood_name, table):
     return im
 
 
+def recolor_pickaxe_head(wood_name, table):
+    """只给木镐的镐头换材质色，木柄、描边和透明轮廓逐像素保留。"""
+    im = Image.open(os.path.join(ICON, f"{wood_name}.png")).convert("RGBA")
+    px = im.load()
+    shades = (
+        (PICKAXE_HEAD_HIGHLIGHT, table[(198, 160, 100)]),
+        (PICKAXE_HEAD_BASE, table[(164, 127, 69)]),
+        (PICKAXE_HEAD_SHADOW, table[(124, 94, 50)]),
+    )
+    for points, color in shades:
+        for x, y in points:
+            if px[x, y][3] == 0:
+                raise ValueError(f"wooden pickaxe head mask misses an opaque pixel at {(x, y)}")
+            px[x, y] = (*color, 255)
+    return im
+
+
 def make_ingot(table):
     """锭图标(铁锭)：居中梯形金属块 + 顶高光底暗，颜色取换色板。"""
     im, px = blank()
@@ -453,7 +476,7 @@ def main():
         "iron_sword": recolor("wooden_sword", WOOD_TO_IRON),
         "iron_hoe": recolor("wooden_hoe", WOOD_TO_IRON),
         "iron_ingot": make_ingot(WOOD_TO_IRON),
-        "diamond_pickaxe": recolor("wooden_pickaxe", WOOD_TO_DIAMOND),
+        "diamond_pickaxe": recolor_pickaxe_head("wooden_pickaxe", WOOD_TO_DIAMOND),
         "diamond_axe": recolor("wooden_axe", WOOD_TO_DIAMOND),
         "diamond_shovel": recolor("wooden_shovel", WOOD_TO_DIAMOND),
         "diamond_sword": recolor("wooden_sword", WOOD_TO_DIAMOND),
