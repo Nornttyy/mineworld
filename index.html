@@ -2,7 +2,10 @@
 <html lang="zh">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <title>MINEWORLD</title>
     <style>
       /* Zpix 中文像素字体（子集：全 UI 用字 + GB2312 常用汉字 + ASCII，~285KB）。相对路径同时适配 dev 与 Pages 子路径 */
@@ -106,8 +109,7 @@
       }
       /* 暂停：盖住冻结的游戏 */
       #pause {
-        background:
-          linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
           url('./textures/blocks/dirt.png');
         background-size:
           cover,
@@ -406,7 +408,9 @@
         line-height: 1.5;
         text-align: center;
       }
-      #mp-status.error { color: #ff9b9b; }
+      #mp-status.error {
+        color: #ff9b9b;
+      }
       #multiplayer .btn-row {
         margin-top: 18px;
         justify-content: center;
@@ -427,7 +431,9 @@
         background: rgba(0, 0, 0, 0.48);
         border: 1px solid rgba(180, 235, 147, 0.45);
         box-sizing: border-box;
-        font: 11px 'Zpix', monospace;
+        font:
+          11px 'Zpix',
+          monospace;
         line-height: 1.45;
         text-align: right;
         pointer-events: none;
@@ -707,8 +713,12 @@
         padding: 5px 12px;
         color: #3f3f3f;
         background: #d7d7d7;
-        box-shadow: inset 2px 2px 0 #fff, inset -2px -2px 0 #8b8b8b;
-        font: 13px 'Zpix', monospace;
+        box-shadow:
+          inset 2px 2px 0 #fff,
+          inset -2px -2px 0 #8b8b8b;
+        font:
+          13px 'Zpix',
+          monospace;
         cursor: pointer;
       }
       .inv-top {
@@ -716,6 +726,90 @@
         align-items: center;
         gap: 16px;
         padding-bottom: 8px;
+      }
+      .inv-standard,
+      .creative-view {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .creative-tabs {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 3px;
+      }
+      .creative-tab {
+        min-height: 30px;
+        padding: 4px 6px;
+        border: 2px solid #373737;
+        color: #3f3f3f;
+        background: #a9a9a9;
+        box-shadow:
+          inset 2px 2px 0 #e8e8e8,
+          inset -2px -2px 0 #686868;
+        font:
+          11px 'Zpix',
+          monospace;
+        cursor: pointer;
+      }
+      .creative-tab.active {
+        color: #fff;
+        background: #777;
+        box-shadow:
+          inset 2px 2px 0 #444,
+          inset -2px -2px 0 #bcbcbc;
+        text-shadow: 1px 1px 0 #222;
+      }
+      .creative-search {
+        width: 100%;
+        height: 32px;
+        box-sizing: border-box;
+        border: 2px solid #373737;
+        border-radius: 0;
+        outline: none;
+        padding: 3px 8px;
+        color: #202020;
+        background: #fff;
+        box-shadow: inset 2px 2px 0 #777;
+        font:
+          14px 'Zpix',
+          monospace;
+      }
+      .creative-search:focus {
+        border-color: #fff;
+        outline: 2px solid #373737;
+      }
+      .creative-grid {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 4px;
+        min-height: 140px;
+        max-height: min(276px, 42vh);
+        padding: 5px;
+        overflow-y: auto;
+        background: #555;
+        box-shadow:
+          inset 2px 2px 0 #373737,
+          inset -2px -2px 0 #eee;
+        overscroll-behavior: contain;
+      }
+      .creative-trash-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        min-height: 44px;
+        color: #555;
+        font-size: 11px;
+      }
+      .creative-trash {
+        flex: 0 0 auto;
+        background: #8e5e5e;
+      }
+      .creative-trash .slot-icon {
+        color: #fff;
+        font: 30px/1 monospace;
+        text-shadow: 1px 1px 0 #3a1717;
       }
       .inv-cgrid {
         display: grid;
@@ -876,7 +970,11 @@
         pointer-events: none;
         z-index: 25;
         opacity: 0;
-        background: radial-gradient(ellipse at center, rgba(160, 0, 0, 0) 45%, rgba(160, 0, 0, 0.6) 100%);
+        background: radial-gradient(
+          ellipse at center,
+          rgba(160, 0, 0, 0) 45%,
+          rgba(160, 0, 0, 0.6) 100%
+        );
       }
       #hurt.flash {
         animation: hurt-flash 0.4s ease-out;
@@ -966,8 +1064,7 @@
         border: 2px solid rgba(220, 240, 255, 0.56);
         border-radius: 14px;
         color: #fff;
-        background:
-          linear-gradient(135deg, rgba(109, 163, 192, 0.42), rgba(28, 53, 69, 0.5)),
+        background: linear-gradient(135deg, rgba(109, 163, 192, 0.42), rgba(28, 53, 69, 0.5)),
           rgba(23, 40, 50, 0.42);
         box-shadow:
           0 2px 0 rgba(0, 0, 0, 0.24),
@@ -977,7 +1074,10 @@
         /* 箭头只是 MC 风格的外观，真实手势由整块 .touch-dpad 接收。 */
         pointer-events: none;
         z-index: 1;
-        transition: background 80ms ease-out, transform 80ms ease-out, border-color 80ms ease-out;
+        transition:
+          background 80ms ease-out,
+          transform 80ms ease-out,
+          border-color 80ms ease-out;
       }
       .touch-dpad-button::after {
         content: '';
@@ -987,14 +1087,42 @@
         margin: 0;
         filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.55));
       }
-      #touch-forward { grid-column: 2; grid-row: 1; }
-      #touch-back { grid-column: 2; grid-row: 3; }
-      #touch-left { grid-column: 1; grid-row: 2; }
-      #touch-right { grid-column: 3; grid-row: 2; }
-      #touch-forward::after { border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 19px solid currentColor; }
-      #touch-back::after { border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 19px solid currentColor; }
-      #touch-left::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-right: 19px solid currentColor; }
-      #touch-right::after { border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-left: 19px solid currentColor; }
+      #touch-forward {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      #touch-back {
+        grid-column: 2;
+        grid-row: 3;
+      }
+      #touch-left {
+        grid-column: 1;
+        grid-row: 2;
+      }
+      #touch-right {
+        grid-column: 3;
+        grid-row: 2;
+      }
+      #touch-forward::after {
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-bottom: 19px solid currentColor;
+      }
+      #touch-back::after {
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-top: 19px solid currentColor;
+      }
+      #touch-left::after {
+        border-top: 14px solid transparent;
+        border-bottom: 14px solid transparent;
+        border-right: 19px solid currentColor;
+      }
+      #touch-right::after {
+        border-top: 14px solid transparent;
+        border-bottom: 14px solid transparent;
+        border-left: 19px solid currentColor;
+      }
       .touch-dpad[data-forward='1'] #touch-forward,
       .touch-dpad[data-forward='-1'] #touch-back,
       .touch-dpad[data-right='-1'] #touch-left,
@@ -1013,22 +1141,24 @@
         box-sizing: border-box;
         border: 2px solid rgba(244, 252, 255, 0.9);
         border-radius: 12px;
-        background:
-          linear-gradient(135deg, rgba(172, 222, 244, 0.82), rgba(59, 104, 130, 0.86)),
+        background: linear-gradient(135deg, rgba(172, 222, 244, 0.82), rgba(59, 104, 130, 0.86)),
           rgba(42, 76, 95, 0.82);
         box-shadow:
           0 2px 0 rgba(0, 0, 0, 0.3),
           inset 1px 1px 0 rgba(255, 255, 255, 0.35);
         opacity: 0.48;
         pointer-events: none;
-        transform: translate(-50%, -50%) translate3d(var(--touch-dpad-stick-x), var(--touch-dpad-stick-y), 0);
-        transition: transform 44ms linear, opacity 100ms ease-out, background 100ms ease-out;
+        transform: translate(-50%, -50%)
+          translate3d(var(--touch-dpad-stick-x), var(--touch-dpad-stick-y), 0);
+        transition:
+          transform 44ms linear,
+          opacity 100ms ease-out,
+          background 100ms ease-out;
         z-index: 3;
       }
       .touch-dpad[data-moving='true'] .touch-dpad-stick {
         opacity: 1;
-        background:
-          linear-gradient(135deg, rgba(190, 236, 255, 0.95), rgba(74, 136, 170, 0.96)),
+        background: linear-gradient(135deg, rgba(190, 236, 255, 0.95), rgba(74, 136, 170, 0.96)),
           rgba(50, 89, 110, 0.92);
       }
       .touch-button {
@@ -1040,8 +1170,7 @@
         border: 2px solid rgba(220, 242, 255, 0.64);
         border-radius: 14px;
         color: rgba(255, 255, 255, 0.98);
-        background:
-          linear-gradient(135deg, rgba(112, 171, 203, 0.48), rgba(27, 61, 82, 0.6)),
+        background: linear-gradient(135deg, rgba(112, 171, 203, 0.48), rgba(27, 61, 82, 0.6)),
           rgba(22, 47, 62, 0.46);
         box-shadow:
           0 2px 0 rgba(0, 0, 0, 0.28),
@@ -1049,7 +1178,10 @@
         pointer-events: auto;
         touch-action: none;
         z-index: 3;
-        transition: background 80ms ease-out, transform 80ms ease-out, border-color 80ms ease-out;
+        transition:
+          background 80ms ease-out,
+          transform 80ms ease-out,
+          border-color 80ms ease-out;
       }
       .touch-button.pressed {
         border-color: rgba(242, 252, 255, 0.92);
@@ -1087,28 +1219,74 @@
         height: 54px;
         border-radius: 12px;
       }
-      #touch-pause { left: var(--touch-safe-left); }
+      #touch-pause {
+        left: var(--touch-safe-left);
+      }
       /* 和右上联机人数提示错开，避免多人模式时背包按钮被盖住。 */
-      #touch-inventory { left: calc(var(--touch-safe-left) + 64px); }
-      .touch-help { display: none; }
+      #touch-inventory {
+        left: calc(var(--touch-safe-left) + 64px);
+      }
+      .touch-help {
+        display: none;
+      }
 
       @media (max-width: 600px) {
-        .menu-main { top: 10%; gap: 14px; }
-        .logo h1 { font-size: clamp(34px, 12vw, 56px); letter-spacing: 3px; }
-        #splash { right: 0; font-size: 13px; }
-        .btn-wide { width: min(360px, 88vw); }
-        .btn-row { width: min(460px, 92vw); flex-wrap: wrap; justify-content: center; }
-        .btn-row .btn { width: auto; min-width: 112px; flex: 1; }
-        .world-rows { width: 92vw; max-height: 52vh; }
-        .world-row { flex-wrap: wrap; }
-        .world-row .wname { min-width: 50%; }
+        .menu-main {
+          top: 10%;
+          gap: 14px;
+        }
+        .logo h1 {
+          font-size: clamp(34px, 12vw, 56px);
+          letter-spacing: 3px;
+        }
+        #splash {
+          right: 0;
+          font-size: 13px;
+        }
+        .btn-wide {
+          width: min(360px, 88vw);
+        }
+        .btn-row {
+          width: min(460px, 92vw);
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+        .btn-row .btn {
+          width: auto;
+          min-width: 112px;
+          flex: 1;
+        }
+        .world-rows {
+          width: 92vw;
+          max-height: 52vh;
+        }
+        .world-row {
+          flex-wrap: wrap;
+        }
+        .world-row .wname {
+          min-width: 50%;
+        }
         #newworld,
         #multiplayer,
-        #about-panel { width: calc(100vw - 28px); box-sizing: border-box; padding: 18px; }
-        .screen-title { font-size: 28px; }
-        .boot-logo { font-size: clamp(32px, 12vw, 56px); letter-spacing: 4px; }
-        .boot-bar { width: min(360px, 78vw); }
-        .boot-hint { max-width: 70%; font-size: 11px; }
+        #about-panel {
+          width: calc(100vw - 28px);
+          box-sizing: border-box;
+          padding: 18px;
+        }
+        .screen-title {
+          font-size: 28px;
+        }
+        .boot-logo {
+          font-size: clamp(32px, 12vw, 56px);
+          letter-spacing: 4px;
+        }
+        .boot-bar {
+          width: min(360px, 78vw);
+        }
+        .boot-hint {
+          max-width: 70%;
+          font-size: 11px;
+        }
         .inv-panel {
           width: calc(100vw - 12px);
           max-height: calc(100vh - 12px);
@@ -1123,31 +1301,96 @@
           touch-action: none;
         }
         .inv-out,
-        .fur-out { width: 46px; height: 46px; }
-        .inv-top { gap: 10px; }
-        .inv-hint { font-size: 9px; }
+        .fur-out {
+          width: 46px;
+          height: 46px;
+        }
+        .inv-top {
+          gap: 10px;
+        }
+        .creative-tabs {
+          gap: 2px;
+        }
+        .creative-tab {
+          min-height: 27px;
+          padding: 3px 2px;
+          font-size: 9px;
+        }
+        .creative-grid {
+          max-height: 38vh;
+          padding: 4px;
+        }
+        .creative-trash-row {
+          min-height: 36px;
+          font-size: 9px;
+        }
+        .inv-hint {
+          font-size: 9px;
+        }
       }
 
       @media (pointer: coarse) {
         /* 不能在 html/body 全局禁用手势：世界列表、背包在手机上需要自己滚动。 */
-        html, body { overscroll-behavior: none; }
-        #app { cursor: default; touch-action: none; }
-        #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
-        .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
-        #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
-        #oxygen { bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px)); width: min(386px, calc(100vw - 18px)); }
-        .desktop-help { display: none; }
-        .touch-help { display: inline; }
+        html,
+        body {
+          overscroll-behavior: none;
+        }
+        #app {
+          cursor: default;
+          touch-action: none;
+        }
+        #hotbar {
+          bottom: max(7px, env(safe-area-inset-bottom));
+        }
+        .hotbar-slot {
+          width: min(42px, calc((100vw - 22px) / 9));
+          height: min(42px, calc((100vw - 22px) / 9));
+        }
+        #status {
+          bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px));
+          width: min(386px, calc(100vw - 18px));
+        }
+        #oxygen {
+          bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px));
+          width: min(386px, calc(100vw - 18px));
+        }
+        .desktop-help {
+          display: none;
+        }
+        .touch-help {
+          display: inline;
+        }
       }
       html.touch-device,
-      html.touch-device body { overscroll-behavior: none; }
-      html.touch-device #app { cursor: default; touch-action: none; -webkit-touch-callout: none; }
-      html.touch-device #hotbar { bottom: max(7px, env(safe-area-inset-bottom)); }
-      html.touch-device .hotbar-slot { width: min(42px, calc((100vw - 22px) / 9)); height: min(42px, calc((100vw - 22px) / 9)); }
-      html.touch-device #status { bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px)); width: min(386px, calc(100vw - 18px)); }
-      html.touch-device #oxygen { bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px)); width: min(386px, calc(100vw - 18px)); }
-      html.touch-device .desktop-help { display: none; }
-      html.touch-device .touch-help { display: inline; }
+      html.touch-device body {
+        overscroll-behavior: none;
+      }
+      html.touch-device #app {
+        cursor: default;
+        touch-action: none;
+        -webkit-touch-callout: none;
+      }
+      html.touch-device #hotbar {
+        bottom: max(7px, env(safe-area-inset-bottom));
+      }
+      html.touch-device .hotbar-slot {
+        width: min(42px, calc((100vw - 22px) / 9));
+        height: min(42px, calc((100vw - 22px) / 9));
+      }
+      html.touch-device #status {
+        bottom: max(53px, calc(env(safe-area-inset-bottom) + 46px));
+        width: min(386px, calc(100vw - 18px));
+      }
+      html.touch-device #oxygen {
+        bottom: max(74px, calc(env(safe-area-inset-bottom) + 67px));
+        width: min(386px, calc(100vw - 18px));
+      }
+      html.touch-device .desktop-help {
+        display: none;
+      }
+      html.touch-device .touch-help {
+        display: inline;
+      }
       html.touch-device button,
       html.touch-device input,
       html.touch-device select,
@@ -1166,7 +1409,9 @@
         font-size: 16px !important;
       }
       /* 第一人称操作在竖屏可用但空间很紧；只给出不挡操作的横屏建议。 */
-      #orientation-tip { display: none; }
+      #orientation-tip {
+        display: none;
+      }
       @media (pointer: coarse) and (orientation: portrait) {
         html.touch-device #touch-controls.active + #orientation-tip {
           position: fixed;
@@ -1178,10 +1423,12 @@
           max-width: calc(100vw - 32px);
           padding: 6px 10px;
           box-sizing: border-box;
-          color: rgba(255,255,255,.92);
-          background: rgba(0,0,0,.45);
-          border: 1px solid rgba(255,255,255,.28);
-          font: 11px 'Zpix', monospace;
+          color: rgba(255, 255, 255, 0.92);
+          background: rgba(0, 0, 0, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.28);
+          font:
+            11px 'Zpix',
+            monospace;
           text-align: center;
           pointer-events: none;
         }
@@ -1194,7 +1441,9 @@
           padding: 16px 0;
           box-sizing: border-box;
         }
-        #settings .settings-card { margin: 0 auto !important; }
+        #settings .settings-card {
+          margin: 0 auto !important;
+        }
         /* 568×320 一类短横屏：方向键仍有 54px 单键，同时避开顶部暂停键与状态条。 */
         .touch-dpad {
           bottom: calc(var(--touch-hotbar-clear) + 2px);
@@ -1210,12 +1459,36 @@
           width: 54px;
           height: 54px;
         }
-        .touch-dpad-button { width: 54px; height: 54px; border-radius: 13px; }
-        .touch-dpad-stick { width: 38px; height: 38px; border-radius: 11px; }
-        #touch-forward::after { border-left-width: 12px; border-right-width: 12px; border-bottom-width: 17px; }
-        #touch-back::after { border-left-width: 12px; border-right-width: 12px; border-top-width: 17px; }
-        #touch-left::after { border-top-width: 12px; border-bottom-width: 12px; border-right-width: 17px; }
-        #touch-right::after { border-top-width: 12px; border-bottom-width: 12px; border-left-width: 17px; }
+        .touch-dpad-button {
+          width: 54px;
+          height: 54px;
+          border-radius: 13px;
+        }
+        .touch-dpad-stick {
+          width: 38px;
+          height: 38px;
+          border-radius: 11px;
+        }
+        #touch-forward::after {
+          border-left-width: 12px;
+          border-right-width: 12px;
+          border-bottom-width: 17px;
+        }
+        #touch-back::after {
+          border-left-width: 12px;
+          border-right-width: 12px;
+          border-top-width: 17px;
+        }
+        #touch-left::after {
+          border-top-width: 12px;
+          border-bottom-width: 12px;
+          border-right-width: 17px;
+        }
+        #touch-right::after {
+          border-top-width: 12px;
+          border-bottom-width: 12px;
+          border-left-width: 17px;
+        }
       }
 
       /* 窄竖屏使用 50px 单键（仍高于旧版 44px），让右侧操作空白区保持充足。 */
@@ -1239,12 +1512,36 @@
           height: 50px;
           border-radius: 12px;
         }
-        .touch-dpad-button { width: 50px; height: 50px; border-radius: 12px; }
-        .touch-dpad-stick { width: 36px; height: 36px; border-radius: 10px; }
-        #touch-forward::after { border-left-width: 11px; border-right-width: 11px; border-bottom-width: 16px; }
-        #touch-back::after { border-left-width: 11px; border-right-width: 11px; border-top-width: 16px; }
-        #touch-left::after { border-top-width: 11px; border-bottom-width: 11px; border-right-width: 16px; }
-        #touch-right::after { border-top-width: 11px; border-bottom-width: 11px; border-left-width: 16px; }
+        .touch-dpad-button {
+          width: 50px;
+          height: 50px;
+          border-radius: 12px;
+        }
+        .touch-dpad-stick {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+        }
+        #touch-forward::after {
+          border-left-width: 11px;
+          border-right-width: 11px;
+          border-bottom-width: 16px;
+        }
+        #touch-back::after {
+          border-left-width: 11px;
+          border-right-width: 11px;
+          border-top-width: 16px;
+        }
+        #touch-left::after {
+          border-top-width: 11px;
+          border-bottom-width: 11px;
+          border-right-width: 16px;
+        }
+        #touch-right::after {
+          border-top-width: 11px;
+          border-bottom-width: 11px;
+          border-left-width: 16px;
+        }
       }
       /* 320px 一类的窄竖屏，把右侧两个功能键改为单列，保留方向键和空白互动区的间隔。 */
       @media (pointer: coarse) and (orientation: portrait) and (max-width: 360px) {
@@ -1252,8 +1549,12 @@
         #touch-crouch {
           right: var(--touch-safe-right);
         }
-        #touch-crouch { bottom: calc(var(--touch-hotbar-clear) + 92px); }
-        #touch-jump { bottom: calc(var(--touch-hotbar-clear) + 168px); }
+        #touch-crouch {
+          bottom: calc(var(--touch-hotbar-clear) + 92px);
+        }
+        #touch-jump {
+          bottom: calc(var(--touch-hotbar-clear) + 168px);
+        }
       }
       /* MC 风启动/加载界面：泥土渐变背景 + 飘落像素方块 + 像素标题 + 黄色 splash + 绿条纹进度条 + 小贴士。#boot 写死 HTML、默认显示 → 无白屏 */
       #boot {
@@ -1265,8 +1566,11 @@
         align-items: center;
         justify-content: center;
         gap: 24px;
-        background:
-          radial-gradient(ellipse 80% 55% at 50% 116%, rgba(96, 168, 72, 0.3), transparent 70%),
+        background: radial-gradient(
+            ellipse 80% 55% at 50% 116%,
+            rgba(96, 168, 72, 0.3),
+            transparent 70%
+          ),
           linear-gradient(#52402c, #14100a);
         font-family: 'Zpix', monospace;
         -webkit-font-smoothing: none;
@@ -1281,8 +1585,11 @@
         position: absolute;
         inset: 0;
         pointer-events: none;
-        background-image:
-          repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px),
+        background-image: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.05) 0 2px,
+            transparent 2px 4px
+          ),
           repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 4px);
       }
       /* 飘落的像素方块装饰（草/泥/石/木） */
@@ -1300,19 +1607,69 @@
         border: 2px solid rgba(0, 0, 0, 0.28);
         animation: boot-fall linear infinite;
       }
-      .boot-blocks i:nth-child(1) { left: 8%;  background: #6fc44f; animation-duration: 9s;    animation-delay: 0s; }
-      .boot-blocks i:nth-child(2) { left: 21%; background: #8b5a2b; animation-duration: 12s;   animation-delay: 2s; }
-      .boot-blocks i:nth-child(3) { left: 34%; background: #9a9a9a; animation-duration: 10s;   animation-delay: 5s; }
-      .boot-blocks i:nth-child(4) { left: 47%; background: #a87445; animation-duration: 11s;   animation-delay: 3.5s; }
-      .boot-blocks i:nth-child(5) { left: 63%; background: #6fc44f; animation-duration: 8.5s;  animation-delay: 1s; }
-      .boot-blocks i:nth-child(6) { left: 76%; background: #8b5a2b; animation-duration: 13s;   animation-delay: 4s; }
-      .boot-blocks i:nth-child(7) { left: 89%; background: #9a9a9a; animation-duration: 10.5s; animation-delay: 6.5s; }
-      .boot-blocks i:nth-child(8) { left: 95%; background: #6fc44f; animation-duration: 9.5s;  animation-delay: 7.5s; }
+      .boot-blocks i:nth-child(1) {
+        left: 8%;
+        background: #6fc44f;
+        animation-duration: 9s;
+        animation-delay: 0s;
+      }
+      .boot-blocks i:nth-child(2) {
+        left: 21%;
+        background: #8b5a2b;
+        animation-duration: 12s;
+        animation-delay: 2s;
+      }
+      .boot-blocks i:nth-child(3) {
+        left: 34%;
+        background: #9a9a9a;
+        animation-duration: 10s;
+        animation-delay: 5s;
+      }
+      .boot-blocks i:nth-child(4) {
+        left: 47%;
+        background: #a87445;
+        animation-duration: 11s;
+        animation-delay: 3.5s;
+      }
+      .boot-blocks i:nth-child(5) {
+        left: 63%;
+        background: #6fc44f;
+        animation-duration: 8.5s;
+        animation-delay: 1s;
+      }
+      .boot-blocks i:nth-child(6) {
+        left: 76%;
+        background: #8b5a2b;
+        animation-duration: 13s;
+        animation-delay: 4s;
+      }
+      .boot-blocks i:nth-child(7) {
+        left: 89%;
+        background: #9a9a9a;
+        animation-duration: 10.5s;
+        animation-delay: 6.5s;
+      }
+      .boot-blocks i:nth-child(8) {
+        left: 95%;
+        background: #6fc44f;
+        animation-duration: 9.5s;
+        animation-delay: 7.5s;
+      }
       @keyframes boot-fall {
-        0% { transform: translateY(-32px) rotate(0deg); opacity: 0; }
-        12% { opacity: 0.5; }
-        88% { opacity: 0.5; }
-        100% { transform: translateY(110vh) rotate(210deg); opacity: 0; }
+        0% {
+          transform: translateY(-32px) rotate(0deg);
+          opacity: 0;
+        }
+        12% {
+          opacity: 0.5;
+        }
+        88% {
+          opacity: 0.5;
+        }
+        100% {
+          transform: translateY(110vh) rotate(210deg);
+          opacity: 0;
+        }
       }
       .boot-center {
         position: relative;
@@ -1326,7 +1683,10 @@
         font-size: 56px;
         color: #f2f2f2;
         letter-spacing: 7px;
-        text-shadow: 0 4px 0 #2a2016, 4px 4px 0 #19120b, 0 0 16px rgba(120, 200, 90, 0.3);
+        text-shadow:
+          0 4px 0 #2a2016,
+          4px 4px 0 #19120b,
+          0 0 16px rgba(120, 200, 90, 0.3);
       }
       /* MC 黄色 splash：斜挂 + 跳动 */
       .boot-splash {
@@ -1338,8 +1698,13 @@
         animation: boot-bob 0.9s ease-in-out infinite;
       }
       @keyframes boot-bob {
-        0%, 100% { transform: rotate(-7deg) scale(1); }
-        50% { transform: rotate(-7deg) scale(1.1); }
+        0%,
+        100% {
+          transform: rotate(-7deg) scale(1);
+        }
+        50% {
+          transform: rotate(-7deg) scale(1.1);
+        }
       }
       .boot-bar {
         position: relative;
@@ -1348,19 +1713,26 @@
         padding: 3px;
         background: #191919;
         border: 3px solid #000;
-        box-shadow: 0 0 0 3px #5a5a5a, 0 5px 10px rgba(0, 0, 0, 0.45);
+        box-shadow:
+          0 0 0 3px #5a5a5a,
+          0 5px 10px rgba(0, 0, 0, 0.45);
       }
       .boot-fill {
         height: 100%;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0 36%, transparent 37%),
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0 36%, transparent 37%),
           repeating-linear-gradient(90deg, #6cd85a 0 9px, #4fb544 9px 13px);
         animation: boot-load 1.3s ease-in-out infinite;
       }
       @keyframes boot-load {
-        0% { width: 6%; }
-        50% { width: 94%; }
-        100% { width: 6%; }
+        0% {
+          width: 6%;
+        }
+        50% {
+          width: 94%;
+        }
+        100% {
+          width: 6%;
+        }
       }
       .boot-tip {
         position: relative;
@@ -1387,7 +1759,7 @@
         opacity: 0.8;
       }
     </style>
-    <script type="module" crossorigin src="/mineworld/assets/index-DWPkjOWp.js"></script>
+    <script type="module" crossorigin src="/mineworld/assets/index-jo2S2CAg.js"></script>
   </head>
   <body>
     <div id="boot">
@@ -1424,10 +1796,14 @@
         <p>浏览器里的体素沙盒</p>
         <p>TypeScript + Three.js 纯手工打造</p>
         <p class="ctrl">
-          <span class="desktop-help">WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
-          空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span>
-          <span class="touch-help">左侧滑动方向盘移动 · 空白处拖动视角 · 点快捷栏选物品<br />
-          轻点空白处互动 · 长按空白处挖掘 · 双击前进后按住可疾跑</span>
+          <span class="desktop-help"
+            >WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
+            空格跳 · 双击 W 疾跑 · 1-9 / 滚轮 选格子 · ESC 暂停</span
+          >
+          <span class="touch-help"
+            >左侧滑动方向盘移动 · 空白处拖动视角 · 点快捷栏选物品<br />
+            轻点空白处互动 · 长按空白处挖掘 · 双击前进后按住可疾跑</span
+          >
         </p>
         <button id="about-close" class="btn">关闭</button>
       </div>
@@ -1442,13 +1818,16 @@
     </div>
     <div id="newworld" class="hidden">
       <h2>创建新世界</h2>
-      <label class="nw-field">世界名称
+      <label class="nw-field"
+        >世界名称
         <input id="nw-name" type="text" maxlength="32" placeholder="新的世界" />
       </label>
-      <label class="nw-field">种子（留空随机；可填数字或任意文字）
+      <label class="nw-field"
+        >种子（留空随机；可填数字或任意文字）
         <input id="nw-seed" type="text" maxlength="24" placeholder="随机" />
       </label>
-      <div class="nw-field">游戏模式
+      <div class="nw-field">
+        游戏模式
         <div class="nw-modes">
           <button id="nw-survival" class="nw-mode active" type="button">生存</button>
           <button id="nw-creative" class="nw-mode" type="button">创造</button>
@@ -1463,15 +1842,27 @@
     <div id="multiplayer" class="hidden">
       <h2 id="mp-title">加入联机房间</h2>
       <p id="mp-intro" class="mp-intro">输入朋友给你的房间号，即可进入同一个世界。</p>
-      <label class="mp-field">你的名字
+      <label class="mp-field"
+        >你的名字
         <input id="mp-name" type="text" maxlength="16" autocomplete="nickname" placeholder="玩家" />
       </label>
-      <label class="mp-field">房间号
-        <input id="mp-room" type="text" maxlength="16" autocapitalize="characters" autocomplete="off" placeholder="例如 A8K2M" />
+      <label class="mp-field"
+        >房间号
+        <input
+          id="mp-room"
+          type="text"
+          maxlength="16"
+          autocapitalize="characters"
+          autocomplete="off"
+          placeholder="例如 A8K2M"
+        />
       </label>
-      <div id="mp-mode-field" class="mp-field hidden">当前世界
+      <div id="mp-mode-field" class="mp-field hidden">
+        当前世界
         <div id="mp-current-mode">创造模式</div>
-        <div id="mp-mode-desc" class="nw-desc">创造模式：适合和朋友一起搭建；玩家与方块会实时同步。</div>
+        <div id="mp-mode-desc" class="nw-desc">
+          创造模式：适合和朋友一起搭建；玩家与方块会实时同步。
+        </div>
       </div>
       <p id="mp-status" role="status">输入房间号后加入。</p>
       <div class="btn-row">
@@ -1508,16 +1899,24 @@
         <span class="touch-dpad-stick" aria-hidden="true"></span>
       </div>
       <button id="touch-pause" class="touch-button" type="button" aria-label="暂停">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M21 16v32M43 16v32" /></svg>
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M21 16v32M43 16v32" />
+        </svg>
       </button>
       <button id="touch-inventory" class="touch-button" type="button" aria-label="背包">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M17 23h30v29H17zM24 23v-5h16v5M17 32h30" /></svg>
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M17 23h30v29H17zM24 23v-5h16v5M17 32h30" />
+        </svg>
       </button>
       <button id="touch-crouch" class="touch-button" type="button" aria-label="下蹲">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 14v33M18 34l14 14 14-14" /></svg>
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 14v33M18 34l14 14 14-14" />
+        </svg>
       </button>
       <button id="touch-jump" class="touch-button" type="button" aria-label="跳跃">
-        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 50V17M18 30l14-14 14 14" /></svg>
+        <svg class="touch-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 50V17M18 30l14-14 14 14" />
+        </svg>
       </button>
     </div>
     <div id="orientation-tip" aria-hidden="true">建议横屏游玩，操作空间更大</div>
