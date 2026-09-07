@@ -158,6 +158,12 @@ import {
   type SeaSurfaceWorld,
   type SeaWaveProbe,
 } from './waterSurface';
+import {
+  PORTAL_FLASH_SECONDS,
+  PORTAL_TRAVEL_SECONDS,
+  portalEffectOpacity,
+  portalEffectProgress,
+} from './portalEffect';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
@@ -276,6 +282,7 @@ export class Game {
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
   private readonly highlight: THREE.LineSegments;
   private readonly underwaterEl: HTMLElement | null;
+  private readonly portalEffectEl: HTMLElement | null;
   private readonly normalFog: THREE.FogBase | null;
   private readonly underFog = new THREE.Fog(0x245f8a, 0.1, 16); // 水下：浓蓝雾
   private player: Player;
@@ -291,6 +298,7 @@ export class Game {
   private portalCooldown = 0; // 过传送门后的冷却(刻)，>0 期间不再触发切维度，防站门里来回弹
   private portalTimer = 0; // 站在传送门里的累计秒数；满 4s 触发传送，离开传送门即清零
   private portalArmed = true; // Fix2: 需离开传送门后再进才能触发下一次传送，防 AFK 在到达门口来回弹
+  private portalFlash = 0; // 切换维度瞬间的满屏紫光剩余秒数
   private particles: Particle[] = []; // 碎屑粒子数据（挖方块四溅）
   private digFxT = 0; // 挖掘碎屑喷发节流计时
   private readonly invUI: InventoryUI;
@@ -403,6 +411,7 @@ export class Game {
     this.remotePlayers = new RemotePlayerRenderer(this.renderer.scene);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
+    this.portalEffectEl = document.getElementById('portal-effect');
     this.hotbar = new Hotbar(
       document.getElementById('hotbar') as HTMLElement,
       HOTBAR_SLOTS,
@@ -914,6 +923,7 @@ export class Game {
     this.particles = [];
     this.particleFx.sync(this.particles);
     this.portalCooldown = 60; // ~过门后 60 刻冷却，防来回弹
+    this.portalFlash = PORTAL_FLASH_SECONDS;
   }
 
   // 当前世界状态快照（写回存档对象，供持久化）
@@ -1330,6 +1340,7 @@ export class Game {
       }
       this.updateCamera(this.acc / TICK_MS);
       this.updateWater();
+      this.updatePortalEffect(dt, playing);
       this.updateHighlight();
       // 碎屑粒子：每帧推进 + 刷新
       this.particles = stepParticles(this.particles, dt);
@@ -1429,6 +1440,36 @@ export class Game {
       wavesEnabled,
       cachedProbe,
     );
+  }
+
+  /** 更新下界传送门的全屏紫色旋涡；HUD 与触屏按钮保持在叠层上方。 */
+  private updatePortalEffect(dt: number, playing: boolean): void {
+    if (!this.portalEffectEl) return;
+    this.portalFlash = Math.max(0, this.portalFlash - dt);
+    const pos = this.player.pos;
+    const inPortal = isNetherPortalId(
+      this.world.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)),
+    );
+    // 到达对侧时 portalArmed=false，避免仍站在门内又开始蓄积；此时只播放切换闪光。
+    const charging =
+      playing && inPortal && this.portalArmed && this.portalCooldown === 0 && !this.dead;
+    const opacity = playing ? portalEffectOpacity(this.portalTimer, charging, this.portalFlash) : 0;
+    const progress = portalEffectProgress(this.portalTimer, charging);
+
+    this.portalEffectEl.style.opacity = opacity.toFixed(3);
+    this.portalEffectEl.style.setProperty('--portal-progress', progress.toFixed(3));
+    this.portalEffectEl.style.setProperty(
+      '--portal-texture-opacity',
+      (0.22 + progress * 0.42).toFixed(3),
+    );
+    this.portalEffectEl.style.setProperty('--portal-glow-opacity', (progress * 0.2).toFixed(3));
+    this.portalEffectEl.style.setProperty(
+      '--portal-scale-from',
+      (1.02 + progress * 0.08).toFixed(3),
+    );
+    this.portalEffectEl.style.setProperty('--portal-scale-to', (1.08 + progress * 0.12).toFixed(3));
+    this.portalEffectEl.classList.toggle('active', opacity > 0.002);
+    this.portalEffectEl.classList.toggle('flash', playing && this.portalFlash > 0);
   }
 
   // 每模拟刻推进生命/饥饿：累积疲劳(疾跑/跳)、结算摔落、回血/掉血、判定死亡。
@@ -2095,7 +2136,13 @@ export class Game {
     const inPortal = isNetherPortalId(this.world.getBlock(bx, by, bz));
     this.portalTimer = inPortal ? this.portalTimer + TICK_MS / 1000 : 0; // 离开传送门即清零
     if (!inPortal) this.portalArmed = true; // Fix2: 离开传送门后重新 arm，需再走进去才能触发下一次传送
-    if (!inPortal || !this.portalArmed || this.portalCooldown !== 0 || this.portalTimer < 4) return; // 1:1 生存：站门 4 秒才传送
+    if (
+      !inPortal ||
+      !this.portalArmed ||
+      this.portalCooldown !== 0 ||
+      this.portalTimer < PORTAL_TRAVEL_SECONDS
+    )
+      return; // 1:1 生存：站门 4 秒才传送
 
     const sourceFrame = this.activePortalFrameAt(this.dimension, bx, by, bz);
     if (!sourceFrame) {
