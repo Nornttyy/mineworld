@@ -14,6 +14,15 @@ export const STACK_MAX = 64;
 
 export type Inventory = (ItemStack | null)[];
 
+// 只有物品 id 与耐久状态都一致的物品才能堆叠。损坏工具不能与满耐久工具
+// （dur=undefined）或另一把不同耐久的工具合并，否则转移物品时会凭空修复工具。
+export function stacksMatch(
+  a: Pick<ItemStack, 'id' | 'dur'>,
+  b: Pick<ItemStack, 'id' | 'dur'>,
+): boolean {
+  return a.id === b.id && a.dur === b.dur;
+}
+
 export function emptyInventory(): Inventory {
   return Array.from({ length: INV_SIZE }, () => null);
 }
@@ -28,9 +37,22 @@ export function addItem(
   start = 0,
   end = inv.length,
 ): number {
+  return addStack(inv, { id, count }, maxStack, start, end);
+}
+
+// 将一个完整物品栈加入背包。与 addItem 相比，这个入口会保留耐久信息，供
+// Shift 转移等“搬运已有物品栈”的操作使用；返回放不下的剩余数量。
+export function addStack(
+  inv: Inventory,
+  stack: ItemStack,
+  maxStack = STACK_MAX,
+  start = 0,
+  end = inv.length,
+): number {
+  let count = stack.count;
   for (let i = start; i < end && count > 0; i++) {
     const s = inv[i];
-    if (s && s.id === id && s.count < maxStack) {
+    if (s && stacksMatch(s, stack) && s.count < maxStack) {
       const add = Math.min(maxStack - s.count, count);
       s.count += add;
       count -= add;
@@ -39,7 +61,10 @@ export function addItem(
   for (let i = start; i < end && count > 0; i++) {
     if (!inv[i]) {
       const add = Math.min(maxStack, count);
-      inv[i] = { id, count: add };
+      inv[i] =
+        stack.dur === undefined
+          ? { id: stack.id, count: add }
+          : { id: stack.id, count: add, dur: stack.dur };
       count -= add;
     }
   }

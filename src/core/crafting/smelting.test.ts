@@ -9,7 +9,7 @@ import {
   furnaceActive,
   COOK_TICKS,
 } from './smelting';
-import { COAL, IRON_INGOT } from '../items/items';
+import { COAL, IRON_INGOT, WOODEN_PICKAXE } from '../items/items';
 import { IRON_ORE } from '../blocks/registry';
 
 describe('smelting', () => {
@@ -56,5 +56,21 @@ describe('smelting', () => {
     for (let i = 0; i < COOK_TICKS * 9; i++) tickFurnace(s);
     expect(s.outputN).toBe(8);
     expect(s.inputN).toBe(2); // 炼了 8 个、还剩 2 个原料没燃料
+  });
+
+  it('损坏木工具被点燃后会连同燃料槽耐久一起清空', () => {
+    const s = newFurnace();
+    s.input = IRON_ORE;
+    s.inputN = 1;
+    s.fuel = WOODEN_PICKAXE;
+    s.fuelN = 1;
+    s.fuelDur = 17;
+
+    tickFurnace(s);
+
+    expect(s.fuel).toBe(0);
+    expect(s.fuelN).toBe(0);
+    expect(s.fuelDur).toBeUndefined();
+    expect(s.burn).toBeGreaterThan(0);
   });
 });

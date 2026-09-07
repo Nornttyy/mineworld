@@ -6,6 +6,7 @@ function def(id: ItemId, name: string, maxStack = 64): ItemDef {
 
 const DEFS: ItemDef[] = [
   def('oak_log', 'Oak Log'),
+  def('spruce_log', 'Spruce Log'),
   def('oak_planks', 'Oak Planks'),
   def('cobblestone', 'Cobblestone'),
   def('sand', 'Sand'),

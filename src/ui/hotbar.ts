@@ -1,6 +1,6 @@
 import type { Inventory } from '../core/inventory/inventory';
 import { iconUrl } from './itemIcons';
-import { toolOf } from '../core/items/items';
+import { itemMaxDurability } from '../core/items/items';
 
 // 底部快捷栏（MC 同款，生存式）：9 格，显示背包前 9 格的方块/物品图标 + 数量，当前选中高亮。
 // 图标统一走 itemIcons（方块 iso + 工具/棍/煤 2D 图标）。
@@ -64,8 +64,8 @@ export class Hotbar {
         icon.style.backgroundImage = 'none';
         count.textContent = '';
       }
-      // 耐久条：工具且已磨损才显示
-      const maxDur = s && s.count > 0 ? toolOf(s.id)?.maxDurability : undefined;
+      // 耐久条：所有可磨损物品（工具、弓、打火石）且已磨损才显示
+      const maxDur = s && s.count > 0 ? itemMaxDurability(s.id) : null;
       if (s && maxDur && (s.dur ?? maxDur) < maxDur) {
         const ratio = Math.max(0, (s.dur ?? maxDur) / maxDur);
         this.durTracks[i].style.display = 'block';

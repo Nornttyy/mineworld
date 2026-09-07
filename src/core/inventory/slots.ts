@@ -1,6 +1,6 @@
 // MC 风格「光标(手持) ↔ 格子」交互——纯函数，操作 (ItemStack|null)[] + 光标，便于单测。
 // UI 只负责渲染，并把鼠标事件翻译成这些调用。所有函数原地修改 slots，返回新的光标。
-import { addItem, type ItemStack, type Inventory } from './inventory';
+import { addStack, stacksMatch, type ItemStack, type Inventory } from './inventory';
 
 export type Slots = (ItemStack | null)[];
 export type Cursor = ItemStack | null;
@@ -17,7 +17,7 @@ export function leftClick(slots: Slots, i: number, cursor: Cursor, maxOf: MaxSta
     slots[i] = cursor;
     return null;
   }
-  if (cell.id === cursor.id) {
+  if (stacksMatch(cell, cursor)) {
     const room = Math.max(0, maxOf(cell.id) - cell.count);
     const move = Math.min(room, cursor.count);
     cell.count += move;
@@ -35,15 +35,15 @@ export function rightClick(slots: Slots, i: number, cursor: Cursor, maxOf: MaxSt
     if (!cell) return null;
     const take = Math.ceil(cell.count / 2);
     const left = cell.count - take;
-    slots[i] = left > 0 ? { id: cell.id, count: left } : null;
-    return { id: cell.id, count: take };
+    slots[i] = left > 0 ? { ...cell, count: left } : null;
+    return { ...cell, count: take };
   }
   if (!cell) {
-    slots[i] = { id: cursor.id, count: 1 };
+    slots[i] = { ...cursor, count: 1 };
     cursor.count -= 1;
     return cursor.count > 0 ? cursor : null;
   }
-  if (cell.id === cursor.id) {
+  if (stacksMatch(cell, cursor)) {
     if (cell.count < maxOf(cell.id)) {
       cell.count += 1;
       cursor.count -= 1;
@@ -66,8 +66,8 @@ export function quickMove(
 ): void {
   const cell = from[i];
   if (!cell) return;
-  const left = addItem(to, cell.id, cell.count, maxOf(cell.id), start, end);
-  from[i] = left > 0 ? { id: cell.id, count: left } : null;
+  const left = addStack(to, cell, maxOf(cell.id), start, end);
+  from[i] = left > 0 ? { ...cell, count: left } : null;
 }
 
 // 跨数组的格子引用（背包/合成网格在不同数组里），让涂抹分发能统一操作一批格子。
@@ -84,7 +84,7 @@ export function dragSplitEven(refs: SlotRef[], cursor: Cursor, maxOf: MaxStackOf
   const cap = maxOf(id);
   const eligible = refs.filter((r) => {
     const s = r.get();
-    return !s || (s.id === id && s.count < cap);
+    return !s || (stacksMatch(s, cursor) && s.count < cap);
   });
   if (eligible.length === 0) return cursor;
   const per = Math.floor(cursor.count / eligible.length);
@@ -95,11 +95,19 @@ export function dragSplitEven(refs: SlotRef[], cursor: Cursor, maxOf: MaxStackOf
     const cur = s ? s.count : 0;
     const add = Math.min(per, cap - cur);
     if (add <= 0) continue;
-    r.set({ id, count: cur + add });
+    r.set(
+      cursor.dur === undefined
+        ? { id, count: cur + add }
+        : { id, count: cur + add, dur: cursor.dur },
+    );
     used += add;
   }
   const left = cursor.count - used;
-  return left > 0 ? { id, count: left } : null;
+  return left > 0
+    ? cursor.dur === undefined
+      ? { id, count: left }
+      : { id, count: left, dur: cursor.dur }
+    : null;
 }
 
 // MC 右键涂抹：经过的每个「空格或同类未满」格放 1 个，光标递减。返回新光标。
@@ -112,12 +120,16 @@ export function dragOnePer(refs: SlotRef[], cursor: Cursor, maxOf: MaxStackOf): 
     if (left <= 0) break;
     const s = r.get();
     if (!s) {
-      r.set({ id, count: 1 });
+      r.set(cursor.dur === undefined ? { id, count: 1 } : { id, count: 1, dur: cursor.dur });
       left--;
-    } else if (s.id === id && s.count < cap) {
+    } else if (stacksMatch(s, cursor) && s.count < cap) {
       s.count += 1;
       left--;
     }
   }
-  return left > 0 ? { id, count: left } : null;
+  return left > 0
+    ? cursor.dur === undefined
+      ? { id, count: left }
+      : { id, count: left, dur: cursor.dur }
+    : null;
 }

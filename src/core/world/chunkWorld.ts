@@ -22,7 +22,10 @@ export class ChunkWorld {
   // 走回来重新生成的是纯地形，必须靠这个 hook 复原改动，否则建筑/挖洞会"走远再回来就没了"。
   editHook: ((cx: number, cz: number, c: Chunk) => void) | null = null;
 
-  constructor(readonly seed: number, readonly dimension: 'overworld' | 'nether' = 'overworld') {
+  constructor(
+    readonly seed: number,
+    readonly dimension: 'overworld' | 'nether' = 'overworld',
+  ) {
     // 浏览器：开多个后台 Worker 并行生成(深世界生成重)，数量按 CPU 核数(上限4)；
     // node/测试环境没有 Worker → workers 为空，request 回退同步生成。
     if (typeof Worker !== 'undefined') {
@@ -31,7 +34,13 @@ export class ChunkWorld {
       for (let i = 0; i < n; i++) {
         const w = new ChunkGenWorker();
         w.onmessage = (
-          e: MessageEvent<{ cx: number; cz: number; blocks?: ArrayBuffer; fluid?: ArrayBuffer; error?: string }>,
+          e: MessageEvent<{
+            cx: number;
+            cz: number;
+            blocks?: ArrayBuffer;
+            fluid?: ArrayBuffer;
+            error?: string;
+          }>,
         ): void => {
           const { cx, cz, blocks, fluid, error } = e.data;
           const k = this.key(cx, cz);
@@ -105,7 +114,9 @@ export class ChunkWorld {
       if (t - since > timeoutMs) {
         this.pending.delete(k);
         this.pendingSince.delete(k);
-        console.warn(`[chunkgen] 区块 ${k} 生成 ${Math.round((t - since) / 1000)}s 未回(worker 丢消息?) → 重试`);
+        console.warn(
+          `[chunkgen] 区块 ${k} 生成 ${Math.round((t - since) / 1000)}s 未回(worker 丢消息?) → 重试`,
+        );
       }
     }
   }
@@ -118,13 +129,17 @@ export class ChunkWorld {
   // 驱逐离 (centerCx,centerCz) 切比雪夫距离 > radius 的区块，释放内存。
   // 治"越走越卡"：原来生成过的区块永远留在 Map 里(每块 ~147KB) → 探索越远内存越涨 → GC 抖→崩。
   // 走回来会重新生成 + editHook 复原改动。radius 要 > 渲染半径+网格邻区(由游戏层保证)，免驱逐掉在用的。
-  evictBeyond(centerCx: number, centerCz: number, radius: number): void {
+  evictBeyond(centerCx: number, centerCz: number, radius: number): string[] {
+    const evicted: string[] = [];
     for (const k of [...this.chunks.keys()]) {
       const ci = k.indexOf(',');
       const cx = +k.slice(0, ci);
       const cz = +k.slice(ci + 1);
-      if (Math.abs(cx - centerCx) > radius || Math.abs(cz - centerCz) > radius) this.chunks.delete(k);
+      if (Math.abs(cx - centerCx) > radius || Math.abs(cz - centerCz) > radius) {
+        if (this.chunks.delete(k)) evicted.push(k);
+      }
     }
+    return evicted;
   }
 
   // 取区块；不存在则同步生成并缓存(物理/raycast 等需立即时的回退；正常区块已被 request 预生成)
@@ -142,7 +157,11 @@ export class ChunkWorld {
 
   getBlock(wx: number, wy: number, wz: number): number {
     if (wy < 0 || wy >= CHUNK_H) return 0;
-    return this.getChunk(worldToChunk(wx), worldToChunk(wz)).get(localCoord(wx), wy, localCoord(wz));
+    return this.getChunk(worldToChunk(wx), worldToChunk(wz)).get(
+      localCoord(wx),
+      wy,
+      localCoord(wz),
+    );
   }
 
   // 写方块（挖/放用）；标记所在区块及边界相邻区块为脏，便于重新网格化
@@ -162,7 +181,11 @@ export class ChunkWorld {
   // —— 流体读写（供流动水模拟与网格化）——
   private fluidByte(wx: number, wy: number, wz: number): number {
     if (wy < 0 || wy >= CHUNK_H) return 0;
-    return this.getChunk(worldToChunk(wx), worldToChunk(wz)).getFluid(localCoord(wx), wy, localCoord(wz));
+    return this.getChunk(worldToChunk(wx), worldToChunk(wz)).getFluid(
+      localCoord(wx),
+      wy,
+      localCoord(wz),
+    );
   }
 
   waterAmount(wx: number, wy: number, wz: number): number {
@@ -179,7 +202,14 @@ export class ChunkWorld {
   }
 
   // 设置/移除水（amount<=0 → 若该格是水则清成空气）。标脏便于重新网格化。
-  setWater(wx: number, wy: number, wz: number, amount: number, source: boolean, falling: boolean): void {
+  setWater(
+    wx: number,
+    wy: number,
+    wz: number,
+    amount: number,
+    source: boolean,
+    falling: boolean,
+  ): void {
     if (wy < 0 || wy >= CHUNK_H) return;
     const cx = worldToChunk(wx);
     const cz = worldToChunk(wz);

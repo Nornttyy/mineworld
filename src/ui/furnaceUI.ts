@@ -1,6 +1,6 @@
 // 熔炉界面：背包(27+9) + 原料/燃料/产物 3 槽 + 火焰(燃料剩余)&箭头(冶炼进度)。
 // 直接读写传入的 FurnaceState(三槽当 1 格 mini-inventory 处理，复用 slots 纯函数)。
-import { addItem, type Inventory, type ItemStack } from '../core/inventory/inventory';
+import { addStack, stacksMatch, type Inventory, type ItemStack } from '../core/inventory/inventory';
 import { leftClick, rightClick } from '../core/inventory/slots';
 import { itemMaxStack } from '../core/items/items';
 import { iconUrl, itemLabel } from './itemIcons';
@@ -74,7 +74,9 @@ export class FurnaceUI {
         <div class="inv-hotbar"></div>
         <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · 上槽放矿、下槽放燃料 · E / Esc 关闭</div>
       </div>`;
-    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
+    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () =>
+      this.onClose?.(),
+    );
     const mk = (sel: string): Cell => this.bindSlot(root.querySelector(sel) as HTMLElement);
     this.inputCell = mk('.fur-input');
     this.fuelCell = mk('.fur-fuel');
@@ -153,17 +155,28 @@ export class FurnaceUI {
     this.render();
   }
 
-  // 关闭：光标残留退回背包
-  hide(): void {
+  // 关闭：光标残留退回背包；放不下的交给 Game 生成掉落物。
+  hide(): ItemStack[] {
     this.cancelTouchPress();
-    if (this.inv && this.cursor) {
-      addItem(this.inv, this.cursor.id, this.cursor.count, maxOf(this.cursor.id));
+    const overflow: ItemStack[] = [];
+    if (this.cursor) {
+      const left = this.inv
+        ? addStack(this.inv, this.cursor, maxOf(this.cursor.id))
+        : this.cursor.count;
+      if (left > 0) {
+        overflow.push(
+          this.cursor.dur === undefined
+            ? { id: this.cursor.id, count: left }
+            : { id: this.cursor.id, count: left, dur: this.cursor.dur },
+        );
+      }
       this.cursor = null;
     }
     this.open = false;
     this.root.classList.add('hidden');
     this.cursorEl.style.display = 'none';
     this.onChange?.();
+    return overflow;
   }
 
   private onInventoryPointerDown(region: 'main' | 'hotbar', i: number, e: PointerEvent): void {
@@ -197,17 +210,21 @@ export class FurnaceUI {
     this.cursorEl.style.top = `${e.clientY}px`;
   }
 
-  private performInventoryClick(region: 'main' | 'hotbar', i: number, right: boolean, shift: boolean): void {
+  private performInventoryClick(
+    region: 'main' | 'hotbar',
+    i: number,
+    right: boolean,
+    shift: boolean,
+  ): void {
     if (!this.inv) return;
     const idx = region === 'main' ? HOTBAR + i : i;
     if (shift) {
       // Shift：快速送进对应熔炉槽(燃料→燃料槽，可炼→原料槽)，否则背包内挪
       this.shiftToFurnace(idx);
     } else {
-      this.cursor =
-        right
-          ? rightClick(this.inv, idx, this.cursor, maxOf)
-          : leftClick(this.inv, idx, this.cursor, maxOf);
+      this.cursor = right
+        ? rightClick(this.inv, idx, this.cursor, maxOf)
+        : leftClick(this.inv, idx, this.cursor, maxOf);
     }
     this.render();
     this.onChange?.();
@@ -220,10 +237,17 @@ export class FurnaceUI {
     const st = inv[idx];
     if (!st) return;
     const toFuel = isFuel(st.id);
-    if (toFuel && (f.fuel === 0 || f.fuel === st.id)) {
+    const fuelEmpty = f.fuelN <= 0;
+    const fuelMatches = !fuelEmpty && stacksMatch({ id: f.fuel, dur: f.fuelDur }, st);
+    if (toFuel && (fuelEmpty || fuelMatches)) {
       const space = maxOf(st.id) - f.fuelN;
       const mv = Math.min(space, st.count);
-      f.fuel = st.id;
+      if (mv <= 0) return;
+      if (fuelEmpty) {
+        f.fuel = st.id;
+        if (st.dur === undefined) delete f.fuelDur;
+        else f.fuelDur = st.dur;
+      }
       f.fuelN += mv;
       st.count -= mv;
       if (st.count <= 0) inv[idx] = null;
@@ -247,11 +271,20 @@ export class FurnaceUI {
     } else {
       const id = slot === 'input' ? f.input : f.fuel;
       const n = slot === 'input' ? f.inputN : f.fuelN;
-      const arr: (ItemStack | null)[] = [n > 0 ? { id, count: n } : null];
+      const arr: (ItemStack | null)[] = [
+        n > 0
+          ? slot === 'fuel' && f.fuelDur !== undefined
+            ? { id, count: n, dur: f.fuelDur }
+            : { id, count: n }
+          : null,
+      ];
       // 燃料槽不收非燃料——不限空槽(交换手势曾能把泥土换进来,再被点燃逻辑当燃料吞掉)
       if (slot === 'fuel' && this.cursor && !isFuel(this.cursor.id)) return;
-      this.cursor =
-        right ? rightClick(arr, 0, this.cursor, maxOf) : leftClick(arr, 0, this.cursor, maxOf);
+      // 原料槽同样只收可冶炼物；否则 FurnaceState 无 dur 字段，会把误放进去的磨损工具“修满”。
+      if (slot === 'input' && this.cursor && !isSmeltable(this.cursor.id)) return;
+      this.cursor = right
+        ? rightClick(arr, 0, this.cursor, maxOf)
+        : leftClick(arr, 0, this.cursor, maxOf);
       const r = arr[0];
       if (slot === 'input') {
         f.input = r?.id ?? 0;
@@ -259,6 +292,8 @@ export class FurnaceUI {
       } else {
         f.fuel = r?.id ?? 0;
         f.fuelN = r?.count ?? 0;
+        if (r?.dur === undefined) delete f.fuelDur;
+        else f.fuelDur = r.dur;
       }
     }
     this.render();
@@ -289,7 +324,8 @@ export class FurnaceUI {
   private updateTouchPressMove(e: PointerEvent): void {
     const press = this.touchPress;
     if (!press || press.pointerId !== e.pointerId || press.longPressed) return;
-    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= TOUCH_MOVE_TOLERANCE) return;
+    if (Math.hypot(e.clientX - press.startX, e.clientY - press.startY) <= TOUCH_MOVE_TOLERANCE)
+      return;
     press.moved = true;
     this.clearTouchPressTimer(press);
   }
@@ -335,7 +371,14 @@ export class FurnaceUI {
     for (let i = 0; i < MAIN; i++) this.fill(this.mainCells[i], this.inv[HOTBAR + i]);
     for (let i = 0; i < HOTBAR; i++) this.fill(this.hotbarCells[i], this.inv[i]);
     this.fill(this.inputCell, f.inputN > 0 ? { id: f.input, count: f.inputN } : null);
-    this.fill(this.fuelCell, f.fuelN > 0 ? { id: f.fuel, count: f.fuelN } : null);
+    this.fill(
+      this.fuelCell,
+      f.fuelN > 0
+        ? f.fuelDur === undefined
+          ? { id: f.fuel, count: f.fuelN }
+          : { id: f.fuel, count: f.fuelN, dur: f.fuelDur }
+        : null,
+    );
     this.fill(this.outCell, f.outputN > 0 ? { id: f.output, count: f.outputN } : null);
     // 火焰：剩余燃料比例(从下往上)；箭头：冶炼进度(从左往右)
     this.flameEl.style.height = `${f.burnMax > 0 ? Math.round((f.burn / f.burnMax) * 100) : 0}%`;

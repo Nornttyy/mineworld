@@ -24,6 +24,8 @@ export class MenuBackground {
   private z = 0.5;
   private heading = 0.7;
   private readonly y = 175; // 飞行高度（地表~100-180，在地形之上俯瞰海/湖）
+  private disposed = false;
+  private preloadAbort: AbortController | null = null;
   // resize 监听存成字段：dispose 时 removeEventListener，否则这个闭包持有 this → 整套菜单世界永不被 GC(进游戏后双份占内存→OOM)。
   private readonly onResize = (): void => this.resize();
 
@@ -37,7 +39,12 @@ export class MenuBackground {
     this.world = new ChunkWorld(seed);
     this.seekWater(); // 起点设到附近的水边，开局就有湖
     this.chunks = new ChunkMeshManager(this.scene, this.world, loadAtlas());
-    this.chunks.update(worldToChunk(Math.floor(this.x)), worldToChunk(Math.floor(this.z)), RADIUS, 999);
+    this.chunks.update(
+      worldToChunk(Math.floor(this.x)),
+      worldToChunk(Math.floor(this.z)),
+      RADIUS,
+      999,
+    );
 
     this.resize();
     window.addEventListener('resize', this.onResize);
@@ -71,28 +78,78 @@ export class MenuBackground {
   }
 
   // 预加载：请求整个渲染范围(=RADIUS，雾内全部)区块后台生成 + 等就绪 + 网格化，主菜单背景一显示就完整(不渐显)。
-  async preload(radius = RADIUS): Promise<void> {
-    const cx = worldToChunk(Math.floor(this.x));
-    const cz = worldToChunk(Math.floor(this.z));
-    for (let dz = -radius; dz <= radius; dz++)
-      for (let dx = -radius; dx <= radius; dx++) this.world.request(cx + dx, cz + dz);
-    await new Promise<void>((resolve) => {
-      const check = (): void => {
-        let ready = true;
-        for (let dz = -radius; dz <= radius && ready; dz++)
-          for (let dx = -radius; dx <= radius && ready; dx++)
-            if (!this.world.peek(cx + dx, cz + dz)) ready = false;
-        if (ready) resolve();
-        else setTimeout(check, 30);
-      };
-      check();
-    });
-    // 网格化已移到 Web Worker：派活后必须每帧 flushMesh 把算好的网格【上屏】，否则背景空着(只剩天空)。
-    // 轮询直到全部网格化结果都上屏(meshBusy 转 false)，主菜单一显示就铺满；600 帧封顶兜底防卡死。
-    for (let i = 0; i < 600 && (i < 3 || this.chunks.meshBusy()); i++) {
-      this.chunks.update(cx, cz, radius, 999);
-      this.chunks.flushMesh(999);
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  async preload(radius = RADIUS, externalSignal?: AbortSignal): Promise<void> {
+    // 同一实例只允许一条预加载链。主界面的超时只结束 Promise.race，并不会自动取消这里的
+    // setTimeout/rAF；用独立 signal 才能在超时或 dispose 后真正停止轮询、释放闭包引用。
+    this.preloadAbort?.abort();
+    const controller = new AbortController();
+    this.preloadAbort = controller;
+    const relayAbort = (): void => controller.abort();
+    if (externalSignal?.aborted) relayAbort();
+    else externalSignal?.addEventListener('abort', relayAbort, { once: true });
+    const signal = controller.signal;
+    const cancelled = (): boolean => this.disposed || signal.aborted;
+
+    try {
+      if (cancelled()) return;
+      const cx = worldToChunk(Math.floor(this.x));
+      const cz = worldToChunk(Math.floor(this.z));
+      for (let dz = -radius; dz <= radius; dz++)
+        for (let dx = -radius; dx <= radius; dx++) this.world.request(cx + dx, cz + dz);
+      const chunksReady = await new Promise<boolean>((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let settled = false;
+        const finish = (ready: boolean): void => {
+          if (settled) return;
+          settled = true;
+          if (timer !== null) clearTimeout(timer);
+          signal.removeEventListener('abort', onAbort);
+          resolve(ready);
+        };
+        const onAbort = (): void => finish(false);
+        const check = (): void => {
+          if (cancelled()) {
+            finish(false);
+            return;
+          }
+          let ready = true;
+          for (let dz = -radius; dz <= radius && ready; dz++)
+            for (let dx = -radius; dx <= radius && ready; dx++)
+              if (!this.world.peek(cx + dx, cz + dz)) ready = false;
+          if (ready) finish(true);
+          else timer = setTimeout(check, 30);
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        check();
+      });
+      if (!chunksReady || cancelled()) return;
+      // 网格化已移到 Web Worker：派活后必须每帧 flushMesh 把算好的网格【上屏】，否则背景空着(只剩天空)。
+      // 轮询直到全部网格化结果都上屏(meshBusy 转 false)，主菜单一显示就铺满；600 帧封顶兜底防卡死。
+      for (let i = 0; i < 600 && (i < 3 || this.chunks.meshBusy()); i++) {
+        if (cancelled()) return;
+        this.chunks.update(cx, cz, radius, 999);
+        this.chunks.flushMesh(999);
+        const frameReached = await new Promise<boolean>((resolve) => {
+          let settled = false;
+          let frame = 0;
+          const finish = (reached: boolean): void => {
+            if (settled) return;
+            settled = true;
+            signal.removeEventListener('abort', onAbort);
+            resolve(reached);
+          };
+          const onAbort = (): void => {
+            if (frame !== 0) cancelAnimationFrame(frame);
+            finish(false);
+          };
+          signal.addEventListener('abort', onAbort, { once: true });
+          frame = requestAnimationFrame(() => finish(true));
+        });
+        if (!frameReached) return;
+      }
+    } finally {
+      externalSignal?.removeEventListener('abort', relayAbort);
+      if (this.preloadAbort === controller) this.preloadAbort = null;
     }
   }
 
@@ -126,6 +183,10 @@ export class MenuBackground {
    * 进游戏后不再返回菜单(退出走 location.reload 重建)，故可安全永久释放。
    */
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.preloadAbort?.abort();
+    this.preloadAbort = null;
     this.running = false; // 停 rAF 循环
     window.removeEventListener('resize', this.onResize); // 摘掉监听,否则闭包持有 this → 整套世界泄漏
     window.removeEventListener('orientationchange', this.onResize);

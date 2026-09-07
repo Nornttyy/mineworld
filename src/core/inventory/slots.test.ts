@@ -71,13 +71,58 @@ describe('slots 光标交互（MC 同款）', () => {
     expect(slots[0]).toEqual({ id: 259, count: 1 });
     expect(cur).toEqual({ id: 259, count: 1 });
   });
+
+  it('右键拿起、放下损坏工具时保留耐久', () => {
+    const slots: (ItemStack | null)[] = [{ id: 259, count: 1, dur: 17 }, null];
+    const picked = rightClick(slots, 0, null, maxOf);
+    expect(picked).toEqual({ id: 259, count: 1, dur: 17 });
+    expect(slots[0]).toBeNull();
+
+    const cursor = rightClick(slots, 1, picked, maxOf);
+    expect(cursor).toBeNull();
+    expect(slots[1]).toEqual({ id: 259, count: 1, dur: 17 });
+  });
+
+  it('右键不会把不同耐久的同类物品合并', () => {
+    const slots: (ItemStack | null)[] = [{ id: 259, count: 1, dur: 8 }];
+    const cur = rightClick(slots, 0, { id: 259, count: 1, dur: 7 }, max64);
+    expect(slots[0]).toEqual({ id: 259, count: 1, dur: 7 });
+    expect(cur).toEqual({ id: 259, count: 1, dur: 8 });
+  });
+
+  it('不同耐久的同类物品不能堆叠', () => {
+    const slots: (ItemStack | null)[] = [{ id: 259, count: 1, dur: 8 }];
+    const cur = leftClick(slots, 0, { id: 259, count: 1, dur: 7 }, max64);
+    expect(slots[0]).toEqual({ id: 259, count: 1, dur: 7 });
+    expect(cur).toEqual({ id: 259, count: 1, dur: 8 });
+  });
+
+  it('quickMove 损坏工具时保留耐久', () => {
+    const from: (ItemStack | null)[] = [{ id: 259, count: 1, dur: 11 }];
+    const to = emptyInventory();
+    quickMove(from, 0, to, maxOf);
+    expect(from[0]).toBeNull();
+    expect(to[0]).toEqual({ id: 259, count: 1, dur: 11 });
+  });
+
+  it('quickMove 未完全转移时，原格剩余物也保留耐久', () => {
+    const from: (ItemStack | null)[] = [{ id: 259, count: 2, dur: 10 }];
+    const to = emptyInventory();
+    quickMove(from, 0, to, maxOf, 0, 1);
+    expect(to[0]).toEqual({ id: 259, count: 1, dur: 10 });
+    expect(from[0]).toEqual({ id: 259, count: 1, dur: 10 });
+  });
 });
 
 describe('涂抹分发（MC 拖拽手势）', () => {
   it('左键平分：9 个分到 3 空格 → 每格 3，光标清空', () => {
     const arr: (ItemStack | null)[] = [null, null, null];
     const cur = dragSplitEven(refsOf(arr), { id: 2, count: 9 }, max64);
-    expect(arr).toEqual([{ id: 2, count: 3 }, { id: 2, count: 3 }, { id: 2, count: 3 }]);
+    expect(arr).toEqual([
+      { id: 2, count: 3 },
+      { id: 2, count: 3 },
+      { id: 2, count: 3 },
+    ]);
     expect(cur).toBeNull();
   });
 
@@ -109,5 +154,22 @@ describe('涂抹分发（MC 拖拽手势）', () => {
     const cur = dragOnePer(refsOf(arr), { id: 2, count: 3 }, max64);
     expect(arr.map((s) => s?.count ?? 0)).toEqual([1, 1, 1, 0, 0]);
     expect(cur).toBeNull();
+  });
+
+  it('拖拽损坏工具时保留耐久', () => {
+    const even: (ItemStack | null)[] = [null];
+    expect(dragSplitEven(refsOf(even), { id: 259, count: 1, dur: 13 }, maxOf)).toBeNull();
+    expect(even[0]).toEqual({ id: 259, count: 1, dur: 13 });
+
+    const onePer: (ItemStack | null)[] = [null];
+    expect(dragOnePer(refsOf(onePer), { id: 259, count: 1, dur: 12 }, maxOf)).toBeNull();
+    expect(onePer[0]).toEqual({ id: 259, count: 1, dur: 12 });
+  });
+
+  it('拖拽不会把相同 id、不同耐久的物品合并', () => {
+    const arr: (ItemStack | null)[] = [{ id: 259, count: 1, dur: 9 }];
+    const cursor = { id: 259, count: 2, dur: 8 };
+    expect(dragOnePer(refsOf(arr), cursor, max64)).toEqual(cursor);
+    expect(arr[0]).toEqual({ id: 259, count: 1, dur: 9 });
   });
 });

@@ -4,6 +4,7 @@ import type { ItemStack } from '../inventory/inventory';
 
 const OAK_LOG = 6;
 const OAK_PLANKS = 7;
+const SPRUCE_LOG = 30;
 const STICK = 257;
 const WOODEN_PICKAXE = 259;
 
@@ -17,6 +18,14 @@ describe('gridCraft 数字 id 网格合成', () => {
     const grid: (ItemStack | null)[][] = [
       [{ id: OAK_LOG, count: 1 }, null],
       [null, null],
+    ];
+    expect(gridResult(grid)).toEqual({ id: OAK_PLANKS, count: 4 });
+  });
+
+  it('1 云杉原木(无序) → 4 木板', () => {
+    const grid: (ItemStack | null)[][] = [
+      [null, null],
+      [null, { id: SPRUCE_LOG, count: 1 }],
     ];
     expect(gridResult(grid)).toEqual({ id: OAK_PLANKS, count: 4 });
   });
@@ -42,7 +51,10 @@ describe('gridCraft 数字 id 网格合成', () => {
 
   it('乱放无匹配 → null', () => {
     const grid: (ItemStack | null)[][] = [
-      [{ id: OAK_LOG, count: 1 }, { id: STICK, count: 1 }],
+      [
+        { id: OAK_LOG, count: 1 },
+        { id: STICK, count: 1 },
+      ],
       [null, null],
     ];
     expect(gridResult(grid)).toBeNull();

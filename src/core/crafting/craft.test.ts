@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { emptyInventory, addItem, countItem } from '../inventory/inventory';
 import { availableRecipes, craftRecipe } from './craft';
-import { OAK_LOG, OAK_PLANKS, CRAFTING_TABLE } from '../blocks/registry';
+import { OAK_LOG, OAK_PLANKS, CRAFTING_TABLE, SPRUCE_LOG } from '../blocks/registry';
 import { STICK, WOODEN_PICKAXE } from '../items/items';
 
 describe('合成桥接（数字 id）', () => {
@@ -12,6 +12,18 @@ describe('合成桥接（数字 id）', () => {
     expect(planks?.craftable).toBe(true);
     expect(craftRecipe(inv, planks!.recipe)).toBe(true);
     expect(countItem(inv, OAK_LOG)).toBe(0);
+    expect(countItem(inv, OAK_PLANKS)).toBe(4);
+  });
+
+  it('2×2：云杉原木 → 4 木板', () => {
+    const inv = emptyInventory();
+    addItem(inv, SPRUCE_LOG, 1);
+    const planks = availableRecipes(inv, 2).find(
+      (o) => o.recipe.type === 'shapeless' && o.recipe.ingredients[0] === 'spruce_log',
+    );
+    expect(planks?.craftable).toBe(true);
+    expect(craftRecipe(inv, planks!.recipe)).toBe(true);
+    expect(countItem(inv, SPRUCE_LOG)).toBe(0);
     expect(countItem(inv, OAK_PLANKS)).toBe(4);
   });
 

@@ -7,6 +7,21 @@ describe('mapPortalCoord', () => {
     expect(mapPortalCoord('overworld', 80, 160)).toEqual([10, 20]);
     expect(mapPortalCoord('nether', 10, 20)).toEqual([80, 160]);
   });
+
+  it('下界玩家的小数坐标映射成稳定整数，负坐标保持向下取整', () => {
+    expect(mapPortalCoord('nether', 10.36, -2.11)).toEqual([82, -17]);
+    expect(mapPortalCoord('overworld', -1, -9)).toEqual([-1, -2]);
+  });
+
+  it('用下界小数玩家坐标映射后，目的地门的每个 edit 都是整数方块坐标', () => {
+    const [x, z] = mapPortalCoord('nether', 10.36, -2.11);
+    const portal = buildDestinationPortal(() => 0, 'overworld', x, z);
+
+    expect(portal.edits.every(([bx, by, bz]) => [bx, by, bz].every(Number.isInteger))).toBe(true);
+    expect(
+      [portal.spawn.x - 0.5, portal.spawn.y, portal.spawn.z - 0.5].every(Number.isInteger),
+    ).toBe(true);
+  });
 });
 
 describe('ignitePortal', () => {
@@ -63,7 +78,7 @@ describe('buildDestinationPortal', () => {
     expect(r.edits.filter(([, , , id]) => id === 18).length).toBeGreaterThan(5);
 
     // 应用 edits 后再断言安全
-    for (const [x, y, z, id] of r.edits) (id === 0 ? b.delete(K(x, y, z)) : b.set(K(x, y, z), id));
+    for (const [x, y, z, id] of r.edits) id === 0 ? b.delete(K(x, y, z)) : b.set(K(x, y, z), id);
     const fx = Math.floor(r.spawn.x);
     const fy = Math.floor(r.spawn.y);
     const fz = Math.floor(r.spawn.z);
@@ -82,7 +97,7 @@ describe('buildDestinationPortal', () => {
     const K = (x: number, y: number, z: number) => `${x},${y},${z}`;
     const get = (x: number, y: number, z: number) => b.get(K(x, y, z)) ?? 0;
     const r = buildDestinationPortal(get, 'nether', 2, 2);
-    for (const [x, y, z, id] of r.edits) (id === 0 ? b.delete(K(x, y, z)) : b.set(K(x, y, z), id));
+    for (const [x, y, z, id] of r.edits) id === 0 ? b.delete(K(x, y, z)) : b.set(K(x, y, z), id);
 
     const isObs = (x: number, y: number, z: number) => get(x, y, z) === 18;
     const isInner = (x: number, y: number, z: number) => {
@@ -90,7 +105,13 @@ describe('buildDestinationPortal', () => {
       return v === 0 || v === 25;
     };
     // 从落点(门内底格)检测：应识别出 2×3 内部的合法门框
-    const frame = detectPortalFrame(isObs, isInner, Math.floor(r.spawn.x), Math.floor(r.spawn.y), Math.floor(r.spawn.z));
+    const frame = detectPortalFrame(
+      isObs,
+      isInner,
+      Math.floor(r.spawn.x),
+      Math.floor(r.spawn.y),
+      Math.floor(r.spawn.z),
+    );
     expect(frame).not.toBeNull();
     expect(frame!.inner.length).toBe(6); // 2×3 内部
   });
@@ -100,7 +121,10 @@ describe('buildDestinationPortal', () => {
     const get = () => 0;
     const r = buildDestinationPortal(get, 'nether', 2, 2);
     const footing = r.edits.find(
-      ([x, y, z]) => x === Math.floor(r.spawn.x) && y === Math.floor(r.spawn.y) - 1 && z === Math.floor(r.spawn.z),
+      ([x, y, z]) =>
+        x === Math.floor(r.spawn.x) &&
+        y === Math.floor(r.spawn.y) - 1 &&
+        z === Math.floor(r.spawn.z),
     );
     expect(footing).toBeDefined();
     expect(footing![3]).toBe(18); // 脚下被铺成黑曜石

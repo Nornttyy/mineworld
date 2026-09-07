@@ -19,8 +19,14 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 
 export const RECIPES: Recipe[] = [
   { type: 'shapeless', ingredients: ['oak_log'], result: { item: 'oak_planks', count: 4 } },
+  // 尚无独立云杉木板 ID；暂映射到项目统一木板，同时保留 1.12 的 1→4 数量规则。
+  { type: 'shapeless', ingredients: ['spruce_log'], result: { item: 'oak_planks', count: 4 } },
   // 打火石：燧石 + 铁锭（点燃下界传送门）
-  { type: 'shapeless', ingredients: ['flint', 'iron_ingot'], result: { item: 'flint_and_steel', count: 1 } },
+  {
+    type: 'shapeless',
+    ingredients: ['flint', 'iron_ingot'],
+    result: { item: 'flint_and_steel', count: 1 },
+  },
   {
     type: 'shaped',
     pattern: ['#', '#'],

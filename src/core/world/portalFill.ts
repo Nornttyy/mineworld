@@ -28,7 +28,7 @@ export function ignitePortal(
 /**
  * 主世界↔下界坐标换算（1:8 比例）。
  * overworld→nether: floor(x/8), floor(z/8)
- * nether→overworld: x*8, z*8
+ * nether→overworld: floor(x*8), floor(z*8)
  */
 export function mapPortalCoord(
   dim: 'overworld' | 'nether',
@@ -38,7 +38,9 @@ export function mapPortalCoord(
   if (dim === 'overworld') {
     return [Math.floor(x / 8), Math.floor(z / 8)];
   }
-  return [x * 8, z * 8];
+  // 玩家位置是连续坐标；造门接口和存档 edit key 则必须是整数方块坐标。
+  // 负数也要向下取整（而不是朝 0 截断），与 worldToChunk/方块定位语义保持一致。
+  return [Math.floor(x * 8), Math.floor(z * 8)];
 }
 
 type GetBlock = (x: number, y: number, z: number) => number;
@@ -46,7 +48,12 @@ type GetBlock = (x: number, y: number, z: number) => number;
 // 在目标维度 (ax,az) 选「门内底格」的 baseY：脚下实心、其上有空间落脚。
 // 主世界：从天花板往下找第一段实心(地表)，站其上。
 // 下界：岩浆面之上找「脚下实心 + 上方无岩浆」的最低段；找不到返回 null（调用方铺平台保底）。
-function findBaseY(get: GetBlock, dim: 'overworld' | 'nether', ax: number, az: number): number | null {
+function findBaseY(
+  get: GetBlock,
+  dim: 'overworld' | 'nether',
+  ax: number,
+  az: number,
+): number | null {
   if (dim === 'overworld') {
     for (let y = WORLD_TOP; y > 1; y--) {
       if (isSolidId(get(ax, y, az)) && !isSolidId(get(ax, y + 1, az))) return y + 1; // 站地表上
@@ -59,7 +66,11 @@ function findBaseY(get: GetBlock, dim: 'overworld' | 'nether', ax: number, az: n
   for (let y = lo; y <= hi; y++) {
     if (!isSolidId(get(ax, y - 1, az))) continue; // 脚下需实心
     let blockedByLava = false;
-    for (let dy = 0; dy < 3; dy++) if (isLavaId(get(ax, y + dy, az))) { blockedByLava = true; break; }
+    for (let dy = 0; dy < 3; dy++)
+      if (isLavaId(get(ax, y + dy, az))) {
+        blockedByLava = true;
+        break;
+      }
     if (blockedByLava) continue;
     return y;
   }

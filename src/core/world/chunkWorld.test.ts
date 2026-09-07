@@ -28,7 +28,14 @@ describe('ChunkWorld', () => {
 
   it('setBlock 距边界 8 格内标脏对应邻区(光照渗透)，另一侧不标(回归：光照卡在区块边界)', () => {
     const w = new ChunkWorld(1);
-    const cells: [number, number][] = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, 1]];
+    const cells: [number, number][] = [
+      [0, 0],
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+      [-1, 1],
+    ];
     for (const [cx, cz] of cells) w.getChunk(cx, cz).dirty = false;
     // lx=5(<8 → 西邻要重建光照)、lz=8(>7 → 南邻)；东/北邻在 8 格外不标
     w.setBlock(5, 100, 8, 1);
@@ -44,10 +51,12 @@ describe('ChunkWorld', () => {
     w.getChunk(0, 0); // 近
     w.getChunk(2, 0); // 半径=2 边界内
     w.getChunk(10, 10); // 远
-    w.evictBeyond(0, 0, 2);
+    const evicted = w.evictBeyond(0, 0, 2);
     expect(w.hasChunk(0, 0)).toBe(true);
     expect(w.hasChunk(2, 0)).toBe(true); // 切比雪夫=2，不驱逐
     expect(w.hasChunk(10, 10)).toBe(false); // 远 → 驱逐
+    expect(evicted).toEqual(['10,10']); // 调用方据此同步清理该区块的附属状态（如 wateredChunks）
+    expect(w.evictBeyond(0, 0, 2)).toEqual([]); // 只报告本次确实从缓存移除的区块
   });
 
   it('editHook 在区块(重)生成时复原玩家改动（驱逐后走回来不丢建筑）', () => {
@@ -123,8 +132,9 @@ describe('ChunkWorld dimension', () => {
     expect(ne.dimension).toBe('nether');
     expect(ov.dimension).toBe('overworld');
     // 主世界同坐标不全是地狱岩
-    const netherrackInOv = Array.from({ length: 115 }, (_, i) => cOv.get(0, i + 5, 0)).filter((b) => b === 19)
-      .length;
+    const netherrackInOv = Array.from({ length: 115 }, (_, i) => cOv.get(0, i + 5, 0)).filter(
+      (b) => b === 19,
+    ).length;
     expect(netherrackInNe).toBeGreaterThan(netherrackInOv);
   });
 

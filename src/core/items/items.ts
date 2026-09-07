@@ -75,7 +75,12 @@ function toolDef(name: string, kind: ToolKind, tier: number, baseSpeed: number):
 }
 
 export const ITEMS: Record<number, ItemDef> = {
-  [APPLE]: { name: 'apple', maxStack: 64, food: { nutrition: 4, saturationModifier: 0.3 }, tool: null },
+  [APPLE]: {
+    name: 'apple',
+    maxStack: 64,
+    food: { nutrition: 4, saturationModifier: 0.3 },
+    tool: null,
+  },
   [FLINT_AND_STEEL]: { name: 'flint_and_steel', maxStack: 1, food: null, tool: null },
   [NETHER_QUARTZ]: { name: 'nether_quartz', maxStack: 64, food: null, tool: null },
   [DIAMOND]: { name: 'diamond', maxStack: 64, food: null, tool: null },
@@ -103,19 +108,64 @@ export const ITEMS: Record<number, ItemDef> = {
   [DIAMOND_SWORD]: toolDef('diamond_sword', 'sword', 4, 8),
   [DIAMOND_HOE]: toolDef('diamond_hoe', 'hoe', 4, 8),
   // 生物掉落 + 熟食（食物值 1:1 MC）
-  [RAW_PORKCHOP]: { name: 'raw_porkchop', maxStack: 64, food: { nutrition: 3, saturationModifier: 0.3 }, tool: null },
-  [COOKED_PORKCHOP]: { name: 'cooked_porkchop', maxStack: 64, food: { nutrition: 8, saturationModifier: 0.8 }, tool: null },
-  [RAW_BEEF]: { name: 'raw_beef', maxStack: 64, food: { nutrition: 3, saturationModifier: 0.3 }, tool: null },
-  [COOKED_BEEF]: { name: 'cooked_beef', maxStack: 64, food: { nutrition: 8, saturationModifier: 0.8 }, tool: null },
-  [RAW_MUTTON]: { name: 'raw_mutton', maxStack: 64, food: { nutrition: 2, saturationModifier: 0.3 }, tool: null },
-  [COOKED_MUTTON]: { name: 'cooked_mutton', maxStack: 64, food: { nutrition: 6, saturationModifier: 0.8 }, tool: null },
-  [RAW_CHICKEN]: { name: 'raw_chicken', maxStack: 64, food: { nutrition: 2, saturationModifier: 0.3 }, tool: null },
-  [COOKED_CHICKEN]: { name: 'cooked_chicken', maxStack: 64, food: { nutrition: 6, saturationModifier: 0.6 }, tool: null },
+  [RAW_PORKCHOP]: {
+    name: 'raw_porkchop',
+    maxStack: 64,
+    food: { nutrition: 3, saturationModifier: 0.3 },
+    tool: null,
+  },
+  [COOKED_PORKCHOP]: {
+    name: 'cooked_porkchop',
+    maxStack: 64,
+    food: { nutrition: 8, saturationModifier: 0.8 },
+    tool: null,
+  },
+  [RAW_BEEF]: {
+    name: 'raw_beef',
+    maxStack: 64,
+    food: { nutrition: 3, saturationModifier: 0.3 },
+    tool: null,
+  },
+  [COOKED_BEEF]: {
+    name: 'cooked_beef',
+    maxStack: 64,
+    food: { nutrition: 8, saturationModifier: 0.8 },
+    tool: null,
+  },
+  [RAW_MUTTON]: {
+    name: 'raw_mutton',
+    maxStack: 64,
+    food: { nutrition: 2, saturationModifier: 0.3 },
+    tool: null,
+  },
+  [COOKED_MUTTON]: {
+    name: 'cooked_mutton',
+    maxStack: 64,
+    food: { nutrition: 6, saturationModifier: 0.8 },
+    tool: null,
+  },
+  [RAW_CHICKEN]: {
+    name: 'raw_chicken',
+    maxStack: 64,
+    food: { nutrition: 2, saturationModifier: 0.3 },
+    tool: null,
+  },
+  [COOKED_CHICKEN]: {
+    name: 'cooked_chicken',
+    maxStack: 64,
+    food: { nutrition: 6, saturationModifier: 0.6 },
+    tool: null,
+  },
   [LEATHER]: { name: 'leather', maxStack: 64, food: null, tool: null },
   [WOOL]: { name: 'wool', maxStack: 64, food: null, tool: null },
   [FEATHER]: { name: 'feather', maxStack: 64, food: null, tool: null },
   [EGG]: { name: 'egg', maxStack: 16, food: null, tool: null },
-  [ROTTEN_FLESH]: { name: 'rotten_flesh', maxStack: 64, food: { nutrition: 4, saturationModifier: 0.1 }, tool: null },
+  [ROTTEN_FLESH]: {
+    name: 'rotten_flesh',
+    maxStack: 64,
+    food: { nutrition: 4, saturationModifier: 0.1 },
+    tool: null,
+  },
   [BONE]: { name: 'bone', maxStack: 64, food: null, tool: null },
   [FLINT]: { name: 'flint', maxStack: 64, food: null, tool: null },
   [STRING]: { name: 'string', maxStack: 64, food: null, tool: null },
@@ -144,6 +194,16 @@ export function itemName(id: number): string | null {
 
 export function itemMaxStack(id: number): number {
   return ITEMS[id]?.maxStack ?? 64;
+}
+
+// 所有会磨损的物品统一从这里查询上限。弓与打火石不是挖掘工具，
+// 因而不能只依赖 ToolDef；数值对应 Java 1.12（弓 384、打火石 64）。
+export function itemMaxDurability(id: number): number | null {
+  const toolDurability = ITEMS[id]?.tool?.maxDurability;
+  if (toolDurability !== undefined) return toolDurability;
+  if (id === BOW) return 384;
+  if (id === FLINT_AND_STEEL) return 64;
+  return null;
 }
 
 // 物品(非方块)的工具属性；非工具/方块返回 null

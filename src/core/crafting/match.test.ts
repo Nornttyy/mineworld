@@ -15,6 +15,14 @@ describe('shapeless matching', () => {
     expect(getCraftingResult(grid)).toEqual({ item: 'oak_planks', count: 4 });
   });
 
+  it('one spruce log anywhere in a 2x2 grid -> 4 planks', () => {
+    const grid: CraftGrid = [
+      [null, null],
+      [stack('spruce_log'), null],
+    ];
+    expect(getCraftingResult(grid)).toEqual({ item: 'oak_planks', count: 4 });
+  });
+
   it('empty grid -> null', () => {
     const grid: CraftGrid = [
       [null, null],

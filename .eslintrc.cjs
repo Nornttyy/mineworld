@@ -6,6 +6,9 @@ module.exports = {
   env: { node: true, browser: true, es2022: true },
   parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
   ignorePatterns: ['dist', 'node_modules'],
+  rules: {
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+  },
   overrides: [
     {
       // 架构铁律：core 不许依赖渲染层与 three

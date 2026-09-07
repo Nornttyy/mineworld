@@ -35,6 +35,29 @@ describe('ChunkMeshManager.setWorld', () => {
     expect(cmm.world).toBe(w2); // 引用已换
   });
 
+  it('切维度后丢弃旧世界晚到的同坐标 worker 结果，不吞掉新任务', () => {
+    const cmm: any = new ChunkMeshManager(
+      new THREE.Scene(),
+      new ChunkWorld(11, 'overworld'),
+      new THREE.Texture(),
+    );
+    const key = '0,0';
+    cmm.meshPending.set(key, 1); // 来源世界尚在计算的任务
+    cmm.meshPendingSince.set(key, 10);
+
+    cmm.setWorld(new ChunkWorld(11, 'nether'));
+    cmm.meshPending.set(key, 2); // 目标世界已派发相同区块坐标
+    cmm.meshPendingSince.set(key, 20);
+    cmm.handleMeshWorkerResult({ jobId: 1, cx: 0, cz: 0, mesh: {} });
+
+    expect(cmm.meshPending.get(key)).toBe(2);
+    expect(cmm.meshPendingSince.get(key)).toBe(20);
+    expect(cmm.meshFails.has(key)).toBe(false);
+    expect(cmm.meshQueue).toHaveLength(0);
+    expect(cmm.priorityQueue).toHaveLength(0);
+    cmm.dispose();
+  });
+
   it('光影水写深度并退出透明排序，关闭光影后恢复经典 alpha 水', () => {
     const cmm: any = new ChunkMeshManager(
       new THREE.Scene(),

@@ -51,6 +51,14 @@ interface ChunkMeshes {
   torch: THREE.Mesh | null;
 }
 
+interface MeshWorkerResult {
+  jobId: number;
+  cx: number;
+  cz: number;
+  mesh?: ChunkMesh;
+  error?: string;
+}
+
 // TS 版 MC 亮度曲线(与 shader 的 mcBright 一致)：实体环境光照用
 const mcBrightJs = (lv: number): number => {
   const f = Math.max(0, Math.min(15, lv)) / 15;
@@ -115,7 +123,10 @@ export class ChunkMeshManager {
   // 网格化 Worker 池：把 ~81ms/区块的 meshChunk(光照BFS+greedy)挪后台，主线程只剩 buildGeo 上传。
   private readonly meshWorkers: Worker[] = [];
   private meshRr = 0; // round-robin 派发
-  private readonly meshPending = new Set<string>(); // 已派 worker 网格化、还没回来的区块
+  // 坐标 → 当前任务 id。不能只存坐标：切维度或超时重派后，旧 worker 可能晚到并与
+  // 新世界同坐标任务撞 key；唯一任务 id 保证旧结果既不能上屏，也不能删掉新任务的 pending。
+  private readonly meshPending = new Map<string, number>();
+  private nextMeshJobId = 1;
   private readonly meshPendingSince = new Map<string, number>(); // 派发时刻(ms)，看门狗判 worker 丢消息超时重试
   private readonly meshFails = new Map<string, number>(); // 该区块连续网格化失败次数，超上限放弃+告警，防死循环
   private readonly meshQueue: { cx: number; cz: number; mesh: ChunkMesh }[] = []; // worker 回来的网格排队，每帧 flushMesh 限量上屏(防同帧多次 buildGeo/GPU 上传卡)
@@ -202,31 +213,8 @@ export class ChunkMeshManager {
       const n = Math.max(1, Math.min(4, cores - 1));
       for (let i = 0; i < n; i++) {
         const w = new MeshGenWorker();
-        w.onmessage = (
-          e: MessageEvent<{ cx: number; cz: number; mesh?: ChunkMesh; error?: string }>,
-        ): void => {
-          const { cx, cz, mesh, error } = e.data;
-          const k = this.key(cx, cz);
-          if (!this.meshPending.has(k)) return; // 已被同步 rebuild(挖/放/流水)覆盖 → 丢弃这个 stale worker 结果
-          this.meshPending.delete(k);
-          this.meshPendingSince.delete(k);
-          if (error) {
-            // 网格化失败：meshPending 已清 → 未达上限时 update() 会再派重试；告警暴露真正触发原因。
-            const n = (this.meshFails.get(k) ?? 0) + 1;
-            this.meshFails.set(k, n);
-            console.warn(`[meshgen] 区块(${cx},${cz}) 网格化失败 #${n}: ${error.split('\n')[0]}`);
-            return;
-          }
-          this.meshFails.delete(k);
-          if (!mesh || !this.world.peek(cx, cz)) return; // 区块已卸载/无数据 → 丢弃
-          if (this.editKeys.has(k)) {
-            this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
-            // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
-            if (!this.world.peek(cx, cz)?.dirty) this.editKeys.delete(k);
-          } else {
-            this.meshQueue.push({ cx, cz, mesh }); // 批量加载 → 普通队列，每帧 flushMesh 限量上屏(防卡)
-          }
-        };
+        w.onmessage = (e: MessageEvent<MeshWorkerResult>): void =>
+          this.handleMeshWorkerResult(e.data);
         w.onerror = (ev): void => {
           console.error(
             '[meshgen worker] 致命错误(整个 worker 挂了，区块会停止网格化):',
@@ -1441,6 +1429,31 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     return `${cx},${cz}`;
   }
 
+  private handleMeshWorkerResult({ jobId, cx, cz, mesh, error }: MeshWorkerResult): void {
+    const k = this.key(cx, cz);
+    // 该坐标已同步重建、超时重派或切到另一个世界时，旧 jobId 不再匹配。
+    // 必须在删除 pending 之前拦截，否则旧维度结果会吃掉新维度同坐标任务。
+    if (this.meshPending.get(k) !== jobId) return;
+    this.meshPending.delete(k);
+    this.meshPendingSince.delete(k);
+    if (error) {
+      // 网格化失败：meshPending 已清 → 未达上限时 update() 会再派重试；告警暴露真正触发原因。
+      const n = (this.meshFails.get(k) ?? 0) + 1;
+      this.meshFails.set(k, n);
+      console.warn(`[meshgen] 区块(${cx},${cz}) 网格化失败 #${n}: ${error.split('\n')[0]}`);
+      return;
+    }
+    this.meshFails.delete(k);
+    if (!mesh || !this.world.peek(cx, cz)) return; // 区块已卸载/无数据 → 丢弃
+    if (this.editKeys.has(k)) {
+      this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
+      // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
+      if (!this.world.peek(cx, cz)?.dirty) this.editKeys.delete(k);
+    } else {
+      this.meshQueue.push({ cx, cz, mesh }); // 批量加载 → 普通队列，每帧 flushMesh 限量上屏(防卡)
+    }
+  }
+
   /** 切维度：卸载当前所有区块网格、清队列与在途标记、换内部 world 引用。保留 worker 池(不重建)。 */
   setWorld(world: ChunkWorld): void {
     for (const k of [...this.meshes.keys()]) this.unload(k); // 释放 geometry + 从 scene 移除
@@ -1662,11 +1675,12 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     if ((this.meshFails.get(k) ?? 0) >= 3) return; // 连续 3 次网格化抛异常 → 放弃(已告警)，不再每帧死循环重试
     const nb = this.collectNeighbors(cx, cz);
     if (!nb) return; // 邻区还没生成好 → 这次不网格化(留着下次 update 重试)，绝不同步 meshChunk 卡主线程
-    this.meshPending.add(k);
+    const jobId = this.nextMeshJobId++;
+    this.meshPending.set(k, jobId);
     this.meshPendingSince.set(k, perfNow());
     const transfer = [...nb.blocks.map((b) => b.buffer), ...nb.fluid.map((f) => f.buffer)];
     this.meshWorkers[this.meshRr].postMessage(
-      { cx, cz, blocks: nb.blocks, fluid: nb.fluid },
+      { jobId, cx, cz, blocks: nb.blocks, fluid: nb.fluid },
       transfer,
     );
     this.meshRr = (this.meshRr + 1) % this.meshWorkers.length;

@@ -7,6 +7,7 @@ import { worldToChunk, localCoord } from '../world/coords';
 import { WATER } from '../blocks/registry';
 
 interface MeshRequest {
+  jobId: number;
   cx: number;
   cz: number;
   blocks: Uint16Array[]; // 9 个，顺序 (dcx+1)*3+(dcz+1)，dcx/dcz ∈ -1..1
@@ -14,7 +15,7 @@ interface MeshRequest {
 }
 
 self.onmessage = (e: MessageEvent<MeshRequest>): void => {
-  const { cx, cz, blocks, fluid } = e.data;
+  const { jobId, cx, cz, blocks, fluid } = e.data;
   const slot = (bx: number, bz: number): number => {
     const dcx = bx - cx;
     const dcz = bz - cz;
@@ -55,9 +56,14 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     collect(mesh.water);
     collect(mesh.torch);
     transfer.push(mesh.light3d.buffer); // 粗光照网格(实体照明)一并零拷贝传回
-    (self as unknown as Worker).postMessage({ cx, cz, mesh }, transfer);
+    (self as unknown as Worker).postMessage({ jobId, cx, cz, mesh }, transfer);
   } catch (err) {
     // 网格化抛异常也务必回报——否则主线程 meshPending 永不清 → 该区块永久不重建成洞。
-    (self as unknown as Worker).postMessage({ cx, cz, error: String((err as Error)?.stack ?? err) });
+    (self as unknown as Worker).postMessage({
+      jobId,
+      cx,
+      cz,
+      error: String((err as Error)?.stack ?? err),
+    });
   }
 };

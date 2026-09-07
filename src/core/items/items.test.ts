@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   APPLE,
+  BOW,
   DIAMOND,
   DIAMOND_AXE,
   DIAMOND_HOE,
@@ -14,6 +15,7 @@ import {
   isFood,
   isItem,
   itemName,
+  itemMaxDurability,
   toolOf,
 } from './items';
 
@@ -29,6 +31,12 @@ describe('items: apple food', () => {
     expect(ITEMS[FLINT_AND_STEEL].maxStack).toBe(1); // 工具类不堆叠
     expect(ITEMS[NETHER_QUARTZ].name).toBe('nether_quartz');
     expect(ITEMS[NETHER_QUARTZ].maxStack).toBe(64);
+  });
+  it('所有可磨损物品使用统一的 1.12 耐久上限', () => {
+    expect(itemMaxDurability(BOW)).toBe(384);
+    expect(itemMaxDurability(FLINT_AND_STEEL)).toBe(64);
+    expect(itemMaxDurability(DIAMOND_PICKAXE)).toBe(1561);
+    expect(itemMaxDurability(APPLE)).toBeNull();
   });
   it('block ids are not items/food', () => {
     expect(isFood(1)).toBe(false); // stone

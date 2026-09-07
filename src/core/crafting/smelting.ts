@@ -12,8 +12,22 @@ import {
   RAW_CHICKEN,
   COOKED_CHICKEN,
 } from '../items/items';
-import { OAK_LOG, OAK_PLANKS, IRON_ORE, COBBLESTONE, SPRUCE_LOG, CRAFTING_TABLE, COAL_BLOCK } from '../blocks/registry';
-import { WOODEN_PICKAXE, WOODEN_AXE, WOODEN_SHOVEL, WOODEN_SWORD, WOODEN_HOE } from '../items/items';
+import {
+  OAK_LOG,
+  OAK_PLANKS,
+  IRON_ORE,
+  COBBLESTONE,
+  SPRUCE_LOG,
+  CRAFTING_TABLE,
+  COAL_BLOCK,
+} from '../blocks/registry';
+import {
+  WOODEN_PICKAXE,
+  WOODEN_AXE,
+  WOODEN_SHOVEL,
+  WOODEN_SWORD,
+  WOODEN_HOE,
+} from '../items/items';
 
 export const COOK_TICKS = 200; // 炼 1 个耗 200 刻(=10s @20TPS，同 MC)
 export const MAX_STACK = 64;
@@ -54,6 +68,12 @@ export interface FurnaceState {
   inputN: number;
   fuel: number;
   fuelN: number;
+  /**
+   * 燃料槽里可磨损物品的剩余耐久。Java 1.12 允许木制工具作燃料；
+   * 在真正烧掉前拿回或打掉熔炉时，必须保留原本的损坏值。
+   * undefined 表示满耐久或该燃料不可磨损，兼容旧存档。
+   */
+  fuelDur?: number;
   output: number;
   outputN: number;
   burn: number; // 剩余燃烧刻
@@ -62,7 +82,17 @@ export interface FurnaceState {
 }
 
 export function newFurnace(): FurnaceState {
-  return { input: 0, inputN: 0, fuel: 0, fuelN: 0, output: 0, outputN: 0, burn: 0, burnMax: 0, cook: 0 };
+  return {
+    input: 0,
+    inputN: 0,
+    fuel: 0,
+    fuelN: 0,
+    output: 0,
+    outputN: 0,
+    burn: 0,
+    burnMax: 0,
+    cook: 0,
+  };
 }
 
 // 当前是否“能炼”：有可冶炼的原料，且产物槽放得下结果。
@@ -87,7 +117,10 @@ export function tickFurnace(s: FurnaceState): boolean {
     s.burnMax = fuelTicks(s.fuel);
     s.burn = s.burnMax;
     s.fuelN--;
-    if (s.fuelN === 0) s.fuel = 0;
+    if (s.fuelN === 0) {
+      s.fuel = 0;
+      delete s.fuelDur;
+    }
   }
 
   // 有火且能炼 → 进度++；满 COOK_TICKS 出一个成品

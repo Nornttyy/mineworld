@@ -51,6 +51,20 @@ function run(sim: FluidSim, g: FluidGrid, ticks: number): void {
 }
 
 describe('fluidSim（对照 MC）', () => {
+  it('clear 会丢弃所有排队更新，切换到新网格后不会继续扩散', () => {
+    const g = new Grid(0);
+    g.src(0, 0, 0);
+    const sim = new FluidSim();
+    sim.activate(0, 0, 0);
+    expect(sim.activeCount).toBeGreaterThan(0);
+
+    sim.clear();
+    sim.tick(g);
+
+    expect(sim.activeCount).toBe(0);
+    expect(g.amount(1, 0, 0)).toBe(0);
+  });
+
   it('悬空无限源回归：两源夹一格但下方是洞 → 中间不成源(曾凭空造永久源=无限复制 bug)', () => {
     const g = new Grid(0);
     g.src(-1, 0, 0);

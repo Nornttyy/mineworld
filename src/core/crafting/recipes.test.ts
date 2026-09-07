@@ -3,8 +3,8 @@ import { RECIPES } from './recipes';
 import { hasItem } from '../item/registry';
 
 describe('recipe data', () => {
-  it('contains all 37 recipes', () => {
-    expect(RECIPES).toHaveLength(37);
+  it('contains all 38 recipes', () => {
+    expect(RECIPES).toHaveLength(38);
   });
 
   it('储存方块：沙石/石英(2×2)、煤块/铁块(3×3) + 可逆拆解', () => {
@@ -17,8 +17,9 @@ describe('recipe data', () => {
     expect(shapedResult('diamond_block')).toBe(1); // 9 钻石 → 1 钻石块
     // 可逆：块 → 9 原料（shapeless）
     const unpack = (block: string): number | undefined =>
-      RECIPES.find((r) => r.type === 'shapeless' && r.ingredients.length === 1 && r.ingredients[0] === block)
-        ?.result.count;
+      RECIPES.find(
+        (r) => r.type === 'shapeless' && r.ingredients.length === 1 && r.ingredients[0] === block,
+      )?.result.count;
     expect(unpack('coal_block')).toBe(9);
     expect(unpack('iron_block')).toBe(9);
     expect(unpack('diamond_block')).toBe(9);
@@ -27,7 +28,10 @@ describe('recipe data', () => {
   it('打火石 = 燧石 + 铁锭（shapeless）', () => {
     const fs = RECIPES.find((r) => r.type === 'shapeless' && r.result.item === 'flint_and_steel');
     expect(fs).toBeTruthy();
-    expect(fs && fs.type === 'shapeless' && [...fs.ingredients].sort()).toEqual(['flint', 'iron_ingot']);
+    expect(fs && fs.type === 'shapeless' && [...fs.ingredients].sort()).toEqual([
+      'flint',
+      'iron_ingot',
+    ]);
   });
 
   it('every referenced item id exists in the registry', () => {
@@ -41,13 +45,23 @@ describe('recipe data', () => {
     }
   });
 
-  it('produces 4 planks from one log (shapeless)', () => {
-    const planks = RECIPES.find((r) => r.type === 'shapeless' && r.result.item === 'oak_planks');
-    expect(planks?.result.count).toBe(4);
+  it('橡木和云杉原木都能无序合成 4 块木板', () => {
+    for (const log of ['oak_log', 'spruce_log']) {
+      const planks = RECIPES.find(
+        (r) => r.type === 'shapeless' && r.ingredients.length === 1 && r.ingredients[0] === log,
+      );
+      expect(planks?.result).toEqual({ item: 'oak_planks', count: 4 });
+    }
   });
 
   it('包含五种钻石工具的标准 1.12 合成配方', () => {
-    const diamondTools = ['diamond_pickaxe', 'diamond_axe', 'diamond_shovel', 'diamond_sword', 'diamond_hoe'];
+    const diamondTools = [
+      'diamond_pickaxe',
+      'diamond_axe',
+      'diamond_shovel',
+      'diamond_sword',
+      'diamond_hoe',
+    ];
     for (const tool of diamondTools) {
       const recipe = RECIPES.find((r) => r.type === 'shaped' && r.result.item === tool);
       expect(recipe).toBeTruthy();

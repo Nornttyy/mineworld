@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   emptyInventory,
   addItem,
+  addStack,
   addTool,
   takeOne,
   damageTool,
@@ -98,5 +99,19 @@ describe('inventory', () => {
     const inv = emptyInventory();
     for (let i = 0; i < INV_SIZE; i++) inv[i] = { id: 1, count: 1 };
     expect(addTool(inv, 259, 10)).toBe(false);
+  });
+
+  it('addStack：搬运损坏工具时保留耐久', () => {
+    const inv = emptyInventory();
+    expect(addStack(inv, { id: 259, count: 1, dur: 23 }, 1)).toBe(0);
+    expect(inv[0]).toEqual({ id: 259, count: 1, dur: 23 });
+  });
+
+  it('addStack：相同 id、不同耐久状态不合并', () => {
+    const inv = emptyInventory();
+    inv[0] = { id: 259, count: 1, dur: 23 };
+    expect(addStack(inv, { id: 259, count: 1, dur: 22 }, 64)).toBe(0);
+    expect(inv[0]).toEqual({ id: 259, count: 1, dur: 23 });
+    expect(inv[1]).toEqual({ id: 259, count: 1, dur: 22 });
   });
 });

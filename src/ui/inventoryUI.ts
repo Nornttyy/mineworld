@@ -1,8 +1,15 @@
 // MC 同款背包/合成界面：主背包 27 + 快捷栏 9 + N×N 合成网格 + 输出槽。
 // 交互：左键拿/放整组、右键放1个/拿一半、Shift 快速转移；光标(手持物品)跟随鼠标。
 // 逻辑全在 core/inventory/slots + core/crafting/gridCraft 纯函数里，这里只渲染 + 转发事件。
-import { addItem, type Inventory, type ItemStack } from '../core/inventory/inventory';
-import { leftClick, rightClick, quickMove, dragSplitEven, dragOnePer, type SlotRef } from '../core/inventory/slots';
+import { addStack, type Inventory, type ItemStack } from '../core/inventory/inventory';
+import {
+  leftClick,
+  rightClick,
+  quickMove,
+  dragSplitEven,
+  dragOnePer,
+  type SlotRef,
+} from '../core/inventory/slots';
 import { gridResult, consumeGrid } from '../core/crafting/gridCraft';
 import { itemMaxStack } from '../core/items/items';
 import { iconUrl, itemLabel } from './itemIcons';
@@ -81,7 +88,9 @@ export class InventoryUI {
         <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭</div>
       </div>`;
     this.titleEl = root.querySelector('.inv-title') as HTMLElement;
-    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () => this.onClose?.());
+    (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () =>
+      this.onClose?.(),
+    );
     this.cgridEl = root.querySelector('.inv-cgrid') as HTMLElement;
     const mainEl = root.querySelector('.inv-main') as HTMLElement;
     const hotEl = root.querySelector('.inv-hotbar') as HTMLElement;
@@ -152,28 +161,39 @@ export class InventoryUI {
     this.render();
   }
 
-  // 关闭：合成格 + 光标里的残留物品退回背包，避免凭空消失
-  hide(): void {
+  // 关闭：合成格 + 光标里的残留物品退回背包。背包放不下的
+  // 完整返回给 Game 变成掉落物，不在 UI 里静默吞掉；耐久也必须保留。
+  hide(): ItemStack[] {
     this.cancelDrag();
-    if (this.inv) {
-      for (const row of this.craft) {
-        for (let c = 0; c < row.length; c++) {
-          const s = row[c];
-          if (s) {
-            addItem(this.inv, s.id, s.count, maxOf(s.id));
-            row[c] = null;
-          }
+    const overflow: ItemStack[] = [];
+    for (const row of this.craft) {
+      for (let c = 0; c < row.length; c++) {
+        const s = row[c];
+        if (s) {
+          this.returnOrOverflow(s, overflow);
+          row[c] = null;
         }
       }
-      if (this.cursor) {
-        addItem(this.inv, this.cursor.id, this.cursor.count, maxOf(this.cursor.id));
-        this.cursor = null;
-      }
+    }
+    if (this.cursor) {
+      this.returnOrOverflow(this.cursor, overflow);
+      this.cursor = null;
     }
     this.open = false;
     this.root.classList.add('hidden');
     this.cursorEl.style.display = 'none';
     this.onChange?.();
+    return overflow;
+  }
+
+  private returnOrOverflow(stack: ItemStack, overflow: ItemStack[]): void {
+    const left = this.inv ? addStack(this.inv, stack, maxOf(stack.id)) : stack.count;
+    if (left <= 0) return;
+    overflow.push(
+      stack.dur === undefined
+        ? { id: stack.id, count: left }
+        : { id: stack.id, count: left, dur: stack.dur },
+    );
   }
 
   private buildCraftGrid(n: number): void {
@@ -316,10 +336,14 @@ export class InventoryUI {
       const n = this.gridN;
       const row = this.craft[Math.floor(i / n)];
       const c = i % n;
-      this.cursor = right ? rightClick(row, c, this.cursor, maxOf) : leftClick(row, c, this.cursor, maxOf);
+      this.cursor = right
+        ? rightClick(row, c, this.cursor, maxOf)
+        : leftClick(row, c, this.cursor, maxOf);
     } else {
       const idx = region === 'main' ? HOTBAR + i : i;
-      this.cursor = right ? rightClick(this.inv, idx, this.cursor, maxOf) : leftClick(this.inv, idx, this.cursor, maxOf);
+      this.cursor = right
+        ? rightClick(this.inv, idx, this.cursor, maxOf)
+        : leftClick(this.inv, idx, this.cursor, maxOf);
     }
   }
 
@@ -337,7 +361,9 @@ export class InventoryUI {
   }
 
   // 鼠标位置下的格子（命中测试），无则 null。
-  private slotAt(e: Pick<PointerEvent, 'clientX' | 'clientY'>): { region: Region; i: number } | null {
+  private slotAt(
+    e: Pick<PointerEvent, 'clientX' | 'clientY'>,
+  ): { region: Region; i: number } | null {
     const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
     const el = hit?.closest('.inv-slot') as HTMLElement | null;
     if (!el || el.dataset.region === undefined) return null;

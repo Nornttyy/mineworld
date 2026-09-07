@@ -9,14 +9,24 @@
 //  - 扩散(spread)：能向下就只向下（下方成 falling 满水，柱体单薄）；不能向下才向四周铺。
 //  - 朝洞找路：向四周铺时用"坡度距离"(最多探 SLOPE_FIND=4 格)找最近的落差，只朝最近方向铺；
 //    多个方向并列或找不到洞 → 一起铺（平地铺成片）。这就是 MC 水会"找洞流过去"的行为。
+//  - 水碰到静态/源头岩浆会把岩浆变成黑曜石，水不会被反应消耗。
 //  - 双缓冲：本刻所有判定都基于刻初状态，统一应用，保证每刻只推进一格、与处理顺序无关。
+
+import { LAVA, OBSIDIAN } from '../blocks/registry';
 
 export interface FluidGrid {
   isSolid(x: number, y: number, z: number): boolean;
   amount(x: number, y: number, z: number): number; // 0..8
   isSource(x: number, y: number, z: number): boolean;
   isFalling(x: number, y: number, z: number): boolean;
-  setWater(x: number, y: number, z: number, amount: number, source: boolean, falling: boolean): void;
+  setWater(
+    x: number,
+    y: number,
+    z: number,
+    amount: number,
+    source: boolean,
+    falling: boolean,
+  ): void;
   getBlock(x: number, y: number, z: number): number;
   setBlock(x: number, y: number, z: number, id: number): void;
 }
@@ -36,6 +46,12 @@ interface Cell {
   source: boolean;
   falling: boolean;
 }
+interface BlockWrite {
+  x: number;
+  y: number;
+  z: number;
+  id: number;
+}
 const EMPTY: Cell = { amount: 0, source: false, falling: false };
 
 const key = (x: number, y: number, z: number): string => `${x},${y},${z}`;
@@ -53,6 +69,11 @@ export class FluidSim {
     return this.active.size;
   }
 
+  /** Drop every queued update, e.g. before the same simulator is attached to another dimension. */
+  clear(): void {
+    this.active.clear();
+  }
+
   // 标记某格及其邻居在下次 tick 需要重算（挖/放方块、水变化时调用）
   activate(x: number, y: number, z: number): void {
     this.active.add(key(x, y, z));
@@ -66,14 +87,19 @@ export class FluidSim {
     const cells = [...this.active];
     this.active.clear();
 
-    // 双缓冲：本刻只“提议”，按刻初状态评估；冲突取水量最大（源头优先）
+    // 双缓冲：本刻只“提议”，按刻初状态评估；冲突取水量最大（源头优先）。
+    // 方块反应也延后应用，否则先遍历到的水会改变后续格所读取的“刻初”世界。
     const writes = new Map<string, { x: number; y: number; z: number; c: Cell }>();
+    const blockWrites = new Map<string, BlockWrite>();
     const propose = (x: number, y: number, z: number, c: Cell): void => {
       const k = key(x, y, z);
       const ex = writes.get(k);
       if (!ex || c.amount > ex.c.amount || (c.amount === ex.c.amount && c.source && !ex.c.source)) {
         writes.set(k, { x, y, z, c });
       }
+    };
+    const proposeBlock = (x: number, y: number, z: number, id: number): void => {
+      blockWrites.set(key(x, y, z), { x, y, z, id });
     };
 
     let budget = this.maxPerTick;
@@ -83,20 +109,37 @@ export class FluidSim {
         continue;
       }
       const [x, y, z] = ck.split(',').map(Number);
-      this.evaluate(g, x, y, z, propose);
+      this.evaluate(g, x, y, z, propose, proposeBlock);
     }
 
     // 统一应用变化，并把变动格 + 邻居排进下一刻
     for (const { x, y, z, c } of writes.values()) {
-      if (c.amount !== g.amount(x, y, z) || c.source !== g.isSource(x, y, z) || c.falling !== g.isFalling(x, y, z)) {
+      if (
+        c.amount !== g.amount(x, y, z) ||
+        c.source !== g.isSource(x, y, z) ||
+        c.falling !== g.isFalling(x, y, z)
+      ) {
         g.setWater(x, y, z, c.amount, c.source, c.falling);
         this.activate(x, y, z);
       }
     }
+    for (const { x, y, z, id } of blockWrites.values()) {
+      if (g.getBlock(x, y, z) === id) continue;
+      g.setBlock(x, y, z, id);
+      // 岩浆变成实心块会改变周边水的流向，下刻重算。
+      this.activate(x, y, z);
+    }
   }
 
   // 评估一格：只读 g，向 propose 提交自身与扩散目标的新状态。空气格只能被邻格扩散填充。
-  private evaluate(g: FluidGrid, x: number, y: number, z: number, propose: (x: number, y: number, z: number, c: Cell) => void): void {
+  private evaluate(
+    g: FluidGrid,
+    x: number,
+    y: number,
+    z: number,
+    propose: (x: number, y: number, z: number, c: Cell) => void,
+    proposeBlock: (x: number, y: number, z: number, id: number) => void,
+  ): void {
     if (g.isSolid(x, y, z)) {
       if (g.amount(x, y, z) > 0) propose(x, y, z, EMPTY); // 变实心 → 清水
       return;
@@ -104,19 +147,19 @@ export class FluidSim {
     const isWater = g.amount(x, y, z) > 0 || g.isSource(x, y, z);
     if (!isWater) return; // 空气：自身不动，靠邻格扩散进来
 
-    // 流动水（非源）接触岩浆(23) → 岩浆变黑曜石(18)，水被消耗
-    if (g.amount(x, y, z) > 0 && !g.isSource(x, y, z)) {
-      const neighbors: [number, number, number][] = [
-        [x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
-        [x, y + 1, z], [x, y - 1, z],
-      ];
-      for (const [nx, ny, nz] of neighbors) {
-        if (g.getBlock(nx, ny, nz) === 23) {
-          g.setBlock(nx, ny, nz, 18);
-          propose(x, y, z, EMPTY);
-          return;
-        }
-      }
+    // 1.12 的混合检查由岩浆格执行：水可以在岩浆的上方或水平四侧，
+    // 但“岩浆正下方的水”不触发这条。换成从水向外查找，就是四侧 + 水的下方。
+    // 本项目仅有无 level 状态的静态 LAVA 块，因此只实现源头岩浆→黑曜石；
+    // 流动岩浆→圆石要等能区分岩浆源/流动状态后再做。
+    const lavaNeighbors: readonly [number, number, number][] = [
+      [x + 1, y, z],
+      [x - 1, y, z],
+      [x, y, z + 1],
+      [x, y, z - 1],
+      [x, y - 1, z],
+    ];
+    for (const [nx, ny, nz] of lavaNeighbors) {
+      if (g.getBlock(nx, ny, nz) === LAVA) proposeBlock(nx, ny, nz, OBSIDIAN);
     }
 
     const self: Cell = g.isSource(x, y, z)
@@ -145,13 +188,21 @@ export class FluidSim {
       }
     }
     // 无限水源(≥2 正交相邻源)还需【下方是实心或源头】(MC 1.12)——否则两源夹一个悬空格会凭空造永久源
-    if (srcCount >= 2 && (g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z))) return { amount: FULL, source: true, falling: false };
+    if (srcCount >= 2 && (g.isSolid(x, y - 1, z) || g.isSource(x, y - 1, z)))
+      return { amount: FULL, source: true, falling: false };
     const n = maxN - DROPOFF;
     return n > 0 ? { amount: n, source: false, falling: false } : EMPTY;
   }
 
   // 扩散：能向下就只向下；否则朝最近落差方向横向铺。
-  private spread(g: FluidGrid, x: number, y: number, z: number, cell: Cell, propose: (x: number, y: number, z: number, c: Cell) => void): void {
+  private spread(
+    g: FluidGrid,
+    x: number,
+    y: number,
+    z: number,
+    cell: Cell,
+    propose: (x: number, y: number, z: number, c: Cell) => void,
+  ): void {
     const by = y - 1;
     const belowFull = g.amount(x, by, z) === FULL && !g.isFalling(x, by, z); // 下方已成池满水
     if (!g.isSolid(x, by, z) && !belowFull) {
@@ -178,7 +229,13 @@ export class FluidSim {
   }
 
   // 选择横向铺的方向：按"坡度距离"取最近落差的方向（可多个并列）；找不到洞→全部并列。
-  private getSpreadDirs(g: FluidGrid, x: number, y: number, z: number, own: number): [number, number][] {
+  private getSpreadDirs(
+    g: FluidGrid,
+    x: number,
+    y: number,
+    z: number,
+    own: number,
+  ): [number, number][] {
     let minDist = SLOPE_FIND + 1;
     const result: [number, number][] = [];
     for (const d of DIRS) {
@@ -186,7 +243,9 @@ export class FluidSim {
       const nz = z + d[1];
       if (g.isSolid(nx, y, nz)) continue;
       if (g.amount(nx, y, nz) >= own) continue; // 不朝更高/等高处铺
-      const dist = this.isHole(g, nx, y, nz) ? 0 : this.slopeDistance(g, nx, y, nz, 1, [-d[0], -d[1]]);
+      const dist = this.isHole(g, nx, y, nz)
+        ? 0
+        : this.slopeDistance(g, nx, y, nz, 1, [-d[0], -d[1]]);
       if (dist < minDist) {
         minDist = dist;
         result.length = 0;
@@ -204,7 +263,14 @@ export class FluidSim {
   }
 
   // 从 (x,y,z) 出发、最多探 SLOPE_FIND 格，返回到最近落差的格距；找不到则返回 SLOPE_FIND。
-  private slopeDistance(g: FluidGrid, x: number, y: number, z: number, depth: number, from: [number, number]): number {
+  private slopeDistance(
+    g: FluidGrid,
+    x: number,
+    y: number,
+    z: number,
+    depth: number,
+    from: [number, number],
+  ): number {
     let min = SLOPE_FIND;
     for (const d of DIRS) {
       if (d[0] === from[0] && d[1] === from[1]) continue; // 不回头
