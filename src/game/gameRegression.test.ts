@@ -40,6 +40,36 @@ function blockMap(entries: ReadonlyArray<readonly [number, number, number, numbe
 }
 
 describe('Game high-risk regressions', () => {
+  it('creative mining keeps a short visible delay before removing the block', () => {
+    const mineBlock = vi.fn();
+    const showCrack = vi.fn();
+    const game = Object.create(Game.prototype) as GameInstance;
+    Object.assign(game, {
+      digging: true,
+      touchDigging: false,
+      rayHit: () => ({ x: 1, y: 2, z: 3, nx: 0, ny: 1, nz: 0 }),
+      world: { getBlock: () => COBBLESTONE },
+      creative: true,
+      digTarget: null,
+      digProgress: 0,
+      digFxT: 0,
+      inv: emptyInventory(),
+      hotbar: { index: 0 },
+      crack: { show: showCrack, hide: vi.fn() },
+      particles: [],
+      mineBlock,
+    });
+    const updateMining = game as unknown as { updateMining(dt: number): void };
+
+    updateMining.updateMining(0.05);
+    expect(mineBlock).not.toHaveBeenCalled();
+    expect(showCrack).toHaveBeenCalled();
+
+    updateMining.updateMining(0.08);
+    expect(mineBlock).toHaveBeenCalledOnce();
+    expect(mineBlock).toHaveBeenCalledWith(1, 2, 3, COBBLESTONE);
+  });
+
   it('creative pick-block selects an existing hotbar stack or copies a full stack', () => {
     const inv = emptyInventory();
     inv[6] = { id: COBBLESTONE, count: 4 };
@@ -551,7 +581,8 @@ describe('Game high-risk regressions', () => {
     const entries: Array<[number, number, number, number]> = [];
     for (const x of [0, 1, 2, 3]) entries.push([x, 0, 0, OBSIDIAN], [x, 4, 0, OBSIDIAN]);
     for (let y = 1; y <= 3; y++) entries.push([0, y, 0, OBSIDIAN], [3, y, 0, OBSIDIAN]);
-    const hit = { x: 1, y: 0, z: 0, nx: 0, ny: 1, nz: 0 };
+    // 点击侧柱内沿也必须能激活；旧实现只有点底框正上方才成功。
+    const hit = { x: 0, y: 2, z: 0, nx: 1, ny: 0, nz: 0 };
     const light = (creative: boolean) => {
       const state = blockMap(entries);
       const inv = [{ id: FLINT_AND_STEEL, count: 1 }] as Array<{

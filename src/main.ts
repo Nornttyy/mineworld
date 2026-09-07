@@ -128,6 +128,7 @@ if (bootHintEl) {
 function setHud(show: boolean): void {
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
+  $('held-item-name').style.display = show ? 'block' : 'none';
   // Java 1.12 创造 HUD 只保留准星与快捷栏，不显示生存红心/饥饿值。
   $('status').style.display = show && !(game?.isCreativeMode() ?? false) ? 'flex' : 'none';
   onlineHud.classList.toggle('hidden', !show || multiplayer === null);

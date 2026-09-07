@@ -458,6 +458,37 @@
         user-select: none;
         z-index: 13;
       }
+      #held-item-name {
+        position: fixed;
+        left: 50%;
+        bottom: 90px;
+        z-index: 13;
+        min-width: 160px;
+        transform: translateX(-50%);
+        color: #fff;
+        font:
+          16px 'Zpix',
+          monospace;
+        text-align: center;
+        text-shadow:
+          2px 2px 0 #3f3f3f,
+          3px 3px 0 rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        pointer-events: none;
+        user-select: none;
+      }
+      #held-item-name.show {
+        animation: held-item-name 2s ease-out forwards;
+      }
+      @keyframes held-item-name {
+        0%,
+        68% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
       .hotbar-slot {
         position: relative;
         width: 50px;
@@ -1342,6 +1373,10 @@
         #hotbar {
           bottom: max(7px, env(safe-area-inset-bottom));
         }
+        #held-item-name {
+          bottom: max(78px, calc(env(safe-area-inset-bottom) + 68px));
+          font-size: 14px;
+        }
         .hotbar-slot {
           width: min(42px, calc((100vw - 22px) / 9));
           height: min(42px, calc((100vw - 22px) / 9));
@@ -1372,6 +1407,10 @@
       }
       html.touch-device #hotbar {
         bottom: max(7px, env(safe-area-inset-bottom));
+      }
+      html.touch-device #held-item-name {
+        bottom: max(78px, calc(env(safe-area-inset-bottom) + 68px));
+        font-size: 14px;
       }
       html.touch-device .hotbar-slot {
         width: min(42px, calc((100vw - 22px) / 9));
@@ -1886,6 +1925,7 @@
     </div>
     <div id="oxygen"></div>
     <div id="online-hud" class="hidden" aria-live="polite"></div>
+    <div id="held-item-name" aria-live="polite"></div>
     <div id="hotbar"></div>
     <div id="hurt"></div>
     <div id="touch-controls" aria-hidden="true">

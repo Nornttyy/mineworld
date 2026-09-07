@@ -7,22 +7,42 @@ const NETHER_TOP = 127; // 下界顶（含基岩天花板）
 const WORLD_TOP = 191; // CHUNK_H-1：主世界从此向下找地表
 
 /**
- * 从被点燃的黑曜石格出发，以其正上方格为内部种子，检测合法下界门框。
- * 命中返回内部格坐标列表（需填充 nether_portal），否则返回 null。
+ * 从被点燃的黑曜石格出发，在它相邻的空气中寻找合法下界门框。
+ * preferredInterior 是玩家实际点击面的相邻格，会优先尝试；随后检查其余五个方向。
+ * 因而底边、侧柱、顶边的内沿都能像原版一样点火。
  */
 export function ignitePortal(
   getBlock: (x: number, y: number, z: number) => number,
   x: number,
   y: number,
   z: number,
+  preferredInterior?: readonly [number, number, number],
 ): Array<[number, number, number]> | null {
   const isObsidian = (ax: number, ay: number, az: number): boolean => getBlock(ax, ay, az) === 18;
   const isInterior = (ax: number, ay: number, az: number): boolean => {
     const b = getBlock(ax, ay, az);
     return b === 0 || b === 25;
   };
-  const frame = detectPortalFrame(isObsidian, isInterior, x, y + 1, z);
-  return frame ? frame.inner : null;
+  const candidates: Array<readonly [number, number, number]> = [];
+  if (preferredInterior) candidates.push(preferredInterior);
+  candidates.push(
+    [x, y + 1, z],
+    [x, y - 1, z],
+    [x + 1, y, z],
+    [x - 1, y, z],
+    [x, y, z + 1],
+    [x, y, z - 1],
+  );
+  const tried = new Set<string>();
+  for (const [sx, sy, sz] of candidates) {
+    const key = `${sx},${sy},${sz}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+    if (!isInterior(sx, sy, sz)) continue;
+    const frame = detectPortalFrame(isObsidian, isInterior, sx, sy, sz);
+    if (frame) return frame.inner;
+  }
+  return null;
 }
 
 /**

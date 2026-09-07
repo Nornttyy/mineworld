@@ -1,5 +1,5 @@
 import type { Inventory } from '../core/inventory/inventory';
-import { iconUrl } from './itemIcons';
+import { iconUrl, itemLabel } from './itemIcons';
 import { itemMaxDurability } from '../core/items/items';
 
 // 底部快捷栏（MC 同款，生存式）：9 格，显示背包前 9 格的方块/物品图标 + 数量，当前选中高亮。
@@ -11,11 +11,15 @@ export class Hotbar {
   private readonly cells: HTMLElement[] = [];
   private readonly durTracks: HTMLElement[] = []; // 耐久条底槽
   private readonly durFills: HTMLElement[] = []; // 耐久条填充
+  private readonly itemNameEl: HTMLElement | null;
+  private inventory: Inventory | null = null;
+  private selectedItemId: number | null = null;
   private selected = 0;
   readonly size: number;
 
-  constructor(el: HTMLElement, size = 9) {
+  constructor(el: HTMLElement, size = 9, itemNameEl: HTMLElement | null = null) {
     this.size = size;
+    this.itemNameEl = itemNameEl;
     el.innerHTML = '';
     for (let i = 0; i < size; i++) {
       const slot = document.createElement('div');
@@ -52,6 +56,7 @@ export class Hotbar {
 
   // 按背包内容刷新图标与数量
   render(inv: Inventory): void {
+    this.inventory = inv;
     for (let i = 0; i < this.size; i++) {
       const s = inv[i] ?? null;
       const icon = this.icons[i];
@@ -75,11 +80,21 @@ export class Hotbar {
         this.durTracks[i].style.display = 'none';
       }
     }
+    const nextId = inv[this.selected]?.id ?? null;
+    if (nextId !== this.selectedItemId) {
+      this.selectedItemId = nextId;
+      this.showSelectedItemName();
+    }
   }
 
   setSelected(i: number): void {
-    this.selected = ((i % this.size) + this.size) % this.size;
+    const next = ((i % this.size) + this.size) % this.size;
+    const changed = next !== this.selected;
+    const previousItemId = this.selectedItemId;
+    this.selected = next;
     this.cells.forEach((s, idx) => s.classList.toggle('selected', idx === this.selected));
+    this.selectedItemId = this.inventory?.[this.selected]?.id ?? null;
+    if (changed || this.selectedItemId !== previousItemId) this.showSelectedItemName();
   }
 
   scroll(dir: number): void {
@@ -88,5 +103,20 @@ export class Hotbar {
 
   get index(): number {
     return this.selected;
+  }
+
+  /** 原版快捷栏字幕：切换到有物品的格子时，在快捷栏上方短暂显示名称。 */
+  private showSelectedItemName(): void {
+    if (!this.itemNameEl) return;
+    const stack = this.inventory?.[this.selected] ?? null;
+    this.itemNameEl.classList.remove('show');
+    if (!stack || stack.count <= 0) {
+      this.itemNameEl.textContent = '';
+      return;
+    }
+    this.itemNameEl.textContent = itemLabel(stack.id);
+    // 强制提交一次无动画状态，使连续滚轮/数字键切换也能重新播放淡出。
+    void this.itemNameEl.offsetWidth;
+    this.itemNameEl.classList.add('show');
   }
 }

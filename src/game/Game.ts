@@ -166,6 +166,7 @@ const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
 const AIR = 0;
+const CREATIVE_BREAK_SECONDS = 0.12; // 创造仍是快速破坏，但保留约 3 刻的挥手/裂纹反馈，避免一碰就误删。
 
 function creativeInventory(): Inventory {
   // 原版创造新世界以空快捷栏开始，需要什么再从 E 物品目录复制。
@@ -352,7 +353,7 @@ export class Game {
   private readonly statusBar: StatusBar;
   private readonly worldSpawn: { x: number; y: number; z: number };
   private dead = false;
-  private readonly creative: boolean; // 创造模式：无敌/不饿、秒破不掉落、放置不耗、可飞
+  private readonly creative: boolean; // 创造模式：无敌/不饿、快速破坏不掉落、放置不耗、可飞
   private flying = false; // 创造飞行中（双击空格切换）
   private flyTapWindow = 0; // 双击空格检测窗口(刻)；>0 时再按一次空格即切换飞行
   private fallDistance = 0; // 当前连续下落格数
@@ -402,7 +403,11 @@ export class Game {
     this.remotePlayers = new RemotePlayerRenderer(this.renderer.scene);
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
-    this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
+    this.hotbar = new Hotbar(
+      document.getElementById('hotbar') as HTMLElement,
+      HOTBAR_SLOTS,
+      document.getElementById('held-item-name'),
+    );
     // 创造/生存新世界都从空背包开始；创造物品从 E 分类目录无限复制，已有存档照常恢复。
     this.inv = save.inv
       ? deserializeInventory(save.inv)
@@ -1609,7 +1614,11 @@ export class Game {
   private tryIgnitePortal(hit: RayHit | null, heldId: number | null): boolean {
     if (!hit || heldId !== FLINT_AND_STEEL || this.world.getBlock(hit.x, hit.y, hit.z) !== OBSIDIAN)
       return false;
-    const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z);
+    const inner = ignitePortal((x, y, z) => this.world.getBlock(x, y, z), hit.x, hit.y, hit.z, [
+      hit.x + hit.nx,
+      hit.y + hit.ny,
+      hit.z + hit.nz,
+    ]);
     if (!inner) return false;
     this.editMany(
       inner.map(([x, y, z]) => [x, y, z, NETHER_PORTAL] as const),
@@ -2237,9 +2246,9 @@ export class Game {
     }
     if (!this.creative && blockHardness(id) < 0) {
       this.crack.hide();
-      return; // 生存不可破坏；创造模式可按原版瞬间移除基岩。
+      return; // 生存不可破坏；创造模式仍可快速移除基岩。
     }
-    const need = this.creative ? 0 : breakTimeMs(id, this.heldTool()) / 1000; // 创造：瞬破
+    const need = this.creative ? CREATIVE_BREAK_SECONDS : breakTimeMs(id, this.heldTool()) / 1000;
     if (need <= 0) {
       this.mineBlock(hit.x, hit.y, hit.z, id); // 瞬破方块
       if (this.touchDigging) this.stopDigging(); // 触屏一次长按只处理按下时选中的那格

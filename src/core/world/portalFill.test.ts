@@ -44,6 +44,10 @@ describe('ignitePortal', () => {
     const inner = ignitePortal(get, 0, 0, 0);
     expect(inner).not.toBeNull();
     expect(inner!.length).toBe(6);
+
+    // 点击侧柱或顶边的内沿也应点燃，不能只认底框正上方。
+    expect(ignitePortal(get, -1, 2, 0, [0, 2, 0])).toHaveLength(6);
+    expect(ignitePortal(get, 1, 4, 0, [1, 3, 0])).toHaveLength(6);
   });
 
   it('ignitePortal 无合法框返回 null', () => {
