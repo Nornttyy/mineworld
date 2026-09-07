@@ -54,6 +54,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     collect(mesh.ice);
     collect(mesh.cutout);
     collect(mesh.water);
+    collect(mesh.portal);
     collect(mesh.torch);
     transfer.push(mesh.light3d.buffer); // 粗光照网格(实体照明)一并零拷贝传回
     (self as unknown as Worker).postMessage({ jobId, cx, cz, mesh }, transfer);

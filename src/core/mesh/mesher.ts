@@ -2,7 +2,22 @@ import { Section } from '../world/section';
 import { World } from '../world/world';
 import type { ChunkWorld } from '../world/chunkWorld';
 import { CHUNK_W, CHUNK_H } from '../world/chunk';
-import { isSolidId, isOpaque, isWaterId, isCutoutId, isPlantId, blockFaceTile, blockLight, Face, TORCH, TALL_GRASS, SNOW_LAYER, ICE, LAVA } from '../blocks/registry';
+import {
+  isSolidId,
+  isOpaque,
+  isWaterId,
+  isCutoutId,
+  isPlantId,
+  blockFaceTile,
+  blockLight,
+  Face,
+  TORCH,
+  TALL_GRASS,
+  SNOW_LAYER,
+  ICE,
+  LAVA,
+  NETHER_PORTAL,
+} from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
@@ -26,17 +41,107 @@ const DIRS: {
   uv: number[][];
 }[] = [
   // +X (水平=z, 竖直=y)
-  { n: [1, 0, 0], o: [1, 0, 0], c: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]], uv: [[0, 0], [0, 1], [1, 1], [1, 0]] },
+  {
+    n: [1, 0, 0],
+    o: [1, 0, 0],
+    c: [
+      [1, 0, 0],
+      [1, 1, 0],
+      [1, 1, 1],
+      [1, 0, 1],
+    ],
+    uv: [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
+    ],
+  },
   // -X
-  { n: [-1, 0, 0], o: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+  {
+    n: [-1, 0, 0],
+    o: [-1, 0, 0],
+    c: [
+      [0, 0, 0],
+      [0, 0, 1],
+      [0, 1, 1],
+      [0, 1, 0],
+    ],
+    uv: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ],
+  },
   // +Y 上 (u=x, v=z)
-  { n: [0, 1, 0], o: [0, 1, 0], c: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], uv: [[0, 0], [0, 1], [1, 1], [1, 0]] },
+  {
+    n: [0, 1, 0],
+    o: [0, 1, 0],
+    c: [
+      [0, 1, 0],
+      [0, 1, 1],
+      [1, 1, 1],
+      [1, 1, 0],
+    ],
+    uv: [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
+    ],
+  },
   // -Y 下
-  { n: [0, -1, 0], o: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+  {
+    n: [0, -1, 0],
+    o: [0, -1, 0],
+    c: [
+      [0, 0, 0],
+      [1, 0, 0],
+      [1, 0, 1],
+      [0, 0, 1],
+    ],
+    uv: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ],
+  },
   // +Z (水平=x, 竖直=y)
-  { n: [0, 0, 1], o: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+  {
+    n: [0, 0, 1],
+    o: [0, 0, 1],
+    c: [
+      [0, 0, 1],
+      [1, 0, 1],
+      [1, 1, 1],
+      [0, 1, 1],
+    ],
+    uv: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ],
+  },
   // -Z
-  { n: [0, 0, -1], o: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], uv: [[0, 0], [0, 1], [1, 1], [1, 0]] },
+  {
+    n: [0, 0, -1],
+    o: [0, 0, -1],
+    c: [
+      [0, 0, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+      [1, 0, 0],
+    ],
+    uv: [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
+    ],
+  },
 ];
 
 // ── 环境光遮蔽 (AO)：凹角/贴墙处压暗顶点色，给体素地形立体感（同 MC 平滑光照）──
@@ -116,9 +221,13 @@ function meshGrid(g: BlockGrid): MeshData {
   const I: number[] = [];
 
   const solidAt = (x: number, y: number, z: number): boolean =>
-    x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz ? false : isSolidId(g.get(x, y, z));
+    x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz
+      ? false
+      : isSolidId(g.get(x, y, z));
   const occ = (x: number, y: number, z: number): boolean =>
-    x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz ? false : isOpaque(g.get(x, y, z));
+    x < 0 || x >= g.sx || y < 0 || y >= g.sy || z < 0 || z >= g.sz
+      ? false
+      : isOpaque(g.get(x, y, z));
 
   const eps = 0.01 / (TILE_PX * ATLAS_COLS); // 极小内缩防图集邻块渗色；NearestFilter 下别用半像素内缩(否则方块边缘像素只剩半格)
   const du = 1 / ATLAS_COLS - 2 * eps;
@@ -231,6 +340,7 @@ export interface ChunkMesh {
   ice: MeshData; // 冰：独立材质批次（网格阶段仍按 opaque 邻居剔面）
   cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
+  portal: MeshData; // 下界传送门：位于门框平面的半透明紫色薄片
   torch: MeshData; // 火把：暖色小十字，自发光(不参与天光 shader)
   /** 粗光照网格(实体照明用)：4×48×4，每 4³ 格取 max。高 4 位=天光 0..15、低 4 位=方块光。
    *  生物/掉落物/手持不吃顶点光,没有这份数据就会在洞里/夜里全亮发光(暗处光照 bug)。
@@ -252,6 +362,7 @@ export function meshChunkData(
   const ice = emptyArrays();
   const cut = emptyArrays();
   const wa = emptyArrays();
+  const po = emptyArrays(); // 下界传送门独立透明批次
   const to = emptyArrays(); // 火把
   const eps = 0.01 / (TILE_PX * ATLAS_COLS);
   const du = 1 / ATLAS_COLS - 2 * eps;
@@ -271,7 +382,12 @@ export function meshChunkData(
     const id = getBlock(ox + hx - HALO, hy, oz + hz - HALO);
     return isWaterId(id) || isCutoutId(id) ? 1 : 0;
   };
-  const skyLight = computeSkyLight(LW, CHUNK_H, (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO), opac);
+  const skyLight = computeSkyLight(
+    LW,
+    CHUNK_H,
+    (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO),
+    opac,
+  );
   const blkLight = computeBlockLight(
     LW,
     CHUNK_H,
@@ -328,21 +444,47 @@ export function meshChunkData(
   };
   // 平滑光照(同 MC smooth lighting)：某面某角，取"面外格 + 两条边格 + 对角格"中【非遮挡】格的
   // (天光,方块光) 平均 → 顶点间渐变、柔和的明暗，而不是整面一个平铺光值。(ex,ey,ez)=面外那一格(local)。
-  const cornerLight = (ex: number, ey: number, ez: number, f: number, k: number): [number, number] => {
+  const cornerLight = (
+    ex: number,
+    ey: number,
+    ez: number,
+    f: number,
+    k: number,
+  ): [number, number] => {
     const ax = AO_AXES[f];
     const corner = DIRS[f].c[k];
     const su = corner[ax.ui] === 1 ? 1 : -1;
     const sv = corner[ax.vi] === 1 ? 1 : -1;
-    const s1x = ex + su * ax.u[0], s1y = ey + su * ax.u[1], s1z = ez + su * ax.u[2];
-    const s2x = ex + sv * ax.v[0], s2y = ey + sv * ax.v[1], s2z = ez + sv * ax.v[2];
-    const ccx = s1x + sv * ax.v[0], ccy = s1y + sv * ax.v[1], ccz = s1z + sv * ax.v[2];
+    const s1x = ex + su * ax.u[0],
+      s1y = ey + su * ax.u[1],
+      s1z = ez + su * ax.u[2];
+    const s2x = ex + sv * ax.v[0],
+      s2y = ey + sv * ax.v[1],
+      s2z = ez + sv * ax.v[2];
+    const ccx = s1x + sv * ax.v[0],
+      ccy = s1y + sv * ax.v[1],
+      ccz = s1z + sv * ax.v[2];
     const o1 = occ(ox + s1x, s1y, oz + s1z);
     const o2 = occ(ox + s2x, s2y, oz + s2z);
     const oc = occ(ox + ccx, ccy, oz + ccz);
-    let sSum = skyAt(ex, ey, ez), bSum = blkAt(ex, ey, ez), n = 1;
-    if (!o1) { sSum += skyAt(s1x, s1y, s1z); bSum += blkAt(s1x, s1y, s1z); n++; }
-    if (!o2) { sSum += skyAt(s2x, s2y, s2z); bSum += blkAt(s2x, s2y, s2z); n++; }
-    if (!(o1 && o2) && !oc) { sSum += skyAt(ccx, ccy, ccz); bSum += blkAt(ccx, ccy, ccz); n++; } // 两侧都挡→对角被藏，不计
+    let sSum = skyAt(ex, ey, ez),
+      bSum = blkAt(ex, ey, ez),
+      n = 1;
+    if (!o1) {
+      sSum += skyAt(s1x, s1y, s1z);
+      bSum += blkAt(s1x, s1y, s1z);
+      n++;
+    }
+    if (!o2) {
+      sSum += skyAt(s2x, s2y, s2z);
+      bSum += blkAt(s2x, s2y, s2z);
+      n++;
+    }
+    if (!(o1 && o2) && !oc) {
+      sSum += skyAt(ccx, ccy, ccz);
+      bSum += blkAt(ccx, ccy, ccz);
+      n++;
+    } // 两侧都挡→对角被藏，不计
     return [sSum / n / 15, bSum / n / 15];
   };
 
@@ -393,10 +535,25 @@ export function meshChunkData(
     // 两片轴对齐交叉 billboard(朝 Z + 朝 X),贴 torch_block 纹理,任意角度都看得见。
     // UV: 底→V0(木棍)、顶→V1(火焰); torchMat 用 alpha-test 抠出火把形。改前是顶点色渐变十字,不像火把。
     const quads = [
-      [[cx - w, ly, cz], [cx + w, ly, cz], [cx + w, ly + h, cz], [cx - w, ly + h, cz]], // 朝 ±Z
-      [[cx, ly, cz - w], [cx, ly, cz + w], [cx, ly + h, cz + w], [cx, ly + h, cz - w]], // 朝 ±X
+      [
+        [cx - w, ly, cz],
+        [cx + w, ly, cz],
+        [cx + w, ly + h, cz],
+        [cx - w, ly + h, cz],
+      ], // 朝 ±Z
+      [
+        [cx, ly, cz - w],
+        [cx, ly, cz + w],
+        [cx, ly + h, cz + w],
+        [cx, ly + h, cz - w],
+      ], // 朝 ±X
     ];
-    const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const uv = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ];
     for (const q of quads) {
       const base = to.P.length / 3;
       for (let k = 0; k < 4; k++) {
@@ -406,6 +563,31 @@ export function meshChunkData(
       }
       to.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
+  };
+
+  // 下界传送门是一张位于方块中心的双面薄片，而不是完整立方体。
+  // 门内部最少两格宽，所以可由相邻 portal 方块判断门框沿 x 还是 z 延伸。
+  const emitPortal = (lx: number, ly: number, lz: number): void => {
+    const tile = blockFaceTile(NETHER_PORTAL, Face.PosX);
+    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u1 = u0 + du;
+    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const v1 = v0 + dv;
+    const wx = ox + lx;
+    const wz = oz + lz;
+    const alongX =
+      getBlock(wx - 1, ly, wz) === NETHER_PORTAL || getBlock(wx + 1, ly, wz) === NETHER_PORTAL;
+    const base = po.P.length / 3;
+    if (alongX) {
+      const z = lz + 0.5;
+      po.P.push(lx, ly, z, lx + 1, ly, z, lx + 1, ly + 1, z, lx, ly + 1, z);
+    } else {
+      const x = lx + 0.5;
+      po.P.push(x, ly, lz + 1, x, ly, lz, x, ly + 1, lz, x, ly + 1, lz + 1);
+    }
+    po.U.push(u0, v0, u1, v0, u1, v1, u0, v1);
+    po.C.push(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+    po.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
 
   // 草丛/长草：格中心两片交叉竖片(cross billboard)，贴 grass_plant 图、入 cutout(alpha-test+双面)批。
@@ -449,12 +631,12 @@ export function meshChunkData(
     const yTop = ly + 0.06; // 薄层高度：贴地 6% 格高
     const base = cut.P.length / 3;
     // 一张水平四边形：4 角按顶面 DIRS[2].c 排列（+Y 面 CCW）
-    cut.P.push(lx, yTop, lz,  lx, yTop, lz + 1,  lx + 1, yTop, lz + 1,  lx + 1, yTop, lz);
-    cut.U.push(u0, vB,  u0, vT,  u1, vT,  u1, vB);
-    cut.C.push(sh, sh, sh,  sh, sh, sh,  sh, sh, sh,  sh, sh, sh);
-    cut.L.push(sky, blk,  sky, blk,  sky, blk,  sky, blk);
+    cut.P.push(lx, yTop, lz, lx, yTop, lz + 1, lx + 1, yTop, lz + 1, lx + 1, yTop, lz);
+    cut.U.push(u0, vB, u0, vT, u1, vT, u1, vB);
+    cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+    cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
     cut.SW.push(0, 0, 0, 0); // 雪层不摆动；但必须补齐 cut.SW(否则 cutout 网格 aSway 比顶点数短→属性长度不匹配,树叶/雪摆动错乱)
-    cut.I.push(base, base + 1, base + 2,  base, base + 2, base + 3);
+    cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
 
   // 水专用：按每个角的高度 yArr[4]（对应 DIRS[f].c 顺序）发射一个面，可画斜水面/落差侧壁。
@@ -463,7 +645,8 @@ export function meshChunkData(
   // 起伏权重：1=平静水面(湖/海,头顶是空气)→可大幅上下起伏；0=水柱内/瀑布体(头顶还是水)→不起伏，避免流水/瀑布撕缝。每个水格设一次。
   let waterWobble = 1;
   // 某列在 wy 层的水柱深度(向上+向下数连续水格,封顶 7)；非水=0。
-  const isFrozenWater = (wx: number, wy: number, wz: number): boolean => getBlock(wx, wy, wz) === ICE;
+  const isFrozenWater = (wx: number, wy: number, wz: number): boolean =>
+    getBlock(wx, wy, wz) === ICE;
   const colDepth = (wx: number, wy: number, wz: number): number => {
     // 海冰替代了最上层水格；把它视为水柱的冻结表层，避免相邻海水的深度/透明度
     // 在冰边突然掉到 0，形成一圈浅色硬缝。
@@ -478,7 +661,11 @@ export function meshChunkData(
   // "透明度分割太直接")。逐角平均后 shader 里顶点间插值 → 深浅是连续渐变；岸边角(邻列无水)
   // 平均被拉低 → 水在岸线处自然变透明淡出。
   const cornerDepth = (cwx: number, wy: number, cwz: number): number =>
-    (colDepth(cwx - 1, wy, cwz - 1) + colDepth(cwx, wy, cwz - 1) + colDepth(cwx - 1, wy, cwz) + colDepth(cwx, wy, cwz)) / 4;
+    (colDepth(cwx - 1, wy, cwz - 1) +
+      colDepth(cwx, wy, cwz - 1) +
+      colDepth(cwx - 1, wy, cwz) +
+      colDepth(cwx, wy, cwz)) /
+    4;
   // 四列都为水=湖心(0)；缺水列越多越靠岸(最高 1)。岸线与 waterDepth 分开，
   // 这样一整片只有一格深的浅滩仍是清水，不会被错误铺满白色泡沫。
   const cornerShore = (cwx: number, wy: number, cwz: number): number => {
@@ -524,8 +711,14 @@ export function meshChunkData(
   };
 
   // 四角顺序与 DIRS 一致：00=c0、01=c1、11=c2、10=c3。
-  const bilerp = (a00: number, a01: number, a11: number, a10: number, u: number, v: number): number =>
-    (a00 * (1 - v) + a01 * v) * (1 - u) + (a10 * (1 - v) + a11 * v) * u;
+  const bilerp = (
+    a00: number,
+    a01: number,
+    a11: number,
+    a10: number,
+    u: number,
+    v: number,
+  ): number => (a00 * (1 - v) + a01 * v) * (1 - u) + (a10 * (1 - v) + a11 * v) * u;
 
   const emitWaterFace = (lx: number, ly: number, lz: number, f: number, yArr: number[]): void => {
     const d = DIRS[f];
@@ -547,9 +740,15 @@ export function meshChunkData(
       else vSteps = WATER_SURFACE_SUBDIVISIONS;
     }
 
-    const depthCorners = d.c.map((corner) => cornerDepth(ox + lx + corner[0], ly, oz + lz + corner[2]));
-    const shoreCorners = d.c.map((corner) => cornerShore(ox + lx + corner[0], ly, oz + lz + corner[2]));
-    const openCorners = d.c.map((corner) => cornerWaveOpen(ox + lx + corner[0], ly, oz + lz + corner[2]));
+    const depthCorners = d.c.map((corner) =>
+      cornerDepth(ox + lx + corner[0], ly, oz + lz + corner[2]),
+    );
+    const shoreCorners = d.c.map((corner) =>
+      cornerShore(ox + lx + corner[0], ly, oz + lz + corner[2]),
+    );
+    const openCorners = d.c.map((corner) =>
+      cornerWaveOpen(ox + lx + corner[0], ly, oz + lz + corner[2]),
+    );
 
     for (let iv = 0; iv <= vSteps; iv++) {
       const v = iv / vSteps;
@@ -562,22 +761,40 @@ export function meshChunkData(
         const wx = ox + lx + rx;
         const wz = oz + lz + rz;
         wa.P.push(lx + rx, py, lz + rz);
-        if (topFace || bottomFace) wa.U.push(wx, wz); // 顶/底面
-        else if (f === 0 || f === 1) wa.U.push(wz, py); // ±X 侧
+        if (topFace || bottomFace)
+          wa.U.push(wx, wz); // 顶/底面
+        else if (f === 0 || f === 1)
+          wa.U.push(wz, py); // ±X 侧
         else wa.U.push(wx, py); // ±Z 侧
         wa.C.push(shade, shade, shade);
         wa.L.push(sky, blk);
-        const depth = bilerp(depthCorners[0], depthCorners[1], depthCorners[2], depthCorners[3], u, v);
-        const shore = bilerp(shoreCorners[0], shoreCorners[1], shoreCorners[2], shoreCorners[3], u, v);
+        const depth = bilerp(
+          depthCorners[0],
+          depthCorners[1],
+          depthCorners[2],
+          depthCorners[3],
+          u,
+          v,
+        );
+        const shore = bilerp(
+          shoreCorners[0],
+          shoreCorners[1],
+          shoreCorners[2],
+          shoreCorners[3],
+          u,
+          v,
+        );
         // 水面全部 + 侧壁上沿可动；侧壁底沿/底面固定。waveOpen 在固定顶点明确写 0，
         // 以后 shader 即使单独读取该属性也不会意外移动水底。
         const movable = waterWobble > 0 && (topFace || relY > 0.01);
         wa.T.push((movable ? 1 : -1) * depth);
         wa.TF.push(topFace ? 1 : 0);
         wa.SH.push(shore);
-        wa.WO.push(movable
-          ? bilerp(openCorners[0], openCorners[1], openCorners[2], openCorners[3], u, v)
-          : 0);
+        wa.WO.push(
+          movable
+            ? bilerp(openCorners[0], openCorners[1], openCorners[2], openCorners[3], u, v)
+            : 0,
+        );
       }
     }
 
@@ -642,10 +859,30 @@ export function meshChunkData(
           waterWobble = waterAmount(wx, ly + 1, wz) > 0 ? 0 : 1;
           // (水深改为 emitWaterFace 里逐角平均——cornerDepth，深浅渐变不再按格硬切)
           // 四角高度（取邻格平均 → 顺流斜面）。角命名 hAB：A=本格 x 侧(0/1)，B=z 侧(0/1)。
-          const h00 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz - 1], [wx - 1, wz - 1]]);
-          const h01 = cornerH(ly, [[wx, wz], [wx - 1, wz], [wx, wz + 1], [wx - 1, wz + 1]]);
-          const h11 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz + 1], [wx + 1, wz + 1]]);
-          const h10 = cornerH(ly, [[wx, wz], [wx + 1, wz], [wx, wz - 1], [wx + 1, wz - 1]]);
+          const h00 = cornerH(ly, [
+            [wx, wz],
+            [wx - 1, wz],
+            [wx, wz - 1],
+            [wx - 1, wz - 1],
+          ]);
+          const h01 = cornerH(ly, [
+            [wx, wz],
+            [wx - 1, wz],
+            [wx, wz + 1],
+            [wx - 1, wz + 1],
+          ]);
+          const h11 = cornerH(ly, [
+            [wx, wz],
+            [wx + 1, wz],
+            [wx, wz + 1],
+            [wx + 1, wz + 1],
+          ]);
+          const h10 = cornerH(ly, [
+            [wx, wz],
+            [wx + 1, wz],
+            [wx, wz - 1],
+            [wx + 1, wz - 1],
+          ]);
           // 顶面（上方只要不是水就画——【即便头顶有方块】也在水的真实高度画出水面）：
           //  这样"流进上方有方块的格"的水看得见(修 bug：覆盖格的水流进去却看不见、像没流进)，
           //  且不会被强行画成整块。水面高度 < 1(/9 上限≈0.89)，恒低于头顶方块底面，不会穿帮/z-fight。
@@ -689,6 +926,8 @@ export function meshChunkData(
             if (isOpaque(nb) || nb === LAVA) continue;
             emit(op, lx, ly, lz, id, f);
           }
+        } else if (id === NETHER_PORTAL) {
+          emitPortal(lx, ly, lz);
         }
       }
     }
@@ -723,6 +962,7 @@ export function meshChunkData(
     ice: toMeshData(ice),
     cutout: toMeshData(cut),
     water: toMeshData(wa),
+    portal: toMeshData(po),
     torch: toMeshData(to),
     light3d,
   };

@@ -48,6 +48,7 @@ interface ChunkMeshes {
   ice: THREE.Mesh | null;
   cutout: THREE.Mesh | null;
   water: THREE.Mesh | null;
+  portal: THREE.Mesh | null;
   torch: THREE.Mesh | null;
 }
 
@@ -74,6 +75,7 @@ export class ChunkMeshManager {
   private readonly iceMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
+  private readonly portalMat: THREE.MeshBasicMaterial;
   private readonly torchMat: THREE.MeshBasicMaterial;
   private readonly waterFrames: THREE.Texture[];
   private readonly waterTex: THREE.Texture;
@@ -175,6 +177,16 @@ export class ChunkMeshManager {
     });
     // 水下仰视也能看到水面；单 pass 避免透明 DoubleSide 默认前后各画一次造成叠色和双倍 fill-rate。
     this.waterMat.forceSinglePass = true;
+    // 传送门独立于树叶/水渲染：紫色纹理半透明、自发光感、不写深度也不投射黑色方片阴影。
+    this.portalMat = new THREE.MeshBasicMaterial({
+      map: atlas,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.portalMat.forceSinglePass = true;
     // 不透明/镂空吃天光shader；水另走"天光 + 光影(波动/菲涅尔反射/高光)"shader
     this.installLight(this.opaqueMat, false, true);
     this.installLight(this.cutoutMat, true, false); // 树叶(cutout)随风轻摆
@@ -1396,14 +1408,16 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.uSunDir.value.set(x, y, z);
   }
 
-  /** 切换方块图集（卡通/经典材质切换）：换不透明/镂空材质的贴图；水有独立纹理不受影响。 */
+  /** 切换方块图集（卡通/经典材质切换）：换地形/传送门贴图；水有独立纹理不受影响。 */
   setAtlas(tex: THREE.Texture): void {
     this.opaqueMat.map = tex;
     this.iceMat.map = tex;
     this.cutoutMat.map = tex;
+    this.portalMat.map = tex;
     this.opaqueMat.needsUpdate = true;
     this.iceMat.needsUpdate = true;
     this.cutoutMat.needsUpdate = true;
+    this.portalMat.needsUpdate = true;
   }
 
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
@@ -1481,6 +1495,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.iceMat.dispose();
     this.cutoutMat.dispose();
     this.waterMat.dispose();
+    this.portalMat.dispose();
     this.torchMat.dispose();
     this.waterTex.dispose();
     this.cloudNoiseTex.dispose();
@@ -1548,7 +1563,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.lightGrids.delete(k);
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch]) {
+    for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch]) {
       if (mesh) {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
@@ -1597,7 +1612,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   pipelineStats(): { meshed: number; visible: number; pending: number; queued: number } {
     let visible = 0;
     for (const m of this.meshes.values())
-      if ([m.opaque, m.ice, m.cutout, m.water, m.torch].some((s) => s && s.visible)) visible++;
+      if ([m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch].some((s) => s && s.visible))
+        visible++;
     return {
       meshed: this.meshes.size,
       visible,
@@ -1613,6 +1629,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     const im = this.addMesh(mesh.ice, this.iceMat, cx, cz);
     const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
     const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
+    const pm = this.addMesh(mesh.portal, this.portalMat, cx, cz);
     const tm = this.addMesh(mesh.torch, this.torchMat, cx, cz);
     // 投影阴影：不透明方块投影+接收；树叶用镂空深度材质投影(叶影有孔，不是实心黑块)；水/火把不投影
     om.castShadow = true;
@@ -1626,7 +1643,14 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       cm.receiveShadow = true;
       if (this.leafDepthMat) cm.customDepthMaterial = this.leafDepthMat;
     }
-    this.meshes.set(this.key(cx, cz), { opaque: om, ice: im, cutout: cm, water: wm, torch: tm });
+    this.meshes.set(this.key(cx, cz), {
+      opaque: om,
+      ice: im,
+      cutout: cm,
+      water: wm,
+      portal: pm,
+      torch: tm,
+    });
     // 注意：dirty 由派发方(rebuild 派 worker 时 / rebuildSync 同步重建后)清，applyMesh 不清——
     // 否则"派发后又被编辑(dirty=true)"的区块，等旧 worker 结果上屏时会被误清回 false → 丢改动。
   }
@@ -1739,7 +1763,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch])
+      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch])
         if (mesh) mesh.visible = vis;
     }
   }
@@ -1754,7 +1778,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ))
         continue;
-      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.torch])
+      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch])
         if (mesh) mesh.visible = false;
     }
   }

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COBBLESTONE, NETHER_PORTAL, OBSIDIAN, SAND, TORCH, WATER } from '../core/blocks/registry';
 import { spawnMob, type Mob } from '../core/entity/mob';
+import { meshChunkData } from '../core/mesh/mesher';
 import { ARROW, BOW, FLINT_AND_STEEL, WOODEN_PICKAXE } from '../core/items/items';
 import { emptyInventory } from '../core/inventory/inventory';
 import type { Game as GameInstance } from './Game';
@@ -615,6 +616,9 @@ describe('Game high-risk regressions', () => {
     expect(survival.lit).toBe(true);
     expect(survival.inv[0]).toEqual({ id: FLINT_AND_STEEL, count: 1, dur: 63 });
     expect(survival.state.world.getBlock(1, 1, 0)).toBe(NETHER_PORTAL);
+    expect(
+      meshChunkData(0, 0, survival.state.world.getBlock, () => 0).portal.positions.length,
+    ).toBeGreaterThan(0);
 
     const creative = light(true);
     expect(creative.lit).toBe(true);
