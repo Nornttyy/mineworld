@@ -86,11 +86,35 @@ const ICON: Record<number, string> = {
 
 // 经典包的方块图标与 16x16 世界图集由同一脚本生成；工具、食物等物品继续共用原图标。
 const CLASSIC_BLOCK_ICONS = new Set([
-  'stone', 'dirt', 'grass', 'cobblestone', 'sand', 'oak_log', 'oak_planks',
-  'coal_ore', 'oak_leaves', 'crafting_table', 'iron_ore', 'furnace', 'gravel',
-  'sandstone', 'obsidian', 'netherrack', 'soul_sand', 'glowstone',
-  'nether_quartz_ore', 'bedrock', 'cactus', 'ice', 'spruce_log', 'spruce_leaves',
-  'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block',
+  'stone',
+  'dirt',
+  'grass',
+  'cobblestone',
+  'sand',
+  'oak_log',
+  'oak_planks',
+  'coal_ore',
+  'oak_leaves',
+  'crafting_table',
+  'iron_ore',
+  'furnace',
+  'gravel',
+  'sandstone',
+  'obsidian',
+  'netherrack',
+  'soul_sand',
+  'glowstone',
+  'nether_quartz_ore',
+  'bedrock',
+  'cactus',
+  'ice',
+  'spruce_log',
+  'spruce_leaves',
+  'coal_block',
+  'iron_block',
+  'quartz_block',
+  'diamond_ore',
+  'diamond_block',
 ]);
 
 let activeTexturePack: TexturePack = 'classic';
@@ -115,7 +139,20 @@ const ZH: Record<number, string> = {
   13: '熔炉',
   14: '火把',
   15: '砂砾',
+  16: '草丛',
+  17: '高草丛',
+  18: '黑曜石',
+  19: '地狱岩',
+  20: '灵魂沙',
+  21: '荧石',
+  22: '下界石英矿',
+  24: '基岩',
   26: '沙石',
+  27: '仙人掌',
+  28: '冰',
+  29: '雪层',
+  30: '云杉原木',
+  31: '云杉树叶',
   32: '煤炭块',
   33: '铁块',
   34: '石英块',
@@ -172,9 +209,8 @@ const ZH: Record<number, string> = {
 export const iconUrl = (id: number): string | null => {
   const name = ICON[id];
   if (!name) return null;
-  const directory = activeTexturePack === 'classic' && CLASSIC_BLOCK_ICONS.has(name)
-    ? 'icons_classic'
-    : 'icons';
+  const directory =
+    activeTexturePack === 'classic' && CLASSIC_BLOCK_ICONS.has(name) ? 'icons_classic' : 'icons';
   return asset(`textures/${directory}/${name}.png`);
 };
 

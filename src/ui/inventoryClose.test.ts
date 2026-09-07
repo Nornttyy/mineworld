@@ -9,6 +9,7 @@ interface InventoryUiState {
   inv: Inventory | null;
   craft: (ItemStack | null)[][];
   cursor: ItemStack | null;
+  mode: 'survival' | 'creative';
   open: boolean;
   root: HTMLElement;
   cursorEl: HTMLElement;
@@ -37,13 +38,14 @@ function fullInventory(): Inventory {
 }
 
 function bareInventoryUi(
-  state: Omit<InventoryUiState, 'root' | 'cursorEl' | 'open' | 'onChange'>,
+  state: Omit<InventoryUiState, 'root' | 'cursorEl' | 'mode' | 'open' | 'onChange'>,
 ): InventoryUI {
   const ui = Object.create(InventoryUI.prototype) as InventoryUI;
   Object.assign(ui, {
     ...state,
     root: fakeElement(),
     cursorEl: fakeElement(),
+    mode: 'survival',
     open: true,
     onChange: null,
   } satisfies InventoryUiState);
@@ -91,6 +93,20 @@ describe('container UI close safety', () => {
     expect(state.craft.flat().every((stack) => stack === null)).toBe(true);
     expect(state.cursor).toBeNull();
     expect(state.open).toBe(false);
+  });
+
+  it('creative inventory discards a copied cursor stack instead of hiding it in storage', () => {
+    const inv = emptyInventory();
+    const ui = bareInventoryUi({
+      inv,
+      craft: [],
+      cursor: { id: 36, count: 64 },
+    });
+    Object.assign(ui, { mode: 'creative' as const });
+
+    expect(ui.hide()).toEqual([]);
+    expect(inv.every((stack) => stack === null)).toBe(true);
+    expect((ui as unknown as InventoryUiState).cursor).toBeNull();
   });
 
   it('furnace close returns an overflowing cursor stack with durability intact', () => {

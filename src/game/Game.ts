@@ -89,6 +89,7 @@ import {
   type Inventory,
   type ItemStack,
 } from '../core/inventory/inventory';
+import { pickCreativeItem } from '../core/inventory/creative';
 import { readMove, consumeJump, type MoveKeys } from '../input/keyboard';
 import { PointerLookControls } from '../input/PointerLookControls';
 import { TouchControls, supportsTouchControls } from '../input/TouchControls';
@@ -123,11 +124,6 @@ import {
   ARROW,
   BOW,
   FLINT_AND_STEEL,
-  DIAMOND_PICKAXE,
-  DIAMOND_AXE,
-  DIAMOND_SHOVEL,
-  DIAMOND_SWORD,
-  DIAMOND_HOE,
   isFood,
   foodValue,
   toolOf,
@@ -171,50 +167,9 @@ const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
 const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
 const AIR = 0;
 
-// 创造模式初始物品栏：常用建材放快捷栏(0-8)，更多方块/铁工具/弓箭放主背包。创造放置不耗、可无限用。
-const CREATIVE_LOADOUT: { id: number; count: number }[] = [
-  { id: 3, count: 64 },
-  { id: 2, count: 64 },
-  { id: 1, count: 64 },
-  { id: 4, count: 64 }, // 草/土/石/圆石
-  { id: 7, count: 64 },
-  { id: 6, count: 64 },
-  { id: 5, count: 64 },
-  { id: 21, count: 64 },
-  { id: 14, count: 64 }, // 木板/原木/沙/荧石/火把
-  { id: 15, count: 64 },
-  { id: 26, count: 64 },
-  { id: 32, count: 64 },
-  { id: 33, count: 64 },
-  { id: 34, count: 64 },
-  { id: 36, count: 64 }, // 砂砾/沙石/煤块/铁块/石英块/钻石块
-  { id: 18, count: 64 },
-  { id: 19, count: 64 },
-  { id: 20, count: 64 },
-  { id: 10, count: 64 },
-  { id: 30, count: 64 }, // 黑曜石/地狱岩/灵魂沙/树叶/云杉木
-  { id: 8, count: 64 },
-  { id: 12, count: 64 },
-  { id: 35, count: 64 },
-  { id: 11, count: 64 },
-  { id: 13, count: 64 },
-  { id: 27, count: 64 },
-  { id: 28, count: 64 }, // 煤矿/铁矿/钻石矿/工作台/熔炉/仙人掌/冰
-  { id: 269, count: 1 }, // 铁镐：保留一把用于查看铁阶段；其余格留给钻石工具与弓箭
-  { id: DIAMOND_PICKAXE, count: 1 },
-  { id: DIAMOND_AXE, count: 1 },
-  { id: DIAMOND_SHOVEL, count: 1 },
-  { id: DIAMOND_SWORD, count: 1 },
-  { id: DIAMOND_HOE, count: 1 },
-  { id: BOW, count: 1 },
-  { id: ARROW, count: 64 },
-];
-
 function creativeInventory(): Inventory {
-  const inv = emptyInventory();
-  for (let i = 0; i < CREATIVE_LOADOUT.length && i < inv.length; i++)
-    inv[i] = { ...CREATIVE_LOADOUT[i] };
-  return inv;
+  // 原版创造新世界以空快捷栏开始，需要什么再从 E 物品目录复制。
+  return emptyInventory();
 }
 const EAT_TIME = 1.6; // 吃东西耗时（秒，同 MC）
 const LEAF_APPLE_CHANCE = 0.005; // 树叶掉苹果概率(1.12 = 0.5%,1:1 硬约束)
@@ -448,7 +403,7 @@ export class Game {
     this.normalFog = this.renderer.scene.fog;
     this.underwaterEl = document.getElementById('underwater');
     this.hotbar = new Hotbar(document.getElementById('hotbar') as HTMLElement, HOTBAR_SLOTS);
-    // 创造新世界发整套建材/工具；有存档照存档；生存新世界空背包。
+    // 创造/生存新世界都从空背包开始；创造物品从 E 分类目录无限复制，已有存档照常恢复。
     this.inv = save.inv
       ? deserializeInventory(save.inv)
       : this.creative
@@ -532,6 +487,7 @@ export class Game {
     this.furnaceUI.onClose = (): void => this.closeFurnace();
     this.invUI.onChange = (): void => this.hotbar.render(this.inv);
     this.invUI.onClose = (): void => this.closeCrafting();
+    this.invUI.onSelectHotbar = (index): void => this.hotbar.setSelected(index);
     this.physWorld = {
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
@@ -616,7 +572,7 @@ export class Game {
           inventory: () => {
             if (this.furnaceKey) this.closeFurnace();
             else if (this.craftingGrid > 0) this.closeCrafting();
-            else this.openCrafting(2);
+            else this.openPlayerInventory();
           },
           pause: () => window.dispatchEvent(new Event('mineworld:touch-pause')),
         })
@@ -626,7 +582,12 @@ export class Game {
     canvas.addEventListener('mousedown', (e) => {
       if (document.pointerLockElement !== canvas) return;
       if (e.button === 0) this.beginPrimaryAction();
-      else if (e.button === 2) this.onUseDown(); // 右键：吃 / 放方块
+      else if (e.button === 2)
+        this.onUseDown(); // 右键：吃 / 放方块
+      else if (e.button === 1 && this.creative) {
+        e.preventDefault();
+        this.pickTargetedBlock(); // 创造中键选方块（原版 pick block）
+      }
     });
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.stopDigging();
@@ -645,10 +606,12 @@ export class Game {
       }
     });
     window.addEventListener('keydown', (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches?.('input, textarea, [contenteditable="true"]')) return;
       if (e.code === 'KeyE') {
         if (this.furnaceKey) this.closeFurnace();
         else if (this.craftingGrid > 0) this.closeCrafting();
-        else if (this.isGameplayActive()) this.openCrafting(2);
+        else if (this.isGameplayActive()) this.openPlayerInventory();
         return;
       }
       if (e.code === 'F3') {
@@ -688,6 +651,10 @@ export class Game {
 
   usesTouchControls(): boolean {
     return this.touch !== null;
+  }
+
+  isCreativeMode(): boolean {
+    return this.creative;
   }
 
   setTouchActive(active: boolean): void {
@@ -1742,6 +1709,13 @@ export class Game {
   isContainerOpen(): boolean {
     return this.craftingGrid > 0 || this.furnaceKey !== null || this.furnaceUI.isOpen();
   }
+  private openPlayerInventory(): void {
+    this.craftingGrid = 2; // 复用容器打开状态；创造界面本身不生成 2×2 合成格。
+    if (this.creative) this.invUI.showCreative(this.inv);
+    else this.invUI.show(this.inv, 2);
+    if (this.touch) this.touch.setActive(false);
+    else document.exitPointerLock();
+  }
   private openCrafting(gridSize: number): void {
     this.craftingGrid = gridSize;
     this.invUI.show(this.inv, gridSize);
@@ -1873,6 +1847,15 @@ export class Game {
 
   private rayHit(): RayHit | null {
     return this.rayHitFor(this.crosshairRay());
+  }
+
+  private pickTargetedBlock(): void {
+    const hit = this.rayHit();
+    if (!hit) return;
+    const id = this.world.getBlock(hit.x, hit.y, hit.z);
+    const selected = pickCreativeItem(this.inv, this.hotbar.index, id);
+    this.hotbar.setSelected(selected);
+    this.hotbar.render(this.inv);
   }
 
   /** 记录一格 delta，并同步更新当前维度的懒加载索引。 */
@@ -2501,7 +2484,8 @@ export class Game {
   private tickMobs(): void {
     const px = this.player.pos.x;
     const pz = this.player.pos.z;
-    const target = { x: px, y: this.player.pos.y, z: pz };
+    // Java 1.12：敌对生物不会把创造玩家选为目标；仍会游荡、燃烧并被玩家攻击。
+    const target = this.creative ? null : { x: px, y: this.player.pos.y, z: pz };
     let nearCount = 0;
     let hostileNear = 0;
     let hostileTotal = 0; // 玩家周围(卸载半径内)敌对总数，用于硬上限

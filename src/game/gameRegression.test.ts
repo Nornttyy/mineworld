@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COBBLESTONE, NETHER_PORTAL, OBSIDIAN, SAND, TORCH, WATER } from '../core/blocks/registry';
 import { spawnMob, type Mob } from '../core/entity/mob';
 import { ARROW, BOW, FLINT_AND_STEEL, WOODEN_PICKAXE } from '../core/items/items';
+import { emptyInventory } from '../core/inventory/inventory';
 import type { Game as GameInstance } from './Game';
 
 let Game: typeof import('./Game').Game;
@@ -39,6 +40,53 @@ function blockMap(entries: ReadonlyArray<readonly [number, number, number, numbe
 }
 
 describe('Game high-risk regressions', () => {
+  it('creative pick-block selects an existing hotbar stack or copies a full stack', () => {
+    const inv = emptyInventory();
+    inv[6] = { id: COBBLESTONE, count: 4 };
+    const setSelected = vi.fn();
+    const render = vi.fn();
+    const game = Object.create(Game.prototype) as GameInstance;
+    Object.assign(game, {
+      inv,
+      world: { getBlock: () => COBBLESTONE },
+      rayHit: () => ({ x: 2, y: 3, z: 4 }),
+      hotbar: { index: 1, setSelected, render },
+    });
+    const pick = game as unknown as { pickTargetedBlock(): void };
+
+    pick.pickTargetedBlock();
+    expect(setSelected).toHaveBeenLastCalledWith(6);
+    expect(inv[1]).toBeNull();
+
+    Object.assign(game, { world: { getBlock: () => OBSIDIAN } });
+    pick.pickTargetedBlock();
+    expect(setSelected).toHaveBeenLastCalledWith(1);
+    expect(inv[1]).toEqual({ id: OBSIDIAN, count: 64 });
+    expect(render).toHaveBeenCalledWith(inv);
+  });
+
+  it('opens the creative catalog instead of the survival crafting inventory', () => {
+    const inv = emptyInventory();
+    const showCreative = vi.fn();
+    const show = vi.fn();
+    const setActive = vi.fn();
+    const game = Object.create(Game.prototype) as GameInstance;
+    Object.assign(game, {
+      creative: true,
+      craftingGrid: 0,
+      inv,
+      invUI: { showCreative, show },
+      touch: { setActive },
+    });
+
+    (game as unknown as { openPlayerInventory(): void }).openPlayerInventory();
+
+    expect(showCreative).toHaveBeenCalledWith(inv);
+    expect(show).not.toHaveBeenCalled();
+    expect(setActive).toHaveBeenCalledWith(false);
+    expect((game as unknown as { craftingGrid: number }).craftingGrid).toBe(2);
+  });
+
   it('placed sand stays on immediate support and falls through water onto the next support', () => {
     const first = blockMap([
       [0, 5, 0, SAND],

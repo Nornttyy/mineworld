@@ -12,6 +12,13 @@ import {
 } from '../core/inventory/slots';
 import { gridResult, consumeGrid } from '../core/crafting/gridCraft';
 import { itemMaxStack } from '../core/items/items';
+import {
+  CREATIVE_CATEGORIES,
+  CREATIVE_ITEM_IDS,
+  creativeItemsIn,
+  creativeStack,
+  type CreativeCategory,
+} from '../core/inventory/creative';
 import { iconUrl, itemLabel } from './itemIcons';
 
 const maxOf = (id: number): number => itemMaxStack(id);
@@ -26,7 +33,7 @@ interface Cell {
   icon: HTMLElement;
   cnt: HTMLElement;
 }
-type Region = 'main' | 'hotbar' | 'craft' | 'output';
+type Region = 'main' | 'hotbar' | 'craft' | 'output' | 'catalog' | 'trash';
 
 interface DragState {
   region: Region;
@@ -52,22 +59,34 @@ export class InventoryUI {
   private craft: (ItemStack | null)[][] = [];
   private cursor: ItemStack | null = null;
   private open = false;
+  private mode: 'survival' | 'creative' = 'survival';
+  private creativeCategory: CreativeCategory = 'building';
+  private creativeIds: readonly number[] = [];
 
   private readonly cursorEl: HTMLElement;
   private readonly cursorIcon: HTMLElement;
   private readonly cursorCnt: HTMLElement;
   private readonly titleEl: HTMLElement;
+  private readonly standardEl: HTMLElement;
+  private readonly creativeEl: HTMLElement;
+  private readonly creativeGridEl: HTMLElement;
+  private readonly creativeSearchEl: HTMLInputElement;
+  private readonly hintEl: HTMLElement;
   private readonly cgridEl: HTMLElement;
   private readonly outCell: Cell;
+  private readonly trashCell: Cell;
   private readonly mainCells: Cell[] = [];
   private readonly hotbarCells: Cell[] = [];
   private craftCells: Cell[] = [];
+  private creativeCells: Cell[] = [];
+  private readonly creativeTabButtons: HTMLButtonElement[] = [];
 
   // 拖拽手势状态：按下后挂起，划过其它格才"开始"。distribute=持物涂抹分发；move=空手按住拖单组。
   private drag: DragState | null = null;
 
   onChange: (() => void) | null = null; // 背包变动 → Game 刷新快捷栏
   onClose: (() => void) | null = null;
+  onSelectHotbar: ((index: number) => void) | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -78,16 +97,32 @@ export class InventoryUI {
           <div class="inv-title">合成</div>
           <button class="inv-close" type="button">关闭</button>
         </div>
-        <div class="inv-top">
-          <div class="inv-cgrid"></div>
-          <div class="inv-arrow">▶</div>
-          <div class="inv-out-wrap"></div>
+        <div class="inv-standard">
+          <div class="inv-top">
+            <div class="inv-cgrid"></div>
+            <div class="inv-arrow">▶</div>
+            <div class="inv-out-wrap"></div>
+          </div>
+          <div class="inv-main"></div>
         </div>
-        <div class="inv-main"></div>
+        <div class="creative-view hidden">
+          <div class="creative-tabs"></div>
+          <input class="creative-search" type="search" maxlength="24" autocomplete="off" placeholder="搜索物品" aria-label="搜索创造物品" />
+          <div class="creative-grid"></div>
+          <div class="creative-trash-row">
+            <span>把不要的物品拿到这里删除</span>
+            <div class="creative-trash-wrap"></div>
+          </div>
+        </div>
         <div class="inv-hotbar"></div>
         <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭</div>
       </div>`;
     this.titleEl = root.querySelector('.inv-title') as HTMLElement;
+    this.standardEl = root.querySelector('.inv-standard') as HTMLElement;
+    this.creativeEl = root.querySelector('.creative-view') as HTMLElement;
+    this.creativeGridEl = root.querySelector('.creative-grid') as HTMLElement;
+    this.creativeSearchEl = root.querySelector('.creative-search') as HTMLInputElement;
+    this.hintEl = root.querySelector('.inv-hint') as HTMLElement;
     (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () =>
       this.onClose?.(),
     );
@@ -98,6 +133,32 @@ export class InventoryUI {
     for (let i = 0; i < HOTBAR; i++) this.hotbarCells.push(this.makeSlot(hotEl, 'hotbar', i));
     this.outCell = this.makeSlot(root.querySelector('.inv-out-wrap') as HTMLElement, 'output', 0);
     this.outCell.el.classList.add('inv-out');
+    this.trashCell = this.makeSlot(
+      root.querySelector('.creative-trash-wrap') as HTMLElement,
+      'trash',
+      0,
+    );
+    this.trashCell.el.classList.add('creative-trash');
+    this.trashCell.icon.textContent = '×';
+    this.trashCell.icon.classList.add('txt');
+    this.trashCell.el.title = '删除物品';
+
+    const tabsEl = root.querySelector('.creative-tabs') as HTMLElement;
+    for (const category of CREATIVE_CATEGORIES) {
+      const button = document.createElement('button');
+      button.className = 'creative-tab';
+      button.type = 'button';
+      button.textContent = category.label;
+      button.dataset.category = category.id;
+      button.addEventListener('click', () => {
+        this.creativeCategory = category.id;
+        this.creativeSearchEl.value = '';
+        this.rebuildCreativeCatalog();
+      });
+      tabsEl.appendChild(button);
+      this.creativeTabButtons.push(button);
+    }
+    this.creativeSearchEl.addEventListener('input', () => this.rebuildCreativeCatalog());
 
     this.cursorEl = document.createElement('div');
     this.cursorEl.className = 'inv-cursor';
@@ -152,12 +213,33 @@ export class InventoryUI {
   // gridN=2 个人背包合成 / 3 工作台
   show(inv: Inventory, gridN: number): void {
     this.inv = inv;
+    this.mode = 'survival';
     this.gridN = gridN;
     this.craft = Array.from({ length: gridN }, () => Array<ItemStack | null>(gridN).fill(null));
     this.buildCraftGrid(gridN);
     this.titleEl.textContent = gridN >= 3 ? '工作台' : '背包';
+    this.standardEl.classList.remove('hidden');
+    this.creativeEl.classList.add('hidden');
+    this.hintEl.textContent = '轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭';
     this.open = true;
     this.root.classList.remove('hidden');
+    this.render();
+  }
+
+  /** Java 1.12 风格创造物品栏：分类目录/搜索、底部快捷栏和删除槽。 */
+  showCreative(inv: Inventory): void {
+    this.inv = inv;
+    this.mode = 'creative';
+    this.gridN = 0;
+    this.craft = [];
+    this.cursor = null;
+    this.titleEl.textContent = '创造模式物品栏';
+    this.standardEl.classList.add('hidden');
+    this.creativeEl.classList.remove('hidden');
+    this.hintEl.textContent = '左键拿一组 · 右键拿一个 · Shift 放入快捷栏 · 中键可在世界中选方块';
+    this.open = true;
+    this.root.classList.remove('hidden');
+    this.rebuildCreativeCatalog();
     this.render();
   }
 
@@ -176,7 +258,8 @@ export class InventoryUI {
       }
     }
     if (this.cursor) {
-      this.returnOrOverflow(this.cursor, overflow);
+      // 创造目录复制出来的光标物品关闭时直接丢弃；原版不会因为按 E 关闭就偷偷塞进隐藏的主背包。
+      if (this.mode !== 'creative') this.returnOrOverflow(this.cursor, overflow);
       this.cursor = null;
     }
     this.open = false;
@@ -208,6 +291,30 @@ export class InventoryUI {
     if (!this.inv) return;
     this.cursorEl.style.left = `${e.clientX}px`;
     this.cursorEl.style.top = `${e.clientY}px`;
+    if (region === 'catalog') {
+      const id = this.creativeIds[i];
+      const stack = creativeStack(id, e.button === 2);
+      if (!stack) return;
+      if (e.shiftKey) {
+        const existing = this.inv.slice(0, HOTBAR).findIndex((entry) => entry?.id === id);
+        const empty = this.inv.slice(0, HOTBAR).findIndex((entry) => entry === null);
+        const target = existing >= 0 ? existing : empty >= 0 ? empty : 0;
+        this.inv[target] = creativeStack(id);
+        this.onSelectHotbar?.(target);
+      } else {
+        this.cursor = stack;
+      }
+      this.render();
+      this.onChange?.();
+      return;
+    }
+    if (region === 'trash') {
+      if (e.shiftKey) this.inv.fill(null); // 原版：Shift 点击删除槽清空整个玩家物品栏。
+      this.cursor = null;
+      this.render();
+      this.onChange?.();
+      return;
+    }
     if (region === 'output') {
       this.takeOutput();
       this.render();
@@ -282,7 +389,13 @@ export class InventoryUI {
         : dragSplitEven(d.swept, this.cursor, maxOf);
     } else {
       const hit = this.slotAt(e);
-      if (hit && hit.region !== 'output' && !(hit.region === d.region && hit.i === d.i)) {
+      if (hit?.region === 'trash') {
+        this.cursor = null;
+      } else if (
+        hit &&
+        (hit.region === 'main' || hit.region === 'hotbar' || hit.region === 'craft') &&
+        !(hit.region === d.region && hit.i === d.i)
+      ) {
         this.applyClick(hit.region, hit.i, false); // 放到松手所在格
       }
       // 松手在起点/界外 → 光标继续持有（等同点击拿起）
@@ -317,7 +430,7 @@ export class InventoryUI {
   }
 
   private addSwept(d: DragState, region: Region, i: number): void {
-    if (region === 'output') return;
+    if (region === 'output' || region === 'catalog' || region === 'trash') return;
     const key = `${region}:${i}`;
     if (d.sweptKeys.has(key)) return;
     d.sweptKeys.add(key);
@@ -339,7 +452,7 @@ export class InventoryUI {
       this.cursor = right
         ? rightClick(row, c, this.cursor, maxOf)
         : leftClick(row, c, this.cursor, maxOf);
-    } else {
+    } else if (region === 'main' || region === 'hotbar') {
       const idx = region === 'main' ? HOTBAR + i : i;
       this.cursor = right
         ? rightClick(this.inv, idx, this.cursor, maxOf)
@@ -355,6 +468,7 @@ export class InventoryUI {
       const c = i % n;
       return { get: () => row[c], set: (s) => (row[c] = s) };
     }
+    if (region !== 'main' && region !== 'hotbar') throw new Error('只允许拖到背包格');
     const inv = this.inv as Inventory;
     const idx = region === 'main' ? HOTBAR + i : i;
     return { get: () => inv[idx], set: (s) => (inv[idx] = s) };
@@ -374,6 +488,8 @@ export class InventoryUI {
     if (region === 'main') return this.mainCells[i] ?? null;
     if (region === 'hotbar') return this.hotbarCells[i] ?? null;
     if (region === 'craft') return this.craftCells[i] ?? null;
+    if (region === 'catalog') return this.creativeCells[i] ?? null;
+    if (region === 'trash') return this.trashCell;
     return null;
   }
 
@@ -384,9 +500,29 @@ export class InventoryUI {
       quickMove(this.craft[Math.floor(i / n)], i % n, this.inv, maxOf);
     } else if (region === 'main') {
       quickMove(this.inv, HOTBAR + i, this.inv, maxOf, 0, HOTBAR); // 背包 → 快捷栏
-    } else {
+    } else if (region === 'hotbar') {
       quickMove(this.inv, i, this.inv, maxOf, HOTBAR, HOTBAR + MAIN); // 快捷栏 → 背包
     }
+  }
+
+  private rebuildCreativeCatalog(): void {
+    const query = this.creativeSearchEl.value.trim().toLocaleLowerCase();
+    const source = query ? CREATIVE_ITEM_IDS : creativeItemsIn(this.creativeCategory);
+    this.creativeIds = query
+      ? source.filter(
+          (id) => itemLabel(id).toLocaleLowerCase().includes(query) || String(id) === query,
+        )
+      : source;
+    this.creativeGridEl.innerHTML = '';
+    this.creativeCells = [];
+    for (let i = 0; i < this.creativeIds.length; i++) {
+      const cell = this.makeSlot(this.creativeGridEl, 'catalog', i);
+      cell.el.title = itemLabel(this.creativeIds[i]);
+      this.creativeCells.push(cell);
+    }
+    for (const button of this.creativeTabButtons)
+      button.classList.toggle('active', button.dataset.category === this.creativeCategory);
+    this.render();
   }
 
   // 取出合成成果到光标(同类堆叠/占空)，并消耗输入格各 1。
@@ -409,6 +545,10 @@ export class InventoryUI {
       this.paint(this.craftCells[i], this.craft[Math.floor(i / n)][i % n]);
     }
     this.paint(this.outCell, gridResult(this.craft));
+    if (this.mode === 'creative') {
+      for (let i = 0; i < this.creativeCells.length; i++)
+        this.paint(this.creativeCells[i], { id: this.creativeIds[i], count: 1 });
+    }
     if (this.cursor) {
       this.cursorEl.style.display = 'block';
       this.fill(this.cursorIcon, this.cursorCnt, this.cursor);
