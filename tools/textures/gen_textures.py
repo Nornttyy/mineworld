@@ -383,27 +383,29 @@ def water_frames(n):
     return frames
 
 
+LEAF_CLUSTER_ROWS = [
+    "Ll.d  .Ll.  dl..",
+    ".l.   dl.   .l.d",
+    "d.Ll  ..    Ll..",
+    " .l.d Ll.  dl.  ",
+    "  ..  .l.d  ..  ",
+    "Ll  d  ..  Ll  d",
+    ".l.dD    .dl.d  ",
+    "..    Ll  ...   ",
+    " Ll.  .l.d   Ll.",
+    "dl..   ..  D.l..",
+    "..  Ll    Ll ..d",
+    "  d .l.dD.l.d   ",
+    "Ll.   ..  ..  Ll",
+    ".l.d    Ll.   dl",
+    "..  .Ll dl.d  ..",
+    "d   dl..  ..  d ",
+]
+
+
 def oak_leaves(rng):
     # 1.12 橡叶：暗绿叶撮 + 【大块连片透明孔】(2~3px 豁口,~35%,双面渲染透出内层=蓬松)。
-    rows = [
-        "Ll.d  .Ll.  dl..",
-        ".l.   dl.   .l.d",
-        "d.Ll  ..    Ll..",
-        " .l.d Ll.  dl.  ",
-        "  ..  .l.d  ..  ",
-        "Ll  d  ..  Ll  d",
-        ".l.dD    .dl.d  ",
-        "..    Ll  ...   ",
-        " Ll.  .l.d   Ll.",
-        "dl..   ..  D.l..",
-        "..  Ll    Ll ..d",
-        "  d .l.dD.l.d   ",
-        "Ll.   ..  ..  Ll",
-        ".l.d    Ll.   dl",
-        "..  .Ll dl.d  ..",
-        "d   dl..  ..  d ",
-    ]
-    return from_map(rows, {".": "#37701a", "l": "#448a20", "L": "#55a82c", "d": "#2b5a13", "D": "#1e430c"}, rng, alpha_blank=True)
+    return from_map(LEAF_CLUSTER_ROWS, {".": "#37701a", "l": "#448a20", "L": "#55a82c", "d": "#2b5a13", "D": "#1e430c"}, rng, alpha_blank=True)
 
 def crack_strip():
     """10 段挖掘裂纹（destroy_stage_0..9），横排成 160x16 RGBA。
@@ -924,16 +926,8 @@ def birch_log_side(rng):
 
 
 def birch_leaves(rng):
-    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    px = im.load()
-    colors = [hx("#4a7f2c"), hx("#5b9635"), hx("#386822"), hx("#6aa342")]
-    holes = {(1, 1), (8, 0), (14, 3), (4, 6), (10, 9), (1, 13), (13, 14), (7, 12)}
-    for y in range(S):
-        for x in range(S):
-            if (x, y) not in holes:
-                r, g, b = colors[(x * 5 + y * 3 + x * y) % len(colors)]
-                px[x, y] = (r, g, b, 255)
-    return im
+    # 白桦叶沿用橡叶的叶簇轮廓与镂空密度，只保留更明亮、略偏黄的树种色。
+    return from_map(LEAF_CLUSTER_ROWS, {".": "#4a7f2c", "l": "#5b9635", "L": "#6aa342", "d": "#386822", "D": "#294f18"}, rng, alpha_blank=True)
 
 
 BLOCKS = [

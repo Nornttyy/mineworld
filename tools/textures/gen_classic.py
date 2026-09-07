@@ -224,6 +224,19 @@ def oak_leaves(rng):
     return image
 
 
+def birch_leaves(rng):
+    # 与经典橡叶完全相同的叶簇/孔洞轮廓，换成白桦更明亮的绿色。
+    image = oak_leaves(rng)
+    pixels = image.load()
+    colors = [source.hx("#47722d"), source.hx("#568738"), source.hx("#659844"), source.hx("#385d24")]
+    for y in range(S):
+        for x in range(S):
+            if pixels[x, y][3] != 0:
+                r, g, b = colors[(x * 3 + y * 5 + x * y) % len(colors)]
+                pixels[x, y] = (r, g, b, 255)
+    return image
+
+
 def crafting_table_top(rng):
     image = oak_planks(rng)
     pixels = image.load()
@@ -280,6 +293,7 @@ BLOCKS.update({
     "diamond_ore": diamond_ore,
     "diamond_block": diamond_block,
     "oak_leaves": oak_leaves,
+    "birch_leaves": birch_leaves,
     "crafting_table_top": crafting_table_top,
     "crafting_table_side": crafting_table_side,
     "furnace_front": furnace_front,
