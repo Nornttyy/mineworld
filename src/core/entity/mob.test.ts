@@ -10,6 +10,9 @@ import {
   WOOL,
   RAW_CHICKEN,
   FEATHER,
+  STRING,
+  BONE,
+  ARROW,
 } from '../items/items';
 
 const flat = (topY: number): VoxelWorld => ({ isSolid: (_x, y) => y < topY });
@@ -24,6 +27,9 @@ describe('MOB_DEFS（1:1 MC）', () => {
     expect(MOB_DEFS.chicken.fallImmune).toBe(true);
     expect(MOB_DEFS.pig.fallImmune).toBe(false);
     expect(MOB_DEFS.cow.height).toBe(1.4);
+    expect(MOB_DEFS.rabbit.hp).toBe(3);
+    expect(MOB_DEFS.spider.width).toBe(1.4);
+    expect(MOB_DEFS.spider.hostile).toBe(true);
   });
 });
 
@@ -87,6 +93,18 @@ describe('rollDrops（掉落表 1:1 MC）', () => {
         expect(f.count).toBeLessThanOrEqual(2);
       }
     }
+  });
+  it('蜘蛛掉线；骷髅只掉骨与箭，不再错误掉线', () => {
+    const rng = makeRng(21);
+    let sawString = false;
+    for (let i = 0; i < 80; i++) {
+      const spider = rollDrops('spider', rng);
+      if (spider.some((drop) => drop.id === STRING)) sawString = true;
+      const skeleton = rollDrops('skeleton', rng);
+      expect(skeleton.every((drop) => drop.id === BONE || drop.id === ARROW)).toBe(true);
+    }
+    expect(sawString).toBe(true);
+    expect(rollDrops('rabbit', rng)).toEqual([]);
   });
 });
 

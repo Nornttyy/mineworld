@@ -1,6 +1,6 @@
 import { fbm2 } from '../math/noise';
 
-export type Biome = 'snow' | 'plains' | 'forest' | 'desert';
+export type Biome = 'snow' | 'plains' | 'forest' | 'desert' | 'birch_forest' | 'badlands';
 
 const TEMP_SCALE = 320; // 大尺度 → 群系成片
 const COLD = 0.38;
@@ -18,9 +18,17 @@ export function temperatureAt(wx: number, wz: number, seed: number): number {
   return fbm2(wx / TEMP_SCALE, wz / TEMP_SCALE, seed + 9001, 3);
 }
 
+// 独立于气温和森林密度的群系变体场，避免白桦林/恶地变成到处散落的单列斑点。
+export function biomeVariantAt(wx: number, wz: number, seed: number): number {
+  return fbm2(wx / 210, wz / 210, seed + 15401, 3);
+}
+
 export function biomeAt(wx: number, wz: number, seed: number): Biome {
   const t = temperatureAt(wx, wz, seed);
   if (t < COLD) return 'snow';
-  if (t > HOT) return 'desert';
-  return biomeForest(wx, wz, seed) > 0.62 ? 'forest' : 'plains'; // 温带内用现有森林噪声
+  const variant = biomeVariantAt(wx, wz, seed);
+  if (t > HOT) return variant > 0.53 ? 'badlands' : 'desert';
+  const forest = biomeForest(wx, wz, seed);
+  if (forest > 0.62) return variant > 0.5 ? 'birch_forest' : 'forest';
+  return 'plains';
 }

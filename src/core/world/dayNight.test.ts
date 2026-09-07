@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { skyStateAt, skyDarkenAt, wrapTime, DAY_LENGTH } from './dayNight';
+import { skyStateAt, skyDarkenAt, skyDarkenForDimension, wrapTime, DAY_LENGTH } from './dayNight';
 
 const avg = (c: [number, number, number]): number => (c[0] + c[1] + c[2]) / 3;
 
@@ -82,5 +82,18 @@ describe('dayNight 昼夜更替', () => {
   it('主世界行为不变（dimension 省略 == overworld）', () => {
     expect(skyStateAt(1800)).toEqual(skyStateAt(1800, 'overworld'));
     expect(skyStateAt(6000)).not.toEqual(skyStateAt(18000)); // 主世界仍随时间变
+  });
+});
+
+describe('维度天光', () => {
+  it('下界不随世界时间变化且没有天空光', () => {
+    expect(skyDarkenForDimension(0, 'nether')).toBe(15);
+    expect(skyDarkenForDimension(6000, 'nether')).toBe(15);
+    expect(skyDarkenForDimension(18000, 'nether')).toBe(15);
+  });
+
+  it('主世界仍使用原版昼夜曲线', () => {
+    expect(skyDarkenForDimension(6000, 'overworld')).toBe(skyDarkenAt(6000));
+    expect(skyDarkenForDimension(18000, 'overworld')).toBe(skyDarkenAt(18000));
   });
 });

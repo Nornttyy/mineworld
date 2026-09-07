@@ -118,7 +118,7 @@ function facePixel(
   pixel(ctx, color, rect.x + x, rect.y + y, w, h);
 }
 
-function paintAnimal(ctx: CanvasRenderingContext2D, kind: 'pig' | 'cow' | 'sheep' | 'chicken'): void {
+function paintAnimal(ctx: CanvasRenderingContext2D, kind: 'pig' | 'cow' | 'sheep' | 'chicken' | 'rabbit'): void {
   const head = MOB_SKIN_PARTS.head;
   const body = MOB_SKIN_PARTS.animalBody;
   const leg = MOB_SKIN_PARTS.leg;
@@ -161,7 +161,7 @@ function paintAnimal(ctx: CanvasRenderingContext2D, kind: 'pig' | 'cow' | 'sheep
     facePixel(ctx, head, 'right', '#ece9e1', 0, 0, 8, 2);
     facePixel(ctx, head, 'right', '#171717', 1, 3, 2, 2);
     facePixel(ctx, head, 'right', '#171717', 5, 3, 2, 2);
-  } else {
+  } else if (kind === 'chicken') {
     paintBox(ctx, head, '#f1f1ef', '#d9d9d6', 41);
     paintBox(ctx, body, '#eeeeeb', '#d6d6d2', 42);
     paintBox(ctx, leg, '#d99020', '#a96917', 43);
@@ -170,7 +170,24 @@ function paintAnimal(ctx: CanvasRenderingContext2D, kind: 'pig' | 'cow' | 'sheep
     facePixel(ctx, head, 'right', '#151515', 5, 2, 2, 2);
     facePixel(ctx, head, 'right', '#ffffff', 1, 2);
     facePixel(ctx, head, 'right', '#ffffff', 5, 2);
+  } else {
+    paintBox(ctx, head, '#9c7656', '#75543b', 51);
+    paintBox(ctx, body, '#987152', '#6e4d36', 52);
+    paintBox(ctx, leg, '#8b6549', '#624530', 53);
+    facePixel(ctx, head, 'right', '#171313', 1, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#171313', 5, 2, 2, 2);
+    facePixel(ctx, head, 'right', '#f7eee4', 2, 5, 4, 2);
   }
+}
+
+function paintSpider(ctx: CanvasRenderingContext2D): void {
+  const head = MOB_SKIN_PARTS.head;
+  paintBox(ctx, head, '#3c2924', '#231817', 91);
+  paintBox(ctx, MOB_SKIN_PARTS.animalBody, '#34231f', '#1f1514', 92);
+  paintBox(ctx, MOB_SKIN_PARTS.leg, '#2c1d1b', '#171010', 93);
+  // 正面 8 只红眼，以 1–2 px 硬边方块表达，保持 1.12 盒状皮肤做法。
+  for (const [x, y] of [[0, 2], [2, 1], [5, 1], [7, 2], [1, 4], [3, 3], [4, 3], [6, 4]] as const)
+    facePixel(ctx, head, 'right', y < 3 ? '#e63b2f' : '#8d1e1b', x, y);
 }
 
 function paintHumanoid(ctx: CanvasRenderingContext2D, kind: 'zombie' | 'skeleton' | 'husk'): void {
@@ -235,8 +252,9 @@ function paintCreeper(ctx: CanvasRenderingContext2D): void {
 function drawSkin(kind: MobKind, ctx: CanvasRenderingContext2D): void {
   ctx.clearRect(0, 0, MOB_SKIN_SIZE, MOB_SKIN_SIZE);
   ctx.imageSmoothingEnabled = false;
-  if (kind === 'pig' || kind === 'cow' || kind === 'sheep' || kind === 'chicken') paintAnimal(ctx, kind);
+  if (kind === 'pig' || kind === 'cow' || kind === 'sheep' || kind === 'chicken' || kind === 'rabbit') paintAnimal(ctx, kind);
   else if (kind === 'creeper') paintCreeper(ctx);
+  else if (kind === 'spider') paintSpider(ctx);
   else paintHumanoid(ctx, kind);
 }
 

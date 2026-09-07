@@ -54,7 +54,7 @@ describe('spawnRingGroup（玩家周围环带刷群，供"边走边补充"）', 
   });
 });
 
-describe('hostileKindFor：沙漠出尸壳，其他生态出僵尸/骷髅/苦力怕', () => {
+describe('hostileKindFor：按群系生成僵尸系/骷髅/蜘蛛/苦力怕', () => {
   it('沙漠低roll → 尸壳（而非僵尸）', () => {
     expect(hostileKindFor('desert', 0.1)).toBe('husk');
   });
@@ -66,6 +66,10 @@ describe('hostileKindFor：沙漠出尸壳，其他生态出僵尸/骷髅/苦力
   });
   it('平原中roll → 骷髅', () => {
     expect(hostileKindFor('plains', 0.6)).toBe('skeleton');
+  });
+  it('中高 roll → 蜘蛛，恶地近战槽 → 尸壳', () => {
+    expect(hostileKindFor('plains', 0.7)).toBe('spider');
+    expect(hostileKindFor('badlands', 0.1)).toBe('husk');
   });
   it('任意生态高roll → 苦力怕', () => {
     expect(hostileKindFor('plains', 0.9)).toBe('creeper');

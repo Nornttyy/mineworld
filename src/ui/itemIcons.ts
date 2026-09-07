@@ -36,6 +36,14 @@ const ICON: Record<number, string> = {
   34: 'quartz_block',
   35: 'diamond_ore',
   36: 'diamond_block',
+  37: 'granite',
+  38: 'diorite',
+  39: 'andesite',
+  40: 'bricks',
+  41: 'mossy_cobblestone',
+  42: 'red_sand',
+  43: 'birch_log',
+  44: 'birch_leaves',
   [APPLE]: 'apple',
   257: 'stick',
   258: 'coal',
@@ -84,39 +92,6 @@ const ICON: Record<number, string> = {
   301: 'diamond_hoe',
 };
 
-// 经典包的方块图标与 16x16 世界图集由同一脚本生成；工具、食物等物品继续共用原图标。
-const CLASSIC_BLOCK_ICONS = new Set([
-  'stone',
-  'dirt',
-  'grass',
-  'cobblestone',
-  'sand',
-  'oak_log',
-  'oak_planks',
-  'coal_ore',
-  'oak_leaves',
-  'crafting_table',
-  'iron_ore',
-  'furnace',
-  'gravel',
-  'sandstone',
-  'obsidian',
-  'netherrack',
-  'soul_sand',
-  'glowstone',
-  'nether_quartz_ore',
-  'bedrock',
-  'cactus',
-  'ice',
-  'spruce_log',
-  'spruce_leaves',
-  'coal_block',
-  'iron_block',
-  'quartz_block',
-  'diamond_ore',
-  'diamond_block',
-]);
-
 let activeTexturePack: TexturePack = 'classic';
 
 export function setIconTexturePack(pack: TexturePack): void {
@@ -158,6 +133,14 @@ const ZH: Record<number, string> = {
   34: '石英块',
   35: '钻石矿石',
   36: '钻石块',
+  37: '花岗岩',
+  38: '闪长岩',
+  39: '安山岩',
+  40: '砖块',
+  41: '苔石',
+  42: '红沙',
+  43: '白桦原木',
+  44: '白桦树叶',
   256: '苹果',
   257: '木棍',
   258: '煤炭',
@@ -209,8 +192,7 @@ const ZH: Record<number, string> = {
 export const iconUrl = (id: number): string | null => {
   const name = ICON[id];
   if (!name) return null;
-  const directory =
-    activeTexturePack === 'classic' && CLASSIC_BLOCK_ICONS.has(name) ? 'icons_classic' : 'icons';
+  const directory = activeTexturePack === 'classic' ? 'icons_classic' : 'icons';
   return asset(`textures/${directory}/${name}.png`);
 };
 

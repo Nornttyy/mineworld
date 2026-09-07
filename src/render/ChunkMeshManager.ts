@@ -355,7 +355,7 @@ export class ChunkMeshManager {
             'float mwWood = 0.0; float mwSnow = 0.0; float mwFoliage = 0.0; float mwPolished = 0.0;\n' +
             'float mwTexCavity = 0.0;\n' +
             '#ifdef USE_MAP\n' +
-            '  vec2 mwAtlasSize = vec2(64.0, 160.0);\n' +
+            '  vec2 mwAtlasSize = vec2(64.0, 192.0);\n' +
             '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
             '  vec2 mwTileSize = vec2(0.25, 0.1);\n' +
             '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
@@ -525,6 +525,11 @@ export class ChunkMeshManager {
 
   /** 每帧：太阳 DirectionalLight 摆到天球方位(随昼夜)、阴影相机跟随玩家，绑 shadow map 给方块 shader 采样。 */
   updateSun(worldTime: number, px: number, py: number, pz: number): void {
+    if (!this.sunEnabled) {
+      this.uSunUp.value = 0;
+      this.uShadowOn.value = 0;
+      return;
+    }
     const th = (worldTime / DAY_LENGTH) * Math.PI * 2; // 同 SkyObjects：0=日出
     let nx = Math.cos(th);
     let ny = Math.sin(th);
@@ -1354,7 +1359,10 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.sunEnabled = enabled;
     this.sun.castShadow =
       enabled && this.lightingQuality !== null && this.lightingQuality !== 'off';
-    if (!enabled) this.uShadowOn.value = 0;
+    if (!enabled) {
+      this.uSunUp.value = 0;
+      this.uShadowOn.value = 0;
+    }
   }
 
   /** 雾剔除距离(随渲染距离)：超出此距离的区块完全在雾里 → 不网格化/不绘制。far 单位=格。 */
@@ -1535,12 +1543,12 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     return g;
   }
 
-  /** 实体环境光采样：世界坐标 → [天光0..15, 方块光0..15]（4 格粒度粗网格）。未加载→[15,0](当露天,防黑闪)。 */
+  /** 实体环境光采样：世界坐标 → [天光0..15, 方块光0..15]。下界缺网格时绝不能回退成露天天光。 */
   lightLevelAt(wx: number, wy: number, wz: number): [number, number] {
     const cx = Math.floor(Math.floor(wx) / CHUNK_W);
     const cz = Math.floor(Math.floor(wz) / CHUNK_W);
     const g = this.lightGrids.get(this.key(cx, cz));
-    if (!g) return [15, 0];
+    if (!g) return [this.sunEnabled ? 15 : 0, 0];
     const lx = Math.min(3, Math.max(0, Math.floor((wx - cx * CHUNK_W) / 4)));
     const lz = Math.min(3, Math.max(0, Math.floor((wz - cz * CHUNK_W) / 4)));
     const ly = Math.min(47, Math.max(0, Math.floor(wy / 4)));

@@ -61,6 +61,11 @@ export function skyDarkenAt(time: number): number {
 
 export type Dimension = 'overworld' | 'nether';
 
+/** 下界没有天空光；固定减去全部 15 级，避免世界时间让下界忽明忽暗。 */
+export function skyDarkenForDimension(time: number, dimension: Dimension): number {
+  return dimension === 'nether' ? 15 : skyDarkenAt(time);
+}
+
 // 下界天空：恒定暗红、无昼夜、无日月。恒"夜"(isNight)为下界刷怪铺路。
 const NETHER_SKY: SkyState = {
   skyTop: [0.18, 0.05, 0.05],

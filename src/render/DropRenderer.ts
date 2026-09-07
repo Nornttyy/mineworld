@@ -6,7 +6,7 @@ import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 10; // 4×10=40 槽（18-25 下界, 26-31 群系, 32-36 储存/钻石）；与 gen_textures.py、mesher 同步
+const ATLAS_ROWS = 12; // 4×12=48 槽（37-45 扩展建材/白桦）；与 gen_textures.py、mesher 同步
 const TILE_PX = 16;
 const EPS = 0.5 / (TILE_PX * ATLAS_COLS);
 

@@ -18,7 +18,17 @@ import {
 // 被动动物（猪/牛/羊/鸡）——朴素数据 + 纯函数（AI/物理/受伤/掉落），可无头单测。
 // 渲染在 render/MobRenderer；副作用（生成掉落物 ItemDrop、移除死亡实体）由 game/ 按事件施加。
 
-export type MobKind = 'pig' | 'cow' | 'sheep' | 'chicken' | 'zombie' | 'skeleton' | 'creeper' | 'husk';
+export type MobKind =
+  | 'pig'
+  | 'cow'
+  | 'sheep'
+  | 'chicken'
+  | 'rabbit'
+  | 'zombie'
+  | 'skeleton'
+  | 'creeper'
+  | 'husk'
+  | 'spider';
 
 export interface MobDef {
   hp: number;
@@ -40,11 +50,13 @@ export const MOB_DEFS: Record<MobKind, MobDef> = {
   cow: { hp: 10, width: 0.9, height: 1.4, moveSpeed: 0.08, fallImmune: false },
   sheep: { hp: 8, width: 0.9, height: 1.3, moveSpeed: 0.08, fallImmune: false },
   chicken: { hp: 4, width: 0.4, height: 0.7, moveSpeed: 0.07, fallImmune: true },
+  rabbit: { hp: 3, width: 0.4, height: 0.5, moveSpeed: 0.13, fallImmune: false },
   // 敌对怪移速：原 ~0.05 只有玩家走速(~0.216)的 1/4 → 永远追不上你。提到 ~0.15(≈0.7×走速)：能贴身威胁、疾跑仍可甩开(同 MC 感觉)。
   zombie: { hp: 20, width: 0.6, height: 1.9, moveSpeed: 0.13, fallImmune: false, hostile: true, attack: 3, sense: 35 }, // 1.12:followRange 35,僵尸系最慢
   skeleton: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 2, sense: 16, ranged: true },
   creeper: { hp: 20, width: 0.6, height: 1.7, moveSpeed: 0.15, fallImmune: false, hostile: true, attack: 43, sense: 16, explosive: true, sunImmune: true }, // attack=爆心最大伤害(1.12 普通难度 power3 贴脸≈43),按距离衰减
   husk: { hp: 20, width: 0.6, height: 1.95, moveSpeed: 0.13, fallImmune: false, hostile: true, attack: 3, sense: 35, sunImmune: true }, // 沙漠僵尸变种(MC 1.12)：日晒免疫
+  spider: { hp: 16, width: 1.4, height: 0.9, moveSpeed: 0.16, fallImmune: false, hostile: true, attack: 2, sense: 16, sunImmune: true },
 };
 
 export const isHostile = (kind: MobKind): boolean => MOB_DEFS[kind].hostile === true;
@@ -309,6 +321,8 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       if (f > 0) out.push({ id: FEATHER, count: f });
       return out;
     }
+    case 'rabbit':
+      return []; // 兔肉/兔皮尚未注册；先保持生物本体，不伪装成其他掉落。
     case 'zombie':
     case 'husk': {
       const n = Math.floor(rng() * 3); // 0–2 腐肉（尸壳同僵尸，MC 1.12）
@@ -318,8 +332,6 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
       const out: MobDrop[] = [];
       const bones = Math.floor(rng() * 3); // 0–2 骨头（MC）
       if (bones > 0) out.push({ id: BONE, count: bones });
-      const str = Math.floor(rng() * 3); // 0–2 线（无蜘蛛，骷髅替代来源 → 够做弓）
-      if (str > 0) out.push({ id: STRING, count: str });
       const arr = Math.floor(rng() * 3); // 0–2 箭（1.12）
       if (arr > 0) out.push({ id: ARROW, count: arr });
       return out;
@@ -327,6 +339,10 @@ export function rollDrops(kind: MobKind, rng: () => number): MobDrop[] {
     case 'creeper': {
       const n = Math.floor(rng() * 3); // 0–2 火药（仅被打死时掉；自爆不掉，同 MC）
       return n > 0 ? [{ id: GUNPOWDER, count: n }] : [];
+    }
+    case 'spider': {
+      const n = Math.floor(rng() * 3); // 0–2 线（1.12）
+      return n > 0 ? [{ id: STRING, count: n }] : [];
     }
   }
 }

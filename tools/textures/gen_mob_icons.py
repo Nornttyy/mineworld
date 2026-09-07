@@ -6,7 +6,9 @@ from PIL import Image, ImageDraw
 
 S = 16
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons")
+OUT_CLASSIC = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons_classic")
 os.makedirs(OUT, exist_ok=True)
+os.makedirs(OUT_CLASSIC, exist_ok=True)
 
 
 def new():
@@ -180,6 +182,19 @@ ICONS = {
     "bone": bone_icon(),
 }
 
+def classicize(im):
+    out = im.copy()
+    px = out.load()
+    for y in range(S):
+        for x in range(S):
+            r, g, b, a = px[x, y]
+            if a:
+                avg = (r + g + b) // 3
+                px[x, y] = (int(r * .8 + avg * .12), int(g * .8 + avg * .12), int(b * .8 + avg * .12), a)
+    return out
+
+
 for name, im in ICONS.items():
-    im.save(os.path.join(OUT, name + ".png"))
-print(f"wrote {len(ICONS)} mob-drop icons -> public/textures/icons/")
+    im.save(os.path.join(OUT, name + ".png"), optimize=True)
+    classicize(im).save(os.path.join(OUT_CLASSIC, name + ".png"), optimize=True)
+print(f"wrote {len(ICONS)} mob-drop icons to both texture packs")

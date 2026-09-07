@@ -30,6 +30,14 @@ import {
   LAVA,
   BEDROCK,
   NETHER_PORTAL,
+  GRANITE,
+  DIORITE,
+  ANDESITE,
+  BRICKS,
+  MOSSY_COBBLESTONE,
+  RED_SAND,
+  BIRCH_LOG,
+  BIRCH_LEAVES,
 } from './registry';
 
 describe('block registry', () => {
@@ -71,6 +79,21 @@ describe('block registry', () => {
     expect(isTargetableId(1)).toBe(true); // 石头：实心 → 可选
     expect(isTargetableId(9)).toBe(false); // 水：不可挖选
     expect(isTargetableId(0)).toBe(false); // 空气
+  });
+});
+
+describe('扩展建材与白桦方块 (37-44)', () => {
+  it('8 个方块使用独立图集格并拥有正确渲染分支', () => {
+    const ids = [GRANITE, DIORITE, ANDESITE, BRICKS, MOSSY_COBBLESTONE, RED_SAND, BIRCH_LOG];
+    for (const id of ids) {
+      expect(BLOCKS[id].drop).toBe(id);
+      expect(isOpaque(id)).toBe(true);
+    }
+    expect(blockFaceTile(GRANITE, Face.PosY)).toBe(37);
+    expect(blockFaceTile(BIRCH_LOG, Face.PosY)).toBe(43);
+    expect(blockFaceTile(BIRCH_LOG, Face.PosX)).toBe(44);
+    expect(blockFaceTile(BIRCH_LEAVES, Face.PosY)).toBe(45);
+    expect(isCutoutId(BIRCH_LEAVES)).toBe(true);
   });
 });
 

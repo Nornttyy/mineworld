@@ -73,8 +73,11 @@ describe('ChunkMeshManager.setWorld', () => {
 
     cmm.setSunEnabled(false);
     expect(cmm.sun.castShadow).toBe(false);
+    expect(cmm.uSunUp.value).toBe(0);
+    expect(cmm.lightLevelAt(999, 80, 999)).toEqual([0, 0]);
     cmm.setSunEnabled(true);
     expect(cmm.sun.castShadow).toBe(true);
+    expect(cmm.lightLevelAt(999, 80, 999)).toEqual([15, 0]);
 
     cmm.setLightingQuality('off');
     expect(cmm.waterMat.transparent).toBe(true);

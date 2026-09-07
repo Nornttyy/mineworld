@@ -126,6 +126,16 @@ function buildModel(kind: MobKind): Model {
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, 0.18); // 耳
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, -0.18);
     for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.15);
+  } else if (kind === 'rabbit') {
+    const lH = 0.18;
+    S(MOB_SKIN_PARTS.animalBody, 0.48, 0.3, 0.34, -0.05, lH + 0.15, 0);
+    head = S(MOB_SKIN_PARTS.head, 0.28, 0.28, 0.28, 0.29, lH + 0.29, 0);
+    // 直立长耳、短方尾和明显的大后腿，让剪影与鸡/幼畜完全不同。
+    P(0.1, 0.32, 0.1, 0x9b7452, 0.28, lH + 0.57, 0.09);
+    P(0.1, 0.32, 0.1, 0x9b7452, 0.28, lH + 0.57, -0.09);
+    tail = P(0.16, 0.16, 0.16, 0xe8ded0, -0.36, lH + 0.26, 0);
+    for (const [x, z, w] of [[0.15, 0.12, 0.1], [0.15, -0.12, 0.1], [-0.22, 0.13, 0.16], [-0.22, -0.13, 0.16]] as const)
+      addLeg(g, skinMat, legs, x, z, lH, w);
   } else if (kind === 'zombie') {
     const lH = 0.82;
     S(MOB_SKIN_PARTS.humanBody, 0.28, 0.66, 0.5, 0, lH + 0.33, 0);
@@ -158,6 +168,22 @@ function buildModel(kind: MobKind): Model {
     S(MOB_SKIN_PARTS.humanBody, 0.34, 0.82, 0.5, 0, lH + 0.5, 0);
     head = S(MOB_SKIN_PARTS.head, 0.48, 0.48, 0.48, 0, lH + 1.12, 0);
     for (const [x, z] of [[0.16, 0.13], [0.16, -0.13], [-0.16, 0.13], [-0.16, -0.13]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.16);
+  } else if (kind === 'spider') {
+    const bodyY = 0.34;
+    S(MOB_SKIN_PARTS.animalBody, 0.72, 0.42, 0.7, -0.16, bodyY, 0);
+    S(MOB_SKIN_PARTS.animalBody, 0.58, 0.34, 0.58, -0.68, bodyY + 0.01, 0);
+    head = S(MOB_SKIN_PARTS.head, 0.48, 0.34, 0.58, 0.42, bodyY + 0.02, 0);
+    // 8 条水平分节腿；pivot 在身体边缘，移动时在地面平面内交替扫动。
+    for (const side of [-1, 1] as const) {
+      for (let i = 0; i < 4; i++) {
+        const pivot = new THREE.Group();
+        pivot.position.set(-0.4 + i * 0.27, bodyY - 0.04, side * 0.25);
+        part(pivot, skinMat, 0.1, 0.1, 0.62, 0xffffff, 0, -0.08, side * 0.27, MOB_SKIN_PARTS.leg);
+        pivot.rotation.x = side * (0.12 + Math.abs(i - 1.5) * 0.08);
+        g.add(pivot);
+        legs.push(pivot);
+      }
+    }
   } else {
     const beak = 0xe7951f, red = 0xcc3b30, lH = 0.22;
     S(MOB_SKIN_PARTS.animalBody, 0.34, 0.34, 0.3, -0.02, lH + 0.17, 0);
@@ -243,7 +269,11 @@ export class MobRenderer {
       // 摆腿：幅度渐入渐出(原来起步/停步瞬间从 0 跳满幅 → 僵硬)；走路时身体随步伐轻微起伏
       m.swingAmt += ((moving ? 1 : 0) - m.swingAmt) * Math.min(1, dt * 8);
       const swing = Math.sin(m.phase) * 0.6 * m.swingAmt;
-      m.legs.forEach((leg, i) => (leg.rotation.z = i % 2 === 0 ? swing : -swing));
+      if (mob.kind === 'spider') {
+        m.legs.forEach((leg, i) => (leg.rotation.y = (i % 2 === 0 ? swing : -swing) * 0.45));
+      } else {
+        m.legs.forEach((leg, i) => (leg.rotation.z = i % 2 === 0 ? swing : -swing));
+      }
       if (mob.kind === 'zombie' || mob.kind === 'husk') {
         // 双臂保持前伸，但随步伐轻微错相摆动，不再是一整根静态横条。
         m.arms.forEach((arm, i) => (arm.rotation.z = 1.28 + (i ? -1 : 1) * Math.sin(m.phase) * 0.08 * m.swingAmt));

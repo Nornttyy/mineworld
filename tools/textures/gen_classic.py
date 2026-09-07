@@ -286,7 +286,7 @@ BLOCKS.update({
 })
 
 # Order must stay aligned with src/core/blocks/registry.ts and the renderer's
-# 4x10 atlas constants.  The trailing cells stay transparent for future blocks.
+# 4x12 atlas constants.  The trailing cells stay transparent for future blocks.
 ATLAS_ORDER = [
     "stone", "dirt", "grass_top", "grass_side",
     "cobblestone", "sand", "oak_log_top", "oak_log_side",
@@ -297,7 +297,9 @@ ATLAS_ORDER = [
     "bedrock", "nether_portal", "sandstone", "cactus",
     "ice", "snow", "spruce_log", "spruce_leaves",
     "coal_block", "iron_block", "quartz_block", "diamond_ore",
-    "diamond_block",
+    "diamond_block", "granite", "diorite", "andesite",
+    "bricks", "mossy_cobblestone", "red_sand", "birch_log_top",
+    "birch_log_side", "birch_leaves",
 ]
 
 ICON_FACES = {
@@ -330,6 +332,14 @@ ICON_FACES = {
     "iron_block": ("iron_block", "iron_block"),
     "quartz_block": ("quartz_block", "quartz_block"),
     "diamond_block": ("diamond_block", "diamond_block"),
+    "granite": ("granite", "granite"),
+    "diorite": ("diorite", "diorite"),
+    "andesite": ("andesite", "andesite"),
+    "bricks": ("bricks", "bricks"),
+    "mossy_cobblestone": ("mossy_cobblestone", "mossy_cobblestone"),
+    "red_sand": ("red_sand", "red_sand"),
+    "birch_log": ("birch_log_top", "birch_log_side"),
+    "birch_leaves": ("birch_leaves", "birch_leaves"),
 }
 
 
@@ -344,7 +354,7 @@ def build_tiles():
 
 
 def build_atlas(tiles):
-    atlas = Image.new("RGBA", (S * 4, S * 10), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (S * 4, S * 12), (0, 0, 0, 0))
     for index, name in enumerate(ATLAS_ORDER):
         atlas.paste(tiles[name].convert("RGBA"), ((index % 4) * S, (index // 4) * S))
     return atlas

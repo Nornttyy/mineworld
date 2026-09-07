@@ -830,6 +830,112 @@ def diamond_block(rng):
     return im
 
 
+def stone_variant(rng, base, light, dark, veins):
+    """1.8+ 三种石材：大块斑驳结构，不是给石头做整图换色。"""
+    im = new()
+    fill(im, base)
+    px = im.load()
+    light_c, dark_c = hx(light), hx(dark)
+    for y in range(S):
+        for x in range(S):
+            cell = ((x // 3) * 5 + (y // 3) * 7 + (x * y) // 11) % 9
+            if cell in (0, 1):
+                px[x, y] = light_c
+            elif cell in (6, 7):
+                px[x, y] = dark_c
+    for x, y, length in veins:
+        streak(px, dark, x, y, length, rng)
+    return im
+
+
+def granite(rng):
+    return stone_variant(rng, "#9d6b58", "#bd8770", "#765044", [(1, 2, 5), (10, 0, 7), (6, 9, 6)])
+
+
+def diorite(rng):
+    return stone_variant(rng, "#b8b8b2", "#deddd5", "#777a78", [(3, 0, 6), (12, 5, 5), (7, 10, 7)])
+
+
+def andesite(rng):
+    return stone_variant(rng, "#777a78", "#949895", "#575a59", [(0, 4, 6), (9, 1, 5), (13, 9, 6)])
+
+
+def bricks(rng):
+    im = new()
+    mortar, red, hi, dark = map(hx, ["#7b756d", "#985242", "#b56550", "#6e392f"])
+    px = im.load()
+    for y in range(S):
+        row = y // 4
+        seam = 0 if row % 2 == 0 else 4
+        for x in range(S):
+            if y % 4 == 3 or (x - seam) % 8 == 7:
+                px[x, y] = mortar
+            else:
+                px[x, y] = hi if y % 4 == 0 else dark if (x + y) % 9 == 0 else red
+    return im
+
+
+def mossy_cobblestone(rng):
+    im = cobblestone(rng)
+    px = im.load()
+    moss = [hx("#596f35"), hx("#6f8441"), hx("#3f542a")]
+    for x, y in [(0, 1), (1, 2), (5, 0), (6, 1), (10, 5), (11, 6), (3, 10), (4, 11), (13, 13), (14, 14)]:
+        px[x, y] = moss[(x + y) % 3]
+        if x + 1 < S and (x + y) % 2 == 0:
+            px[x + 1, y] = moss[(x + y + 1) % 3]
+    return im
+
+
+def red_sand(rng):
+    im = new()
+    fill(im, "#a95832")
+    speck(im, ["#bd6a3d", "#8b4229", "#ce7442"], 0.2, rng)
+    px = im.load()
+    for x, y in [(2, 2), (8, 1), (13, 4), (5, 7), (10, 10), (1, 13), (14, 14)]:
+        px[x, y] = hx("#75341f")
+    return im
+
+
+def birch_log_top(rng):
+    im = new()
+    fill(im, "#5d533b")
+    px = im.load()
+    rings = ["#d7cda8", "#bdae83", "#e5dcba", "#aa9a70", "#eee6c8", "#95845d", "#d0c399"]
+    for y in range(1, S - 1):
+        for x in range(1, S - 1):
+            ring = min(6, int(max(abs(x - 7.5), abs(y - 7.5))))
+            px[x, y] = hx(rings[ring])
+    px[7, 7] = px[8, 8] = hx("#756342")
+    return im
+
+
+def birch_log_side(rng):
+    im = new()
+    fill(im, "#d7d3bd")
+    px = im.load()
+    for y in range(S):
+        for x in range(S):
+            if (x * 7 + y * 3) % 19 == 0:
+                px[x, y] = hx("#bbb6a1")
+    for x, y, w in [(1, 2, 3), (9, 1, 2), (5, 6, 4), (12, 9, 3), (2, 13, 4), (9, 15, 2)]:
+        for dx in range(w):
+            px[(x + dx) % S, y] = hx("#383833") if dx < w - 1 else hx("#77746a")
+    return im
+
+
+def birch_leaves(rng):
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    colors = [hx("#4a7f2c"), hx("#5b9635"), hx("#386822"), hx("#6aa342")]
+    holes = {(1, 1), (8, 0), (14, 3), (4, 6), (10, 9), (1, 13), (13, 14), (7, 12)}
+    for y in range(S):
+        for x in range(S):
+            if (x, y) not in holes:
+                r, g, b = colors[(x * 5 + y * 3 + x * y) % len(colors)]
+                px[x, y] = (r, g, b, 255)
+    return im
+
+
 BLOCKS = [
     ("stone", stone),
     ("cobblestone", cobblestone),
@@ -868,6 +974,15 @@ BLOCKS = [
     ("iron_block", iron_block),
     ("quartz_block", quartz_block),
     ("diamond_block", diamond_block),
+    ("granite", granite),
+    ("diorite", diorite),
+    ("andesite", andesite),
+    ("bricks", bricks),
+    ("mossy_cobblestone", mossy_cobblestone),
+    ("red_sand", red_sand),
+    ("birch_log_top", birch_log_top),
+    ("birch_log_side", birch_log_side),
+    ("birch_leaves", birch_leaves),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -940,9 +1055,9 @@ def main():
         tex[name] = im
         print(f"wrote {name}.png")
 
-    # Pack block tiles into one atlas (4 cols × 7 rows = 28 slots, 16px each) for single-material rendering.
+    # Pack block tiles into one atlas (4 cols × 12 rows, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
-    # 4×10=40 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-36 合成储存/钻石方块
+    # 4×12=48 槽: 0-36 基础内容, 37-45 扩展建材/白桦林
     # 改行数时务必同步 mesher.ts / DropRenderer.ts / FirstPersonHand.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
@@ -950,8 +1065,10 @@ def main():
                    'gravel', 'grass_plant',
                    'obsidian', 'netherrack', 'soul_sand', 'glowstone', 'nether_quartz_ore', 'lava', 'bedrock', 'nether_portal',
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
-                   'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block']
-    ATLAS_COLS, ATLAS_ROWS = 4, 10  # 4×10=40 槽；同步 mesher/DropRenderer/FirstPersonHand 的 ATLAS_ROWS=10
+                   'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block',
+                   'granite', 'diorite', 'andesite', 'bricks', 'mossy_cobblestone', 'red_sand',
+                   'birch_log_top', 'birch_log_side', 'birch_leaves']
+    ATLAS_COLS, ATLAS_ROWS = 4, 12  # 同步 mesher/DropRenderer/FirstPersonHand
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:
@@ -981,6 +1098,14 @@ def main():
         'iron_block': ('iron_block', 'iron_block'),
         'quartz_block': ('quartz_block', 'quartz_block'),
         'diamond_block': ('diamond_block', 'diamond_block'),
+        'granite': ('granite', 'granite'),
+        'diorite': ('diorite', 'diorite'),
+        'andesite': ('andesite', 'andesite'),
+        'bricks': ('bricks', 'bricks'),
+        'mossy_cobblestone': ('mossy_cobblestone', 'mossy_cobblestone'),
+        'red_sand': ('red_sand', 'red_sand'),
+        'birch_log': ('birch_log_top', 'birch_log_side'),
+        'birch_leaves': ('birch_leaves', 'birch_leaves'),
         # 生物群系/下界方块的等距图标(之前漏了→快捷栏/背包没图标)
         'obsidian': ('obsidian', 'obsidian'),
         'netherrack': ('netherrack', 'netherrack'),

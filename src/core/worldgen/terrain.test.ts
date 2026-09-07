@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { decorateOverworldOres, generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
+import { birchTreeAt, decorateOverworldOres, generateTerrain, surfaceHeight, generateChunk, SEA_LEVEL, columnHeight } from './terrain';
 import { biomeAt } from './biome';
 import { localCoord, worldToChunk } from '../world/coords';
-import { CACTUS, COAL_ORE, DIAMOND_ORE, ICE, IRON_ORE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
+import { BIRCH_LOG, CACTUS, COAL_ORE, DIAMOND_ORE, ICE, IRON_ORE, RED_SAND, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, NETHERRACK, LAVA, BEDROCK, GLOWSTONE, WATER, GRASS } from '../blocks/registry';
 import { Chunk, CHUNK_H, CHUNK_W } from '../world/chunk';
 
 const SAND_ID = 5;
@@ -219,12 +219,35 @@ describe('biome surface blocks', () => {
     }
     expect(foundGrass).toBe(true); // 雪原地表=草(Task 3.2 加雪层)
   });
+
+  it('恶地使用红沙地表，白桦林会生成白桦原木而非橡木换色', () => {
+    let badlands: [number, number] | null = null;
+    let birch: [number, number] | null = null;
+    outer: for (let wx = -4000; wx <= 4000; wx += 8) {
+      for (let wz = -1200; wz <= 1200; wz += 8) {
+        if (!badlands && biomeAt(wx, wz, SEED) === 'badlands' && columnHeight(wx, wz, SEED) > SEA_LEVEL + 1)
+          badlands = [wx, wz];
+        if (!birch && birchTreeAt(wx, wz, SEED)) birch = [wx, wz];
+        if (badlands && birch) break outer;
+      }
+    }
+    expect(badlands).not.toBeNull();
+    expect(birch).not.toBeNull();
+
+    const [bx, bz] = badlands!;
+    const badChunk = generateChunk(worldToChunk(bx), worldToChunk(bz), SEED);
+    expect(badChunk.get(localCoord(bx), columnHeight(bx, bz, SEED), localCoord(bz))).toBe(RED_SAND);
+
+    const [tx, tz] = birch!;
+    const treeChunk = generateChunk(worldToChunk(tx), worldToChunk(tz), SEED);
+    expect(treeChunk.get(localCoord(tx), columnHeight(tx, tz, SEED) + 1, localCoord(tz))).toBe(BIRCH_LOG);
+  });
 });
 
 describe('Task 3.2 decorations', () => {
   const SEED = 1337;
 
-  it('仙人掌只立在沙漠的沙地上：每个 CACTUS 方块下方必须是沙(5)且群系是沙漠', () => {
+  it('仙人掌只立在干燥群系的沙/红沙地上', () => {
     // 先用 biomeAt 找沙漠陆地列，再生成该列所在区块，在区块内找仙人掌验证
     const SAND_ID = 5;
 
@@ -260,10 +283,10 @@ describe('Task 3.2 decorations', () => {
             for (let y = 1; y < 200; y++) {
               if (chunk.get(lx, y, lz) === CACTUS) {
                 foundCactus = true;
-                // 下方必须是沙
-                expect(chunk.get(lx, y - 1, lz)).toBe(SAND_ID);
-                // 该列群系必须是沙漠
-                expect(biomeAt(wx, wz, SEED)).toBe('desert');
+                // 下方必须是普通沙或恶地红沙
+                expect([SAND_ID, RED_SAND]).toContain(chunk.get(lx, y - 1, lz));
+                // 该列群系必须是沙漠或恶地
+                expect(['desert', 'badlands']).toContain(biomeAt(wx, wz, SEED));
                 break outerChunk;
               }
             }

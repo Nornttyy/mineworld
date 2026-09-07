@@ -3,7 +3,7 @@ import { Chunk, CHUNK_W, CHUNK_H, flByte } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
 import { fbm2, hash2, hash3, valueNoise3 } from '../math/noise';
 import { makeRng } from '../math/rng';
-import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, isSolidId, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND, DIAMOND_ORE } from '../blocks/registry';
+import { WATER, OAK_LOG, OAK_LEAVES, SANDSTONE, CACTUS, ICE, SNOW_LAYER, SPRUCE_LOG, SPRUCE_LEAVES, BIRCH_LOG, BIRCH_LEAVES, RED_SAND, GRANITE, isSolidId, NETHERRACK, LAVA, GLOWSTONE, NETHER_QUARTZ_ORE, BEDROCK, SOUL_SAND, DIAMOND_ORE } from '../blocks/registry';
 import { biomeAt, biomeForest as _biomeForest } from './biome';
 
 // Re-export biomeForest so existing callers (incl. biome.test.ts if any) still work.
@@ -233,6 +233,15 @@ function treeHeight(wx: number, wz: number, seed: number): number {
   return 4 + Math.floor(hash2(wx, wz, seed * 31 + 5) * 3);
 }
 
+/** 白桦林树根候选（纯函数），供区块边界重放和回归测试共用。 */
+export function birchTreeAt(wx: number, wz: number, seed: number): boolean {
+  return (
+    biomeAt(wx, wz, seed) === 'birch_forest' &&
+    columnHeight(wx, wz, seed) > SEA_LEVEL + 1 &&
+    hash2(wx, wz, seed * 23 + 97) < 0.065
+  );
+}
+
 // 在本区块放一棵根在世界列 (rootWx,rootWz) 的树；只写落在本区块内的方块。
 // ground = 该列草块 y。先放叶后放干，保证树干中心不被叶子盖住。
 // logId/leavesId 可选，默认橡树；传入 SPRUCE_LOG/SPRUCE_LEAVES 即变成云杉（树冠形状复用橡树）。
@@ -382,6 +391,11 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
           else if (y >= height - 3) id = SAND;
           else if (y >= height - 7) id = SANDSTONE;
           else id = stoneOrGravelAt(wx, y, wz, seed);
+        } else if (biome === 'badlands') {
+          // 恶地：红沙盖层，下面是暖色花岗岩岩层，远看与普通沙漠有明确区别。
+          if (y >= height - 3) id = RED_SAND;
+          else if (y >= height - 10) id = GRANITE;
+          else id = stoneOrGravelAt(wx, y, wz, seed);
         } else {
           // 温带(plains/forest) + 雪原：草顶 + 土填充（雪原地表草，Task 3.2 再加雪层）
           if (y === height) id = GRASS;
@@ -416,6 +430,15 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
   // 装饰：种橡树（仅平原/森林群系）。外扩 TREE_MARGIN 遍历，让邻列的树把枝叶探进本区块（接缝处不断树）。
   const x0 = cx * CHUNK_W;
   const z0 = cz * CHUNK_W;
+  // 装饰：白桦林。独立树种和更均匀的密度，避免只是把普通森林改了名字。
+  for (let wx = x0 - TREE_MARGIN; wx < x0 + CHUNK_W + TREE_MARGIN; wx++) {
+    for (let wz = z0 - TREE_MARGIN; wz < z0 + CHUNK_W + TREE_MARGIN; wz++) {
+      if (!birchTreeAt(wx, wz, seed)) continue;
+      const g = columnHeight(wx, wz, seed);
+      placeTree(c, cx, cz, wx, wz, g, seed + 101, BIRCH_LOG, BIRCH_LEAVES);
+    }
+  }
+
   for (let wx = x0 - TREE_MARGIN; wx < x0 + CHUNK_W + TREE_MARGIN; wx++) {
     for (let wz = z0 - TREE_MARGIN; wz < z0 + CHUNK_W + TREE_MARGIN; wz++) {
       const r = hash2(wx, wz, seed * 13 + 7);
@@ -447,10 +470,11 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
     for (let lx = 0; lx < CHUNK_W; lx++) {
       const wx = x0 + lx;
       const wz = z0 + lz;
-      if (biomeAt(wx, wz, seed) !== 'desert') continue;
+      const dryBiome = biomeAt(wx, wz, seed);
+      if (dryBiome !== 'desert' && dryBiome !== 'badlands') continue;
       const h = columnHeight(wx, wz, seed);
       if (h <= SEA_LEVEL + 1) continue; // 只在陆地
-      if (c.get(lx, h, lz) !== SAND) continue; // 地表须为沙
+      if (c.get(lx, h, lz) !== SAND && c.get(lx, h, lz) !== RED_SAND) continue; // 地表须为沙/红沙
       if (c.get(lx, h + 1, lz) !== 0) continue; // 上方须为空气（未被他物占据）
       // 低密度：约 2% → 不密集，避免连片
       const r = hash2(wx, wz, seed * 11 + 53);
@@ -481,7 +505,7 @@ export function generateChunk(cx: number, cz: number, seed: number, dimension: '
       const wz = z0 + lz;
       // 守卫：草丛只在温带（平原/森林）长，沙漠/雪原不长草丛
       const bm = biomeAt(wx, wz, seed);
-      if (bm !== 'plains' && bm !== 'forest') continue;
+      if (bm !== 'plains' && bm !== 'forest' && bm !== 'birch_forest') continue;
       const h = columnHeight(wx, wz, seed);
       if (h <= SEA_LEVEL + 1) continue; // 沙滩/水下不长草
       if (c.get(lx, h, lz) !== GRASS || c.get(lx, h + 1, lz) !== 0) continue; // 表层须草方块、其上须空气(避树干/竖井)

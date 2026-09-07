@@ -9,12 +9,11 @@ describe('biome 群系', () => {
     expect(a).toBeGreaterThanOrEqual(0);
     expect(a).toBeLessThanOrEqual(1);
   });
-  it('扫一大片能同时出现沙漠/雪原/温带', () => {
+  it('扫一大片能出现六种群系（含白桦林与恶地）', () => {
     const seen = new Set<string>();
-    for (let x = 0; x < 4000; x += 40)
-      for (let z = 0; z < 400; z += 40) seen.add(biomeAt(x, z, 1337));
-    expect(seen.has('desert')).toBe(true);
-    expect(seen.has('snow')).toBe(true);
-    expect([...seen].some((b) => b === 'plains' || b === 'forest')).toBe(true);
+    for (let x = -4000; x <= 4000; x += 40)
+      for (let z = -1200; z <= 1200; z += 40) seen.add(biomeAt(x, z, 1337));
+    for (const biome of ['desert', 'snow', 'plains', 'forest', 'birch_forest', 'badlands'])
+      expect(seen.has(biome), `missing biome: ${biome}`).toBe(true);
   });
 });

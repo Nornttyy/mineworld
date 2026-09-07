@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
+import { BOW, FLINT_AND_STEEL, isFood, toolOf } from '../core/items/items';
 import type { LightingQuality } from '../core/settings';
 import { iconUrl } from '../ui/itemIcons';
 
@@ -32,6 +33,32 @@ export interface HandLightingState {
   skyColor: THREE.Color;
   sunDirectionWorld: THREE.Vector3;
   cameraQuaternion: THREE.Quaternion;
+}
+
+export interface HeldSpritePose {
+  size: number;
+  position: readonly [number, number, number];
+  rotation: readonly [number, number, number];
+}
+
+/** 不同物品按真实用途定尺寸/握持角，避免所有图标都像同尺寸贴纸。 */
+export function heldSpritePose(id: number): HeldSpritePose {
+  const tool = toolOf(id);
+  if (tool) {
+    const long = tool.kind === 'sword' || tool.kind === 'pickaxe';
+    return {
+      size: long ? 0.48 : 0.44,
+      position: [-0.005, long ? 0.245 : 0.23, 0.025],
+      rotation: [-0.04, -0.08, -0.14],
+    };
+  }
+  if (id === BOW)
+    return { size: 0.46, position: [0, 0.24, 0.025], rotation: [-0.03, -0.06, -0.08] };
+  if (id === TORCH || id === FLINT_AND_STEEL)
+    return { size: 0.4, position: [0.01, 0.225, 0.025], rotation: [-0.04, -0.08, -0.12] };
+  if (isFood(id))
+    return { size: 0.35, position: [0.025, 0.205, 0.03], rotation: [0, -0.05, -0.04] };
+  return { size: 0.31, position: [0.025, 0.19, 0.03], rotation: [0, -0.04, -0.03] };
 }
 
 // 手持物如何渲染：注册表里的方块画 3D 立方体；有图标的物品(id≥256)画平面精灵；其余只露手臂。
@@ -74,7 +101,7 @@ export function mcSwingPose(t: number): SwingPose {
 }
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 10; // 4×10=40 槽（18-25 下界, 26-31 群系, 32-36 储存/钻石）；与 gen_textures.py、mesher、DropRenderer 同步
+const ATLAS_ROWS = 12; // 4×12=48 槽（37-45 扩展建材/白桦）；与 gen_textures.py、mesher、DropRenderer 同步
 const TILE_PX = 16;
 const EPS = 0.01 / (TILE_PX * ATLAS_COLS);
 // 面亮度（同方块）：+X,-X,+Y,-Y,+Z,-Z
@@ -286,16 +313,17 @@ export class FirstPersonHand {
               ior: 1.35,
               specularIntensity: profile.specularIntensity,
             });
-      this.item = new THREE.Mesh(blockCube(id, 0.32), material);
-      this.item.position.set(-0.02, 0.16, 0.04); // 握在手臂上端
-      this.item.rotation.set(-0.1, 0.6, 0.1);
+      this.item = new THREE.Mesh(blockCube(id, 0.3), material);
+      this.item.position.set(-0.015, 0.17, 0.035); // 方块略小，握点贴住手掌而非悬空
+      this.item.rotation.set(-0.16, 0.72, -0.06);
       this.root.add(this.item);
     } else if (kind === 'sprite' && id !== null) {
       // 物品：用图标贴一个平面，斜握在手里（同 MC 手持物品=平面精灵）
       const tex = this.itemTexture(id);
       if (tex) {
+        const pose = heldSpritePose(id);
         this.item = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.34, 0.34),
+          new THREE.PlaneGeometry(pose.size, pose.size),
           new THREE.MeshBasicMaterial({
             map: tex,
             transparent: true,
@@ -303,8 +331,8 @@ export class FirstPersonHand {
             side: THREE.DoubleSide,
           }),
         );
-        this.item.position.set(0.04, 0.2, 0.04);
-        this.item.rotation.set(0, -0.35, 0.35); // 斜一点，像握着柄
+        this.item.position.set(...pose.position);
+        this.item.rotation.set(...pose.rotation);
         this.root.add(this.item);
       }
     }
@@ -337,6 +365,9 @@ export class FirstPersonHand {
   // 切换方块图集（材质风格切换）：换图集并重建当前手持(若是方块)以套用。
   setAtlas(tex: THREE.Texture): void {
     this.atlas = tex;
+    // iconUrl 会随材质包切目录；旧缓存必须清空，否则同一个 id 仍显示切换前的物品材质。
+    for (const texture of this.spriteTex.values()) texture.dispose();
+    this.spriteTex.clear();
     const id = this.itemId;
     this.itemId = null; // 强制 setHeld 重建
     this.setHeld(id);

@@ -21,7 +21,7 @@ import {
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
 
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 10; // 4×10=40 槽（18-25 下界, 26-31 群系, 32-36 储存/钻石）；与 gen_textures.py、DropRenderer、FirstPersonHand 同步
+const ATLAS_ROWS = 12; // 4×12=48 槽（37-45 扩展建材/白桦）；与纹理生成器、DropRenderer、FirstPersonHand 同步
 const TILE_PX = 16;
 export const WATER_SURFACE_SUBDIVISIONS = 2;
 // 必须与 ChunkWorld.WATER_WAVE_OPEN_RADIUS 保持一致；这里本地声明可避免 mesh worker

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""物品图标：木棍/煤 + 木质&石质工具(镐/斧/锹/剑/锄)。
+"""1.12 风格物品图标：四种材质的工具拥有各自轮廓与像素细节。
 16×16 RGBA 透明背景、像素硬边、确定性。布局参照 MC 真实工具图标:
 - 剑/镐/锄：斜柄(左下→右上)，作用端在上/右上。
 - 斧/锹：竖直柄，头在正上方(斧=顶横斧头偏左刃；锹=顶方铲)。
 - 镐：柄左下，镐头是上方横弧。
-木质头=暖木色，石质头=灰石色;柄=深木;统一 1px 深描边。
+所有输出均为原生 16×16 硬像素；经典/鲜明两套包分别输出，不读取或换色旧 PNG。
 独立于 gen_textures.py / gen_ui.py。
 """
 import os
 from PIL import Image
 
 ICON = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons")
+ICON_CLASSIC = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons_classic")
 S = 16
 
 HANDLE = "#6e5530"
@@ -450,42 +451,143 @@ def center_png(name):
     out.save(p)
 
 
+TOOL_PALETTES = {
+    "wooden": (WOOD, WOOD_HI, WOOD_LO),
+    "stone": (STONE, STONE_HI, STONE_LO),
+    "iron": ("#c9cbd0", "#f1f1f4", "#858993"),
+    "diamond": ("#48c9bd", "#a0fff0", "#238b8c"),
+}
+
+CLASSIC_TOOL_PALETTES = {
+    "wooden": ("#9b7740", "#bb9659", "#6f522b"),
+    "stone": ("#858585", "#a6a6a6", "#5e5e5e"),
+    "iron": ("#c2c3c6", "#e7e7e9", "#7c7f86"),
+    "diamond": ("#39b8b0", "#80e8dc", "#207a7d"),
+}
+
+
+def tool_head(kind):
+    """五类工具的固定标准轮廓；所有材质严格共用，避免边缘歪斜。"""
+    shapes = {
+        # 镐头左右对称：中央接柄，两端同长度下弯。
+        "pickaxe": {
+            *( (x, 2) for x in range(4, 11) ),
+            *( (x, 3) for x in range(3, 12) ),
+            (2, 4), (3, 4), (4, 4), (7, 4), (8, 4), (9, 4), (11, 4), (12, 4), (13, 4),
+            (2, 5), (3, 5), (8, 5), (12, 5), (13, 5),
+        },
+        # 斧刃是规整阶梯楔形，柄从刃根正中接出。
+        "axe": {
+            *( (x, 1) for x in range(8, 12) ),
+            *( (x, 2) for x in range(7, 13) ),
+            *( (x, 3) for x in range(6, 13) ),
+            *( (x, 4) for x in range(6, 12) ),
+            *( (x, 5) for x in range(7, 11) ),
+            (8, 6), (9, 6),
+        },
+        # 锹头为居中的六边铲面，不再偏向一侧。
+        "shovel": {
+            (9, 1), (10, 1), (8, 2), (9, 2), (10, 2), (11, 2),
+            *( (x, 3) for x in range(7, 13) ),
+            *( (x, 4) for x in range(7, 13) ),
+            (8, 5), (9, 5), (10, 5), (11, 5), (9, 6), (10, 6),
+        },
+        # 锄刃为水平直刃，右端等宽下折，中央接柄。
+        "hoe": {
+            *( (x, 2) for x in range(5, 13) ),
+            *( (x, 3) for x in range(5, 14) ),
+            (8, 4), (9, 4), (12, 4), (13, 4), (8, 5), (9, 5), (12, 5), (13, 5),
+        },
+    }
+    return shapes[kind]
+
+
+def straight_handle(px):
+    """固定 45°、每级恰好移动一格的双像素木柄。"""
+    base, hi, lo = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+    for step in range(7):
+        x, y = 2 + step, 13 - step
+        px[x, y] = hi
+        px[x + 1, y] = base if step < 6 else lo
+
+
+def material_details(px, pts, material, palette):
+    """仅改头部内部纹理，不触碰统一外轮廓。"""
+    ordered = sorted(pts, key=lambda p: (p[1], p[0]))
+    if material == "wooden":
+        picks = ordered[4::7]
+    elif material == "stone":
+        picks = ordered[2::6]
+    elif material == "iron":
+        picks = [p for p in ordered if p[1] <= 2 and (p[0] + p[1]) % 2 == 0]
+    else:
+        picks = ordered[1::5]
+    for index, point in enumerate(picks):
+        px[point] = hx(palette[1] if index % 2 == 0 else palette[2])
+
+
+def make_tool(kind, material, classic=False):
+    im, px = blank()
+    palette = (CLASSIC_TOOL_PALETTES if classic else TOOL_PALETTES)[material]
+    outline = OUTLINE if material == "wooden" else OUTLINE_STONE
+    if kind == "sword":
+        # 刀身轮廓同样按材质单独锻造，不从木剑复制。
+        blade = {(12, 1), (13, 1), (11, 2), (12, 2), (13, 2), (10, 3), (11, 3), (12, 3),
+                 (9, 4), (10, 4), (11, 4), (8, 5), (9, 5), (10, 5), (7, 6), (8, 6), (9, 6), (7, 7), (8, 7)}
+        shade_head(px, blade, *palette)
+        for x, y in [(13, 1), (12, 2), (11, 3), (10, 4), (9, 5), (8, 6)]:
+            if (x, y) in blade: px[x, y] = hx(palette[1])
+        hb, hh, hl = hx(HANDLE), hx(HANDLE_HI), hx(HANDLE_LO)
+        for x in range(5, 10): px[x, 8] = hb
+        px[5, 8], px[9, 8] = hl, hl
+        for x, y in [(6, 9), (5, 10), (4, 11)]: px[x, y] = hb
+        px[7, 9], px[3, 12] = hh, hl
+    else:
+        straight_handle(px)
+        head = tool_head(kind)
+        shade_head(px, head, *palette)
+        material_details(px, head, material, palette)
+    add_outline(px, outline)
+    return im
+
+
+def classicize(image):
+    """非工具物品的经典包：压低饱和/亮度但保留逐像素边界。"""
+    out = image.copy()
+    px = out.load()
+    for y in range(S):
+        for x in range(S):
+            r, g, b, a = px[x, y]
+            if a:
+                avg = (r + g + b) / 3
+                px[x, y] = (int(r * .82 + avg * .12), int(g * .82 + avg * .12), int(b * .82 + avg * .12), a)
+    return out
+
+
 def main():
     os.makedirs(ICON, exist_ok=True)
-    # 先把用户手绘工具图案居中（石质换色、手持、物品栏都基于居中后的图标）
-    for n in ["wooden_pickaxe", "wooden_sword", "wooden_axe", "wooden_shovel", "stick"]:
-        center_png(n)
-    # 基础(脚本生成的)先存盘，供下面 recolor 读取
-    base = {
-        "coal": make_coal(), "wooden_hoe": make_hoe(False), "torch": make_torch(),
+    os.makedirs(ICON_CLASSIC, exist_ok=True)
+    vivid = {
+        "stick": make_stick(), "coal": make_coal(), "torch": make_torch(),
         "gunpowder": make_gunpowder(), "flint_and_steel": make_flint_and_steel(),
-        "nether_quartz": make_nether_quartz(),
-    }  # stick 由用户手绘，不在此生成
-    for name, im in base.items():
-        im.save(os.path.join(ICON, f"{name}.png"))
-    # 石质=整体换石、铁质=整体换银(都从木质换色)，加铁锭
-    out = {
-        "stone_pickaxe": recolor("wooden_pickaxe", WOOD_TO_STONE),
-        "stone_axe": recolor("wooden_axe", WOOD_TO_STONE),
-        "stone_shovel": recolor("wooden_shovel", WOOD_TO_STONE),
-        "stone_sword": recolor("wooden_sword", WOOD_TO_STONE),
-        "stone_hoe": recolor("wooden_hoe", WOOD_TO_STONE),
-        "iron_pickaxe": recolor("wooden_pickaxe", WOOD_TO_IRON),
-        "iron_axe": recolor("wooden_axe", WOOD_TO_IRON),
-        "iron_shovel": recolor("wooden_shovel", WOOD_TO_IRON),
-        "iron_sword": recolor("wooden_sword", WOOD_TO_IRON),
-        "iron_hoe": recolor("wooden_hoe", WOOD_TO_IRON),
-        "iron_ingot": make_ingot(WOOD_TO_IRON),
-        "diamond_pickaxe": recolor_pickaxe_head("wooden_pickaxe", WOOD_TO_DIAMOND),
-        "diamond_axe": recolor("wooden_axe", WOOD_TO_DIAMOND),
-        "diamond_shovel": recolor("wooden_shovel", WOOD_TO_DIAMOND),
-        "diamond_sword": recolor("wooden_sword", WOOD_TO_DIAMOND),
-        "diamond_hoe": recolor("wooden_hoe", WOOD_TO_DIAMOND),
+        "nether_quartz": make_nether_quartz(), "iron_ingot": make_ingot(WOOD_TO_IRON),
         "diamond": make_diamond(),
     }
-    for name, im in out.items():
-        im.save(os.path.join(ICON, f"{name}.png"))
-    print(f"wrote {len(base) + len(out)} item icons (石/铁工具+铁锭)")
+    for material in ("wooden", "stone", "iron", "diamond"):
+        for kind in ("pickaxe", "axe", "shovel", "sword", "hoe"):
+            vivid[f"{material}_{kind}"] = make_tool(kind, material)
+    for name, image in vivid.items():
+        image.save(os.path.join(ICON, f"{name}.png"), optimize=True)
+        prefix, _, suffix = name.partition("_")
+        classic = make_tool(suffix, prefix, True) if prefix in TOOL_PALETTES and suffix in ("pickaxe", "axe", "shovel", "sword", "hoe") else classicize(image)
+        classic.save(os.path.join(ICON_CLASSIC, f"{name}.png"), optimize=True)
+    # 8× 放大总览用于人工检查：每个源像素仍是完整方块，不做平滑缩放。
+    preview = Image.new("RGBA", (5 * S * 8, 4 * S * 8), (28, 28, 32, 255))
+    for row, material in enumerate(("wooden", "stone", "iron", "diamond")):
+        for col, kind in enumerate(("pickaxe", "axe", "shovel", "sword", "hoe")):
+            preview.paste(vivid[f"{material}_{kind}"].resize((S * 8, S * 8), Image.Resampling.NEAREST), (col * S * 8, row * S * 8))
+    preview.save(os.path.join(os.path.dirname(__file__), "_tools_preview.png"), optimize=True)
+    print(f"wrote {len(vivid)} independently drawn item icons to both texture packs")
 
 
 if __name__ == "__main__":

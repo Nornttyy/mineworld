@@ -6,6 +6,7 @@ from PIL import Image
 
 UI = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "ui")
 ICON = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons")
+ICON_CLASSIC = os.path.join(os.path.dirname(__file__), "..", "..", "public", "textures", "icons_classic")
 S = 16
 
 
@@ -134,10 +135,21 @@ def bubble(full):
 
 os.makedirs(UI, exist_ok=True)
 os.makedirs(ICON, exist_ok=True)
+os.makedirs(ICON_CLASSIC, exist_ok=True)
 for v in ("full", "half", "empty"):
     icon(HEART, HEART_FILL, HEART_HILO, v).save(os.path.join(UI, f"heart_{v}.png"))
     icon(DRUM, DRUM_FILL, DRUM_HILO, v, half_empty_side="left").save(os.path.join(UI, f"food_{v}.png"))
-apple().save(os.path.join(ICON, "apple.png"))
+apple_icon = apple()
+apple_icon.save(os.path.join(ICON, "apple.png"), optimize=True)
+classic_apple = apple_icon.copy()
+classic_px = classic_apple.load()
+for y in range(S):
+    for x in range(S):
+        r, g, b, a = classic_px[x, y]
+        if a:
+            avg = (r + g + b) // 3
+            classic_px[x, y] = (int(r * .82 + avg * .1), int(g * .82 + avg * .1), int(b * .82 + avg * .1), a)
+classic_apple.save(os.path.join(ICON_CLASSIC, "apple.png"), optimize=True)
 bubble(True).save(os.path.join(UI, "bubble_full.png"))
 bubble(False).save(os.path.join(UI, "bubble_empty.png"))
 print("wrote 6 hud sprites + apple.png + 2 bubbles")

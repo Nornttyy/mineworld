@@ -19,7 +19,7 @@ export const CREATIVE_CATEGORIES: readonly CreativeCategoryDef[] = [
     label: '建筑方块',
     items: [
       1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 15, 18, 19, 20, 21, 22, 24, 26, 27, 28, 30, 31, 32,
-      33, 34, 35, 36,
+      33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
     ],
   },
   { id: 'decoration', label: '装饰方块', items: [14, 16, 17, 29] },

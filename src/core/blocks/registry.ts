@@ -9,7 +9,7 @@ export enum Face {
 }
 
 // atlas.png 的格子索引（与 tools/textures/gen_textures.py 的 ATLAS_ORDER 一致）
-// 4×10=40 槽: 0-17 基础, 18-25 下界, 26-31 沙漠/雪原, 32-36 储存/钻石
+// 4×12=48 槽: 0-17 基础, 18-25 下界, 26-36 群系/储存/钻石, 37-44 扩展方块
 const T = {
   stone: 0,
   dirt: 1,
@@ -52,6 +52,15 @@ const T = {
   // 1.12 生存矿物进度（图集第 10 行）
   diamond_ore: 35,
   diamond_block: 36,
+  granite: 37,
+  diorite: 38,
+  andesite: 39,
+  bricks: 40,
+  mossy_cobblestone: 41,
+  red_sand: 42,
+  birch_log_top: 43,
+  birch_log_side: 44,
+  birch_leaves: 45,
 } as const;
 
 export interface BlockDef {
@@ -311,6 +320,25 @@ export const BLOCKS: BlockDef[] = [
     tool: 'pickaxe',
     minTier: 3,
   },
+  // ── 1.12 扩展建材与群系方块 (37-44) ─────────────────────────────────────
+  { id: 37, name: 'granite', solid: true, transparent: false, faces: all(T.granite), hardness: 1.5, drop: 37, needsTool: true, tool: 'pickaxe' },
+  { id: 38, name: 'diorite', solid: true, transparent: false, faces: all(T.diorite), hardness: 1.5, drop: 38, needsTool: true, tool: 'pickaxe' },
+  { id: 39, name: 'andesite', solid: true, transparent: false, faces: all(T.andesite), hardness: 1.5, drop: 39, needsTool: true, tool: 'pickaxe' },
+  { id: 40, name: 'bricks', solid: true, transparent: false, faces: all(T.bricks), hardness: 2, drop: 40, needsTool: true, tool: 'pickaxe' },
+  { id: 41, name: 'mossy_cobblestone', solid: true, transparent: false, faces: all(T.mossy_cobblestone), hardness: 2, drop: 41, needsTool: true, tool: 'pickaxe' },
+  { id: 42, name: 'red_sand', solid: true, transparent: false, faces: all(T.red_sand), hardness: 0.5, drop: 42, needsTool: false, tool: 'shovel' },
+  {
+    id: 43,
+    name: 'birch_log',
+    solid: true,
+    transparent: false,
+    faces: column(T.birch_log_side, T.birch_log_top, T.birch_log_top),
+    hardness: 2,
+    drop: 43,
+    needsTool: false,
+    tool: 'axe',
+  },
+  { id: 44, name: 'birch_leaves', solid: true, transparent: true, faces: all(T.birch_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
 ];
 
 export const GRASS = 3;
@@ -351,13 +379,22 @@ export const QUARTZ_BLOCK = 34; // 石英块（4 下界石英）
 // 钻石进度
 export const DIAMOND_ORE = 35;
 export const DIAMOND_BLOCK = 36;
+export const GRANITE = 37;
+export const DIORITE = 38;
+export const ANDESITE = 39;
+export const BRICKS = 40;
+export const MOSSY_COBBLESTONE = 41;
+export const RED_SAND = 42;
+export const BIRCH_LOG = 43;
+export const BIRCH_LEAVES = 44;
 
 export const isLavaId = (id: number): boolean => id === LAVA;
 export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
-export const isCutoutId = (id: number): boolean => id === OAK_LEAVES || id === SPRUCE_LEAVES; // 镂空(树叶)
+export const isCutoutId = (id: number): boolean =>
+  id === OAK_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES; // 镂空(树叶)
 export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || id === SNOW_LAYER; // cross/薄层 特判
 // 可被挖掘射线选中/打掉：实心方块 + 植物。草丛虽非实心(可穿过、不挡移动)，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。

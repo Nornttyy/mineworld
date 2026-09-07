@@ -132,7 +132,7 @@ import {
 } from '../core/items/items';
 import { ignitePortal, mapPortalCoord, buildDestinationPortal } from '../core/world/portalFill';
 import { detectPortalFrame, type PortalFrame } from '../core/world/portal';
-import { skyStateAt, skyDarkenAt, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
+import { skyStateAt, skyDarkenAt, skyDarkenForDimension, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import {
@@ -193,7 +193,7 @@ const MOB_NEAR_TARGET = 3; // 身边维持的目标数量（降低动物密度/�
 const HOSTILE_NEAR_TARGET = 4; // 夜里身边维持的敌对生物数（僵尸/骷髅）
 const HOSTILE_CAP = 8; // 敌对生物硬上限（玩家周围最多这么多僵尸/骷髅，防夜里越积越多）
 const MOB_SPAWN_EVERY = 50; // 每多少刻尝试一次补刷（降低刷新率：25→50，约 2.5s 一次）
-const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken'];
+const MOB_KINDS: MobKind[] = ['pig', 'cow', 'sheep', 'chicken', 'rabbit'];
 // 弓箭
 const ARROW_TTL = 1200; // 箭存活上限（tick，60s）后消失
 const ARROW_PICKUP_DELAY = 10; // 插地后多少 tick 才可拾取（防刚射出就吸回）
@@ -536,10 +536,10 @@ export class Game {
     if (savedMobs && savedMobs.length) {
       for (const sm of savedMobs) this.mobs.push(deserializeMob(sm));
     } else if (this.dimension === 'overworld') {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < MOB_KINDS.length; i++) {
         this.mobs.push(
           ...spawnRingGroup(
-            MOB_KINDS[i % 4],
+            MOB_KINDS[i % MOB_KINDS.length],
             spawn.x,
             spawn.z,
             this.mobRng,
@@ -2630,7 +2630,7 @@ export class Game {
         const dir = Math.hypot(v.x, v.z) > 1e-3 ? Math.atan2(v.z, v.x) : null;
         this.mobs.push(
           ...spawnRingGroup(
-            MOB_KINDS[Math.floor(this.mobRng() * 4)],
+            MOB_KINDS[Math.floor(this.mobRng() * MOB_KINDS.length)],
             px,
             pz,
             this.mobRng,
@@ -3072,12 +3072,14 @@ export class Game {
     // 这样受光面暖、阴影冷，不会把整片雪地/天空一起染黄后又互相抵消。
     this.chunks.setTint([t[0] / mx, t[1] / mx, t[2] / mx]);
     // 夜晚走 MC 1:1 skyDarken(0..11)：露天天光 15-11=4，半夜偏暗但看得见(不再近黑)。
-    const darken = skyDarkenAt(this.worldTime);
-    // 光影档保留更可读的冷色月夜（最大约 9.5 而不是 11）；洞穴仍因无天光保持黑暗。
-    const renderedDarken = this.lightingQuality === 'off' ? darken : darken * 0.86;
+    const darken = skyDarkenForDimension(this.worldTime, this.dimension);
+    // 所有画质档使用同一套 1.12 天光等级；下界固定 15，不再被主世界昼夜曲线污染。
+    const renderedDarken = darken;
     this.skyDarkenNow = renderedDarken; // 供实体环境光照(entityLight)用
     this.chunks.setSkyDarken(renderedDarken);
-    this.chunks.setSkyMul(1 - darken / 11); // 仅供水面太阳粼光强度(白天 1、夜 0)
+    this.chunks.setSkyMul(
+      this.dimension === 'overworld' ? Math.max(0, 1 - skyDarkenAt(this.worldTime) / 11) : 0,
+    ); // 仅供水面太阳粼光强度；下界永远无太阳
     // 光影水面：反射色取地平线天空色(黄昏偏橙/夜里偏暗)；太阳方向随时间走(驱动镜面高光)。
     this.chunks.setSkyReflection(s.skyHorizon, s.skyTop);
     const phi = (this.worldTime / DAY_LENGTH) * Math.PI * 2; // 正午最高、夜里在地平线下→无高光

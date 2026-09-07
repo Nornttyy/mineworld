@@ -23,4 +23,12 @@ describe('atlas pack consistency', () => {
     expect(cartoon).toContain('grass_plant');
     expect(classic).toContain('grass_plant');
   });
+
+  it('both packs include all extended 1.12 tiles and fit the 4×12 atlas', () => {
+    expect(cartoon.slice(37)).toEqual([
+      'granite', 'diorite', 'andesite', 'bricks', 'mossy_cobblestone', 'red_sand',
+      'birch_log_top', 'birch_log_side', 'birch_leaves',
+    ]);
+    expect(cartoon.length).toBeLessThanOrEqual(48);
+  });
 });

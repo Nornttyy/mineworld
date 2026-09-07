@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   FirstPersonHand,
   handBlockMaterialProfile,
+  heldSpritePose,
   heldRenderKind,
   mcSwingPose,
 } from './FirstPersonHand';
@@ -35,6 +36,20 @@ describe('FirstPersonHand heldRenderKind', () => {
     expect(heldRenderKind(null)).toBe('none');
     expect(heldRenderKind(0)).toBe('none');
     expect(heldRenderKind(99999)).toBe('none');
+  });
+});
+
+describe('手持物品尺寸与方向', () => {
+  it('长工具比普通材料更大，且使用稳定的斜握方向', () => {
+    const sword = heldSpritePose(300);
+    const coal = heldSpritePose(258);
+    expect(sword.size).toBeGreaterThan(coal.size);
+    expect(sword.position[1]).toBeGreaterThan(coal.position[1]);
+    expect(sword.rotation[2]).toBeLessThan(0);
+  });
+
+  it('食物不会像工具一样占满视野', () => {
+    expect(heldSpritePose(256).size).toBeLessThan(heldSpritePose(297).size);
   });
 });
 
