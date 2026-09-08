@@ -41,6 +41,17 @@ export interface HeldSpritePose {
   rotation: readonly [number, number, number];
 }
 
+export type BowChargeStage = -1 | 0 | 1 | 2;
+
+/** 待机=-1；蓄力时按拉弦距离切换三张像素帧。 */
+export function bowChargeStage(progress: number | null): BowChargeStage {
+  if (progress === null || !Number.isFinite(progress) || progress < 0) return -1;
+  const p = THREE.MathUtils.clamp(progress, 0, 1);
+  if (p < 0.34) return 0;
+  if (p < 0.68) return 1;
+  return 2;
+}
+
 /** 不同物品按真实用途定尺寸/握持角，避免所有图标都像同尺寸贴纸。 */
 export function heldSpritePose(id: number): HeldSpritePose {
   const tool = toolOf(id);
@@ -156,12 +167,15 @@ export class FirstPersonHand {
   private readonly arm: THREE.Mesh;
   private item: THREE.Mesh | null = null;
   private itemId: number | null = null;
-  private readonly spriteTex = new Map<number, THREE.Texture>(); // 物品图标纹理缓存（按 id）
+  private readonly spriteTex = new Map<string, THREE.Texture>(); // 物品图标纹理缓存（物品+动画帧）
   private swingT = 0; // 0=不摆；(0,1]=摆臂进度
   private wantSwing = false;
   private bobPhase = 0;
   private eating = false; // 是否在吃东西（手持食物送嘴边抖动）
   private eatT = 0; // 吃东西计时（驱动抖动）
+  private bowPull: number | null = null; // null=未拉弓；0..1=连续蓄力进度
+  private bowStage: BowChargeStage = -1;
+  private bowT = 0;
   private hurtT = 0; // 受击抖动余量 1→0（被攻击时置 1，逐帧衰减；驱动手快速抖一下）
   private bright = 1; // 环境亮度(0..1)：洞里/夜里手臂+手持物一起变暗(MC 实体光照)，setBrightness 平滑喂入
   private underwater = false;
@@ -207,17 +221,18 @@ export class FirstPersonHand {
   }
 
   // 物品图标纹理（按 id 缓存）：最近邻、关 mipmap、保像素硬边。
-  private itemTexture(id: number): THREE.Texture | null {
-    const cached = this.spriteTex.get(id);
+  private itemTexture(id: number, variant?: string): THREE.Texture | null {
+    const key = `${id}:${variant ?? ''}`;
+    const cached = this.spriteTex.get(key);
     if (cached) return cached;
-    const url = iconUrl(id);
+    const url = iconUrl(id, variant);
     if (!url) return null;
     const tex = new THREE.TextureLoader().load(url);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace;
-    this.spriteTex.set(id, tex);
+    this.spriteTex.set(key, tex);
     return tex;
   }
 
@@ -319,7 +334,8 @@ export class FirstPersonHand {
       this.root.add(this.item);
     } else if (kind === 'sprite' && id !== null) {
       // 物品：用图标贴一个平面，斜握在手里（同 MC 手持物品=平面精灵）
-      const tex = this.itemTexture(id);
+      const variant = id === BOW && this.bowStage >= 0 ? `pulling_${this.bowStage}` : undefined;
+      const tex = this.itemTexture(id, variant);
       if (tex) {
         const pose = heldSpritePose(id);
         this.item = new THREE.Mesh(
@@ -379,6 +395,26 @@ export class FirstPersonHand {
     if (!active) this.eatT = 0;
   }
 
+  /** 更新拉弓贴图和连续手部姿态；null 立即恢复未搭箭的待机弓。 */
+  setBowCharge(progress: number | null): void {
+    const pull =
+      progress === null || !Number.isFinite(progress)
+        ? null
+        : THREE.MathUtils.clamp(progress, 0, 1);
+    const nextStage = bowChargeStage(pull);
+    this.bowPull = pull;
+    if (pull === null) this.bowT = 0;
+    if (nextStage === this.bowStage) return;
+    this.bowStage = nextStage;
+    if (this.itemId !== BOW || !this.item || Array.isArray(this.item.material)) return;
+    if (!(this.item.material instanceof THREE.MeshBasicMaterial)) return;
+    const variant = nextStage >= 0 ? `pulling_${nextStage}` : undefined;
+    const texture = this.itemTexture(BOW, variant);
+    if (!texture) return;
+    this.item.material.map = texture;
+    this.item.material.needsUpdate = true;
+  }
+
   update(dt: number, walkSpeed: number): void {
     // 摆臂进度
     if (this.wantSwing && this.swingT === 0) this.swingT = 0.0001;
@@ -410,6 +446,18 @@ export class FirstPersonHand {
       this.root.position.z += 0.18; // 凑近脸
       this.root.rotateX(0.4 + j * 0.12); // 前倾 + 抖
       this.root.rotateZ(-0.25);
+    }
+
+    // 拉弓时平滑抬手、向画面中间收紧。满弓只有极轻的张力抖动，不干扰瞄准。
+    if (this.itemId === BOW && this.bowPull !== null) {
+      this.bowT += dt;
+      const p = 1 - (1 - this.bowPull) ** 3;
+      const tension = this.bowPull > 0.96 ? Math.sin(this.bowT * 44) * 0.004 : 0;
+      this.root.position.x -= 0.1 * p + tension;
+      this.root.position.y += 0.07 * p + tension;
+      this.root.position.z += 0.05 * p;
+      this.root.rotateY(-0.3 * p);
+      this.root.rotateZ(-0.18 * p + tension * 4);
     }
 
     // 受击抖动：高频快速抖一下，幅度随余量平方衰减（约 0.25s 抖完），叠加在最终姿态上。

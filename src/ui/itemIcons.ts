@@ -189,11 +189,12 @@ const ZH: Record<number, string> = {
   301: '钻石锄',
 };
 
-export const iconUrl = (id: number): string | null => {
+export const iconUrl = (id: number, variant?: string): string | null => {
   const name = ICON[id];
   if (!name) return null;
   const directory = activeTexturePack === 'classic' ? 'icons_classic' : 'icons';
-  return asset(`textures/${directory}/${name}.png`);
+  const suffix = variant ? `_${variant}` : '';
+  return asset(`textures/${directory}/${name}${suffix}.png`);
 };
 
 export const itemLabel = (id: number): string => ZH[id] ?? `#${id}`;

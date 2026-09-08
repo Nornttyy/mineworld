@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, it, expect } from 'vitest';
 import {
   FirstPersonHand,
+  bowChargeStage,
   handBlockMaterialProfile,
   heldSpritePose,
   heldRenderKind,
@@ -50,6 +51,18 @@ describe('手持物品尺寸与方向', () => {
 
   it('食物不会像工具一样占满视野', () => {
     expect(heldSpritePose(256).size).toBeLessThan(heldSpritePose(297).size);
+  });
+});
+
+describe('弓蓄力动画帧', () => {
+  it('待机不搭箭，蓄力依次经过三帧并在满弓保持最后一帧', () => {
+    expect(bowChargeStage(null)).toBe(-1);
+    expect(bowChargeStage(0)).toBe(0);
+    expect(bowChargeStage(0.33)).toBe(0);
+    expect(bowChargeStage(0.34)).toBe(1);
+    expect(bowChargeStage(0.67)).toBe(1);
+    expect(bowChargeStage(0.68)).toBe(2);
+    expect(bowChargeStage(1)).toBe(2);
   });
 });
 

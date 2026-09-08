@@ -1358,6 +1358,9 @@ export class Game {
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
       this.hand.setEating(playing && this.eating);
+      this.hand.setBowCharge(
+        playing && this.drawingBow ? this.bowCharge / BOW_MAX_CHARGE : null,
+      );
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
       const [handSky, handBlock] = this.chunks.lightLevelAt(

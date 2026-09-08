@@ -150,15 +150,37 @@ def arrow_icon():
     return shade(im)
 
 
-def bow_icon():
+def bow_icon(pull_stage=None):
+    """16×16 像素弓；pull_stage=None 为待机，0..2 为逐步后拉的三帧。"""
     im = new()
     d = ImageDraw.Draw(im)
-    wood = (140, 94, 52, 255)
-    d.arc([0, 1, 15, 15], start=300, end=60, fill=wood, width=2)  # 弓臂(右弯弧)
-    d.line([12, 3, 12, 13], fill=(234, 234, 238, 255), width=1)  # 弓弦(连两端)
-    d.line([4, 8, 12, 8], fill=(120, 84, 48, 255), width=1)  # 搭一支箭(指左)
-    d.polygon([(2, 8), (6, 6), (6, 10)], fill=(156, 156, 164, 255))  # 箭头
-    return shade(im)
+    string = (224, 222, 208, 255)
+    shaft = (112, 77, 42, 255)
+
+    # 先画弦和箭，让弓臂自然压在连接点上。待机弦笔直，拉弓时弦的中点逐帧向左。
+    if pull_stage is None:
+        d.line([(8, 1), (8, 14)], fill=string, width=1)
+    else:
+        nock_x = (7, 5, 3)[max(0, min(2, pull_stage))]
+        d.line([(8, 1), (nock_x, 8), (8, 14)], fill=string, width=1)
+        d.line([(nock_x, 8), (14, 8)], fill=shaft, width=1)
+        d.point([(nock_x + 1, 7), (nock_x + 1, 9)], fill=(238, 236, 226, 255))
+        d.point([(12, 7), (12, 9), (13, 7), (13, 9)], fill=(151, 153, 155, 255))
+        d.point([(13, 8), (14, 8), (15, 8)], fill=(188, 190, 192, 255))
+
+    # 手工排布的两像素粗弓臂；不用 16px 椭圆弧，避免缩放后出现歪扭、粗细跳变。
+    limb = [
+        (8, 1), (9, 1), (9, 2), (10, 2), (10, 3), (11, 3), (11, 4),
+        (12, 4), (12, 5), (12, 6), (13, 6), (13, 7), (13, 8), (13, 9),
+        (12, 9), (12, 10), (12, 11), (11, 11), (11, 12), (10, 12),
+        (10, 13), (9, 13), (9, 14), (8, 14),
+    ]
+    inner = {(max(0, x - 1), y) for x, y in limb}
+    d.point(list(inner), fill=(91, 55, 29, 255))
+    d.point(limb, fill=(139, 87, 43, 255))
+    d.point([(8, 1), (9, 2), (10, 3), (11, 4), (12, 6), (12, 10), (11, 12), (9, 14)], fill=(184, 122, 61, 255))
+    d.point([(12, 7), (12, 8), (12, 9)], fill=(79, 47, 26, 255))  # 握把
+    return im
 
 
 ICONS = {
@@ -166,6 +188,9 @@ ICONS = {
     "string": string_icon(),
     "arrow": arrow_icon(),
     "bow": bow_icon(),
+    "bow_pulling_0": bow_icon(0),
+    "bow_pulling_1": bow_icon(1),
+    "bow_pulling_2": bow_icon(2),
     "raw_porkchop": meat((224, 132, 132, 255)),
     "cooked_porkchop": meat((176, 112, 64, 255)),
     "raw_beef": meat((201, 74, 74, 255)),
