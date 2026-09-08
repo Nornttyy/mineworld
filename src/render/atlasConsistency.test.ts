@@ -65,4 +65,10 @@ describe('atlas pack consistency', () => {
     expect(chunkManagerSrc).toContain('${ATLAS_ROWS}.0');
     expect(chunkManagerSrc).not.toContain('(1.0 - vMapUv.y) * 10.0');
   });
+
+  it('树叶可见网格与阴影网格使用同一套风摆位移，避免移动黑条纹', () => {
+    expect(chunkManagerSrc).toContain('mineworld-cutout-sway-depth-v1');
+    expect(chunkManagerSrc.match(/transformed\.x \+= sin\(ph \+ uTime\*1\.4\) \* sw;/g)).toHaveLength(2);
+    expect(chunkManagerSrc.match(/transformed\.z \+= sin\(ph\*1\.3 \+ uTime\*1\.1\) \* sw;/g)).toHaveLength(2);
+  });
 });

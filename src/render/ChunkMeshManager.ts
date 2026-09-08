@@ -229,6 +229,26 @@ export class ChunkMeshManager {
       map: atlas,
       alphaTest: 0.5,
     });
+    // 可见树叶会随风摆，阴影深度也必须做完全相同的位移。旧深度材质保持静止，
+    // 可见叶片穿过静止影子时会形成一条条移动黑纹。
+    this.leafDepthMat.onBeforeCompile = (shader): void => {
+      shader.uniforms.uTime = this.uTime;
+      shader.uniforms.uShaders = this.uShaders;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uTime;\nuniform float uShaders;\nattribute float aSway;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\n' +
+            '{ float sw = uShaders * 0.06 * aSway; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
+            ' transformed.x += sin(ph + uTime*1.4) * sw;' +
+            ' transformed.z += sin(ph*1.3 + uTime*1.1) * sw;' +
+            ' transformed.y += sin(ph*0.8 + uTime*1.7) * sw * 0.5; }',
+        );
+    };
+    this.leafDepthMat.customProgramCacheKey = (): string => 'mineworld-cutout-sway-depth-v1';
     // 网格化 worker 池(按核数，上限4)；无 Worker(测试/node)→ 留空，rebuild 同步回退。
     if (typeof Worker !== 'undefined') {
       const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
@@ -373,8 +393,9 @@ export class ChunkMeshManager {
             `  float mwTileRow = clamp(floor((1.0 - vMapUv.y) * ${ATLAS_ROWS}.0), 0.0, ${ATLAS_ROWS - 1}.0);\n` +
             `  mwTileIndex = floor(vMapUv.x * ${ATLAS_COLUMNS}.0) + mwTileRow * ${ATLAS_COLUMNS}.0;\n` +
             '  mwRock = max(max(max(mwTile(mwTileIndex,0.0),mwTile(mwTileIndex,4.0)),max(mwTile(mwTileIndex,9.0),mwTile(mwTileIndex,14.0))),max(max(mwTile(mwTileIndex,16.0),mwTile(mwTileIndex,22.0)),max(mwTile(mwTileIndex,24.0),mwTile(mwTileIndex,35.0))));\n' +
-            '  mwSoil = max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,20.0));\n' +
-            '  mwGrass = max(mwTile(mwTileIndex,2.0),mwTile(mwTileIndex,3.0));\n' +
+            // 草方块侧面主体是泥土；不能整面套草顶的鲜绿/暖光材质，否则坡面会像金色方块。
+            '  mwSoil = max(max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,3.0)),mwTile(mwTileIndex,20.0));\n' +
+            '  mwGrass = mwTile(mwTileIndex,2.0);\n' +
             '  mwSand = max(mwTile(mwTileIndex,5.0),mwTile(mwTileIndex,26.0));\n' +
             '  mwWood = max(max(max(mwTile(mwTileIndex,6.0),mwTile(mwTileIndex,7.0)),mwTile(mwTileIndex,8.0)),max(max(mwTile(mwTileIndex,12.0),mwTile(mwTileIndex,13.0)),mwTile(mwTileIndex,30.0)));\n' +
             '  mwSnow = mwTile(mwTileIndex,29.0);\n' +
@@ -479,12 +500,14 @@ export class ChunkMeshManager {
             '  float mwSunLuma = dot(sunTone, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwSunProtect = max(mwWhiteMask * 0.45, mwSaturatedMask * 0.35);\n' +
             '  sunTone = mix(sunTone, vec3(mwSunLuma), mwSunProtect);\n' +
+            // 泥土保留少量暖阳而不被染成金块；草顶、沙滩仍保持可见的阳光色温。
+            '  vec3 mwDirectTone = mix(sunTone, vec3(mwSunLuma), mwSoil * 0.44);\n' +
             '  float sunCloud = 1.0 - cloud * mix(0.48, 0.62, uHq);\n' +
             // 太阳直射比环境层更明亮，向上的天然地表再接一点暖色天空反弹；只作用于受光地面，
             // 不抬全局曝光，也不会让洞穴、背光面、水面和天空一起变白。
             '  float mwDirectStrength = mix(0.68, 0.74, uHq);\n' +
             '  float mwGroundBounce = 1.0+mwNatural*smoothstep(0.68,0.98,mwGeomN.y)*0.07;\n' +
-            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * sunTone * nd * sunLit * sunCloud * mwDirectStrength * mwGroundBounce;\n' +
+            '  vec3 mwDirect = mwBlockAlbedo * mwStyleShade * mwDirectTone * nd * sunLit * sunCloud * mwDirectStrength * mwGroundBounce;\n' +
             '  mwDirect *= mix(0.84, 1.0, mwVoxelAO);\n' +
             '  diffuseColor.rgb += mwDirect;\n' +
             (sway

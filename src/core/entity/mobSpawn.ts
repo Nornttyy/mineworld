@@ -1,4 +1,4 @@
-import { GRASS, isSolidId, TORCH } from '../blocks/registry';
+import { GRASS, isLavaId, isSolidId, isWaterId, TORCH } from '../blocks/registry';
 import { spawnMob, type Mob, type MobKind } from './mob';
 import type { Biome } from '../worldgen/biome';
 
@@ -19,11 +19,16 @@ export interface SpawnWorld {
   getBlock(x: number, y: number, z: number): number;
 }
 
+/** 水和岩浆不是实心方块，但也不是合法出生空间。 */
+function isDrySpawnSpace(id: number): boolean {
+  return !isSolidId(id) && !isWaterId(id) && !isLavaId(id);
+}
+
 // 能否在 (x,y,z) 落脚生成：脚下(y-1)是草方块，且身体两格(y, y+1)非实心。
 export function canSpawnAt(world: SpawnWorld, x: number, y: number, z: number): boolean {
   if (world.getBlock(x, y - 1, z) !== GRASS) return false;
-  if (isSolidId(world.getBlock(x, y, z))) return false;
-  if (isSolidId(world.getBlock(x, y + 1, z))) return false;
+  if (!isDrySpawnSpace(world.getBlock(x, y, z))) return false;
+  if (!isDrySpawnSpace(world.getBlock(x, y + 1, z))) return false;
   return true;
 }
 
@@ -57,8 +62,8 @@ export function spawnRingGroup(
 // 敌对生物落脚：脚下任意实心(不限草地) + 头两格空。用于夜里在地表刷僵尸/骷髅。
 export function canSpawnHostileAt(world: SpawnWorld, x: number, y: number, z: number): boolean {
   if (!isSolidId(world.getBlock(x, y - 1, z))) return false;
-  if (isSolidId(world.getBlock(x, y, z))) return false;
-  if (isSolidId(world.getBlock(x, y + 1, z))) return false;
+  if (!isDrySpawnSpace(world.getBlock(x, y, z))) return false;
+  if (!isDrySpawnSpace(world.getBlock(x, y + 1, z))) return false;
   return true;
 }
 

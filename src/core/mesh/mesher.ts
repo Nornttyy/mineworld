@@ -912,7 +912,8 @@ export function meshChunkData(
           if (id === SNOW_LAYER) {
             emitSnowLayer(lx, ly, lz, blockFaceTile(id, Face.PosY));
           } else {
-            emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.45 : 0.82); // 草矮、长草高
+            // 1.12 的 tallgrass 仍占一格；旧值 1.45 会穿进上方格，像被纵向拉伸的方片。
+            emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.0 : 0.78);
           }
         } else if (id === ICE) {
           // 冰独立成批，供渲染层使用透射/反射材质；邻居仍按 opaque 剔面，不改变原有接缝。

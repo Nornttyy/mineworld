@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { meshChunkData } from './mesher';
 
 const GRASS_PLANT = 16;
+const TALL_GRASS = 17;
 
 function meshOne(id: number) {
   const b: Record<string, number> = { [`5,100,5`]: id };
@@ -22,5 +23,12 @@ describe('草丛摆动权重 aSway', () => {
     }
     expect(minS).toBeLessThan(0.05);
     expect(maxS).toBeGreaterThan(0.8);
+  });
+
+  it('成熟草仍严格占一格，不会拉伸穿进上方方块', () => {
+    const m = meshOne(TALL_GRASS);
+    const ys = Array.from(m.cutout.positions).filter((_value, index) => index % 3 === 1);
+    expect(Math.min(...ys)).toBeCloseTo(100);
+    expect(Math.max(...ys)).toBeCloseTo(101);
   });
 });

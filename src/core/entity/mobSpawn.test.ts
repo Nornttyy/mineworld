@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { canSpawnAt, spawnGroup, spawnRingGroup, hostileKindFor } from './mobSpawn';
 import { makeRng } from '../math/rng';
-import { GRASS } from '../blocks/registry';
+import { GRASS, LAVA, WATER } from '../blocks/registry';
 
 // 平坦草地：cell y=9 是草(顶面=y=10)，y<9 石头(实心)，y>=10 空气。
 const grassWorld = {
@@ -18,6 +18,14 @@ describe('canSpawnAt', () => {
   it('身体被方块堵住 → 不可', () => {
     const blocked = { getBlock: (_x: number, y: number): number => (y === 9 ? GRASS : y === 10 ? 1 : 0) };
     expect(canSpawnAt(blocked, 5, 10, 5)).toBe(false);
+  });
+  it('水和岩浆虽非实心，也绝不能作为出生空间', () => {
+    for (const fluid of [WATER, LAVA]) {
+      const flooded = {
+        getBlock: (_x: number, y: number): number => (y === 9 ? GRASS : y === 10 ? fluid : 0),
+      };
+      expect(canSpawnAt(flooded, 5, 10, 5)).toBe(false);
+    }
   });
 });
 

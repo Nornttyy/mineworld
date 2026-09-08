@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { isDarkEnoughForSpawn, spawnHostileRing, spawnHostileCave, type SpawnWorld } from './mobSpawn';
-import { TORCH } from '../blocks/registry';
+import { LAVA, TORCH, WATER } from '../blocks/registry';
+import { canSpawnHostileAt } from './mobSpawn';
 
 const STONE = 1;
 const SURFACE = 64;
@@ -13,6 +14,19 @@ const surfaceY = (): number => SURFACE;
 const rng = (): number => 0.5;
 
 describe('敌对刷新：暗度门控 + 16–32 环带', () => {
+  it('脚部或头部在水/岩浆中都不能生成敌对生物', () => {
+    for (const fluid of [WATER, LAVA]) {
+      const feetFlooded: SpawnWorld = {
+        getBlock: (_x, y, _z) => (y === SURFACE ? STONE : y === SURFACE + 1 ? fluid : 0),
+      };
+      const headFlooded: SpawnWorld = {
+        getBlock: (_x, y, _z) => (y === SURFACE ? STONE : y === SURFACE + 2 ? fluid : 0),
+      };
+      expect(canSpawnHostileAt(feetFlooded, 0, SURFACE + 1, 0)).toBe(false);
+      expect(canSpawnHostileAt(headFlooded, 0, SURFACE + 1, 0)).toBe(false);
+    }
+  });
+
   it('近处有火把 → 不够暗(不刷)', () => {
     expect(isDarkEnoughForSpawn(world([[10, SURFACE + 1, 10]]), 10, SURFACE + 1, 10)).toBe(false);
   });

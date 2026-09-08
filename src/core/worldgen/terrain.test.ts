@@ -9,6 +9,7 @@ const SAND_ID = 5;
 const GRASS_ID = 3;
 const SANDSTONE_ID = 26;
 const STONE_ID = 1;
+const DIRT_ID = 2;
 
 // 注：水下/沿海洞穴灌水的测试在 floodCaves.test.ts。
 
@@ -162,6 +163,37 @@ describe('terrain generation', () => {
 
 describe('biome surface blocks', () => {
   const SEED = 1337;
+
+  it('草方块下方三层始终是泥土，主世界不会混入荧石金块', () => {
+    let grassColumns = 0;
+    const checkedChunks = new Set<string>();
+    outer: for (let wx = 0; wx <= 4000; wx += 24) {
+      for (let wz = 0; wz <= 800; wz += 24) {
+        const h = columnHeight(wx, wz, SEED);
+        const biome = biomeAt(wx, wz, SEED);
+        if (h <= SEA_LEVEL + 1 || biome === 'desert' || biome === 'badlands') continue;
+        const cx = worldToChunk(wx);
+        const cz = worldToChunk(wz);
+        const key = `${cx},${cz}`;
+        if (checkedChunks.has(key)) continue;
+        checkedChunks.add(key);
+        const chunk = generateChunk(cx, cz, SEED);
+        expect(Array.from(chunk.blocks)).not.toContain(GLOWSTONE);
+        for (let lx = 0; lx < CHUNK_W; lx++) {
+          for (let lz = 0; lz < CHUNK_W; lz++) {
+            const surface = columnHeight(cx * CHUNK_W + lx, cz * CHUNK_W + lz, SEED);
+            if (chunk.get(lx, surface, lz) !== GRASS) continue;
+            grassColumns++;
+            expect(chunk.get(lx, surface - 1, lz)).toBe(DIRT_ID);
+            expect(chunk.get(lx, surface - 2, lz)).toBe(DIRT_ID);
+            expect(chunk.get(lx, surface - 3, lz)).toBe(DIRT_ID);
+          }
+        }
+        if (grassColumns >= 64) break outer;
+      }
+    }
+    expect(grassColumns).toBeGreaterThanOrEqual(64);
+  });
 
   it('沙漠陆地列：地表是沙(5)、地表-5处是沙石(18)', () => {
     // 扫描找到一个 desert 且陆地(height > SEA_LEVEL+1)的列
