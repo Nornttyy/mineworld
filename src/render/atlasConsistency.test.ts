@@ -31,4 +31,10 @@ describe('atlas pack consistency', () => {
     ]);
     expect(cartoon.length).toBeLessThanOrEqual(48);
   });
+
+  it('classic pack explicitly overrides every leaf species instead of borrowing vivid leaves', () => {
+    for (const leaf of ['oak_leaves', 'spruce_leaves', 'birch_leaves']) {
+      expect(classicSrc).toContain(`"${leaf}": ${leaf}`);
+    }
+  });
 });

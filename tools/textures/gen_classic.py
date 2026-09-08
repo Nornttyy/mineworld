@@ -211,30 +211,70 @@ def diamond_block(rng):
     return image
 
 
-def oak_leaves(rng):
+CLASSIC_LEAF_HOLES = frozenset({
+    (0, 0), (1, 0), (7, 0), (14, 0),
+    (6, 1), (7, 1), (15, 1),
+    (3, 2), (11, 2),
+    (0, 3), (4, 3), (12, 3), (13, 3),
+    (8, 4), (15, 4),
+    (2, 5), (9, 5), (10, 5),
+    (5, 6), (14, 6),
+    (0, 7), (6, 7), (7, 7), (12, 7),
+    (3, 8), (15, 8),
+    (1, 9), (9, 9), (13, 9),
+    (4, 10), (5, 10), (12, 10),
+    (0, 11), (7, 11), (14, 11), (15, 11),
+    (2, 12), (10, 12),
+    (5, 13), (6, 13), (13, 13),
+    (0, 14), (8, 14), (15, 14),
+    (1, 15), (4, 15), (11, 15), (12, 15),
+})
+
+CLASSIC_SPRUCE_HOLES = CLASSIC_LEAF_HOLES - {
+    (0, 0), (7, 0), (12, 3), (9, 5), (6, 7),
+    (1, 9), (14, 11), (5, 13), (8, 14), (11, 15),
+}
+
+
+def classic_leaves(rng, palette, holes=CLASSIC_LEAF_HOLES):
+    """1.12 式密集细叶：随机细碎色块、小孔洞、孔缘暗像素，无坐标棋盘循环。"""
     image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     pixels = image.load()
-    colors = [source.hx("#315b20"), source.hx("#3d7028"), source.hx("#4a8031"), source.hx("#274a18")]
-    holes = {(x + dx, y + dy) for x, y in [(1, 1), (8, 0), (13, 4), (4, 7), (10, 9), (1, 13), (14, 14)] for dx, dy in [(0, 0), (1, 0), (0, 1)]}
+    base, mid, light, dark, deep = [source.hx(color) for color in palette]
     for y in range(S):
         for x in range(S):
-            if (x, y) not in holes:
-                r, g, b = colors[(x * 3 + y * 5 + x * y) % len(colors)]
-                pixels[x, y] = (r, g, b, 255)
+            if (x, y) in holes:
+                continue
+            by_hole = any(((x + dx) % S, (y + dy) % S) in holes for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+            roll = rng.random()
+            if by_hole and roll < 0.38:
+                color = deep
+            elif by_hole and roll < 0.7:
+                color = dark
+            elif roll < 0.12:
+                color = light
+            elif roll < 0.38:
+                color = mid
+            else:
+                color = base
+            pixels[x, y] = (*color, 255)
     return image
+
+
+def oak_leaves(rng):
+    return classic_leaves(rng, ("#3f6f2b", "#4b7d34", "#5a8b3e", "#315923", "#24451b"))
 
 
 def birch_leaves(rng):
-    # 与经典橡叶完全相同的叶簇/孔洞轮廓，换成白桦更明亮的绿色。
-    image = oak_leaves(rng)
-    pixels = image.load()
-    colors = [source.hx("#47722d"), source.hx("#568738"), source.hx("#659844"), source.hx("#385d24")]
-    for y in range(S):
-        for x in range(S):
-            if pixels[x, y][3] != 0:
-                r, g, b = colors[(x * 3 + y * 5 + x * y) % len(colors)]
-                pixels[x, y] = (r, g, b, 255)
-    return image
+    return classic_leaves(rng, ("#587c36", "#678c40", "#789d4d", "#46652c", "#354f22"))
+
+
+def spruce_leaves(rng):
+    return classic_leaves(
+        rng,
+        ("#294b36", "#335a41", "#40684d", "#203d2c", "#183124"),
+        CLASSIC_SPRUCE_HOLES,
+    )
 
 
 def crafting_table_top(rng):
@@ -294,6 +334,7 @@ BLOCKS.update({
     "diamond_block": diamond_block,
     "oak_leaves": oak_leaves,
     "birch_leaves": birch_leaves,
+    "spruce_leaves": spruce_leaves,
     "crafting_table_top": crafting_table_top,
     "crafting_table_side": crafting_table_side,
     "furnace_front": furnace_front,

@@ -404,8 +404,8 @@ LEAF_CLUSTER_ROWS = [
 
 
 def oak_leaves(rng):
-    # 1.12 橡叶：暗绿叶撮 + 【大块连片透明孔】(2~3px 豁口,~35%,双面渲染透出内层=蓬松)。
-    return from_map(LEAF_CLUSTER_ROWS, {".": "#37701a", "l": "#448a20", "L": "#55a82c", "d": "#2b5a13", "D": "#1e430c"}, rng, alpha_blank=True)
+    # 鲜艳包：保留大块叶簇与透光孔，用强明暗和高饱和翠绿突出卡通层次。
+    return from_map(LEAF_CLUSTER_ROWS, {".": "#45a51d", "l": "#5fc625", "L": "#82e23a", "d": "#257511", "D": "#103f08"}, rng, alpha_blank=True)
 
 def crack_strip():
     """10 段挖掘裂纹（destroy_stage_0..9），横排成 160x16 RGBA。
@@ -627,7 +627,7 @@ def spruce_log(rng):
 
 
 def spruce_leaves(rng):
-    # 1.12 云杉叶：深蓝绿冷调,大孔略少(~25%,针叶更密)。
+    # 鲜艳包云杉叶：深青阴影配亮青绿针叶，和橡树/白桦拉开树种差异。
     rows = [
         "Ll.d ..Ll.  dl..",
         ".l..  dl..  .l.d",
@@ -646,7 +646,7 @@ def spruce_leaves(rng):
         "...  Ll dl.d  ..",
         "d.  dl...  ..  d",
     ]
-    return from_map(rows, {".": "#2c4f31", "l": "#35603b", "L": "#427548", "d": "#213f26", "D": "#16301b"}, rng, alpha_blank=True)
+    return from_map(rows, {".": "#17613d", "l": "#238052", "L": "#42a86b", "d": "#0d472b", "D": "#062f1d"}, rng, alpha_blank=True)
 
 # ── 下界方块(1.12 原版风) ────────────────────────────────────────────────────
 def obsidian(rng):
@@ -926,8 +926,8 @@ def birch_log_side(rng):
 
 
 def birch_leaves(rng):
-    # 白桦叶沿用橡叶的叶簇轮廓与镂空密度，只保留更明亮、略偏黄的树种色。
-    return from_map(LEAF_CLUSTER_ROWS, {".": "#4a7f2c", "l": "#5b9635", "L": "#6aa342", "d": "#386822", "D": "#294f18"}, rng, alpha_blank=True)
+    # 鲜艳包白桦叶沿用橡叶轮廓，以明亮黄绿和柠檬色高光区分树种。
+    return from_map(LEAF_CLUSTER_ROWS, {".": "#69ad22", "l": "#83cc2d", "L": "#a9eb48", "d": "#438014", "D": "#28580b"}, rng, alpha_blank=True)
 
 
 BLOCKS = [
