@@ -23,9 +23,10 @@ export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
         : 'textures/atlas.png';
   const tex = new THREE.TextureLoader().load(asset(file));
   if (pack === 'realistic') {
-    // 网格 UV 为三套材质共用；最近邻可完整保留 128px 细节，也不会在方块边界采到相邻格。
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
+    // 128px 写实图使用线性采样，近看不会被强行放成锯齿大像素；共享 UV 已内缩到
+    // 经典 16px 格的纹素中心（对应写实图 4px 安全边），所以不会混到相邻材质。
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false; // 防止高分辨率图集的 mip 层跨方块格渗色
     tex.userData.atlasSize = atlasPixelSize(REALISTIC_ATLAS_TILE_PX);
   } else {

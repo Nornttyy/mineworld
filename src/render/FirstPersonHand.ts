@@ -3,7 +3,12 @@ import { BLOCKS, TORCH } from '../core/blocks/registry';
 import { BOW, FLINT_AND_STEEL, isFood, toolOf } from '../core/items/items';
 import type { LightingQuality } from '../core/settings';
 import { iconUrl } from '../ui/itemIcons';
-import { ATLAS_COLUMNS, ATLAS_ROWS, CLASSIC_ATLAS_TILE_PX } from '../core/blocks/atlasLayout';
+import {
+  atlasUvInset,
+  ATLAS_COLUMNS,
+  ATLAS_ROWS,
+  CLASSIC_ATLAS_TILE_PX,
+} from '../core/blocks/atlasLayout';
 
 // 第一人称手臂 + 手持物：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
 // 挖/放时摆臂，走路时轻微晃动。手持方块=3D 立方体；手持物品(工具/食物/材料)=平面图标精灵；空手只露手臂。
@@ -112,7 +117,7 @@ export function mcSwingPose(t: number): SwingPose {
   };
 }
 
-const EPS = 0.01 / (CLASSIC_ATLAS_TILE_PX * ATLAS_COLUMNS);
+const [EPS_U, EPS_V] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
 // 面亮度（同方块）：+X,-X,+Y,-Y,+Z,-Z
 const SHADE = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8];
 const SWING_TIME = 0.3; // 一次摆臂 0.3 秒（同 MC）
@@ -141,10 +146,10 @@ function blockCube(id: number, size: number): THREE.BufferGeometry {
     const t = faces[f];
     const col = t % ATLAS_COLUMNS;
     const row = Math.floor(t / ATLAS_COLUMNS);
-    const uMin = col / ATLAS_COLUMNS + EPS;
-    const uMax = (col + 1) / ATLAS_COLUMNS - EPS;
-    const vMin = 1 - (row + 1) / ATLAS_ROWS + EPS;
-    const vMax = 1 - row / ATLAS_ROWS - EPS;
+    const uMin = col / ATLAS_COLUMNS + EPS_U;
+    const uMax = (col + 1) / ATLAS_COLUMNS - EPS_U;
+    const vMin = 1 - (row + 1) / ATLAS_ROWS + EPS_V;
+    const vMax = 1 - row / ATLAS_ROWS - EPS_V;
     const o = f * 4;
     uv.setXY(o + 0, uMin, vMax);
     uv.setXY(o + 1, uMax, vMax);

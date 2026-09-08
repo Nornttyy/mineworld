@@ -4,9 +4,14 @@ import { isItem } from '../core/items/items';
 import { iconUrl } from '../ui/itemIcons';
 import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
-import { ATLAS_COLUMNS, ATLAS_ROWS, CLASSIC_ATLAS_TILE_PX } from '../core/blocks/atlasLayout';
+import {
+  atlasUvInset,
+  ATLAS_COLUMNS,
+  ATLAS_ROWS,
+  CLASSIC_ATLAS_TILE_PX,
+} from '../core/blocks/atlasLayout';
 
-const EPS = 0.5 / (CLASSIC_ATLAS_TILE_PX * ATLAS_COLUMNS);
+const [EPS_U, EPS_V] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
 
 // 给某方块 id 造一个用图集贴图的小立方体几何（6 面各取对应 tile 的 UV）。
 function dropGeometry(id: number): THREE.BufferGeometry {
@@ -17,10 +22,10 @@ function dropGeometry(id: number): THREE.BufferGeometry {
     const t = faces[f];
     const col = t % ATLAS_COLUMNS;
     const row = Math.floor(t / ATLAS_COLUMNS);
-    const uMin = col / ATLAS_COLUMNS + EPS;
-    const uMax = (col + 1) / ATLAS_COLUMNS - EPS;
-    const vMin = 1 - (row + 1) / ATLAS_ROWS + EPS; // 图集 V 翻转
-    const vMax = 1 - row / ATLAS_ROWS - EPS;
+    const uMin = col / ATLAS_COLUMNS + EPS_U;
+    const uMax = (col + 1) / ATLAS_COLUMNS - EPS_U;
+    const vMin = 1 - (row + 1) / ATLAS_ROWS + EPS_V; // 图集 V 翻转
+    const vMax = 1 - row / ATLAS_ROWS - EPS_V;
     const o = f * 4;
     uv.setXY(o + 0, uMin, vMax);
     uv.setXY(o + 1, uMax, vMax);
