@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { asset } from '../asset';
 import type { TexturePack } from '../core/settings';
+import {
+  atlasPixelSize,
+  CLASSIC_ATLAS_TILE_PX,
+  REALISTIC_ATLAS_TILE_PX,
+} from '../core/blocks/atlasLayout';
 
 // 按 pack 记忆化：三种材质最多各保留 1 张 GPU 纹理。
 // 否则每次在设置里切材质包都 new 一张 GPU 纹理且旧的从不 dispose → 反复切换持续泄漏显存。
@@ -22,12 +27,13 @@ export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false; // 防止高分辨率图集的 mip 层跨方块格渗色
-    tex.userData.atlasSize = [512, 1536];
+    tex.userData.atlasSize = atlasPixelSize(REALISTIC_ATLAS_TILE_PX);
   } else {
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestMipmapNearestFilter;
-    tex.generateMipmaps = true;
-    tex.userData.atlasSize = [64, 192];
+    // 整张图集生成 mipmap 会在较远处把相邻格平均到一起，造成沙子黑线、仙人掌橙线。
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.userData.atlasSize = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
   }
   tex.colorSpace = THREE.SRGBColorSpace;
   atlasCache.set(pack, tex);

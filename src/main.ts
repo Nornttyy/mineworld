@@ -13,12 +13,11 @@ import {
 import { SettingsMenu } from './ui/settingsMenu';
 import { installTouchZoomGuards, supportsTouchControls } from './input/TouchControls';
 import {
-  MultiplayerClient,
   multiplayerHostWorldFromSave,
-  multiplayerServerUrl,
   normalizePlayerName,
-  normalizeRoomCode,
+  type MultiplayerSession,
 } from './multiplayer/MultiplayerClient';
+import { PeerMultiplayerClient } from './multiplayer/PeerMultiplayerClient';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -39,7 +38,7 @@ const onlineHud = $('online-hud');
 
 let game: Game | null = null;
 let gameStarting = false;
-let multiplayer: MultiplayerClient | null = null;
+let multiplayer: MultiplayerSession | null = null;
 let onlineErrorTimer: number | null = null;
 let onlineErrorMessage = '';
 // 直接加入别人的房间是临时在线世界，不能混进本地世界列表；从单人世界开房则仍以原本 id 持久化。
@@ -191,10 +190,13 @@ $('play').addEventListener('click', () => openWorldList());
 
 // --- 在线房间 ---
 const mpName = $('mp-name') as HTMLInputElement;
-const mpRoom = $('mp-room') as HTMLInputElement;
+const mpCode = $('mp-code') as HTMLTextAreaElement;
+const mpCodeLabel = $('mp-code-label');
 const mpStatus = $('mp-status');
 const mpCreate = $('mp-create') as HTMLButtonElement;
 const mpJoin = $('mp-join') as HTMLButtonElement;
+const mpCopy = $('mp-copy') as HTMLButtonElement;
+const mpFinish = $('mp-finish') as HTMLButtonElement;
 const mpTitle = $('mp-title');
 const mpIntro = $('mp-intro');
 const mpModeField = $('mp-mode-field');
@@ -202,8 +204,8 @@ const mpBack = $('mp-back') as HTMLButtonElement;
 type MultiplayerPanelMode = 'join' | 'host';
 let mpPanelMode: MultiplayerPanelMode = 'join';
 let mpHostWorld: WorldSave | null = null;
-let mpGameMode: GameMode = 'creative';
 let mpConnecting = false;
+let pendingPeer: PeerMultiplayerClient | null = null;
 
 function setMpStatus(text: string, error = false): void {
   mpStatus.textContent = text;
@@ -211,7 +213,6 @@ function setMpStatus(text: string, error = false): void {
 }
 
 function setMpGameMode(mode: GameMode): void {
-  mpGameMode = mode;
   $('mp-current-mode').textContent = mode === 'creative' ? '创造模式' : '生存模式';
   $('mp-mode-desc').textContent =
     mode === 'creative'
@@ -231,13 +232,21 @@ function restoreMultiplayerName(): void {
 function setMultiplayerPanelMode(mode: MultiplayerPanelMode): void {
   mpPanelMode = mode;
   const hosting = mode === 'host';
-  mpTitle.textContent = hosting ? '开启联机房间' : '加入联机房间';
+  mpTitle.textContent = hosting ? '开启点对点房间' : '加入点对点房间';
   mpIntro.textContent = hosting
-    ? '当前单人世界会成为这个房间的世界。把房间号告诉朋友即可一起游玩。'
-    : '输入朋友给你的房间号，即可进入同一个世界。';
+    ? '生成邀请码发给朋友；朋友返回回应码后，粘贴回来完成直连。'
+    : '粘贴房主的邀请码，生成回应码发回给房主。双方页面都要保持打开。';
+  mpCodeLabel.textContent = hosting ? '邀请码 / 好友回应码' : '房主的邀请码';
+  mpCode.placeholder = hosting
+    ? '先生成邀请码；收到好友回应码后，替换这里的内容'
+    : '在这里粘贴以 MWP1. 开头的邀请码';
   mpModeField.classList.toggle('hidden', !hosting);
   mpCreate.classList.toggle('hidden', !hosting);
   mpJoin.classList.toggle('hidden', hosting);
+  mpCopy.classList.add('hidden');
+  mpFinish.classList.add('hidden');
+  mpCreate.disabled = false;
+  mpJoin.disabled = false;
   mpBack.textContent = hosting ? '返回暂停菜单' : '返回';
 }
 
@@ -273,32 +282,36 @@ function showMultiplayerPanel(): void {
 }
 
 function openMultiplayerMenu(): void {
+  pendingPeer?.disconnect('已取消连接');
+  pendingPeer = null;
   setMultiplayerPanelMode('join');
   mpHostWorld = null;
   restoreMultiplayerName();
-  mpRoom.value = normalizeRoomCode(
-    new URLSearchParams(location.search).get('room') ?? mpRoom.value,
-  );
+  mpCode.value = '';
   setMpGameMode('creative');
-  setMpStatus('输入房间号后加入。');
+  setMpStatus('粘贴邀请码，再生成回应码发回给房主。');
   showMultiplayerPanel();
-  mpName.focus();
+  (mpName.value ? mpCode : mpName).focus();
 }
 
-/** 单人世界暂停时的“开启联机房间”。服务器会接收当前种子、昼夜和方块改动。 */
+/** 单人世界暂停时生成 WebRTC 邀请；世界只发给接受邀请的浏览器。 */
 function openHostedMultiplayerMenu(): void {
   if (!game || multiplayer !== null) return;
+  pendingPeer?.disconnect('已取消连接');
+  pendingPeer = null;
   mpHostWorld = game.snapshot();
   setMultiplayerPanelMode('host');
   restoreMultiplayerName();
-  mpRoom.value = randomRoomCode();
+  mpCode.value = '';
   setMpGameMode(mpHostWorld.gameMode ?? 'survival');
-  setMpStatus('房间号已生成。开启后，把它告诉朋友。');
+  setMpStatus('点击“生成邀请码”，复制给朋友。');
   showMultiplayerPanel();
   mpName.focus();
 }
 
 function closeMultiplayerMenu(): void {
+  pendingPeer?.disconnect('已取消连接');
+  pendingPeer = null;
   if (mpPanelMode === 'host' && game && multiplayer === null) {
     mpHostWorld = null;
     multiplayerMenu.classList.add('hidden');
@@ -311,7 +324,7 @@ function closeMultiplayerMenu(): void {
 }
 
 /** 给新联机会话装好 HUD / 断线处理；单人世界开房和直接加入共用。 */
-function setMultiplayerSession(online: MultiplayerClient | null): void {
+function setMultiplayerSession(online: MultiplayerSession | null): void {
   if (onlineErrorTimer !== null) {
     window.clearTimeout(onlineErrorTimer);
     onlineErrorTimer = null;
@@ -364,7 +377,7 @@ function setMultiplayerSession(online: MultiplayerClient | null): void {
   updateOnlineHud();
 }
 
-function onlineWorld(client: MultiplayerClient): WorldSave {
+function onlineWorld(client: MultiplayerSession): WorldSave {
   const edits: Record<string, number> = {};
   for (const edit of client.initialEdits)
     edits[dimEditKey(edit.dimension, edit.x, edit.y, edit.z)] = edit.id;
@@ -380,79 +393,147 @@ function onlineWorld(client: MultiplayerClient): WorldSave {
   };
 }
 
-async function connectMultiplayer(action: 'create' | 'join'): Promise<void> {
-  if (mpConnecting) return;
-  const hostWorld = action === 'create' && mpPanelMode === 'host' ? mpHostWorld : null;
-  if (action === 'create' && hostWorld === null) {
-    setMpStatus('请先进入一个单人世界，再从暂停菜单开启房间。', true);
-    return;
-  }
-  let room = normalizeRoomCode(mpRoom.value);
-  if (action === 'create' && room.length < 3) room = randomRoomCode();
-  if (room.length < 3) {
-    setMpStatus('请输入至少 3 位的房间号。', true);
-    mpRoom.focus();
-    return;
-  }
+function rememberMultiplayerName(): string {
   const name = normalizePlayerName(mpName.value);
-  mpRoom.value = room;
   mpName.value = name;
   try {
     localStorage.setItem('mineworld.multiplayer.name', name);
   } catch {
     // 不影响实际连接。
   }
-  mpConnecting = true;
-  mpCreate.disabled = true;
-  mpJoin.disabled = true;
-  showOnly(null);
-  showLoading(true, action === 'create' ? '正在创建联机房间…' : '正在加入联机房间…');
+  return name;
+}
+
+function setMpBusy(busy: boolean): void {
+  mpConnecting = busy;
+  mpCreate.disabled = busy;
+  mpJoin.disabled = busy;
+  mpFinish.disabled = busy;
+}
+
+async function createPeerInvitation(): Promise<void> {
+  if (mpConnecting) return;
+  if (mpPanelMode !== 'host' || !mpHostWorld) {
+    setMpStatus('请先进入一个单人世界，再从暂停菜单开启房间。', true);
+    return;
+  }
+  pendingPeer?.disconnect('已重新生成邀请');
+  pendingPeer = null;
+  setMpBusy(true);
+  setMpStatus('正在收集直连信息…');
   try {
-    const client = await MultiplayerClient.connect({
-      url: multiplayerServerUrl(),
-      action,
-      room,
-      name,
-      gameMode: mpGameMode,
-      world: hostWorld ? multiplayerHostWorldFromSave(hostWorld) : undefined,
+    const { client, invitation } = await PeerMultiplayerClient.createHost({
+      room: randomRoomCode(),
+      name: rememberMultiplayerName(),
+      world: multiplayerHostWorldFromSave(mpHostWorld),
     });
-    if (hostWorld) {
-      // 不重载、不丢当前背包/位置：在正在运行的单人 Game 上接入实时会话。
-      if (!game || !game.attachMultiplayer(client)) {
-        client.disconnect('无法切换到联机房间');
-        throw new Error('当前世界已经不在单人状态，请返回后重试。');
-      }
-      setMultiplayerSession(client);
-      mpHostWorld = null;
-      multiplayerMenu.classList.add('hidden');
-      pause.classList.add('hidden');
-      showLoading(false);
-      setHud(true);
-      if (!touchMode) void canvas.requestPointerLock();
-    } else {
-      startGame(onlineWorld(client), client);
-    }
+    pendingPeer = client;
+    mpCode.value = invitation;
+    mpCopy.classList.remove('hidden');
+    mpFinish.classList.remove('hidden');
+    setMpStatus('邀请码已生成：复制给朋友。收到回应码后，用它替换上方内容，再点“使用回应码连接”。');
+    mpCode.select();
   } catch (error) {
+    setMpStatus(error instanceof Error ? error.message : '无法生成点对点邀请。', true);
+  } finally {
+    setMpBusy(false);
+  }
+}
+
+async function answerPeerInvitation(): Promise<void> {
+  if (mpConnecting) return;
+  if (!mpCode.value.trim()) {
+    setMpStatus('请先粘贴房主发来的完整邀请码。', true);
+    mpCode.focus();
+    return;
+  }
+  pendingPeer?.disconnect('已重新生成回应');
+  pendingPeer = null;
+  setMpBusy(true);
+  setMpStatus('正在生成回应码…');
+  try {
+    const { client, response } = await PeerMultiplayerClient.answerInvitation({
+      invitation: mpCode.value,
+      name: rememberMultiplayerName(),
+    });
+    pendingPeer = client;
+    mpCode.value = response;
+    mpJoin.disabled = true;
+    mpCopy.classList.remove('hidden');
+    setMpStatus('回应码已生成：复制并发回房主。本页保持打开，连接成功后会自动进入世界。');
+    mpCode.select();
+    void client.waitUntilConnected(300_000).then((connected) => {
+      if (pendingPeer !== connected) return;
+      pendingPeer = null;
+      startGame(onlineWorld(connected), connected);
+    }).catch((error: unknown) => {
+      if (pendingPeer !== client) return;
+      pendingPeer = null;
+      mpJoin.disabled = false;
+      setMpStatus(error instanceof Error ? error.message : '点对点连接失败。', true);
+    });
+  } catch (error) {
+    setMpStatus(error instanceof Error ? error.message : '无法生成点对点回应。', true);
+  } finally {
+    setMpBusy(false);
+    if (pendingPeer) mpJoin.disabled = true;
+  }
+}
+
+async function finishPeerHostConnection(): Promise<void> {
+  if (mpConnecting || !pendingPeer || mpPanelMode !== 'host') return;
+  const client = pendingPeer;
+  setMpBusy(true);
+  showLoading(true, '正在建立浏览器直连…');
+  try {
+    await client.acceptAnswer(mpCode.value);
+    await client.waitUntilConnected(60_000);
+    if (!game || !game.attachMultiplayer(client))
+      throw new Error('当前世界已经不在单人状态，请返回后重试。');
+    pendingPeer = null;
+    setMultiplayerSession(client);
+    mpHostWorld = null;
+    multiplayerMenu.classList.add('hidden');
+    pause.classList.add('hidden');
     showLoading(false);
-    setMpStatus(error instanceof Error ? error.message : '连接联机服务器失败。', true);
+    setHud(true);
+    if (!touchMode) void canvas.requestPointerLock();
+  } catch (error) {
+    client.disconnect('连接未完成');
+    if (pendingPeer === client) pendingPeer = null;
+    showLoading(false);
+    mpFinish.classList.add('hidden');
+    mpCopy.classList.add('hidden');
+    setMpStatus(error instanceof Error ? error.message : '点对点连接失败。', true);
     showMultiplayerPanel();
   } finally {
-    mpConnecting = false;
-    mpCreate.disabled = false;
-    mpJoin.disabled = false;
+    setMpBusy(false);
   }
+}
+
+async function copyPeerCode(): Promise<void> {
+  if (!mpCode.value) return;
+  try {
+    await navigator.clipboard.writeText(mpCode.value);
+  } catch {
+    mpCode.focus();
+    mpCode.select();
+    document.execCommand('copy');
+  }
+  setMpStatus(mpPanelMode === 'host' ? '已复制。发给朋友；再把朋友的回应码粘贴回来。' : '已复制。发回给房主，并保持本页打开。');
 }
 
 $('multiplayer-play').addEventListener('click', () => openMultiplayerMenu());
 $('open-room').addEventListener('click', () => openHostedMultiplayerMenu());
-$('mp-create').addEventListener('click', () => void connectMultiplayer('create'));
-$('mp-join').addEventListener('click', () => void connectMultiplayer('join'));
+$('mp-create').addEventListener('click', () => void createPeerInvitation());
+$('mp-join').addEventListener('click', () => void answerPeerInvitation());
+mpCopy.addEventListener('click', () => void copyPeerCode());
+mpFinish.addEventListener('click', () => void finishPeerHostConnection());
 mpBack.addEventListener('click', () => closeMultiplayerMenu());
-for (const input of [mpName, mpRoom]) {
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') void connectMultiplayer(mpPanelMode === 'host' ? 'create' : 'join');
-  });
-}
+mpName.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter')
+    void (mpPanelMode === 'host' ? createPeerInvitation() : answerPeerInvitation());
+});
 $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen();
@@ -546,7 +627,7 @@ for (const inp of [nwName, nwSeed]) {
 $('worldlist-back').addEventListener('click', () => showOnly(menu));
 
 // --- 进入游戏 ---
-function startGame(world: WorldSave, online: MultiplayerClient | null = null): void {
+function startGame(world: WorldSave, online: MultiplayerSession | null = null): void {
   if (game || gameStarting) {
     online?.disconnect('游戏已经在运行');
     return;

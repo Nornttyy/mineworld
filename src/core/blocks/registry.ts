@@ -10,7 +10,7 @@ export enum Face {
 
 // atlas.png 的格子索引（与 tools/textures/gen_textures.py 的 ATLAS_ORDER 一致）
 // 4×12=48 槽: 0-17 基础, 18-25 下界, 26-36 群系/储存/钻石, 37-44 扩展方块
-const T = {
+export const ATLAS_TILES = {
   stone: 0,
   dirt: 1,
   grass_top: 2,
@@ -62,6 +62,7 @@ const T = {
   birch_log_side: 44,
   birch_leaves: 45,
 } as const;
+const T = ATLAS_TILES;
 
 export interface BlockDef {
   id: number;

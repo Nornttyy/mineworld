@@ -19,10 +19,13 @@ import {
   NETHER_PORTAL,
 } from '../blocks/registry';
 import { computeSkyLight, computeBlockLight } from '../light/skylight';
+import {
+  atlasUvInset,
+  ATLAS_COLUMNS,
+  ATLAS_ROWS,
+  CLASSIC_ATLAS_TILE_PX,
+} from '../blocks/atlasLayout';
 
-const ATLAS_COLS = 4;
-const ATLAS_ROWS = 12; // 4×12=48 槽（37-45 扩展建材/白桦）；与纹理生成器、DropRenderer、FirstPersonHand 同步
-const TILE_PX = 16;
 export const WATER_SURFACE_SUBDIVISIONS = 2;
 // 必须与 ChunkWorld.WATER_WAVE_OPEN_RADIUS 保持一致；这里本地声明可避免 mesh worker
 // 为一个常量反向加载 chunkWorld（以及它引用的 chunk-generation worker）。
@@ -229,9 +232,10 @@ function meshGrid(g: BlockGrid): MeshData {
       ? false
       : isOpaque(g.get(x, y, z));
 
-  const eps = 0.01 / (TILE_PX * ATLAS_COLS); // 极小内缩防图集邻块渗色；NearestFilter 下别用半像素内缩(否则方块边缘像素只剩半格)
-  const du = 1 / ATLAS_COLS - 2 * eps;
-  const dv = 1 / ATLAS_ROWS - 2 * eps;
+  // 收到纹素中心，杜绝图集边界舍入到相邻材质。横纵图集尺寸不同，必须分别计算。
+  const [epsU, epsV] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
+  const du = 1 / ATLAS_COLUMNS - 2 * epsU;
+  const dv = 1 / ATLAS_ROWS - 2 * epsV;
 
   for (let y = 0; y < g.sy; y++) {
     for (let z = 0; z < g.sz; z++) {
@@ -242,10 +246,10 @@ function meshGrid(g: BlockGrid): MeshData {
           const d = DIRS[f];
           if (solidAt(x + d.o[0], y + d.o[1], z + d.o[2])) continue; // 邻格实心 → 剔除
           const tile = blockFaceTile(id, f as Face);
-          const col = tile % ATLAS_COLS;
-          const row = Math.floor(tile / ATLAS_COLS);
-          const u0 = col / ATLAS_COLS + eps;
-          const v0 = 1 - (row + 1) / ATLAS_ROWS + eps; // 图集 V 翻转
+          const col = tile % ATLAS_COLUMNS;
+          const row = Math.floor(tile / ATLAS_COLUMNS);
+          const u0 = col / ATLAS_COLUMNS + epsU;
+          const v0 = 1 - (row + 1) / ATLAS_ROWS + epsV; // 图集 V 翻转
           const shade = FACE_SHADE[f];
           const base = P.length / 3;
           const ao = [0, 0, 0, 0];
@@ -364,9 +368,9 @@ export function meshChunkData(
   const wa = emptyArrays();
   const po = emptyArrays(); // 下界传送门独立透明批次
   const to = emptyArrays(); // 火把
-  const eps = 0.01 / (TILE_PX * ATLAS_COLS);
-  const du = 1 / ATLAS_COLS - 2 * eps;
-  const dv = 1 / ATLAS_ROWS - 2 * eps;
+  const [epsU, epsV] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
+  const du = 1 / ATLAS_COLUMNS - 2 * epsU;
+  const dv = 1 / ATLAS_ROWS - 2 * epsV;
 
   const occ = (x: number, y: number, z: number): boolean => isOpaque(getBlock(x, y, z));
 
@@ -491,8 +495,8 @@ export function meshChunkData(
   const emit = (a: FaceArrays, lx: number, ly: number, lz: number, id: number, f: number): void => {
     const d = DIRS[f];
     const tile = blockFaceTile(id, f as Face);
-    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
-    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const u0 = (tile % ATLAS_COLUMNS) / ATLAS_COLUMNS + epsU;
+    const v0 = 1 - (Math.floor(tile / ATLAS_COLUMNS) + 1) / ATLAS_ROWS + epsV;
     const shade = FACE_SHADE[f];
     const ex = lx + d.o[0]; // 该面朝向(外侧)那一格 → 取它的光
     const ey = ly + d.o[1];
@@ -569,9 +573,9 @@ export function meshChunkData(
   // 门内部最少两格宽，所以可由相邻 portal 方块判断门框沿 x 还是 z 延伸。
   const emitPortal = (lx: number, ly: number, lz: number): void => {
     const tile = blockFaceTile(NETHER_PORTAL, Face.PosX);
-    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u0 = (tile % ATLAS_COLUMNS) / ATLAS_COLUMNS + epsU;
     const u1 = u0 + du;
-    const v0 = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const v0 = 1 - (Math.floor(tile / ATLAS_COLUMNS) + 1) / ATLAS_ROWS + epsV;
     const v1 = v0 + dv;
     const wx = ox + lx;
     const wz = oz + lz;
@@ -593,9 +597,9 @@ export function meshChunkData(
   // 草丛/长草：格中心两片交叉竖片(cross billboard)，贴 grass_plant 图、入 cutout(alpha-test+双面)批。
   // 高度 hgt 由调用方给(草矮/长草高)；光照取本格天光/方块光(露天满、树下变暗)。
   const emitPlant = (lx: number, ly: number, lz: number, tile: number, hgt: number): void => {
-    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u0 = (tile % ATLAS_COLUMNS) / ATLAS_COLUMNS + epsU;
     const u1 = u0 + du;
-    const vB = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps; // 底边 V
+    const vB = 1 - (Math.floor(tile / ATLAS_COLUMNS) + 1) / ATLAS_ROWS + epsV; // 底边 V
     const vT = vB + dv; // 顶边 V
     const sky = skyAt(lx, ly, lz) / 15;
     const blk = blkAt(lx, ly, lz) / 15;
@@ -621,9 +625,9 @@ export function meshChunkData(
   // 雪层：贴地薄水平四边形，高度偏移 0.06，整张 snow tile，入 cutout(双面) 批。
   // 不用 cross billboard——雪是贴地平铺，不是竖立交叉片。
   const emitSnowLayer = (lx: number, ly: number, lz: number, tile: number): void => {
-    const u0 = (tile % ATLAS_COLS) / ATLAS_COLS + eps;
+    const u0 = (tile % ATLAS_COLUMNS) / ATLAS_COLUMNS + epsU;
     const u1 = u0 + du;
-    const vB = 1 - (Math.floor(tile / ATLAS_COLS) + 1) / ATLAS_ROWS + eps;
+    const vB = 1 - (Math.floor(tile / ATLAS_COLUMNS) + 1) / ATLAS_ROWS + epsV;
     const vT = vB + dv;
     const sky = skyAt(lx, ly, lz) / 15;
     const blk = blkAt(lx, ly, lz) / 15;

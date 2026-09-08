@@ -386,7 +386,8 @@
         color: #cfcfcf;
         font-size: 14px;
       }
-      .mp-field input {
+      .mp-field input,
+      .mp-field textarea {
         display: block;
         width: 100%;
         margin-top: 6px;
@@ -398,7 +399,17 @@
         background: #1c1c22;
         border: 2px solid #000;
         box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+      }
+      .mp-field input {
         text-transform: uppercase;
+      }
+      .mp-field textarea {
+        min-height: 108px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
       }
       #mp-status {
         min-height: 20px;
@@ -1919,7 +1930,7 @@
           <div id="splash"></div>
         </div>
         <button id="play" class="btn btn-wide">单人游戏</button>
-        <button id="multiplayer-play" class="btn btn-wide">加入联机房间</button>
+        <button id="multiplayer-play" class="btn btn-wide">点对点联机</button>
         <div class="btn-row">
           <button id="fullscreen" class="btn">全屏</button>
           <button id="settings-btn" class="btn">设置</button>
@@ -1977,22 +1988,22 @@
       </div>
     </div>
     <div id="multiplayer" class="hidden">
-      <h2 id="mp-title">加入联机房间</h2>
-      <p id="mp-intro" class="mp-intro">输入朋友给你的房间号，即可进入同一个世界。</p>
+      <h2 id="mp-title">点对点联机</h2>
+      <p id="mp-intro" class="mp-intro">粘贴房主的邀请码，生成回应码发回给房主。</p>
       <label class="mp-field"
         >你的名字
         <input id="mp-name" type="text" maxlength="16" autocomplete="nickname" placeholder="玩家" />
       </label>
       <label class="mp-field"
-        >房间号
-        <input
-          id="mp-room"
-          type="text"
-          maxlength="16"
-          autocapitalize="characters"
+        ><span id="mp-code-label">房主的邀请码</span>
+        <textarea
+          id="mp-code"
+          maxlength="120000"
+          autocapitalize="off"
           autocomplete="off"
-          placeholder="例如 A8K2M"
-        />
+          spellcheck="false"
+          placeholder="在这里粘贴以 MWP1. 开头的邀请码"
+        ></textarea>
       </label>
       <div id="mp-mode-field" class="mp-field hidden">
         当前世界
@@ -2001,10 +2012,12 @@
           创造模式：适合和朋友一起搭建；玩家与方块会实时同步。
         </div>
       </div>
-      <p id="mp-status" role="status">输入房间号后加入。</p>
+      <p id="mp-status" role="status">无需游戏服务器；双方交换两段连接码后直接连接。</p>
       <div class="btn-row">
-        <button id="mp-create" class="btn hidden" type="button">开启房间</button>
-        <button id="mp-join" class="btn" type="button">加入房间</button>
+        <button id="mp-create" class="btn hidden" type="button">生成邀请码</button>
+        <button id="mp-join" class="btn" type="button">生成回应码</button>
+        <button id="mp-copy" class="btn hidden" type="button">复制连接码</button>
+        <button id="mp-finish" class="btn hidden" type="button">使用回应码连接</button>
       </div>
       <button id="mp-back" class="btn" type="button">返回</button>
     </div>

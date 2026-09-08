@@ -11,6 +11,13 @@ import type { LightingQuality } from '../core/settings';
 import { makeCloudShadowTexture, makeDirectionalWaveTexture } from './surfaceNoise';
 import { WATER_RENDER_LAYER } from './renderLayers';
 import { WATER_WAVE_GLSL } from './waterWave';
+import {
+  atlasPixelSize,
+  ATLAS_COLUMNS,
+  ATLAS_ROWS,
+  CLASSIC_ATLAS_TILE_PX,
+} from '../core/blocks/atlasLayout';
+import { ATLAS_TILES } from '../core/blocks/registry';
 
 const perfNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -18,6 +25,7 @@ const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_fram
 const SHADOW_MAP_SIZE = 2048; // 标准档 2K；高档会在 setLightingQuality 中升级为 4K
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
 const WATER_PLANAR_Y = SEA_LEVEL + 8 / 9;
+const DEFAULT_ATLAS_SIZE = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
 // 既不必生成/网格化，也不必绘制——纯属浪费(画面零变化)。用"|d|-0.5 格"近似区块最近点。
@@ -93,7 +101,7 @@ export class ChunkMeshManager {
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
   private readonly uTime = { value: 0 };
-  private readonly uAtlasSize = { value: new THREE.Vector2(64, 192) };
+  private readonly uAtlasSize = { value: new THREE.Vector2(...DEFAULT_ATLAS_SIZE) };
   private readonly uSkyRefl = {
     value: new THREE.Color().setRGB(0.55, 0.72, 0.95, THREE.SRGBColorSpace),
   }; // 地平线色(掠角反射)
@@ -360,10 +368,10 @@ export class ChunkMeshManager {
             '#ifdef USE_MAP\n' +
             '  vec2 mwAtlasSize = uAtlasSize;\n' +
             '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
-            '  vec2 mwTileSize = vec2(0.25, 1.0 / 12.0);\n' +
+            `  vec2 mwTileSize = vec2(1.0 / ${ATLAS_COLUMNS}.0, 1.0 / ${ATLAS_ROWS}.0);\n` +
             '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
-            '  float mwTileRow = clamp(floor((1.0 - vMapUv.y) * 12.0), 0.0, 11.0);\n' +
-            '  mwTileIndex = floor(vMapUv.x * 4.0) + mwTileRow * 4.0;\n' +
+            `  float mwTileRow = clamp(floor((1.0 - vMapUv.y) * ${ATLAS_ROWS}.0), 0.0, ${ATLAS_ROWS - 1}.0);\n` +
+            `  mwTileIndex = floor(vMapUv.x * ${ATLAS_COLUMNS}.0) + mwTileRow * ${ATLAS_COLUMNS}.0;\n` +
             '  mwRock = max(max(max(mwTile(mwTileIndex,0.0),mwTile(mwTileIndex,4.0)),max(mwTile(mwTileIndex,9.0),mwTile(mwTileIndex,14.0))),max(max(mwTile(mwTileIndex,16.0),mwTile(mwTileIndex,22.0)),max(mwTile(mwTileIndex,24.0),mwTile(mwTileIndex,35.0))));\n' +
             '  mwSoil = max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,20.0));\n' +
             '  mwGrass = max(mwTile(mwTileIndex,2.0),mwTile(mwTileIndex,3.0));\n' +
@@ -503,9 +511,9 @@ export class ChunkMeshManager {
             '  diffuseColor.rgb += sunTone * mwSpec * sunLit * sunCloud;\n' +
             '}\n' +
             // 真正发光方块单独输出 HDR，普通雪/沙/天空仍被锁在 1 以下；Bloom 因而只追踪光源与材质高光。
-            '  float mwGlowstone = 1.0 - step(0.5, abs(mwTileIndex - 21.0));\n' +
-            '  float mwLava = 1.0 - step(0.5, abs(mwTileIndex - 23.0));\n' +
-            '  float mwPortal = 1.0 - step(0.5, abs(mwTileIndex - 25.0));\n' +
+            `  float mwGlowstone = 1.0 - step(0.5, abs(mwTileIndex - ${ATLAS_TILES.glowstone}.0));\n` +
+            `  float mwLava = 1.0 - step(0.5, abs(mwTileIndex - ${ATLAS_TILES.lava}.0));\n` +
+            `  float mwPortal = 1.0 - step(0.5, abs(mwTileIndex - ${ATLAS_TILES.nether_portal}.0));\n` +
             '  diffuseColor.rgb += mwBlockAlbedo * (mwGlowstone * 0.72 + mwLava * 0.9 + mwPortal * 0.62) * mix(0.82, 1.0, uHq);\n' +
             '}\n' +
             // 焦散投射在真正的水底方块上，而不是加在水面颜色里。连续水深控制衰减，洞穴/夜晚不自发光。
@@ -1430,7 +1438,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     ) {
       this.uAtlasSize.value.set(size[0], size[1]);
     } else {
-      this.uAtlasSize.value.set(64, 192);
+      this.uAtlasSize.value.set(...DEFAULT_ATLAS_SIZE);
     }
   }
 

@@ -42,7 +42,7 @@ describe('mesher (face culling)', () => {
     expect(mn).toBeCloseTo(0.5);
   });
 
-  it('UV 内缩为亚像素：方块边缘纹素近满格（不是半格）', () => {
+  it('UV 落在图集最外圈纹素中心，不会采到相邻方块材质', () => {
     const s = new Section();
     s.set(0, 0, 0, 1); // stone = 图集 tile 0
     const m = meshSection(s);
@@ -52,9 +52,11 @@ describe('mesher (face culling)', () => {
       us.push(m.uvs[i]);
       vs.push(m.uvs[i + 1]);
     }
-    // 一格图集 = 横 1/4 × 纵 1/12 UV（图集 4 列×12 行）；内缩须远小于 1 像素，否则边缘像素只剩半格。
-    expect(Math.max(...us) - Math.min(...us)).toBeGreaterThan(0.99 / 4);
-    expect(Math.max(...vs) - Math.min(...vs)).toBeGreaterThan(0.99 / 12);
+    // stone 是左上第一格；经典图集 64×192，边界应分别内缩半个图集纹素。
+    expect(Math.min(...us)).toBeCloseTo(0.5 / 64);
+    expect(Math.max(...us)).toBeCloseTo(1 / 4 - 0.5 / 64);
+    expect(Math.min(...vs)).toBeCloseTo(11 / 12 + 0.5 / 192);
+    expect(Math.max(...vs)).toBeCloseTo(1 - 0.5 / 192);
   });
 
   it('AO level：标准体素环境光遮蔽', () => {

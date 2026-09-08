@@ -4,11 +4,9 @@ import { isItem } from '../core/items/items';
 import { iconUrl } from '../ui/itemIcons';
 import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
+import { ATLAS_COLUMNS, ATLAS_ROWS, CLASSIC_ATLAS_TILE_PX } from '../core/blocks/atlasLayout';
 
-const ATLAS_COLS = 4;
-const ATLAS_ROWS = 12; // 4×12=48 槽（37-45 扩展建材/白桦）；与 gen_textures.py、mesher 同步
-const TILE_PX = 16;
-const EPS = 0.5 / (TILE_PX * ATLAS_COLS);
+const EPS = 0.5 / (CLASSIC_ATLAS_TILE_PX * ATLAS_COLUMNS);
 
 // 给某方块 id 造一个用图集贴图的小立方体几何（6 面各取对应 tile 的 UV）。
 function dropGeometry(id: number): THREE.BufferGeometry {
@@ -17,10 +15,10 @@ function dropGeometry(id: number): THREE.BufferGeometry {
   const uv = g.attributes.uv as THREE.BufferAttribute;
   for (let f = 0; f < 6; f++) {
     const t = faces[f];
-    const col = t % ATLAS_COLS;
-    const row = Math.floor(t / ATLAS_COLS);
-    const uMin = col / ATLAS_COLS + EPS;
-    const uMax = (col + 1) / ATLAS_COLS - EPS;
+    const col = t % ATLAS_COLUMNS;
+    const row = Math.floor(t / ATLAS_COLUMNS);
+    const uMin = col / ATLAS_COLUMNS + EPS;
+    const uMax = (col + 1) / ATLAS_COLUMNS - EPS;
     const vMin = 1 - (row + 1) / ATLAS_ROWS + EPS; // 图集 V 翻转
     const vMax = 1 - row / ATLAS_ROWS - EPS;
     const o = f * 4;

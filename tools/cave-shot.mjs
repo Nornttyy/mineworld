@@ -17,7 +17,7 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 await page.addInitScript((q) => {
-  localStorage.setItem('mineworld.settings', JSON.stringify({ volume: 70, lightingQuality: q, texturePack: 'cartoon', renderDistance: 6 }));
+  localStorage.setItem('mineworld.settings', JSON.stringify({ volume: 70, lightingQuality: q, texturePack: 'cartoon', textureStyleVersion: 3, renderDistance: 6 }));
 }, quality);
 await page.goto(process.env.MW_URL || 'http://localhost:5173/', { waitUntil: 'networkidle' });
 await page.waitForSelector('#menu:not(.hidden)', { timeout: 30000 });

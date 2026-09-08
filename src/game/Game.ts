@@ -143,10 +143,10 @@ import {
 } from '../core/particles/particles';
 import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
-import {
-  MultiplayerClient,
-  type BlockBatch,
-  type BlockEdit,
+import type {
+  BlockBatch,
+  BlockEdit,
+  MultiplayerSession,
 } from '../multiplayer/MultiplayerClient';
 import { RemotePlayerRenderer } from '../render/RemotePlayerRenderer';
 import { CAMERA_AUX_RENDER_LAYER } from '../render/renderLayers';
@@ -264,7 +264,7 @@ export class Game {
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
   /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。单人世界可在暂停时直接开放为房间。 */
-  private multiplayer: MultiplayerClient | null;
+  private multiplayer: MultiplayerSession | null;
   private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
   private readonly touch: TouchControls | null;
@@ -392,7 +392,7 @@ export class Game {
   constructor(
     canvas: HTMLCanvasElement,
     save: WorldSave,
-    multiplayer: MultiplayerClient | null = null,
+    multiplayer: MultiplayerSession | null = null,
   ) {
     const settings = loadSettings();
     setIconTexturePack(settings.texturePack);
@@ -677,9 +677,9 @@ export class Game {
 
   /**
    * 把正在运行的单人世界开放成联机房间，不需要重新创建 Game。
-   * 服务端创建房间时已收到当前快照的 seed / 方块改动 / 时间；这里只接上之后的实时同步。
+   * 点对点通道已把当前快照发给朋友；这里只接上之后的实时同步。
    */
-  attachMultiplayer(client: MultiplayerClient): boolean {
+  attachMultiplayer(client: MultiplayerSession): boolean {
     if (this.multiplayer !== null) return false;
     this.multiplayer = client;
     this.bindMultiplayer(client);
@@ -688,7 +688,7 @@ export class Game {
   }
 
   /** 房主断线后退回原本单人世界；解绑旧回调，允许稍后重新开房。 */
-  detachMultiplayer(client: MultiplayerClient): boolean {
+  detachMultiplayer(client: MultiplayerSession): boolean {
     if (this.multiplayer !== client) return false;
     client.setBlockBatchHandler(null);
     client.setBlockHandler(null);
@@ -697,7 +697,7 @@ export class Game {
     return true;
   }
 
-  private bindMultiplayer(client: MultiplayerClient): void {
+  private bindMultiplayer(client: MultiplayerSession): void {
     // 批处理器必须先安装：否则 welcome 后早到的批量包会被兼容路径拆成数十次网格重建。
     client.setBlockBatchHandler((batch) => this.applyRemoteBlockBatch(batch));
     client.setBlockHandler((edit) => this.applyRemoteBlockEdit(edit));

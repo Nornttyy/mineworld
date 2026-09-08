@@ -1,11 +1,12 @@
 // 无头进世界定机位截图：菜单 → 建固定种子世界(创造,防摔死) → 等区块铺满 → 逐机位设时间/位置/朝向 → 截图。
-// 用法: node shot-world.mjs <outdir> [seed] [quality]
+// 用法: node shot-world.mjs <outdir> [seed] [quality] [texturePack]
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
 const outdir = process.argv[2] || '/tmp/shots';
 const seed = process.argv[3] || '7';
 const quality = process.argv[4] || 'standard'; // off | standard | high
+const texturePack = process.argv[5] || 'cartoon'; // cartoon | classic | realistic
 mkdirSync(outdir, { recursive: true });
 
 // Let Playwright select the working headless GL backend. Forcing ANGLE/Vulkan
@@ -21,12 +22,18 @@ page.on('pageerror', (e) => {
   if (!/root document.*pointer lock/i.test(e.message)) errors.push('pageerror: ' + e.message);
 });
 
-await page.addInitScript((q) => {
+await page.addInitScript(({ q, texturePack }) => {
   localStorage.setItem(
     'mineworld.settings',
-    JSON.stringify({ volume: 70, lightingQuality: q, texturePack: 'cartoon', renderDistance: 6 }),
+    JSON.stringify({
+      volume: 70,
+      lightingQuality: q,
+      texturePack,
+      textureStyleVersion: 3,
+      renderDistance: 6,
+    }),
   );
-}, quality);
+}, { q: quality, texturePack });
 
 await page.goto(process.env.MW_URL || 'http://localhost:5173/', { waitUntil: 'networkidle' });
 await page.waitForSelector('#menu:not(.hidden)', { timeout: 30000 });

@@ -86,6 +86,30 @@ export interface MultiplayerJoinOptions {
   world?: MultiplayerHostWorld;
 }
 
+/** 游戏层只依赖这一组联机能力；底层既可以是旧 WebSocket，也可以是免服务器的 WebRTC。 */
+export interface MultiplayerSession {
+  readonly id: string;
+  readonly room: OnlineRoom;
+  readonly isConnected: boolean;
+  readonly playerCount: number;
+  readonly remotePlayers: readonly RemotePlayerState[];
+  readonly initialEdits: readonly BlockEdit[];
+  onPlayersChanged: (() => void) | null;
+  onServerError: ((message: string) => void) | null;
+  onDisconnect: ((reason: string) => void) | null;
+  sendState(state: LocalPlayerState): void;
+  sendBlock(edit: BlockEdit): void;
+  sendBlockBatch(
+    kind: BlockBatchKind,
+    edits: readonly BlockEdit[],
+    options?: BlockBatchOptions,
+  ): void;
+  setBlockHandler(handler: ((edit: BlockEdit) => void) | null): void;
+  setBlockBatchHandler(handler: ((batch: BlockBatch) => void) | null): void;
+  setWorldTimeHandler(handler: ((worldTime: number) => void) | null): void;
+  disconnect(reason?: string): void;
+}
+
 interface WelcomeMessage {
   type: 'welcome';
   id: string;
@@ -389,7 +413,7 @@ export function multiplayerServerUrl(): string {
 }
 
 /** 连接成功后由 Game 每帧读取远端状态、按固定频率上报自己。 */
-export class MultiplayerClient {
+export class MultiplayerClient implements MultiplayerSession {
   private readonly socket: WebSocket;
   private readonly players = new Map<string, RemotePlayerState>();
   private _id = '';

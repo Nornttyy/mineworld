@@ -3,6 +3,8 @@ import cartoonSrc from '../../tools/textures/gen_textures.py?raw';
 import classicSrc from '../../tools/textures/gen_classic.py?raw';
 import realisticSrc from '../../tools/textures/gen_realistic.py?raw';
 import chunkManagerSrc from './ChunkMeshManager.ts?raw';
+import { ATLAS_TILES } from '../core/blocks/registry';
+import { atlasTileAtUv, ATLAS_COLUMNS, ATLAS_ROWS } from '../core/blocks/atlasLayout';
 
 // 三套材质(鲜艳 / 经典 / 写实)各自维护一份 ATLAS_ORDER。
 // 它们必须逐一对齐——否则某 pack 缺某 tile(空槽透明)，该方块在那个 pack 下不可见。
@@ -34,7 +36,7 @@ describe('atlas pack consistency', () => {
       'granite', 'diorite', 'andesite', 'bricks', 'mossy_cobblestone', 'red_sand',
       'birch_log_top', 'birch_log_side', 'birch_leaves',
     ]);
-    expect(cartoon.length).toBeLessThanOrEqual(48);
+    expect(cartoon.length).toBeLessThanOrEqual(ATLAS_COLUMNS * ATLAS_ROWS);
   });
 
   it('classic pack explicitly overrides every leaf species instead of borrowing vivid leaves', () => {
@@ -44,8 +46,23 @@ describe('atlas pack consistency', () => {
   });
 
   it('shader classifies the current 12-row atlas so cactus and snow cannot alias lava/portal', () => {
-    expect(chunkManagerSrc).toContain('vec2 mwTileSize = vec2(0.25, 1.0 / 12.0)');
-    expect(chunkManagerSrc).toContain('(1.0 - vMapUv.y) * 12.0');
+    const centerUv = (tile: number): [number, number] => {
+      const column = tile % ATLAS_COLUMNS;
+      const row = Math.floor(tile / ATLAS_COLUMNS);
+      return [(column + 0.5) / ATLAS_COLUMNS, 1 - (row + 0.5) / ATLAS_ROWS];
+    };
+    for (let tile = 0; tile < ATLAS_COLUMNS * ATLAS_ROWS; tile++) {
+      expect(atlasTileAtUv(...centerUv(tile))).toBe(tile);
+    }
+    expect(atlasTileAtUv(...centerUv(ATLAS_TILES.cactus))).toBe(ATLAS_TILES.cactus);
+    expect(atlasTileAtUv(...centerUv(ATLAS_TILES.snow))).toBe(ATLAS_TILES.snow);
+    expect([ATLAS_TILES.glowstone, ATLAS_TILES.lava, ATLAS_TILES.nether_portal]).not.toContain(
+      ATLAS_TILES.cactus,
+    );
+    expect([ATLAS_TILES.glowstone, ATLAS_TILES.lava, ATLAS_TILES.nether_portal]).not.toContain(
+      ATLAS_TILES.snow,
+    );
+    expect(chunkManagerSrc).toContain('${ATLAS_ROWS}.0');
     expect(chunkManagerSrc).not.toContain('(1.0 - vMapUv.y) * 10.0');
   });
 });
