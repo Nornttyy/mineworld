@@ -156,6 +156,7 @@ def bow_icon(pull_stage=None):
     d = ImageDraw.Draw(im)
     string = (224, 222, 208, 255)
     shaft = (112, 77, 42, 255)
+    nock_x = None
 
     # 先画弦和箭，让弓臂自然压在连接点上。待机弦笔直，拉弓时弦的中点逐帧向左。
     if pull_stage is None:
@@ -163,10 +164,6 @@ def bow_icon(pull_stage=None):
     else:
         nock_x = (7, 5, 3)[max(0, min(2, pull_stage))]
         d.line([(8, 1), (nock_x, 8), (8, 14)], fill=string, width=1)
-        d.line([(nock_x, 8), (14, 8)], fill=shaft, width=1)
-        d.point([(nock_x + 1, 7), (nock_x + 1, 9)], fill=(238, 236, 226, 255))
-        d.point([(12, 7), (12, 9), (13, 7), (13, 9)], fill=(151, 153, 155, 255))
-        d.point([(13, 8), (14, 8), (15, 8)], fill=(188, 190, 192, 255))
 
     # 手工排布的两像素粗弓臂；不用 16px 椭圆弧，避免缩放后出现歪扭、粗细跳变。
     limb = [
@@ -180,6 +177,13 @@ def bow_icon(pull_stage=None):
     d.point(limb, fill=(139, 87, 43, 255))
     d.point([(8, 1), (9, 2), (10, 3), (11, 4), (12, 6), (12, 10), (11, 12), (9, 14)], fill=(184, 122, 61, 255))
     d.point([(12, 7), (12, 8), (12, 9)], fill=(79, 47, 26, 255))  # 握把
+    if nock_x is not None:
+        # 箭在弓体之后画，避免握把覆盖尖头后造成“箭头反了”的错觉。
+        d.line([(nock_x, 8), (14, 8)], fill=shaft, width=1)
+        d.point([(nock_x - 1, 7), (nock_x - 1, 9)], fill=(238, 236, 226, 255))
+        # 小型右向箭头：尖端固定在 x=15，避免旧贴图的大三角与反向观感。
+        d.point([(14, 7), (14, 9)], fill=(151, 153, 155, 255))
+        d.point([(14, 8), (15, 8)], fill=(188, 190, 192, 255))
     return im
 
 
