@@ -164,6 +164,7 @@ import {
   portalEffectOpacity,
   portalEffectProgress,
 } from './portalEffect';
+import { gameAudio } from '../audio/GameAudio';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
@@ -395,6 +396,7 @@ export class Game {
     multiplayer: MultiplayerSession | null = null,
   ) {
     const settings = loadSettings();
+    gameAudio.setVolume(settings.volume);
     setIconTexturePack(settings.texturePack);
     this.canvas = canvas;
     this.save = save;
@@ -882,6 +884,7 @@ export class Game {
    * 非 private：供 Task 10 的传送门触发逻辑（同在 Game 内）调用；当前任务只提供切换机制本身。
    */
   switchDimension(target: Dimension, pos: { x: number; y: number; z: number }): void {
+    gameAudio.portal();
     // 1) 存当前维度玩家位 + 生物
     (this.save.playerByDimension ??= {})[this.dimension] = {
       x: this.player.pos.x,
@@ -1168,6 +1171,7 @@ export class Game {
   }
 
   start(): void {
+    gameAudio.start();
     this.last = performance.now();
     // 预加载结束后刷新一次出生位置；桌面端在点进指针锁定前也能让房内玩家看见自己。
     this.publishMultiplayerState();
@@ -1363,6 +1367,30 @@ export class Game {
       );
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
+      const inWater = this.pointInWater(
+        this.player.pos.x,
+        this.player.pos.y + 0.1,
+        this.player.pos.z,
+      );
+      const underwater = this.pointInWater(
+        this.player.pos.x,
+        this.player.pos.y + EYE,
+        this.player.pos.z,
+      );
+      gameAudio.update(dt, {
+        playing,
+        moving: walk > 0.12,
+        sprinting: this.actualSprinting,
+        onGround: this.player.onGround,
+        inWater,
+        underwater,
+        groundBlock: this.world.getBlock(
+          Math.floor(this.player.pos.x),
+          Math.max(0, Math.floor(this.player.pos.y - 0.08)),
+          Math.floor(this.player.pos.z),
+        ),
+        dimension: this.dimension,
+      });
       const [handSky, handBlock] = this.chunks.lightLevelAt(
         this.player.pos.x,
         this.player.pos.y + EYE,
@@ -1523,6 +1551,7 @@ export class Game {
 
   // 受伤红屏反馈：触发一次 CSS 闪动（先移除再加 class 以重启动画）+ 手快速抖一下。
   private flashHurt(): void {
+    gameAudio.hurt();
     this.hand.hurtShake();
     const el = document.getElementById('hurt');
     if (!el) return;
@@ -1560,6 +1589,7 @@ export class Game {
   }
 
   private die(): void {
+    gameAudio.death();
     // 怪物可在背包/熔炉界面打开时杀死玩家；先收回临时槽，随后才能把完整背包一次性掉出。
     this.prepareForSave();
     this.dead = true;
@@ -1668,6 +1698,7 @@ export class Game {
       inner.map(([x, y, z]) => [x, y, z, NETHER_PORTAL] as const),
       { x: hit.x + 0.5, y: hit.y + 0.5, z: hit.z + 0.5 },
     );
+    gameAudio.portal();
     if (!this.creative) {
       const maxDurability = itemMaxDurability(FLINT_AND_STEEL);
       if (maxDurability !== null) damageTool(this.inv, this.hotbar.index, maxDurability);
@@ -1752,6 +1783,7 @@ export class Game {
         damage,
       ),
     );
+    gameAudio.bow(t);
     this.hand.swing();
   }
 
@@ -1871,6 +1903,7 @@ export class Game {
       const id = takeOne(this.inv, sel);
       if (food && id !== null) {
         eat(this.survival, food);
+        gameAudio.eat();
         this.hotbar.render(this.inv);
       }
       this.eatProgress = 0;
@@ -2465,6 +2498,7 @@ export class Game {
     // 草丛/长草：瞬破、无掉落、不耗工具耐久/疲劳。直接清掉即可。
     if (isPlantId(id)) {
       this.edit(x, y, z, AIR);
+      gameAudio.blockBreak(id);
       this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 6));
       this.digProgress = 0;
       this.digTarget = null;
@@ -2475,6 +2509,7 @@ export class Game {
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     const meltsToWater = id === ICE && !this.creative && this.world.getBlock(x, y - 1, z) !== AIR;
     this.edit(x, y, z, meltsToWater ? WATER : AIR);
+    gameAudio.blockBreak(id);
     if (id === OBSIDIAN) this.collapseInvalidPortalsAround(x, y, z);
     // 冰(1.12)：破坏后若下方非空气 → 该格变水源(创造不变)。edit(WATER) 同时写入存档，重进仍是水。
     // 失去支撑的草丛/火把随之破坏(同 MC：都需下方方块支撑；火把弹出掉落自身)。
@@ -2523,12 +2558,16 @@ export class Game {
         if (d.dur !== undefined) {
           // 带磨损的工具：非堆叠，放进空格并保留耐久（死亡掉落捡回不再变满）
           if (addTool(this.inv, d.id, d.dur)) {
+            gameAudio.pickup();
             this.drops.splice(i, 1);
             this.hotbar.render(this.inv);
           }
         } else {
           const leftover = addItem(this.inv, d.id, d.count, itemMaxStack(d.id)); // 整堆收取；按物品真实上限(鸡蛋=16)
-          if (leftover < d.count) this.hotbar.render(this.inv); // 至少拿到一部分 → 刷新背包
+          if (leftover < d.count) {
+            gameAudio.pickup();
+            this.hotbar.render(this.inv); // 至少拿到一部分 → 刷新背包
+          }
           if (leftover === 0) this.drops.splice(i, 1);
           else d.count = leftover; // 背包装不下，剩余量留在地上
         }
@@ -2701,6 +2740,7 @@ export class Game {
     maxDamage: number,
     source?: Mob,
   ): void {
+    gameAudio.explosion();
     const cx = Math.floor(center.x);
     const cy = Math.floor(center.y);
     const cz = Math.floor(center.z);
@@ -2965,6 +3005,7 @@ export class Game {
 
   // 攻击一只生物：按手持武器结算伤害 + 击退；死亡则掉落 + 移除。
   private attackMob(mob: Mob, aim?: InteractionRay): void {
+    gameAudio.attack();
     this.hand.swing();
     const held = this.inv[this.hotbar.index];
     const dmg = mobDamage(held ? held.id : null);
@@ -3021,6 +3062,7 @@ export class Game {
     const id = this.creative ? stack.id : takeOne(this.inv, sel);
     if (id === null) return;
     this.edit(px, py, pz, id);
+    gameAudio.blockPlace(id);
     if (replacedPortal) this.collapseInvalidPortalsAround(px, py, pz);
     if (id === SAND || id === GRAVEL) this.settleFallingBlock(px, py, pz);
     this.hotbar.render(this.inv);

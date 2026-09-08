@@ -18,6 +18,7 @@ import {
   type MultiplayerSession,
 } from './multiplayer/MultiplayerClient';
 import { PeerMultiplayerClient } from './multiplayer/PeerMultiplayerClient';
+import { gameAudio } from './audio/GameAudio';
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -175,13 +176,13 @@ void (async () => {
   showOnly(menu);
   showLoading(false);
 })();
-// 设置面板（局内/局外共用）：改材质即时套用到运行中的游戏；音量已存盘(音效待开发)。
+// 设置面板（局内/局外共用）：画面设置和主音量都即时生效。
 const settingsMenu = new SettingsMenu($('settings'));
 settingsMenu.onChange = (s): void => {
+  gameAudio.setVolume(s.volume);
   game?.setTexturePack(s.texturePack);
   game?.setLightingQuality(s.lightingQuality); // 光影画质即时套用
   game?.setRenderDistance(s.renderDistance); // 渲染距离：即时改区块加载半径 + 雾距
-  // 音量：已存进设置，音频接入后会读取（本次先存）。
 };
 $('settings-btn').addEventListener('click', () => settingsMenu.show());
 $('settings-btn-pause').addEventListener('click', () => settingsMenu.show());

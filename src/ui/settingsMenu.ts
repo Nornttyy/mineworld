@@ -45,7 +45,7 @@ export class SettingsMenu {
           <input id="set-vol" type="range" min="0" max="100" style="flex:1;" />
           <span id="set-vol-val" style="width:46px;text-align:right;"></span>
         </label>
-        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">音效尚未开发，先存着</div>
+        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">同时控制环境音乐与游戏音效</div>
         <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">光影</span>
           <select id="set-lighting" style="background:#16212e;color:#dce8f2;border:2px solid #5a7390;padding:2px 6px;font-family:'Zpix',monospace;font-size:14px;cursor:pointer;">
