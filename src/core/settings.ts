@@ -1,7 +1,7 @@
 // 全局设置：菜单(局外)与游戏(局内)共用，存 localStorage 跨会话保留。
 // sanitize 是纯函数(可单测)；load/save 包 localStorage(node/无存储环境下静默降级)。
 
-export type TexturePack = 'cartoon' | 'classic';
+export type TexturePack = 'cartoon' | 'classic' | 'realistic';
 export type LightingQuality = 'off' | 'standard' | 'high';
 
 export interface Settings {
@@ -32,7 +32,8 @@ export function sanitizeSettings(raw: unknown): Settings {
   } else {
     lightingQuality = DEFAULT_SETTINGS.lightingQuality;
   }
-  const texturePack: TexturePack = r.texturePack === 'cartoon' ? 'cartoon' : 'classic';
+  const texturePack: TexturePack =
+    r.texturePack === 'cartoon' || r.texturePack === 'realistic' ? r.texturePack : 'classic';
   const renderDistance =
     typeof r.renderDistance === 'number' && isFinite(r.renderDistance)
       ? Math.max(3, Math.min(12, Math.round(r.renderDistance)))

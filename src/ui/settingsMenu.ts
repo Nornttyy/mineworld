@@ -54,10 +54,11 @@ export class SettingsMenu {
             <option value="high">超高</option>
           </select>
         </label>
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <span style="width:108px;">材质</span>
-          <button id="set-tex-classic" class="btn" type="button">标准像素</button>
-          <button id="set-tex-cartoon" class="btn" type="button">鲜艳像素</button>
+          <button id="set-tex-classic" class="btn" type="button" style="font-size:15px;padding:9px 10px;">标准像素</button>
+          <button id="set-tex-cartoon" class="btn" type="button" style="font-size:15px;padding:9px 10px;">鲜艳像素</button>
+          <button id="set-tex-realistic" class="btn" type="button" style="font-size:15px;padding:9px 10px;">写实材质</button>
         </div>
         <label style="display:flex;align-items:center;gap:12px;">
           <span style="width:108px;">渲染距离</span>
@@ -73,12 +74,15 @@ export class SettingsMenu {
     const lighting = root.querySelector('#set-lighting') as HTMLSelectElement;
     const texCartoon = root.querySelector('#set-tex-cartoon') as HTMLButtonElement;
     const texClassic = root.querySelector('#set-tex-classic') as HTMLButtonElement;
+    const texRealistic = root.querySelector('#set-tex-realistic') as HTMLButtonElement;
 
     const syncTexButtons = (): void => {
       texCartoon.classList.toggle('active', this.settings.texturePack === 'cartoon');
       texClassic.classList.toggle('active', this.settings.texturePack === 'classic');
+      texRealistic.classList.toggle('active', this.settings.texturePack === 'realistic');
       texCartoon.style.outline = this.settings.texturePack === 'cartoon' ? '2px solid #6ab0ff' : 'none';
       texClassic.style.outline = this.settings.texturePack === 'classic' ? '2px solid #6ab0ff' : 'none';
+      texRealistic.style.outline = this.settings.texturePack === 'realistic' ? '2px solid #6ab0ff' : 'none';
     };
     const apply = (): void => {
       saveSettings(this.settings);
@@ -103,6 +107,7 @@ export class SettingsMenu {
     });
     texCartoon.addEventListener('click', () => setTex('cartoon'));
     texClassic.addEventListener('click', () => setTex('classic'));
+    texRealistic.addEventListener('click', () => setTex('realistic'));
     const rd = root.querySelector('#set-rd') as HTMLInputElement;
     const rdVal = root.querySelector('#set-rd-val') as HTMLElement;
     const setRdFill = (): void =>

@@ -93,6 +93,7 @@ export class ChunkMeshManager {
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
   private readonly uTime = { value: 0 };
+  private readonly uAtlasSize = { value: new THREE.Vector2(64, 192) };
   private readonly uSkyRefl = {
     value: new THREE.Color().setRGB(0.55, 0.72, 0.95, THREE.SRGBColorSpace),
   }; // 地平线色(掠角反射)
@@ -145,6 +146,7 @@ export class ChunkMeshManager {
     private world: ChunkWorld,
     atlas: THREE.Texture,
   ) {
+    this.syncAtlasSize(atlas);
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
     // 投影阴影深度 pass 渲【背面】：体素地形是闭合壳，受光面永远拿不到与自身相等的深度
     // → 平地/受光面零自阴影(shadow acne)。曾用正面+bias=0.004 仍在"高"档把玩家周围
@@ -253,6 +255,7 @@ export class ChunkMeshManager {
       shader.uniforms.uShaders = this.uShaders; // 光影开关：阳光泽面/草木摆动门控
       shader.uniforms.uSunDirW = this.uSunDir; // 阳光方向(世界系,阳光泽面用;与水面共用)
       shader.uniforms.uTime = this.uTime;
+      shader.uniforms.uAtlasSize = this.uAtlasSize;
       shader.uniforms.uSurfaceNoise = { value: this.cloudNoiseTex };
       shader.uniforms.uWaterWaves = { value: this.waterWaveTex };
       // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
@@ -290,7 +293,7 @@ export class ChunkMeshManager {
           '#include <common>',
           '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
-            'uniform float uTime;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
+            'uniform float uTime;\nuniform vec2 uAtlasSize;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
             'float mwTile(float id,float target){ return 1.0-step(0.5,abs(id-target)); }\n' +
             // ⚠️ 解包常数必须与 three.js packing.glsl 一致：UnpackFactors=(255/256)/vec4(256³,256²,256,【1】)。
             // 曾把最后一位写成 256 → "远平面(无遮挡)"解包成 ≈0.008(贴脸遮挡) → 阴影窗口(玩家±36格)内
@@ -355,11 +358,12 @@ export class ChunkMeshManager {
             'float mwWood = 0.0; float mwSnow = 0.0; float mwFoliage = 0.0; float mwPolished = 0.0;\n' +
             'float mwTexCavity = 0.0;\n' +
             '#ifdef USE_MAP\n' +
-            '  vec2 mwAtlasSize = vec2(64.0, 192.0);\n' +
+            '  vec2 mwAtlasSize = uAtlasSize;\n' +
             '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
-            '  vec2 mwTileSize = vec2(0.25, 0.1);\n' +
+            '  vec2 mwTileSize = vec2(0.25, 1.0 / 12.0);\n' +
             '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
-            '  mwTileIndex = floor(vMapUv.x * 4.0) + floor((1.0 - vMapUv.y) * 10.0) * 4.0;\n' +
+            '  float mwTileRow = clamp(floor((1.0 - vMapUv.y) * 12.0), 0.0, 11.0);\n' +
+            '  mwTileIndex = floor(vMapUv.x * 4.0) + mwTileRow * 4.0;\n' +
             '  mwRock = max(max(max(mwTile(mwTileIndex,0.0),mwTile(mwTileIndex,4.0)),max(mwTile(mwTileIndex,9.0),mwTile(mwTileIndex,14.0))),max(max(mwTile(mwTileIndex,16.0),mwTile(mwTileIndex,22.0)),max(mwTile(mwTileIndex,24.0),mwTile(mwTileIndex,35.0))));\n' +
             '  mwSoil = max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,20.0));\n' +
             '  mwGrass = max(mwTile(mwTileIndex,2.0),mwTile(mwTileIndex,3.0));\n' +
@@ -1416,16 +1420,33 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.uSunDir.value.set(x, y, z);
   }
 
-  /** 切换方块图集（卡通/经典材质切换）：换地形/传送门贴图；水有独立纹理不受影响。 */
+  private syncAtlasSize(tex: THREE.Texture): void {
+    const size = tex.userData.atlasSize;
+    if (
+      Array.isArray(size) &&
+      size.length === 2 &&
+      Number.isFinite(size[0]) &&
+      Number.isFinite(size[1])
+    ) {
+      this.uAtlasSize.value.set(size[0], size[1]);
+    } else {
+      this.uAtlasSize.value.set(64, 192);
+    }
+  }
+
+  /** 切换方块图集（鲜艳/经典/写实）：换地形/传送门贴图；水有独立纹理不受影响。 */
   setAtlas(tex: THREE.Texture): void {
+    this.syncAtlasSize(tex);
     this.opaqueMat.map = tex;
     this.iceMat.map = tex;
     this.cutoutMat.map = tex;
     this.portalMat.map = tex;
+    if (this.leafDepthMat) this.leafDepthMat.map = tex;
     this.opaqueMat.needsUpdate = true;
     this.iceMat.needsUpdate = true;
     this.cutoutMat.needsUpdate = true;
     this.portalMat.needsUpdate = true;
+    if (this.leafDepthMat) this.leafDepthMat.needsUpdate = true;
   }
 
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，

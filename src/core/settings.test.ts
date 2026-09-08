@@ -15,9 +15,10 @@ describe('settings sanitize', () => {
     expect(sanitizeSettings({ volume: NaN }).volume).toBe(DEFAULT_SETTINGS.volume);
   });
 
-  it('材质只认 cartoon/classic，其余回退默认经典包', () => {
+  it('材质只认 cartoon/classic/realistic，其余回退默认经典包', () => {
     expect(sanitizeSettings({ texturePack: 'classic' }).texturePack).toBe('classic');
     expect(sanitizeSettings({ texturePack: 'cartoon' }).texturePack).toBe('cartoon');
+    expect(sanitizeSettings({ texturePack: 'realistic' }).texturePack).toBe('realistic');
     expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('classic');
   });
 
@@ -41,6 +42,10 @@ describe('texture pack v3 migration', () => {
 
   it('v3 迁移完成后尊重用户手动选择的鲜艳包', () => {
     expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 3 }).texturePack).toBe('cartoon');
+  });
+
+  it('v3 设置可以保留写实材质包', () => {
+    expect(settingsFromStorage({ texturePack: 'realistic', textureStyleVersion: 3 }).texturePack).toBe('realistic');
   });
 });
 

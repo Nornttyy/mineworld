@@ -270,11 +270,19 @@ def birch_leaves(rng):
 
 
 def spruce_leaves(rng):
-    return classic_leaves(
+    image = classic_leaves(
         rng,
         ("#294b36", "#335a41", "#40684d", "#203d2c", "#183124"),
         CLASSIC_SPRUCE_HOLES,
     )
+    pixels = image.load()
+    needle, tip = source.hx("#3c674b"), source.hx("#4b7658")
+    for x, y, dx, dy, length in source.SPRUCE_NEEDLE_STROKES:
+        for step in range(length):
+            point = ((x + dx * step) % S, (y + dy * step) % S)
+            if pixels[point][3] != 0:
+                pixels[point] = (*(tip if step == length - 1 else needle), 255)
+    return image
 
 
 def crafting_table_top(rng):

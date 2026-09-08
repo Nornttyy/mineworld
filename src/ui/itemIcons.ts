@@ -192,7 +192,12 @@ const ZH: Record<number, string> = {
 export const iconUrl = (id: number, variant?: string): string | null => {
   const name = ICON[id];
   if (!name) return null;
-  const directory = activeTexturePack === 'classic' ? 'icons_classic' : 'icons';
+  const directory =
+    activeTexturePack === 'classic'
+      ? 'icons_classic'
+      : activeTexturePack === 'realistic'
+        ? 'icons_realistic'
+        : 'icons';
   const suffix = variant ? `_${variant}` : '';
   return asset(`textures/${directory}/${name}${suffix}.png`);
 };

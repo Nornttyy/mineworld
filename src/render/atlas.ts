@@ -1,20 +1,34 @@
 import * as THREE from 'three';
 import { asset } from '../asset';
+import type { TexturePack } from '../core/settings';
 
-// 按 pack 记忆化：只有卡通/经典两种，最多 2 张纹理永久复用。
+// 按 pack 记忆化：三种材质最多各保留 1 张 GPU 纹理。
 // 否则每次在设置里切材质包都 new 一张 GPU 纹理且旧的从不 dispose → 反复切换持续泄漏显存。
 const atlasCache = new Map<string, THREE.Texture>();
 
-/** 加载方块图集：放大、缩小和 mip 层级切换都只取最近邻，保持 16×16 像素硬边。
- *  图集 64×192 且每格 16×16；各 mip 级仍与 tile 对齐，不会跨格渗色。 */
-export function loadAtlas(pack: 'cartoon' | 'classic' = 'classic'): THREE.Texture {
+/** 加载方块图集：经典/鲜艳为 16px，写实为图片生成的 128px 方块面。 */
+export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
   const cached = atlasCache.get(pack);
   if (cached) return cached;
-  const file = pack === 'classic' ? 'textures/atlas_classic.png' : 'textures/atlas.png';
+  const file =
+    pack === 'classic'
+      ? 'textures/atlas_classic.png'
+      : pack === 'realistic'
+        ? 'textures/atlas_realistic.png'
+        : 'textures/atlas.png';
   const tex = new THREE.TextureLoader().load(asset(file));
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestMipmapNearestFilter;
-  tex.generateMipmaps = true;
+  if (pack === 'realistic') {
+    // 网格 UV 为三套材质共用；最近邻可完整保留 128px 细节，也不会在方块边界采到相邻格。
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false; // 防止高分辨率图集的 mip 层跨方块格渗色
+    tex.userData.atlasSize = [512, 1536];
+  } else {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestMipmapNearestFilter;
+    tex.generateMipmaps = true;
+    tex.userData.atlasSize = [64, 192];
+  }
   tex.colorSpace = THREE.SRGBColorSpace;
   atlasCache.set(pack, tex);
   return tex;

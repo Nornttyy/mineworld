@@ -626,27 +626,40 @@ def spruce_log(rng):
     return im
 
 
+SPRUCE_NEEDLE_HOLES = frozenset({
+    (6, 1), (7, 1), (15, 1), (3, 2), (11, 2), (0, 3), (4, 3), (13, 3),
+    (8, 4), (15, 4), (2, 5), (10, 5), (5, 6), (14, 6), (0, 7), (7, 7),
+    (12, 7), (3, 8), (15, 8), (9, 9), (13, 9), (4, 10), (5, 10), (12, 10),
+    (0, 11), (7, 11), (15, 11), (2, 12), (10, 12), (6, 13), (13, 13),
+    (0, 14), (15, 14), (1, 15), (4, 15), (12, 15),
+})
+
+SPRUCE_NEEDLE_STROKES = (
+    (0, 1, 1, 0, 4), (4, 0, 1, 1, 3), (9, 0, 1, 0, 4), (14, 0, -1, 1, 3),
+    (1, 4, 1, -1, 3), (5, 4, 1, 0, 4), (10, 4, 1, 1, 3), (15, 5, -1, 0, 4),
+    (0, 8, 1, 1, 3), (4, 8, 1, 0, 4), (9, 8, 1, -1, 3), (14, 8, -1, 0, 4),
+    (1, 12, 1, 0, 4), (5, 12, 1, 1, 3), (10, 12, 1, 0, 4), (15, 12, -1, 1, 3),
+    (3, 15, 1, -1, 3), (8, 15, 1, 0, 4),
+)
+
+
 def spruce_leaves(rng):
-    # 鲜艳包云杉叶：深青阴影配亮青绿针叶，和橡树/白桦拉开树种差异。
-    rows = [
-        "Ll.d ..Ll.  dl..",
-        ".l..  dl..  .l.d",
-        "d.Ll  ...  Ll...",
-        "..l.d Ll.  dl. .",
-        ".d..  .l.d  ...d",
-        "Ll .d  ..  Ll  d",
-        ".l.dD .. .dl.d..",
-        "...  Ll.  ....  ",
-        ".Ll. .l.d  .Ll..",
-        "dl..  ...  D.l..",
-        "..  Ll. . Ll ..d",
-        ". d .l.dD.l.d  .",
-        "Ll..  ..  ..  Ll",
-        ".l.d  . Ll..  dl",
-        "...  Ll dl.d  ..",
-        "d.  dl...  ..  d",
-    ]
-    return from_map(rows, {".": "#17613d", "l": "#238052", "L": "#42a86b", "d": "#0d472b", "D": "#062f1d"}, rng, alpha_blank=True)
+    # 鲜艳云杉：密集深青底层 + 交错短针叶束，不再使用阔叶树的大圆团纹样。
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    px = im.load()
+    colors = [hx("#0b462e"), hx("#12643e"), hx("#208451"), hx("#073321")]
+    for y in range(S):
+        for x in range(S):
+            if (x, y) not in SPRUCE_NEEDLE_HOLES:
+                color = rng.choices(colors, (4, 5, 2, 2))[0]
+                px[x, y] = (*color, 255)
+    bright, tip = hx("#43bd70"), hx("#78df94")
+    for x, y, dx, dy, length in SPRUCE_NEEDLE_STROKES:
+        for step in range(length):
+            point = ((x + dx * step) % S, (y + dy * step) % S)
+            if point not in SPRUCE_NEEDLE_HOLES:
+                px[point] = (*(tip if step == length - 1 else bright), 255)
+    return im
 
 # ── 下界方块(1.12 原版风) ────────────────────────────────────────────────────
 def obsidian(rng):
@@ -1012,8 +1025,9 @@ def iso_icon(top_tex, left_tex, right_tex):
                 s = i0 * dx + i1 * dy
                 t = i2 * dx + i3 * dy
                 if -M <= s <= 1 + M and -M <= t <= 1 + M:  # 微重叠消接缝
-                    sx = min(15, max(0, int(s * 16)))
-                    sy = min(15, max(0, int(t * 16)))
+                    tw, th = tex.size
+                    sx = min(tw - 1, max(0, int(s * tw)))
+                    sy = min(th - 1, max(0, int(t * th)))
                     r, g, b, a = tpx[sx, sy]
                     if a >= 128:
                         cpx[ox, oy] = (int(r * shade), int(g * shade), int(b * shade), 255)
