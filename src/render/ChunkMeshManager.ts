@@ -500,8 +500,9 @@ export class ChunkMeshManager {
             '  float mwSunLuma = dot(sunTone, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwSunProtect = max(mwWhiteMask * 0.45, mwSaturatedMask * 0.35);\n' +
             '  sunTone = mix(sunTone, vec3(mwSunLuma), mwSunProtect);\n' +
-            // 泥土保留少量暖阳而不被染成金块；草顶、沙滩仍保持可见的阳光色温。
-            '  vec3 mwDirectTone = mix(sunTone, vec3(mwSunLuma), mwSoil * 0.44);\n' +
+            // 草与树叶只提高亮度、不染黄；泥土也大幅抑制金色。沙滩等材质仍保留轻微暖阳。
+            '  float mwWarmProtect = clamp(mwSoil*0.76+mwGrass*0.92+mwFoliage*0.92,0.0,1.0);\n' +
+            '  vec3 mwDirectTone = mix(sunTone, vec3(mwSunLuma), mwWarmProtect);\n' +
             '  float sunCloud = 1.0 - cloud * mix(0.48, 0.62, uHq);\n' +
             // 太阳直射比环境层更明亮，向上的天然地表再接一点暖色天空反弹；只作用于受光地面，
             // 不抬全局曝光，也不会让洞穴、背光面、水面和天空一起变白。

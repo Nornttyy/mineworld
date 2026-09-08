@@ -852,8 +852,10 @@ export function meshChunkData(
         } else if (isCutoutId(id)) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
-            // 镂空(树叶)：像 MC「精细」叶——只对【不透明实心邻】剔面；叶-叶之间也画 → 树冠密实、挖进去里面仍是叶子(不透空)
-            if (isOpaque(getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]))) continue;
+            const neighbor = getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]);
+            // 相邻叶块的两张共面内部面会争抢深度，远看形成黑线/闪缝；剔除后挖开树冠时
+            // 邻块会正常重建外表面，所以既不露洞，也不会保留重叠接缝。
+            if (isOpaque(neighbor) || isCutoutId(neighbor)) continue;
             emit(cut, lx, ly, lz, id, f);
           }
         } else if (isWaterId(id)) {

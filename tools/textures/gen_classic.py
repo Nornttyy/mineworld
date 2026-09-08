@@ -237,7 +237,7 @@ CLASSIC_SPRUCE_HOLES = CLASSIC_LEAF_HOLES - {
 
 
 def classic_leaves(rng, palette, holes=CLASSIC_LEAF_HOLES):
-    """1.12 式密集细叶：随机细碎色块、小孔洞、孔缘暗像素，无坐标棋盘循环。"""
+    """1.12 式密集细叶：随机细碎色块和小孔洞；孔缘保持叶色，不画黑色描边。"""
     image = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     pixels = image.load()
     base, mid, light, dark, deep = [source.hx(color) for color in palette]
@@ -247,13 +247,16 @@ def classic_leaves(rng, palette, holes=CLASSIC_LEAF_HOLES):
                 continue
             by_hole = any(((x + dx) % S, (y + dy) % S) in holes for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
             roll = rng.random()
-            if by_hole and roll < 0.38:
+            if by_hole:
+                # 旧版故意把透明孔周围画成 deep/dark，受夜间和 AO 影响后就成了明显黑边。
+                color = light if roll < 0.24 else mid if roll < 0.62 else base
+            elif roll < 0.06:
                 color = deep
-            elif by_hole and roll < 0.7:
+            elif roll < 0.18:
                 color = dark
-            elif roll < 0.12:
+            elif roll < 0.32:
                 color = light
-            elif roll < 0.38:
+            elif roll < 0.54:
                 color = mid
             else:
                 color = base

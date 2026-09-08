@@ -1202,6 +1202,18 @@ export class Game {
           this.crouching = this.flying ? false : m.crouch; // 飞行时 Shift=下降，不当下蹲(相机不下沉)
           // Java 1.12 生存模式食物值至少 7 才能疾跑；创造模式不受饥饿限制。
           this.actualSprinting = m.sprint && (this.creative || canSprint(this.survival));
+          const jumpedFromGround =
+            jumped &&
+            this.player.onGround &&
+            !this.flying &&
+            !this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z);
+          const jumpGroundBlock = jumpedFromGround
+            ? this.world.getBlock(
+                Math.floor(this.player.pos.x),
+                Math.max(0, Math.floor(this.player.pos.y - 0.08)),
+                Math.floor(this.player.pos.z),
+              )
+            : AIR;
           this.player = step(
             this.player,
             {
@@ -1219,6 +1231,7 @@ export class Game {
             },
             this.playerPhysWorld,
           );
+          if (jumpedFromGround) gameAudio.jump(jumpGroundBlock);
           this.publishMultiplayerState();
           this.stepSurvival(this.actualSprinting, jumped);
         } else {
@@ -1701,7 +1714,11 @@ export class Game {
     gameAudio.portal();
     if (!this.creative) {
       const maxDurability = itemMaxDurability(FLINT_AND_STEEL);
-      if (maxDurability !== null) damageTool(this.inv, this.hotbar.index, maxDurability);
+      if (
+        maxDurability !== null &&
+        damageTool(this.inv, this.hotbar.index, maxDurability)
+      )
+        gameAudio.toolBreak();
       this.hotbar.render(this.inv);
     }
     return true;
@@ -1757,7 +1774,11 @@ export class Game {
     if (!this.creative) {
       if (removeItems(this.inv, ARROW, 1) < 1) return; // 生存没箭；创造可无箭射击且不消耗
       const maxDurability = itemMaxDurability(BOW);
-      if (maxDurability !== null) damageTool(this.inv, this.hotbar.index, maxDurability);
+      if (
+        maxDurability !== null &&
+        damageTool(this.inv, this.hotbar.index, maxDurability)
+      )
+        gameAudio.toolBreak();
       this.hotbar.render(this.inv);
     }
     const t = (charge - BOW_MIN_CHARGE) / (BOW_MAX_CHARGE - BOW_MIN_CHARGE); // 0..1
@@ -2343,6 +2364,7 @@ export class Game {
       if (this.touchDigging) this.stopDigging();
     } else {
       this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
+      gameAudio.blockHit(id);
       // 挖掘中持续喷碎屑（节流，免得每帧爆量）
       this.digFxT += dt;
       if (this.digFxT >= 0.07) {
@@ -2533,7 +2555,7 @@ export class Game {
     const sel = this.inv[this.hotbar.index];
     const td = sel ? toolOf(sel.id) : null;
     if (!this.creative && td) {
-      damageTool(this.inv, this.hotbar.index, td.maxDurability);
+      if (damageTool(this.inv, this.hotbar.index, td.maxDurability)) gameAudio.toolBreak();
       this.hotbar.render(this.inv); // 刷新耐久条 / 损坏后清格
     }
     this.digProgress = 0;
@@ -2625,6 +2647,7 @@ export class Game {
           if (mob.kind === 'husk') addExhaustion(this.survival, 3);
         } else if (ev.kind === 'shootArrow') {
           // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
+          if (d2 < 24 * 24) gameAudio.bow(0.72);
           this.arrows.push(
             spawnArrow(
               ev.from.x,
@@ -2884,6 +2907,7 @@ export class Game {
           const dz = a.z - this.player.pos.z;
           // addItem 返回「放不下的剩余数」：0=已全部收入 → 才移除地上的箭（背包满时 leftover>0，箭留地上）
           if (dx * dx + dy * dy + dz * dz < 1.4 * 1.4 && addItem(this.inv, ARROW, 1) === 0) {
+            gameAudio.pickup();
             this.hotbar.render(this.inv);
             this.arrows.splice(i, 1);
           }
@@ -2909,6 +2933,7 @@ export class Game {
           for (const mob of this.mobs) {
             const def = MOB_DEFS[mob.kind];
             if (inAabb(x, y, z, mob.pos.x, mob.pos.z, mob.pos.y, def.width / 2, def.height)) {
+              gameAudio.arrowHit();
               this.damageMobWithArrow(mob, a);
               consumed = true;
               break;
@@ -2927,10 +2952,12 @@ export class Game {
           )
         ) {
           // 中箭：扣血 + 闪红/抖手 + 沿箭飞行方向被击退
+          gameAudio.arrowHit();
           this.hurtPlayer(a.damage, a.vx, a.vz);
           consumed = true;
         }
       }
+      if (a.stuck && !consumed) gameAudio.arrowHit();
       if (consumed) this.arrows.splice(i, 1);
     }
   }
@@ -2938,6 +2965,8 @@ export class Game {
   // 箭命中生物：按箭伤 + 沿箭飞行方向击退，处理掉落/死亡（与近战 attackMob 同套事件处理）。
   private damageMobWithArrow(mob: Mob, a: Arrow): void {
     const res = hurtMob(mob, a.damage, { x: a.vx, z: a.vz }, this.mobRng);
+    if (res.events.some((event) => event.kind === 'hurt'))
+      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'));
     Object.assign(mob, res.mob);
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
@@ -3012,8 +3041,10 @@ export class Game {
     // MC：攻击生物消耗耐久——剑每击 −1，其它工具当武器用每击 −2（非工具/空手不掉）
     const wtd = held ? toolOf(held.id) : null;
     if (!this.creative && wtd) {
+      let broke = false;
       for (let n = wtd.kind === 'sword' ? 1 : 2; n > 0; n--)
-        damageTool(this.inv, this.hotbar.index, wtd.maxDurability);
+        broke = damageTool(this.inv, this.hotbar.index, wtd.maxDurability) || broke;
+      if (broke) gameAudio.toolBreak();
       this.hotbar.render(this.inv);
     }
     // 触屏点画面边缘攻击时，击退方向也跟随该点的射线；竖直朝上/下时退回当前朝向。
@@ -3022,6 +3053,8 @@ export class Game {
     const knockX = dir && horizontal > 1e-6 ? dir.x / horizontal : Math.cos(this.look.yaw);
     const knockZ = dir && horizontal > 1e-6 ? dir.z / horizontal : Math.sin(this.look.yaw);
     const res = hurtMob(mob, dmg, { x: knockX, z: knockZ }, this.mobRng);
+    if (res.events.some((event) => event.kind === 'hurt'))
+      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'));
     Object.assign(mob, res.mob);
     for (const ev of res.events) {
       if (ev.kind === 'drops') {

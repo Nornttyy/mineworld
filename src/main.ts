@@ -26,6 +26,12 @@ const touchMode = supportsTouchControls();
 document.documentElement.classList.toggle('touch-device', touchMode);
 if (touchMode) installTouchZoomGuards();
 
+// 菜单按钮使用轻柔的短促反馈；pointerdown 已先解锁 AudioContext，所以首次点击也能正常播放。
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (target instanceof Element && target.closest('button')) gameAudio.uiClick();
+});
+
 // 主菜单/存档界面的旋转全景背景（独立画布，与游戏无关）
 const menubgCanvas = $('menubg') as HTMLCanvasElement;
 let menubg: MenuBackground | null = null;

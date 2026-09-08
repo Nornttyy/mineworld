@@ -71,4 +71,13 @@ describe('atlas pack consistency', () => {
     expect(chunkManagerSrc.match(/transformed\.x \+= sin\(ph \+ uTime\*1\.4\) \* sw;/g)).toHaveLength(2);
     expect(chunkManagerSrc.match(/transformed\.z \+= sin\(ph\*1\.3 \+ uTime\*1\.1\) \* sw;/g)).toHaveLength(2);
   });
+
+  it('经典树叶透明孔周围不再人为绘制深色描边', () => {
+    expect(classicSrc).toContain('孔缘保持叶色，不画黑色描边');
+    expect(classicSrc).toContain('color = light if roll < 0.24 else mid if roll < 0.62 else base');
+  });
+
+  it('草地和树叶受阳光时提亮但不再被暖光染黄', () => {
+    expect(chunkManagerSrc).toContain('mwSoil*0.76+mwGrass*0.92+mwFoliage*0.92');
+  });
 });

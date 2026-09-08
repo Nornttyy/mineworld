@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ambientChord, blockSoundFor } from './GameAudio';
+import { ambientChord, blockSoundFor, shouldPlayFootstep, type GameAudioFrame } from './GameAudio';
 import { DIAMOND_BLOCK, GRASS, OAK_LEAVES, OAK_LOG, SAND, WATER } from '../core/blocks/registry';
 
 const STONE = 1;
@@ -24,5 +24,25 @@ describe('原创环境 BGM 和声', () => {
     expect(Math.max(...ambientChord(0, 'nether'))).toBeLessThan(
       Math.max(...ambientChord(0, 'overworld')),
     );
+  });
+});
+
+describe('脚步触发条件', () => {
+  const frame: GameAudioFrame = {
+    playing: true,
+    moving: true,
+    sprinting: false,
+    onGround: true,
+    inWater: false,
+    underwater: false,
+    groundBlock: GRASS,
+    dimension: 'overworld',
+  };
+
+  it('只在陆地移动时播放，水中没有地面走路声', () => {
+    expect(shouldPlayFootstep(frame)).toBe(true);
+    expect(shouldPlayFootstep({ ...frame, inWater: true })).toBe(false);
+    expect(shouldPlayFootstep({ ...frame, onGround: false })).toBe(false);
+    expect(shouldPlayFootstep({ ...frame, moving: false })).toBe(false);
   });
 });

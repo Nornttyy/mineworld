@@ -14,6 +14,11 @@ export interface GameAudioFrame {
   dimension: AudioDimension;
 }
 
+/** 地面脚步的唯一门控：游泳/涉水时不借用脚下方块的走路声。 */
+export function shouldPlayFootstep(frame: GameAudioFrame): boolean {
+  return frame.playing && frame.moving && frame.onGround && !frame.inWater;
+}
+
 /** 按方块材质归类；音高与噪声包络会据此变化。 */
 export function blockSoundFor(id: number): BlockSound {
   const name = BLOCKS[id]?.name ?? 'stone';
@@ -48,13 +53,58 @@ export function ambientChord(index: number, dimension: AudioDimension): readonly
 const midiHz = (note: number): number => 440 * 2 ** ((note - 69) / 12);
 
 const MATERIAL: Record<BlockSound, { frequency: number; rate: number; gain: number }> = {
-  stone: { frequency: 720, rate: 0.78, gain: 0.24 },
-  dirt: { frequency: 290, rate: 0.68, gain: 0.2 },
-  grass: { frequency: 1250, rate: 1.22, gain: 0.14 },
-  sand: { frequency: 1900, rate: 0.88, gain: 0.13 },
-  wood: { frequency: 560, rate: 0.9, gain: 0.2 },
-  glass: { frequency: 2700, rate: 1.42, gain: 0.17 },
-  metal: { frequency: 1850, rate: 1.08, gain: 0.18 },
+  stone: { frequency: 660, rate: 0.7, gain: 0.1 },
+  dirt: { frequency: 330, rate: 0.58, gain: 0.095 },
+  grass: { frequency: 1180, rate: 1.05, gain: 0.075 },
+  sand: { frequency: 1750, rate: 0.82, gain: 0.07 },
+  wood: { frequency: 510, rate: 0.84, gain: 0.09 },
+  glass: { frequency: 2350, rate: 1.28, gain: 0.07 },
+  metal: { frequency: 1450, rate: 0.96, gain: 0.075 },
+};
+
+type NoiseLayer = Readonly<{
+  duration: number;
+  frequency: number;
+  q: number;
+  gain: number;
+  rate: number;
+  delay: number;
+  filter: BiquadFilterType;
+}>;
+
+/** 每类方块独立的碎裂层；低增益、错开瞬态，避免旧版四连高噪声的“电流喷气感”。 */
+const BREAK_LAYERS: Record<BlockSound, readonly NoiseLayer[]> = {
+  stone: [
+    { duration: 0.1, frequency: 820, q: 0.45, gain: 0.07, rate: 0.55, delay: 0, filter: 'lowpass' },
+    { duration: 0.055, frequency: 510, q: 0.8, gain: 0.045, rate: 0.72, delay: 0.035, filter: 'bandpass' },
+    { duration: 0.045, frequency: 1120, q: 1.0, gain: 0.026, rate: 0.92, delay: 0.083, filter: 'bandpass' },
+  ],
+  dirt: [
+    { duration: 0.13, frequency: 690, q: 0.35, gain: 0.075, rate: 0.46, delay: 0, filter: 'lowpass' },
+    { duration: 0.075, frequency: 390, q: 0.55, gain: 0.042, rate: 0.61, delay: 0.052, filter: 'bandpass' },
+  ],
+  grass: [
+    { duration: 0.11, frequency: 760, q: 0.4, gain: 0.052, rate: 0.55, delay: 0, filter: 'lowpass' },
+    { duration: 0.08, frequency: 1550, q: 0.55, gain: 0.033, rate: 1.08, delay: 0.025, filter: 'highpass' },
+    { duration: 0.05, frequency: 980, q: 0.8, gain: 0.025, rate: 0.9, delay: 0.075, filter: 'bandpass' },
+  ],
+  sand: [
+    { duration: 0.15, frequency: 920, q: 0.45, gain: 0.045, rate: 0.66, delay: 0, filter: 'highpass' },
+    { duration: 0.09, frequency: 2250, q: 0.7, gain: 0.027, rate: 0.9, delay: 0.045, filter: 'bandpass' },
+  ],
+  wood: [
+    { duration: 0.09, frequency: 720, q: 0.7, gain: 0.06, rate: 0.67, delay: 0, filter: 'lowpass' },
+    { duration: 0.05, frequency: 470, q: 1.1, gain: 0.043, rate: 0.88, delay: 0.045, filter: 'bandpass' },
+    { duration: 0.045, frequency: 1050, q: 0.8, gain: 0.023, rate: 1.05, delay: 0.092, filter: 'bandpass' },
+  ],
+  glass: [
+    { duration: 0.11, frequency: 1750, q: 0.6, gain: 0.038, rate: 1.12, delay: 0, filter: 'highpass' },
+    { duration: 0.055, frequency: 2850, q: 1.5, gain: 0.025, rate: 1.38, delay: 0.04, filter: 'bandpass' },
+  ],
+  metal: [
+    { duration: 0.085, frequency: 980, q: 0.9, gain: 0.045, rate: 0.82, delay: 0, filter: 'bandpass' },
+    { duration: 0.07, frequency: 2150, q: 1.1, gain: 0.025, rate: 1.05, delay: 0.052, filter: 'highpass' },
+  ],
 };
 
 /**
@@ -73,6 +123,9 @@ export class GameAudio {
   private phrase = 0;
   private musicTimer: number | null = null;
   private stepTimer = 0;
+  private hitTimer = 0;
+  private groundStateKnown = false;
+  private wasOnGround = false;
   private dimension: AudioDimension = 'overworld';
   private underwater = false;
 
@@ -127,34 +180,60 @@ export class GameAudio {
       );
     }
     this.stepTimer -= dt;
-    if (!frame.playing || !frame.moving || (!frame.onGround && !frame.inWater)) return;
+    this.hitTimer -= dt;
+    if (this.groundStateKnown && frame.playing && !this.wasOnGround && frame.onGround && !frame.inWater)
+      this.land(frame.groundBlock);
+    this.wasOnGround = frame.onGround;
+    this.groundStateKnown = true;
+    // 水里只保留水体环境处理，绝不继续按脚下方块播放“走路声”。
+    if (!shouldPlayFootstep(frame)) return;
     if (this.stepTimer > 0) return;
-    this.step(frame.groundBlock, frame.inWater);
-    this.stepTimer = frame.inWater ? 0.56 : frame.sprinting ? 0.27 : 0.39;
+    this.step(frame.groundBlock);
+    this.stepTimer = frame.sprinting ? 0.29 : 0.42;
   }
 
-  step(blockId: number, splash = false): void {
-    if (splash) {
-      this.noiseBurst(0.16, 950, 0.8, 0.12, 0.72);
-      this.noiseBurst(0.09, 2400, 1.2, 0.055, 1.3, 0.025);
-      return;
-    }
+  step(blockId: number): void {
     const material = MATERIAL[blockSoundFor(blockId)];
-    this.noiseBurst(0.055, material.frequency, 1.1, material.gain * 0.43, material.rate);
+    this.noiseBurst(0.065, material.frequency, 0.8, material.gain * 0.38, material.rate);
+  }
+
+  jump(blockId: number): void {
+    const material = MATERIAL[blockSoundFor(blockId)];
+    this.noiseBurst(0.07, material.frequency * 0.78, 0.65, material.gain * 0.28, material.rate * 0.82);
+  }
+
+  land(blockId: number): void {
+    const material = MATERIAL[blockSoundFor(blockId)];
+    this.noiseBurst(0.1, material.frequency * 0.72, 0.55, material.gain * 0.48, material.rate * 0.72);
+  }
+
+  blockHit(blockId: number): void {
+    if (this.hitTimer > 0) return;
+    this.hitTimer = 0.145;
+    const sound = blockSoundFor(blockId);
+    const material = MATERIAL[sound];
+    const filter: BiquadFilterType = sound === 'sand' || sound === 'grass' ? 'highpass' : 'bandpass';
+    this.noiseBurst(0.045, material.frequency, 0.65, material.gain * 0.34, material.rate, 0, filter);
   }
 
   blockBreak(blockId: number): void {
-    const material = MATERIAL[blockSoundFor(blockId)];
-    for (let i = 0; i < 4; i++)
+    const sound = blockSoundFor(blockId);
+    for (const layer of BREAK_LAYERS[sound])
       this.noiseBurst(
-        0.06,
-        material.frequency * (0.82 + i * 0.08),
-        0.75,
-        material.gain * (0.9 - i * 0.12),
-        material.rate * (0.86 + i * 0.07),
-        i * 0.042,
+        layer.duration,
+        layer.frequency,
+        layer.q,
+        layer.gain,
+        layer.rate,
+        layer.delay,
+        layer.filter,
       );
-    if (blockSoundFor(blockId) === 'glass') this.resonance(1760, 0.18, 0.075);
+    if (sound === 'wood') this.resonance(176, 0.08, 0.018, 'triangle', 132, 0.025);
+    if (sound === 'glass') {
+      this.resonance(1680, 0.13, 0.022, 'sine', 2180, 0.025);
+      this.resonance(2350, 0.1, 0.014, 'sine', 1820, 0.075);
+    }
+    if (sound === 'metal') this.resonance(510, 0.16, 0.02, 'sine', 430, 0.02);
   }
 
   blockPlace(blockId: number): void {
@@ -187,6 +266,25 @@ export class GameAudio {
   pickup(): void {
     this.resonance(740, 0.07, 0.055, 'sine', 1060);
     this.resonance(990, 0.09, 0.04, 'sine', 1320, 0.045);
+  }
+
+  arrowHit(): void {
+    this.noiseBurst(0.055, 1180, 0.8, 0.038, 1.08, 0, 'bandpass');
+    this.resonance(245, 0.08, 0.022, 'triangle', 170);
+  }
+
+  mobHurt(dead = false): void {
+    this.resonance(dead ? 135 : 205, dead ? 0.28 : 0.13, dead ? 0.045 : 0.03, 'triangle', dead ? 72 : 150);
+    this.noiseBurst(dead ? 0.16 : 0.075, 680, 0.6, dead ? 0.038 : 0.026, 0.72);
+  }
+
+  toolBreak(): void {
+    this.noiseBurst(0.13, 1350, 0.7, 0.055, 1.08, 0, 'highpass');
+    this.resonance(620, 0.12, 0.025, 'triangle', 210, 0.025);
+  }
+
+  uiClick(): void {
+    this.resonance(520, 0.035, 0.012, 'sine', 440);
   }
 
   portal(): void {
@@ -228,8 +326,8 @@ export class GameAudio {
     compressor.ratio.value = 4;
     compressor.attack.value = 0.004;
     compressor.release.value = 0.22;
-    sfxBus.gain.value = 0.78;
-    musicBus.gain.value = 0.32;
+    sfxBus.gain.value = 0.58;
+    musicBus.gain.value = 0.23;
     delay.delayTime.value = 0.42;
     delayFeedback.gain.value = 0.2;
     sfxBus.connect(master);
@@ -269,6 +367,7 @@ export class GameAudio {
     gain: number,
     rate: number,
     delay = 0,
+    filterType: BiquadFilterType = 'bandpass',
   ): void {
     const context = this.ensureContext();
     if (!context || !this.sfxBus || !this.noise || this.volume <= 0) return;
@@ -278,10 +377,12 @@ export class GameAudio {
     const envelope = context.createGain();
     source.buffer = this.noise;
     source.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
-    filter.type = 'bandpass';
+    filter.type = filterType;
     filter.frequency.value = frequency * (0.94 + Math.random() * 0.12);
     filter.Q.value = q;
-    envelope.gain.setValueAtTime(Math.max(0.0001, gain), now);
+    const attack = Math.min(0.006, duration * 0.18);
+    envelope.gain.setValueAtTime(0.0001, now);
+    envelope.gain.linearRampToValueAtTime(Math.max(0.0001, gain), now + attack);
     envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     source.connect(filter);
     filter.connect(envelope);
@@ -306,7 +407,9 @@ export class GameAudio {
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(fromHz, now);
     oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, toHz), now + duration);
-    envelope.gain.setValueAtTime(Math.max(0.0001, gain), now);
+    const attack = Math.min(0.004, duration * 0.18);
+    envelope.gain.setValueAtTime(0.0001, now);
+    envelope.gain.linearRampToValueAtTime(Math.max(0.0001, gain), now + attack);
     envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(envelope);
     envelope.connect(this.sfxBus);
@@ -345,27 +448,30 @@ export class GameAudio {
     when: number,
     duration: number,
     peak: number,
-    type: OscillatorType = 'triangle',
+    type: OscillatorType = 'sine',
   ): void {
     const context = this.context;
     if (!context || !this.musicBus) return;
     const oscillator = context.createOscillator();
     const overtone = context.createOscillator();
+    const overtoneGain = context.createGain();
     const filter = context.createBiquadFilter();
     const envelope = context.createGain();
     oscillator.type = type;
     overtone.type = 'sine';
     oscillator.frequency.value = frequency;
     overtone.frequency.value = frequency * 2.003;
+    overtoneGain.gain.value = 0.12;
     filter.type = 'lowpass';
     filter.frequency.value = this.underwater ? 700 : this.dimension === 'nether' ? 1250 : 2600;
     filter.Q.value = 0.7;
     envelope.gain.setValueAtTime(0.0001, when);
-    envelope.gain.exponentialRampToValueAtTime(peak, when + 0.055);
+    envelope.gain.exponentialRampToValueAtTime(peak, when + Math.min(0.45, duration * 0.16));
     envelope.gain.exponentialRampToValueAtTime(peak * 0.26, when + duration * 0.4);
     envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
     oscillator.connect(filter);
-    overtone.connect(filter);
+    overtone.connect(overtoneGain);
+    overtoneGain.connect(filter);
     filter.connect(envelope);
     envelope.connect(this.musicBus);
     oscillator.start(when);

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Section } from '../world/section';
 import { ChunkWorld } from '../world/chunkWorld';
-import { meshSection, meshChunk, aoLevel } from './mesher';
-import { SNOW_LAYER } from '../blocks/registry';
+import { meshSection, meshChunk, meshChunkData, aoLevel } from './mesher';
+import { OAK_LEAVES, SNOW_LAYER } from '../blocks/registry';
 
 describe('mesher (face culling)', () => {
   it('empty section -> no geometry', () => {
@@ -67,6 +67,15 @@ describe('mesher (face culling)', () => {
     expect(aoLevel(true, false, true)).toBe(1);
     expect(aoLevel(true, true, false)).toBe(0); // 两侧都挡=最暗(忽略对角)
     expect(aoLevel(true, true, true)).toBe(0);
+  });
+});
+
+describe('mesher 树叶衔接', () => {
+  it('相邻叶块剔除重叠内部面，避免黑线和深度闪缝', () => {
+    const getBlock = (x: number, y: number, z: number): number =>
+      y === 100 && z === 8 && (x === 8 || x === 9) ? OAK_LEAVES : 0;
+    const mesh = meshChunkData(0, 0, getBlock, () => 0);
+    expect(mesh.cutout.indices.length).toBe(10 * 6);
   });
 });
 
