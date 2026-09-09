@@ -132,7 +132,13 @@ import {
 } from '../core/items/items';
 import { ignitePortal, mapPortalCoord, buildDestinationPortal } from '../core/world/portalFill';
 import { detectPortalFrame, type PortalFrame } from '../core/world/portal';
-import { skyStateAt, skyDarkenAt, skyDarkenForDimension, DAY_START, DAY_LENGTH } from '../core/world/dayNight';
+import {
+  skyStateAt,
+  skyDarkenAt,
+  skyDarkenForDimension,
+  DAY_START,
+  DAY_LENGTH,
+} from '../core/world/dayNight';
 import { ParticleRenderer } from '../render/ParticleRenderer';
 import { SkyObjects } from '../render/SkyObjects';
 import {
@@ -143,11 +149,7 @@ import {
 } from '../core/particles/particles';
 import { dimEditKey, parseEditKey, type WorldSave } from '../save/worldStore';
 import { touchesCactus } from '../core/survival/cactus';
-import type {
-  BlockBatch,
-  BlockEdit,
-  MultiplayerSession,
-} from '../multiplayer/MultiplayerClient';
+import type { BlockBatch, BlockEdit, MultiplayerSession } from '../multiplayer/MultiplayerClient';
 import { RemotePlayerRenderer } from '../render/RemotePlayerRenderer';
 import { CAMERA_AUX_RENDER_LAYER } from '../render/renderLayers';
 import {
@@ -467,7 +469,7 @@ export class Game {
     this.lightingQuality = settings.lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
     this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
-    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas);
+    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas, this.texturePack);
     this.renderer.setWaterRefractionSink((color, depth, width, height, underwaterAmount) =>
       this.chunks.setWaterRefraction(color, depth, width, height, underwaterAmount),
     );
@@ -483,7 +485,7 @@ export class Game {
     this.crack = new CrackOverlay(this.renderer.scene);
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
-    this.mobRenderer = new MobRenderer(this.renderer.scene);
+    this.mobRenderer = new MobRenderer(this.renderer.scene, this.texturePack);
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
     this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
     this.hand = new FirstPersonHand(atlas);
@@ -1375,9 +1377,7 @@ export class Game {
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
       this.hand.setEating(playing && this.eating);
-      this.hand.setBowCharge(
-        playing && this.drawingBow ? this.bowCharge / BOW_MAX_CHARGE : null,
-      );
+      this.hand.setBowCharge(playing && this.drawingBow ? this.bowCharge / BOW_MAX_CHARGE : null);
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
       const inWater = this.pointInWater(
@@ -1636,9 +1636,10 @@ export class Game {
     this.texturePack = pack;
     setIconTexturePack(pack);
     const atlas = loadAtlas(pack);
-    this.chunks.setAtlas(atlas);
+    this.chunks.setAtlas(atlas, pack);
     this.hand.setAtlas(atlas);
     this.dropRenderer.setAtlas(atlas);
+    this.mobRenderer.setTexturePack(pack);
     this.hotbar.render(this.inv);
   }
 
@@ -1714,10 +1715,7 @@ export class Game {
     gameAudio.portal();
     if (!this.creative) {
       const maxDurability = itemMaxDurability(FLINT_AND_STEEL);
-      if (
-        maxDurability !== null &&
-        damageTool(this.inv, this.hotbar.index, maxDurability)
-      )
+      if (maxDurability !== null && damageTool(this.inv, this.hotbar.index, maxDurability))
         gameAudio.toolBreak();
       this.hotbar.render(this.inv);
     }
@@ -1774,10 +1772,7 @@ export class Game {
     if (!this.creative) {
       if (removeItems(this.inv, ARROW, 1) < 1) return; // 生存没箭；创造可无箭射击且不消耗
       const maxDurability = itemMaxDurability(BOW);
-      if (
-        maxDurability !== null &&
-        damageTool(this.inv, this.hotbar.index, maxDurability)
-      )
+      if (maxDurability !== null && damageTool(this.inv, this.hotbar.index, maxDurability))
         gameAudio.toolBreak();
       this.hotbar.render(this.inv);
     }

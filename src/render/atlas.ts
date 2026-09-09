@@ -63,14 +63,23 @@ export function loadTorchTexture(): THREE.Texture {
   return tex;
 }
 
-/** 加载 N 帧水动画纹理（water_0..N-1.png）；渲染层按时间切 material.map 播放。 */
-export function loadWaterFrames(n: number): THREE.Texture[] {
+/**
+ * 加载 N 帧水动画纹理（water_0..N-1.png）。写实包使用独立 128px 水纹，
+ * 不能再复用经典包的 16px 水面，否则切换“写实材质”时水完全不会变化。
+ */
+export function waterFramePath(index: number, pack: TexturePack = 'classic'): string {
+  const directory = pack === 'realistic' ? 'textures/blocks_realistic' : 'textures/blocks';
+  return `${directory}/water_${index}.png`;
+}
+
+export function loadWaterFrames(n: number, pack: TexturePack = 'classic'): THREE.Texture[] {
   const loader = new THREE.TextureLoader();
   const frames: THREE.Texture[] = [];
   for (let i = 0; i < n; i++) {
-    const tex = loader.load(asset(`textures/blocks/water_${i}.png`));
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestMipmapNearestFilter;
+    const tex = loader.load(asset(waterFramePath(i, pack)));
+    const realistic = pack === 'realistic';
+    tex.magFilter = realistic ? THREE.LinearFilter : THREE.NearestFilter;
+    tex.minFilter = realistic ? THREE.LinearMipmapLinearFilter : THREE.NearestMipmapNearestFilter;
     tex.generateMipmaps = true;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = THREE.RepeatWrapping;

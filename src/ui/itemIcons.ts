@@ -99,7 +99,10 @@ let activeTexturePack: TexturePack = 'classic';
 
 export function setIconTexturePack(pack: TexturePack): void {
   activeTexturePack = pack;
+  if (typeof document !== 'undefined') document.documentElement.dataset.texturePack = pack;
 }
+
+export const isRealisticIconPack = (): boolean => activeTexturePack === 'realistic';
 
 // 显示名（无图标时文字占位 + hover 提示）
 const ZH: Record<number, string> = {

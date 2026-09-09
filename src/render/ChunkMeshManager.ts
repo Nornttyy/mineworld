@@ -7,7 +7,7 @@ import { loadWaterFrames, loadTorchTexture } from './atlas';
 import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
 import { SEA_LEVEL } from '../core/worldgen/terrain';
-import type { LightingQuality } from '../core/settings';
+import type { LightingQuality, TexturePack } from '../core/settings';
 import { makeCloudShadowTexture, makeDirectionalWaveTexture } from './surfaceNoise';
 import { WATER_RENDER_LAYER } from './renderLayers';
 import { WATER_WAVE_GLSL } from './waterWave';
@@ -85,7 +85,7 @@ export class ChunkMeshManager {
   private readonly waterMat: THREE.MeshBasicMaterial;
   private readonly portalMat: THREE.MeshBasicMaterial;
   private readonly torchMat: THREE.MeshBasicMaterial;
-  private readonly waterFrames: THREE.Texture[];
+  private waterFrames: THREE.Texture[];
   private readonly waterTex: THREE.Texture;
   private readonly cloudNoiseTex: THREE.DataTexture;
   private readonly waterWaveTex: THREE.DataTexture;
@@ -100,6 +100,7 @@ export class ChunkMeshManager {
   private readonly uSkyDarken = { value: 0 };
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
+  private readonly uRealisticWater = { value: 0 };
   private readonly uTime = { value: 0 };
   private readonly uAtlasSize = { value: new THREE.Vector2(...DEFAULT_ATLAS_SIZE) };
   private readonly uSkyRefl = {
@@ -153,6 +154,7 @@ export class ChunkMeshManager {
     private readonly scene: THREE.Scene,
     private world: ChunkWorld,
     atlas: THREE.Texture,
+    private texturePack: TexturePack = 'classic',
   ) {
     this.syncAtlasSize(atlas);
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
@@ -172,7 +174,8 @@ export class ChunkMeshManager {
     });
     // 水：半透明、不写深度（避免遮挡排序问题），单独成批。多帧动画用一个固定显示纹理，
     // 每帧换它的 image 像素（clone 出独立容器，避免污染帧源；换像素而非换 map 引用，确保 GPU 重传）。
-    this.waterFrames = loadWaterFrames(WATER_FRAMES);
+    this.waterFrames = loadWaterFrames(WATER_FRAMES, this.texturePack);
+    this.uRealisticWater.value = this.texturePack === 'realistic' ? 1 : 0;
     this.waterTex = this.waterFrames[0].clone();
     this.waterTex.needsUpdate = true;
     this.cloudNoiseTex = makeCloudShadowTexture(128);
@@ -610,6 +613,7 @@ export class ChunkMeshManager {
       shader.uniforms.uSkyTint = this.uSkyTint;
       shader.uniforms.uSkyDarken = this.uSkyDarken;
       shader.uniforms.uShaders = this.uShaders;
+      shader.uniforms.uRealisticWater = this.uRealisticWater;
       shader.uniforms.uTime = this.uTime;
       shader.uniforms.uSkyRefl = this.uSkyRefl;
       shader.uniforms.uSkyTop = this.uSkyTop;
@@ -739,6 +743,7 @@ vShore = aShore;`,
           `#include <common>
 uniform float uSkyMul;
 uniform float uShaders;
+uniform float uRealisticWater;
 uniform float uTime;
 uniform float uHq;
 uniform vec3 uSkyRefl;
@@ -802,6 +807,7 @@ if (uShaders < 0.5) {
   vec3 V = toEye / max(dist, 0.0001);
   float mwPaintedLuma = dot(mwWaterTexel.rgb, vec3(0.2126, 0.7152, 0.0722));
   float mwPaintedWave = clamp((mwPaintedLuma - 0.42) * 4.2, -0.32, 0.55);
+  float mwPaintedStrength = mix(0.055, 0.18, uRealisticWater);
   // 介质选择必须与 Renderer 的 half-space capture 使用同一个状态。不能按每个
   // 波面片元的 V.y 判断，否则浪峰/浪谷会在同一帧混用两张相反含义的折射图。
   float cameraAbove = 1.0 - step(0.5, uCameraUnderwater);
@@ -947,10 +953,10 @@ if (uShaders < 0.5) {
     * (vec3(1.0) - transmittance);
   inScatter *= mix(0.95, 1.15, smoothstep(3.0, 18.0, opticalThickness));
   vec3 refracted = opaqueBehind * transmittance + inScatter;
-  // 只在近中景以低强度显示手绘波峰，远景淡出防止 16px 纹理闪烁。
+  // 写实包使用 128px 专用水纹，可明显显示波峰；经典 16px 仍保持低强度防止远景闪烁。
   float mwPaintedVis = (1.0 - smoothstep(24.0, 82.0, dist)) * horiz;
-  refracted *= 1.0 + mwPaintedWave * mwPaintedVis * 0.055;
-  refracted += vec3(0.010, 0.026, 0.040) * max(mwPaintedWave, 0.0) * mwPaintedVis;
+  refracted *= 1.0 + mwPaintedWave * mwPaintedVis * mwPaintedStrength;
+  refracted += vec3(0.010, 0.026, 0.040) * max(mwPaintedWave, 0.0) * mwPaintedVis * mix(1.0, 2.2, uRealisticWater);
   float localThickness = clamp(
     max(vWaterDepth, 0.4) / max(abs(dot(V, baseFaceN)), 0.24),
     0.0,
@@ -1099,6 +1105,7 @@ if (uShaders < 0.5) {
   vec3 V = toEye / max(dist, 0.0001);
   float mwPaintedLuma = dot(mwWaterTexel.rgb, vec3(0.2126, 0.7152, 0.0722));
   float mwPaintedWave = clamp((mwPaintedLuma - 0.42) * 4.2, -0.32, 0.55);
+  float mwPaintedStrength = mix(0.055, 0.18, uRealisticWater);
 
   // 只有显式顶面接收天空反射；侧壁和底面保持原来的非反射行为。
   float horiz = step(0.5, vTopFace);
@@ -1124,7 +1131,7 @@ if (uShaders < 0.5) {
   vec3 shallowWater = vec3(0.028, 0.32, 0.52);
   vec3 deepWater = vec3(0.008, 0.12, 0.31);
   vec3 base = mix(shallowWater, deepWater, deep) * vLF * vTint * mwFaceShade;
-  base *= 1.0 + mwPaintedWave * (1.0 - smoothstep(24.0, 82.0, dist)) * horiz * 0.055;
+  base *= 1.0 + mwPaintedWave * (1.0 - smoothstep(24.0, 82.0, dist)) * horiz * mwPaintedStrength;
 
   float skyGate = smoothstep(-0.015, 0.025, V.y) * horiz * vSkyVis;
   vec3 reflected = reflect(-V, N);
@@ -1486,8 +1493,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     }
   }
 
-  /** 切换方块图集（鲜艳/经典/写实）：换地形/传送门贴图；水有独立纹理不受影响。 */
-  setAtlas(tex: THREE.Texture): void {
+  /** 切换整套环境材质：图集 + 写实包专用 HD 水纹。 */
+  setAtlas(tex: THREE.Texture, pack: TexturePack = this.texturePack): void {
     this.syncAtlasSize(tex);
     this.opaqueMat.map = tex;
     this.iceMat.map = tex;
@@ -1499,6 +1506,16 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.cutoutMat.needsUpdate = true;
     this.portalMat.needsUpdate = true;
     if (this.leafDepthMat) this.leafDepthMat.needsUpdate = true;
+    if (pack !== this.texturePack) {
+      const oldFrames = this.waterFrames;
+      this.texturePack = pack;
+      this.uRealisticWater.value = pack === 'realistic' ? 1 : 0;
+      this.waterFrames = loadWaterFrames(WATER_FRAMES, pack);
+      this.waterFrame = 0;
+      this.waterAnimT = 0;
+      // TextureLoader 是异步的；animateWater 会在首帧资源就绪后把 image 交给固定 waterTex。
+      for (const frame of oldFrames) frame.dispose();
+    }
   }
 
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
@@ -1563,7 +1580,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   /**
    * 释放本管理器全部资源(供 MenuBackground 进游戏时调用)：卸载所有区块网格、终止网格化 worker、销毁自有材质/水纹理。
    * 修复:菜单背景的整套世界(RADIUS=6≈169 区块网格 + 4 worker + WebGL 资源)进游戏后从不释放 → 与游戏世界【双份】占内存 → 集显/低内存机 OOM。
-   * 不销毁传入的共享图集 atlas、共享 waterFrames(由别处拥有/缓存)；只销毁自有的克隆 waterTex 与材质。
+   * 不销毁传入的共享图集 atlas；waterFrames 由本管理器创建，随本实例一起销毁。
    */
   dispose(): void {
     for (const k of [...this.meshes.keys()]) this.unload(k); // 从场景移除 + dispose 所有 geometry
@@ -1577,6 +1594,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.portalMat.dispose();
     this.torchMat.dispose();
     this.waterTex.dispose();
+    for (const frame of this.waterFrames) frame.dispose();
     this.cloudNoiseTex.dispose();
     this.waterWaveTex.dispose();
     this.leafDepthMat?.dispose();

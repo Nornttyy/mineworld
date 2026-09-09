@@ -6,12 +6,14 @@ generator.  This script crops them deterministically, restores voxel cutout
 masks for foliage/grass, builds the 4x12 atlas, and emits matching UI icons.
 """
 
+import math
 import shutil
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageEnhance, ImageOps
 
 import gen_classic as classic
+import gen_realistic_entities as entities
 import gen_textures as source
 
 
@@ -25,6 +27,7 @@ SHEET_A = SOURCE_DIR / "realistic_sheet_a.png"
 SHEET_B = SOURCE_DIR / "realistic_sheet_b.png"
 ATLAS_OUT = TEXTURES / "atlas_realistic.png"
 ICONS_OUT = TEXTURES / "icons_realistic"
+WATER_OUT = TEXTURES / "blocks_realistic"
 
 # Must stay aligned with registry.ts and both 16px atlas generators.
 ATLAS_ORDER = [
@@ -50,10 +53,14 @@ def crop_sheet(path: Path):
     assert sheet.width % 4 == 0 and sheet.height % 6 == 0, sheet.size
     cell_w, cell_h = sheet.width // 4, sheet.height // 6
     assert cell_w == cell_h, (cell_w, cell_h)
+    # Generated contact sheets can leave a few boundary pixels influenced by the
+    # neighbouring cell.  Trim that ring before resizing so one block can never
+    # carry a line or fragment from another material.
+    inset = max(8, round(cell_w * 0.06))
     for index in range(24):
         x = (index % 4) * cell_w
         y = (index // 4) * cell_h
-        yield sheet.crop((x, y, x + cell_w, y + cell_h)).resize(
+        yield sheet.crop((x + inset, y + inset, x + cell_w - inset, y + cell_h - inset)).resize(
             (TILE, TILE), Image.Resampling.LANCZOS
         )
 
@@ -107,6 +114,42 @@ def build_icons(tiles):
     tall.save(ICONS_OUT / "tall_grass.png", optimize=True)
 
 
+def seamless_mirror(tile):
+    """Mirror a generated water crop into a genuinely edge-continuous tile."""
+    half = TILE // 2
+    # The contact-sheet generator can shade the last few rows toward the next
+    # cell even after the general trim.  Water makes that contamination very
+    # obvious as a gray line, so use only the clean central/upper pool region.
+    clean = tile.crop((8, 6, TILE - 8, round(TILE * 0.78)))
+    quarter = ImageOps.fit(clean.convert("RGB"), (half, half), Image.Resampling.LANCZOS)
+    top = Image.new("RGB", (TILE, half))
+    top.paste(quarter, (0, 0))
+    top.paste(ImageOps.mirror(quarter), (half, 0))
+    result = Image.new("RGB", (TILE, TILE))
+    result.paste(top, (0, 0))
+    result.paste(ImageOps.flip(top), (0, half))
+    return result
+
+
+def build_water_frames(tile, count=24):
+    """Produce an HD loop for the realistic pack instead of reusing 16px water."""
+    WATER_OUT.mkdir(parents=True, exist_ok=True)
+    base = seamless_mirror(tile)
+    for frame in range(count):
+        phase = frame / count * math.tau
+        # A closed orbital offset gives moving ripples without a one-way conveyor-belt look.
+        shifted = ImageChops.offset(
+            base,
+            round(math.sin(phase) * 7),
+            round(math.sin(phase * 2) * 4),
+        )
+        pulse = 1.0 + math.sin(phase) * 0.025
+        image = ImageEnhance.Brightness(shifted).enhance(pulse).convert("RGBA")
+        image.putalpha(210)
+        image.save(WATER_OUT / f"water_{frame}.png", optimize=True)
+    shutil.copy2(WATER_OUT / "water_0.png", WATER_OUT / "water.png")
+
+
 def main():
     for path in (SHEET_A, SHEET_B):
         if not path.exists():
@@ -115,8 +158,11 @@ def main():
     atlas = build_atlas(tiles)
     atlas.save(ATLAS_OUT, optimize=True)
     build_icons(tiles)
+    build_water_frames(tiles["water"])
+    entities.main()
     print(f"wrote {ATLAS_OUT} ({atlas.width}x{atlas.height}; {len(ATLAS_ORDER)} 128px tiles)")
     print(f"wrote realistic block icons and classic item fallbacks to {ICONS_OUT}")
+    print(f"wrote 24 HD realistic water frames to {WATER_OUT}")
 
 
 if __name__ == "__main__":

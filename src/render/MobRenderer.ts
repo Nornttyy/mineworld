@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import type { Mob, MobKind } from '../core/entity/mob';
-import { MOB_SKIN_PARTS, MOB_SKIN_SIZE, mobTexture, skinFaceRect, type SkinFace, type SkinPart } from './mobTextures';
+import type { TexturePack } from '../core/settings';
+import {
+  MOB_SKIN_PARTS,
+  MOB_SKIN_SIZE,
+  mobTexture,
+  skinFaceRect,
+  type SkinFace,
+  type SkinPart,
+} from './mobTextures';
 import { creeperFuseVisual } from './creeperVisual';
 
 // 把生物渲染成 MC 风的盒状模型。每只一套自己的材质(便于受击红闪 + 个体染色)，颜色 + 假面光烤进顶点
@@ -39,7 +47,18 @@ function box(w: number, h: number, d: number, hex: number, skin?: SkinPart): THR
   return g;
 }
 
-function part(g: THREE.Group, mat: THREE.Material, w: number, h: number, d: number, hex: number, x: number, y: number, z: number, skin?: SkinPart): THREE.Mesh {
+function part(
+  g: THREE.Group,
+  mat: THREE.Material,
+  w: number,
+  h: number,
+  d: number,
+  hex: number,
+  x: number,
+  y: number,
+  z: number,
+  skin?: SkinPart,
+): THREE.Mesh {
   const m = new THREE.Mesh(box(w, h, d, hex, skin), mat);
   m.position.set(x, y, z);
   g.add(m);
@@ -57,7 +76,15 @@ interface Model {
   headY: number; // 头的原始 y(动画基准)
 }
 
-function addLeg(g: THREE.Group, mat: THREE.Material, legs: THREE.Group[], x: number, z: number, legH: number, legW: number): void {
+function addLeg(
+  g: THREE.Group,
+  mat: THREE.Material,
+  legs: THREE.Group[],
+  x: number,
+  z: number,
+  legH: number,
+  legW: number,
+): void {
   const pivot = new THREE.Group();
   pivot.position.set(x, legH, z);
   part(pivot, mat, legW, legH, legW, 0xffffff, 0, -legH / 2, 0, MOB_SKIN_PARTS.leg);
@@ -86,16 +113,34 @@ function addArm(
 }
 
 // 模型本地朝 +X 为正面；x=体长、z=体宽、y 从脚(0)向上。
-function buildModel(kind: MobKind): Model {
+function buildModel(kind: MobKind, texturePack: TexturePack): Model {
   const g = new THREE.Group();
   const legs: THREE.Group[] = [];
   const arms: THREE.Group[] = [];
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  const skinMat = new THREE.MeshBasicMaterial({ map: mobTexture(kind), vertexColors: true });
+  const skinMat = new THREE.MeshBasicMaterial({
+    map: mobTexture(kind, texturePack),
+    vertexColors: true,
+  });
   const mats: THREE.MeshBasicMaterial[] = [mat, skinMat];
-  const P = (w: number, h: number, d: number, hex: number, x: number, y: number, z: number): THREE.Mesh => part(g, mat, w, h, d, hex, x, y, z);
-  const S = (skin: SkinPart, w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh =>
-    part(g, skinMat, w, h, d, 0xffffff, x, y, z, skin);
+  const P = (
+    w: number,
+    h: number,
+    d: number,
+    hex: number,
+    x: number,
+    y: number,
+    z: number,
+  ): THREE.Mesh => part(g, mat, w, h, d, hex, x, y, z);
+  const S = (
+    skin: SkinPart,
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    y: number,
+    z: number,
+  ): THREE.Mesh => part(g, skinMat, w, h, d, 0xffffff, x, y, z, skin);
   let head: THREE.Mesh | undefined;
   let tail: THREE.Mesh | undefined;
 
@@ -107,9 +152,16 @@ function buildModel(kind: MobKind): Model {
     P(0.14, 0.12, 0.04, 0xd98c8c, 0.5, lH + 0.52, 0.2);
     P(0.14, 0.12, 0.04, 0xd98c8c, 0.5, lH + 0.52, -0.2);
     tail = S(MOB_SKIN_PARTS.tail, 0.1, 0.14, 0.1, -0.47, lH + 0.36, 0);
-    for (const [x, z] of [[0.3, 0.2], [0.3, -0.2], [-0.32, 0.2], [-0.32, -0.2]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.16);
+    for (const [x, z] of [
+      [0.3, 0.2],
+      [0.3, -0.2],
+      [-0.32, 0.2],
+      [-0.32, -0.2],
+    ] as const)
+      addLeg(g, skinMat, legs, x, z, lH, 0.16);
   } else if (kind === 'cow') {
-    const horn = 0xdcd0b8, lH = 0.52;
+    const horn = 0xdcd0b8,
+      lH = 0.52;
     S(MOB_SKIN_PARTS.animalBody, 1.0, 0.6, 0.62, 0, lH + 0.3, 0);
     head = S(MOB_SKIN_PARTS.head, 0.45, 0.48, 0.52, 0.6, lH + 0.4, 0);
     S(MOB_SKIN_PARTS.snout, 0.18, 0.2, 0.42, 0.86, lH + 0.28, 0);
@@ -117,15 +169,29 @@ function buildModel(kind: MobKind): Model {
     P(0.09, 0.14, 0.09, horn, 0.61, lH + 0.7, -0.2);
     P(0.16, 0.1, 0.34, 0xefb6c4, -0.18, lH - 0.02, 0); // 乳房
     tail = S(MOB_SKIN_PARTS.tail, 0.1, 0.32, 0.1, -0.51, lH + 0.38, 0);
-    for (const [x, z] of [[0.34, 0.21], [0.34, -0.21], [-0.34, 0.21], [-0.34, -0.21]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.18);
+    for (const [x, z] of [
+      [0.34, 0.21],
+      [0.34, -0.21],
+      [-0.34, 0.21],
+      [-0.34, -0.21],
+    ] as const)
+      addLeg(g, skinMat, legs, x, z, lH, 0.18);
   } else if (kind === 'sheep') {
-    const wool = 0xeceae3, face = 0x47403a, lH = 0.46;
+    const wool = 0xeceae3,
+      face = 0x47403a,
+      lH = 0.46;
     S(MOB_SKIN_PARTS.animalBody, 0.94, 0.7, 0.76, 0, lH + 0.36, 0);
     P(0.5, 0.34, 0.42, wool, 0.4, lH + 0.6, 0); // 头顶绒
     head = S(MOB_SKIN_PARTS.head, 0.3, 0.38, 0.36, 0.57, lH + 0.38, 0);
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, 0.18); // 耳
     P(0.1, 0.1, 0.04, face, 0.52, lH + 0.56, -0.18);
-    for (const [x, z] of [[0.28, 0.22], [0.28, -0.22], [-0.3, 0.22], [-0.3, -0.22]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.15);
+    for (const [x, z] of [
+      [0.28, 0.22],
+      [0.28, -0.22],
+      [-0.3, 0.22],
+      [-0.3, -0.22],
+    ] as const)
+      addLeg(g, skinMat, legs, x, z, lH, 0.15);
   } else if (kind === 'rabbit') {
     const lH = 0.18;
     S(MOB_SKIN_PARTS.animalBody, 0.48, 0.3, 0.34, -0.05, lH + 0.15, 0);
@@ -134,7 +200,12 @@ function buildModel(kind: MobKind): Model {
     P(0.1, 0.32, 0.1, 0x9b7452, 0.28, lH + 0.57, 0.09);
     P(0.1, 0.32, 0.1, 0x9b7452, 0.28, lH + 0.57, -0.09);
     tail = P(0.16, 0.16, 0.16, 0xe8ded0, -0.36, lH + 0.26, 0);
-    for (const [x, z, w] of [[0.15, 0.12, 0.1], [0.15, -0.12, 0.1], [-0.22, 0.13, 0.16], [-0.22, -0.13, 0.16]] as const)
+    for (const [x, z, w] of [
+      [0.15, 0.12, 0.1],
+      [0.15, -0.12, 0.1],
+      [-0.22, 0.13, 0.16],
+      [-0.22, -0.13, 0.16],
+    ] as const)
       addLeg(g, skinMat, legs, x, z, lH, w);
   } else if (kind === 'zombie') {
     const lH = 0.82;
@@ -142,7 +213,11 @@ function buildModel(kind: MobKind): Model {
     head = S(MOB_SKIN_PARTS.head, 0.44, 0.44, 0.44, 0, lH + 0.88, 0);
     addArm(g, skinMat, arms, 0.08, lH + 0.63, 0.35, 0.62, 0.18, 1.28);
     addArm(g, skinMat, arms, 0.08, lH + 0.63, -0.35, 0.62, 0.18, 1.28);
-    for (const [, z] of [[0, 0.12], [0, -0.12]] as const) addLeg(g, skinMat, legs, 0, z, lH, 0.2);
+    for (const [, z] of [
+      [0, 0.12],
+      [0, -0.12],
+    ] as const)
+      addLeg(g, skinMat, legs, 0, z, lH, 0.2);
   } else if (kind === 'skeleton') {
     const lH = 0.84;
     S(MOB_SKIN_PARTS.humanBody, 0.2, 0.62, 0.34, 0, lH + 0.31, 0);
@@ -155,19 +230,33 @@ function buildModel(kind: MobKind): Model {
     P(0.06, 0.14, 0.06, wood, 0.47, lH + 0.62, 0.16); // 上弓梢(回折)
     P(0.06, 0.14, 0.06, wood, 0.47, lH + 0.02, 0.16); // 下弓梢
     P(0.02, 0.6, 0.02, 0xeae6d8, 0.55, lH + 0.32, 0.16); // 弓弦
-    for (const [, z] of [[0, 0.1], [0, -0.1]] as const) addLeg(g, skinMat, legs, 0, z, lH, 0.12);
+    for (const [, z] of [
+      [0, 0.1],
+      [0, -0.1],
+    ] as const)
+      addLeg(g, skinMat, legs, 0, z, lH, 0.12);
   } else if (kind === 'husk') {
     const lH = 0.82;
     S(MOB_SKIN_PARTS.humanBody, 0.28, 0.66, 0.5, 0, lH + 0.33, 0);
     head = S(MOB_SKIN_PARTS.head, 0.44, 0.44, 0.44, 0, lH + 0.88, 0);
     addArm(g, skinMat, arms, 0.08, lH + 0.63, 0.35, 0.62, 0.18, 1.28);
     addArm(g, skinMat, arms, 0.08, lH + 0.63, -0.35, 0.62, 0.18, 1.28);
-    for (const [, z] of [[0, 0.12], [0, -0.12]] as const) addLeg(g, skinMat, legs, 0, z, lH, 0.2);
+    for (const [, z] of [
+      [0, 0.12],
+      [0, -0.12],
+    ] as const)
+      addLeg(g, skinMat, legs, 0, z, lH, 0.2);
   } else if (kind === 'creeper') {
     const lH = 0.36;
     S(MOB_SKIN_PARTS.humanBody, 0.34, 0.82, 0.5, 0, lH + 0.5, 0);
     head = S(MOB_SKIN_PARTS.head, 0.48, 0.48, 0.48, 0, lH + 1.12, 0);
-    for (const [x, z] of [[0.16, 0.13], [0.16, -0.13], [-0.16, 0.13], [-0.16, -0.13]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.16);
+    for (const [x, z] of [
+      [0.16, 0.13],
+      [0.16, -0.13],
+      [-0.16, 0.13],
+      [-0.16, -0.13],
+    ] as const)
+      addLeg(g, skinMat, legs, x, z, lH, 0.16);
   } else if (kind === 'spider') {
     const bodyY = 0.34;
     S(MOB_SKIN_PARTS.animalBody, 0.72, 0.42, 0.7, -0.16, bodyY, 0);
@@ -185,7 +274,9 @@ function buildModel(kind: MobKind): Model {
       }
     }
   } else {
-    const beak = 0xe7951f, red = 0xcc3b30, lH = 0.22;
+    const beak = 0xe7951f,
+      red = 0xcc3b30,
+      lH = 0.22;
     S(MOB_SKIN_PARTS.animalBody, 0.34, 0.34, 0.3, -0.02, lH + 0.17, 0);
     S(MOB_SKIN_PARTS.wing, 0.32, 0.24, 0.06, -0.18, lH + 0.2, 0.17);
     S(MOB_SKIN_PARTS.wing, 0.32, 0.24, 0.06, -0.18, lH + 0.2, -0.17);
@@ -194,7 +285,11 @@ function buildModel(kind: MobKind): Model {
     P(0.13, 0.08, 0.1, beak, 0.36, lH + 0.4, 0); // 喙
     P(0.05, 0.1, 0.14, red, 0.18, lH + 0.55, 0); // 冠
     P(0.06, 0.08, 0.06, red, 0.32, lH + 0.32, 0); // 肉垂
-    for (const [x, z] of [[0.06, 0.09], [0.06, -0.09]] as const) addLeg(g, skinMat, legs, x, z, lH, 0.07);
+    for (const [x, z] of [
+      [0.06, 0.09],
+      [0.06, -0.09],
+    ] as const)
+      addLeg(g, skinMat, legs, x, z, lH, 0.07);
   }
 
   // 个体差异：每只大小/色调略不同，不像复制粘贴
@@ -217,8 +312,32 @@ function disposeModel(model: Model): void {
 }
 
 export class MobRenderer {
-  private readonly models = new Map<Mob, Model & { phase: number; t: number; baseScale: number; bright: number; dispYaw: number; swingAmt: number }>();
-  constructor(private readonly scene: THREE.Scene) {}
+  private readonly models = new Map<
+    Mob,
+    Model & {
+      phase: number;
+      t: number;
+      baseScale: number;
+      bright: number;
+      dispYaw: number;
+      swingAmt: number;
+    }
+  >();
+  constructor(
+    private readonly scene: THREE.Scene,
+    private texturePack: TexturePack = 'classic',
+  ) {}
+
+  /** 写实包有独立 256px 生物皮肤；切换时重建已有模型，下一帧立即换材质。 */
+  setTexturePack(pack: TexturePack): void {
+    if (pack === this.texturePack) return;
+    this.texturePack = pack;
+    for (const model of this.models.values()) {
+      this.scene.remove(model.group);
+      disposeModel(model);
+    }
+    this.models.clear();
+  }
 
   /** lightAt: 环境亮度采样(0..1,来自区块粗光照网格)——生物在洞里/夜里按所在处光照变暗(MC 实体光照)。
    *  不传(测试/旧调用)=恒 1(全亮,旧行为)。 */
@@ -234,16 +353,24 @@ export class MobRenderer {
     for (const mob of mobs) {
       let m = this.models.get(mob);
       if (!m) {
-        const built = buildModel(mob.kind);
+        const built = buildModel(mob.kind, this.texturePack);
         this.scene.add(built.group);
         // baseScale = 建模时的个体大小(g.scale)；苦力怕引信鼓胀时在它基础上放大、引信熄灭即复原
-        m = { ...built, phase: 0, t: Math.random() * 10, baseScale: built.group.scale.x, bright: 1, dispYaw: mob.yaw, swingAmt: 0 }; // t 错开 → 不同步呼吸
+        m = {
+          ...built,
+          phase: 0,
+          t: Math.random() * 10,
+          baseScale: built.group.scale.x,
+          bright: 1,
+          dispYaw: mob.yaw,
+          swingAmt: 0,
+        }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
       }
       m.t += dt;
       // 转身平滑：显示朝向按最短弧插值逼近逻辑 yaw(原来直接跳 → 转身瞬移,僵硬感主因之一)
       let dy = -mob.yaw - m.dispYaw;
-      dy = ((dy + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      dy = ((((dy + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI;
       m.dispYaw += dy * Math.min(1, dt * 10);
       m.group.rotation.y = m.dispYaw;
       // 落体/跳跃前后倾(按竖直速度,轻微)
@@ -276,12 +403,19 @@ export class MobRenderer {
       }
       if (mob.kind === 'zombie' || mob.kind === 'husk') {
         // 双臂保持前伸，但随步伐轻微错相摆动，不再是一整根静态横条。
-        m.arms.forEach((arm, i) => (arm.rotation.z = 1.28 + (i ? -1 : 1) * Math.sin(m.phase) * 0.08 * m.swingAmt));
+        m.arms.forEach(
+          (arm, i) =>
+            (arm.rotation.z = 1.28 + (i ? -1 : 1) * Math.sin(m.phase) * 0.08 * m.swingAmt),
+        );
       } else if (mob.kind === 'skeleton') {
         if (m.arms[0]) m.arms[0].rotation.z = 1.18 + Math.sin(m.phase) * 0.06 * m.swingAmt;
         if (m.arms[1]) m.arms[1].rotation.z = 0.12 - swing * 0.45;
       }
-      m.group.position.set(mob.pos.x, mob.pos.y + Math.abs(Math.sin(m.phase)) * 0.035 * m.swingAmt, mob.pos.z);
+      m.group.position.set(
+        mob.pos.x,
+        mob.pos.y + Math.abs(Math.sin(m.phase)) * 0.035 * m.swingAmt,
+        mob.pos.z,
+      );
 
       // 头：走路点头 / 站着呼吸或鸡啄地
       if (m.head) {

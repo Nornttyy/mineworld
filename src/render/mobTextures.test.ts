@@ -34,10 +34,11 @@ describe('生物 64×64 方盒皮肤展开', () => {
     expect(MOB_SKIN_PARTS.leg).toMatchObject({ x: 4, y: 12, z: 4 });
   });
 
-  it('每种已实装生物都有独立 64px PNG 皮肤', () => {
+  it('每种已实装生物都有经典与写实两套独立 PNG 皮肤', () => {
     expect(MOB_TEXTURE_KINDS).toHaveLength(10);
     for (const kind of MOB_TEXTURE_KINDS) {
       expect(mobSkinUrl(kind)).toContain(`/textures/mobs/${kind}.png`);
+      expect(mobSkinUrl(kind, 'realistic')).toContain(`/textures/mobs_realistic/${kind}.png`);
     }
   });
 });

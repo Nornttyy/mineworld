@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from '../core/blocks/registry';
 import { isItem } from '../core/items/items';
-import { iconUrl } from '../ui/itemIcons';
+import { iconUrl, isRealisticIconPack } from '../ui/itemIcons';
 import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 import {
@@ -51,15 +51,23 @@ export class DropRenderer {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
   }
 
-  /** 切换方块图集（材质风格切换）：换方块掉落物的贴图。物品掉落用各自图标，不受影响。
-   *  每个掉落物的材质是克隆件(为了逐个按环境光变暗)，得一并换贴图。 */
+  /** 切换整套掉落物材质。物品图标缓存也必须清掉，否则写实包仍显示旧像素工具。 */
   setAtlas(tex: THREE.Texture): void {
     this.mat.map = tex;
     this.mat.needsUpdate = true;
+    for (const material of this.itemMats.values()) {
+      material.map?.dispose();
+      material.dispose();
+    }
+    this.itemMats.clear();
     for (const [d, mesh] of this.meshes) {
       if (!isItem(d.id)) {
         (mesh.material as THREE.MeshBasicMaterial).map = tex;
         (mesh.material as THREE.MeshBasicMaterial).needsUpdate = true;
+      } else {
+        const material = mesh.material as THREE.MeshBasicMaterial;
+        material.map = this.itemMat(d.id).map;
+        material.needsUpdate = true;
       }
     }
   }
@@ -70,10 +78,17 @@ export class DropRenderer {
     let m = this.itemMats.get(id);
     if (!m) {
       const tex = new THREE.TextureLoader().load(iconUrl(id) ?? asset('textures/icons/apple.png'));
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
+      const realistic = isRealisticIconPack();
+      tex.magFilter = realistic ? THREE.LinearFilter : THREE.NearestFilter;
+      tex.minFilter = realistic ? THREE.LinearMipmapLinearFilter : THREE.NearestFilter;
+      tex.generateMipmaps = realistic;
       tex.colorSpace = THREE.SRGBColorSpace;
-      m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
+      m = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.5,
+        side: THREE.DoubleSide,
+      });
       this.itemMats.set(id, m);
     }
     return m;
@@ -102,7 +117,10 @@ export class DropRenderer {
       let mesh = this.meshes.get(d);
       if (!mesh) {
         // 材质克隆：让每个掉落物能独立按环境光变暗(共享材质会互相打架)
-        mesh = new THREE.Mesh(this.geo(d.id), (isItem(d.id) ? this.itemMat(d.id) : this.mat).clone());
+        mesh = new THREE.Mesh(
+          this.geo(d.id),
+          (isItem(d.id) ? this.itemMat(d.id) : this.mat).clone(),
+        );
         this.scene.add(mesh);
         this.meshes.set(d, mesh);
       }
