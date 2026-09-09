@@ -328,7 +328,7 @@ export class MobRenderer {
     private texturePack: TexturePack = 'classic',
   ) {}
 
-  /** 写实包有独立 256px 生物皮肤；切换时重建已有模型，下一帧立即换材质。 */
+  /** 切换材质包时重建已有模型，下一帧立即换材质。 */
   setTexturePack(pack: TexturePack): void {
     if (pack === this.texturePack) return;
     this.texturePack = pack;

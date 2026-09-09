@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { iconUrl, isRealisticIconPack, setIconTexturePack } from './itemIcons';
+import { iconUrl, setIconTexturePack } from './itemIcons';
 import { CREATIVE_ITEM_IDS } from '../core/inventory/creative';
 
 describe('item icon texture packs', () => {
   afterEach(() => setIconTexturePack('classic'));
 
-  it('routes the realistic pack to its generated icon directory', () => {
-    setIconTexturePack('realistic');
-    expect(isRealisticIconPack()).toBe(true);
-    expect(iconUrl(1)).toContain('/textures/icons_realistic/stone.png');
-    expect(iconUrl(292, 'pulling_2')).toContain('/textures/icons_realistic/bow_pulling_2.png');
+  it('标准与鲜艳材质分别读取各自的像素图标目录', () => {
+    setIconTexturePack('classic');
+    expect(iconUrl(1)).toContain('/textures/icons_classic/stone.png');
+    setIconTexturePack('cartoon');
+    expect(iconUrl(1)).toContain('/textures/icons/stone.png');
   });
 
   it('每个创造栏道具都有像素图标，不退化成文字占位', () => {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
 import { BOW, FLINT_AND_STEEL, isFood, toolOf } from '../core/items/items';
 import type { LightingQuality } from '../core/settings';
-import { iconUrl, isRealisticIconPack } from '../ui/itemIcons';
+import { iconUrl } from '../ui/itemIcons';
 import {
   atlasUvInset,
   ATLAS_COLUMNS,
@@ -223,7 +223,7 @@ export class FirstPersonHand {
     this.camera.updateProjectionMatrix();
   }
 
-  // 物品图标纹理：像素包最近邻；写实包线性过滤，保留 128px 工具的曲面和材质细节。
+  // 物品图标纹理：像素包使用最近邻过滤，保持原生硬边。
   private itemTexture(id: number, variant?: string): THREE.Texture | null {
     const key = `${id}:${variant ?? ''}`;
     const cached = this.spriteTex.get(key);
@@ -231,10 +231,9 @@ export class FirstPersonHand {
     const url = iconUrl(id, variant);
     if (!url) return null;
     const tex = new THREE.TextureLoader().load(url);
-    const realistic = isRealisticIconPack();
-    tex.magFilter = realistic ? THREE.LinearFilter : THREE.NearestFilter;
-    tex.minFilter = realistic ? THREE.LinearMipmapLinearFilter : THREE.NearestFilter;
-    tex.generateMipmaps = realistic;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace;
     this.spriteTex.set(key, tex);
     return tex;

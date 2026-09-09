@@ -102,8 +102,6 @@ export function setIconTexturePack(pack: TexturePack): void {
   if (typeof document !== 'undefined') document.documentElement.dataset.texturePack = pack;
 }
 
-export const isRealisticIconPack = (): boolean => activeTexturePack === 'realistic';
-
 // 显示名（无图标时文字占位 + hover 提示）
 const ZH: Record<number, string> = {
   1: '石头',
@@ -198,12 +196,7 @@ const ZH: Record<number, string> = {
 export const iconUrl = (id: number, variant?: string): string | null => {
   const name = ICON[id];
   if (!name) return null;
-  const directory =
-    activeTexturePack === 'classic'
-      ? 'icons_classic'
-      : activeTexturePack === 'realistic'
-        ? 'icons_realistic'
-        : 'icons';
+  const directory = activeTexturePack === 'classic' ? 'icons_classic' : 'icons';
   const suffix = variant ? `_${variant}` : '';
   return asset(`textures/${directory}/${name}${suffix}.png`);
 };

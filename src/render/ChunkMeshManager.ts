@@ -175,7 +175,7 @@ export class ChunkMeshManager {
     // 水：半透明、不写深度（避免遮挡排序问题），单独成批。多帧动画用一个固定显示纹理，
     // 每帧换它的 image 像素（clone 出独立容器，避免污染帧源；换像素而非换 map 引用，确保 GPU 重传）。
     this.waterFrames = loadWaterFrames(WATER_FRAMES, this.texturePack);
-    this.uRealisticWater.value = this.texturePack === 'realistic' ? 1 : 0;
+    this.uRealisticWater.value = 0;
     this.waterTex = this.waterFrames[0].clone();
     this.waterTex.needsUpdate = true;
     this.cloudNoiseTex = makeCloudShadowTexture(128);
@@ -953,7 +953,7 @@ if (uShaders < 0.5) {
     * (vec3(1.0) - transmittance);
   inScatter *= mix(0.95, 1.15, smoothstep(3.0, 18.0, opticalThickness));
   vec3 refracted = opaqueBehind * transmittance + inScatter;
-  // 写实包使用 128px 专用水纹，可明显显示波峰；经典 16px 仍保持低强度防止远景闪烁。
+  // 当前像素材质使用标准 16px 水纹，保持低强度以防止远景闪烁。
   float mwPaintedVis = (1.0 - smoothstep(24.0, 82.0, dist)) * horiz;
   refracted *= 1.0 + mwPaintedWave * mwPaintedVis * mwPaintedStrength;
   refracted += vec3(0.010, 0.026, 0.040) * max(mwPaintedWave, 0.0) * mwPaintedVis * mix(1.0, 2.2, uRealisticWater);
@@ -1493,7 +1493,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     }
   }
 
-  /** 切换整套环境材质：图集 + 写实包专用 HD 水纹。 */
+  /** 切换整套环境材质：图集 + 对应水纹。 */
   setAtlas(tex: THREE.Texture, pack: TexturePack = this.texturePack): void {
     this.syncAtlasSize(tex);
     this.opaqueMat.map = tex;
@@ -1509,7 +1509,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     if (pack !== this.texturePack) {
       const oldFrames = this.waterFrames;
       this.texturePack = pack;
-      this.uRealisticWater.value = pack === 'realistic' ? 1 : 0;
+      this.uRealisticWater.value = 0;
       this.waterFrames = loadWaterFrames(WATER_FRAMES, pack);
       this.waterFrame = 0;
       this.waterAnimT = 0;

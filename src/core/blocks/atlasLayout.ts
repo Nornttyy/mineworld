@@ -2,7 +2,6 @@
 export const ATLAS_COLUMNS = 4;
 export const ATLAS_ROWS = 12;
 export const CLASSIC_ATLAS_TILE_PX = 16;
-export const REALISTIC_ATLAS_TILE_PX = 128;
 
 export function atlasPixelSize(tilePixels: number): readonly [number, number] {
   return [ATLAS_COLUMNS * tilePixels, ATLAS_ROWS * tilePixels];

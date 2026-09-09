@@ -72,10 +72,8 @@ export const MOB_TEXTURE_KINDS: readonly MobKind[] = [
   'spider',
 ] as const;
 
-export const mobSkinUrl = (kind: MobKind, pack: TexturePack = 'classic'): string => {
-  const directory = pack === 'realistic' ? 'mobs_realistic' : 'mobs';
-  return asset(`textures/${directory}/${kind}.png`);
-};
+export const mobSkinUrl = (kind: MobKind, _pack: TexturePack = 'classic'): string =>
+  asset(`textures/mobs/${kind}.png`);
 
 function srand(seed: number): () => number {
   let state = seed % 2147483647;

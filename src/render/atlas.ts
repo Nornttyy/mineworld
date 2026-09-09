@@ -4,38 +4,23 @@ import type { TexturePack } from '../core/settings';
 import {
   atlasPixelSize,
   CLASSIC_ATLAS_TILE_PX,
-  REALISTIC_ATLAS_TILE_PX,
 } from '../core/blocks/atlasLayout';
 
 // 按 pack 记忆化：三种材质最多各保留 1 张 GPU 纹理。
 // 否则每次在设置里切材质包都 new 一张 GPU 纹理且旧的从不 dispose → 反复切换持续泄漏显存。
 const atlasCache = new Map<string, THREE.Texture>();
 
-/** 加载方块图集：经典/鲜艳为 16px，写实为图片生成的 128px 方块面。 */
+/** 加载方块图集：经典与鲜艳均为 16px 像素材质。 */
 export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
   const cached = atlasCache.get(pack);
   if (cached) return cached;
-  const file =
-    pack === 'classic'
-      ? 'textures/atlas_classic.png'
-      : pack === 'realistic'
-        ? 'textures/atlas_realistic.png'
-        : 'textures/atlas.png';
+  const file = pack === 'classic' ? 'textures/atlas_classic.png' : 'textures/atlas.png';
   const tex = new THREE.TextureLoader().load(asset(file));
-  if (pack === 'realistic') {
-    // 128px 写实图使用线性采样，近看不会被强行放成锯齿大像素；共享 UV 已内缩到
-    // 经典 16px 格的纹素中心（对应写实图 4px 安全边），所以不会混到相邻材质。
-    tex.magFilter = THREE.LinearFilter;
-    tex.minFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false; // 防止高分辨率图集的 mip 层跨方块格渗色
-    tex.userData.atlasSize = atlasPixelSize(REALISTIC_ATLAS_TILE_PX);
-  } else {
-    tex.magFilter = THREE.NearestFilter;
-    // 整张图集生成 mipmap 会在较远处把相邻格平均到一起，造成沙子黑线、仙人掌橙线。
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-    tex.userData.atlasSize = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
-  }
+  tex.magFilter = THREE.NearestFilter;
+  // 整张图集生成 mipmap 会在较远处把相邻格平均到一起，造成沙子黑线、仙人掌橙线。
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.userData.atlasSize = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
   tex.colorSpace = THREE.SRGBColorSpace;
   atlasCache.set(pack, tex);
   return tex;
@@ -63,13 +48,9 @@ export function loadTorchTexture(): THREE.Texture {
   return tex;
 }
 
-/**
- * 加载 N 帧水动画纹理（water_0..N-1.png）。写实包使用独立 128px 水纹，
- * 不能再复用经典包的 16px 水面，否则切换“写实材质”时水完全不会变化。
- */
-export function waterFramePath(index: number, pack: TexturePack = 'classic'): string {
-  const directory = pack === 'realistic' ? 'textures/blocks_realistic' : 'textures/blocks';
-  return `${directory}/water_${index}.png`;
+/** 加载 N 帧标准水动画纹理（water_0..N-1.png）。 */
+export function waterFramePath(index: number, _pack: TexturePack = 'classic'): string {
+  return `textures/blocks/water_${index}.png`;
 }
 
 export function loadWaterFrames(n: number, pack: TexturePack = 'classic'): THREE.Texture[] {
@@ -77,9 +58,8 @@ export function loadWaterFrames(n: number, pack: TexturePack = 'classic'): THREE
   const frames: THREE.Texture[] = [];
   for (let i = 0; i < n; i++) {
     const tex = loader.load(asset(waterFramePath(i, pack)));
-    const realistic = pack === 'realistic';
-    tex.magFilter = realistic ? THREE.LinearFilter : THREE.NearestFilter;
-    tex.minFilter = realistic ? THREE.LinearMipmapLinearFilter : THREE.NearestMipmapNearestFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestMipmapNearestFilter;
     tex.generateMipmaps = true;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = THREE.RepeatWrapping;

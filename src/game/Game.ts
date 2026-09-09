@@ -381,7 +381,7 @@ export class Game {
     nether: [],
   };
   private decayQueue = this.decayQueueByDimension.overworld; // 待腐烂的树叶 + 倒计时(tick)
-  private texturePack: TexturePack; // 当前材质风格（鲜艳/经典/写实）
+  private texturePack: TexturePack; // 当前材质风格（鲜艳/经典）
   private lightingQuality: LightingQuality; // 当前光影档位（off/standard/high）；供每帧 god-ray 开关用
   private renderDistance: number; // 区块加载半径（设置项；小=雾近更流畅）
   // God-ray 复用对象（避免每帧 GC）

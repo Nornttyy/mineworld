@@ -26,8 +26,7 @@ import { setIconTexturePack } from './ui/itemIcons';
 // 页面已打开时也会自动跟上新部署，避免 GitHub Pages 的 10 分钟缓存让玩家一直看到旧画面。
 startUpdateWatcher();
 
-// 在创建主菜单、快捷栏或游戏对象之前就应用材质设置。旧版本曾直到进入世界后才设置，
-// 因而菜单和首屏会一直显示经典资源，让已部署的写实贴图看起来完全没生效。
+// 在创建主菜单、快捷栏或游戏对象之前就应用材质设置，确保首屏与游戏使用同一套资源。
 const initialSettings = loadSettings();
 setIconTexturePack(initialSettings.texturePack);
 

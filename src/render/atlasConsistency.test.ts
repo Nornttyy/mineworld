@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import cartoonSrc from '../../tools/textures/gen_textures.py?raw';
 import classicSrc from '../../tools/textures/gen_classic.py?raw';
-import realisticSrc from '../../tools/textures/gen_realistic.py?raw';
 import chunkManagerSrc from './ChunkMeshManager.ts?raw';
 import { ATLAS_TILES } from '../core/blocks/registry';
 import { atlasTileAtUv, ATLAS_COLUMNS, ATLAS_ROWS } from '../core/blocks/atlasLayout';
 import { waterFramePath } from './atlas';
 
-// 三套材质(鲜艳 / 经典 / 写实)各自维护一份 ATLAS_ORDER。
+// 两套像素材质(鲜艳 / 经典)各自维护一份 ATLAS_ORDER。
 // 它们必须逐一对齐——否则某 pack 缺某 tile(空槽透明)，该方块在那个 pack 下不可见。
 // 本测试堵的就是「卡通加了 grass_plant、经典忘加 → 经典草不可见」这类漂移。
 function atlasOrder(src: string): string[] {
@@ -19,17 +18,14 @@ function atlasOrder(src: string): string[] {
 describe('atlas pack consistency', () => {
   const cartoon = atlasOrder(cartoonSrc);
   const classic = atlasOrder(classicSrc);
-  const realistic = atlasOrder(realisticSrc);
 
   it('all atlases list identical tiles in identical order', () => {
     expect(classic).toEqual(cartoon);
-    expect(realistic).toEqual(cartoon);
   });
 
   it('all packs include grass_plant (cross-billboard 草)', () => {
     expect(cartoon).toContain('grass_plant');
     expect(classic).toContain('grass_plant');
-    expect(realistic).toContain('grass_plant');
   });
 
   it('all packs include extended 1.12 tiles and fit the 4×12 atlas', () => {
@@ -107,9 +103,8 @@ describe('atlas pack consistency', () => {
     expect(chunkManagerSrc).not.toContain('光影水跳过经典 map 采样');
   });
 
-  it('写实材质使用独立的高清水动画目录', () => {
-    expect(waterFramePath(0, 'realistic')).toBe('textures/blocks_realistic/water_0.png');
+  it('两套像素材质共用标准水动画目录', () => {
+    expect(waterFramePath(0, 'cartoon')).toBe('textures/blocks/water_0.png');
     expect(waterFramePath(23, 'classic')).toBe('textures/blocks/water_23.png');
-    expect(chunkManagerSrc).toContain('uRealisticWater');
   });
 });

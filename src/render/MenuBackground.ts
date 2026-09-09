@@ -31,7 +31,7 @@ export class MenuBackground {
   // resize 监听存成字段：dispose 时 removeEventListener，否则这个闭包持有 this → 整套菜单世界永不被 GC(进游戏后双份占内存→OOM)。
   private readonly onResize = (): void => this.resize();
 
-  constructor(canvas: HTMLCanvasElement, seed = 4242, texturePack: TexturePack = 'realistic') {
+  constructor(canvas: HTMLCanvasElement, seed = 4242, texturePack: TexturePack = 'classic') {
     this.texturePack = texturePack;
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 分辨率按设备(保清晰)。⚠️ 不加 powerPreference(部分机器会创建上下文失败)

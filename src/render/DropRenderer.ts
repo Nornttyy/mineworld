@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BLOCKS } from '../core/blocks/registry';
 import { isItem } from '../core/items/items';
-import { iconUrl, isRealisticIconPack } from '../ui/itemIcons';
+import { iconUrl } from '../ui/itemIcons';
 import { asset } from '../asset';
 import { DROP_SIZE, type ItemDrop } from '../core/entity/itemDrop';
 import {
@@ -51,7 +51,7 @@ export class DropRenderer {
     this.mat = new THREE.MeshBasicMaterial({ map: atlas });
   }
 
-  /** 切换整套掉落物材质。物品图标缓存也必须清掉，否则写实包仍显示旧像素工具。 */
+  /** 切换整套掉落物材质，同时清掉旧物品图标缓存。 */
   setAtlas(tex: THREE.Texture): void {
     this.mat.map = tex;
     this.mat.needsUpdate = true;
@@ -78,10 +78,9 @@ export class DropRenderer {
     let m = this.itemMats.get(id);
     if (!m) {
       const tex = new THREE.TextureLoader().load(iconUrl(id) ?? asset('textures/icons/apple.png'));
-      const realistic = isRealisticIconPack();
-      tex.magFilter = realistic ? THREE.LinearFilter : THREE.NearestFilter;
-      tex.minFilter = realistic ? THREE.LinearMipmapLinearFilter : THREE.NearestFilter;
-      tex.generateMipmaps = realistic;
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
       tex.colorSpace = THREE.SRGBColorSpace;
       m = new THREE.MeshBasicMaterial({
         map: tex,

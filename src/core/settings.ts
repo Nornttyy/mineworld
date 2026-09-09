@@ -1,7 +1,7 @@
 // 全局设置：菜单(局外)与游戏(局内)共用，存 localStorage 跨会话保留。
 // sanitize 是纯函数(可单测)；load/save 包 localStorage(node/无存储环境下静默降级)。
 
-export type TexturePack = 'cartoon' | 'classic' | 'realistic';
+export type TexturePack = 'cartoon' | 'classic';
 export type LightingQuality = 'off' | 'standard' | 'high';
 
 export interface Settings {
@@ -11,12 +11,11 @@ export interface Settings {
   renderDistance: number; // 区块加载半径(3~12)：小=雾近、区块少、流畅；大=看得远、更吃性能
 }
 
-// 写实包是当前重点展示的完整 128px 材质；新玩家和本次材质升级后的旧设置默认启用它，
-// 避免资源已经部署、实际游戏却仍悄悄使用经典包，造成“完全没变化”。
-export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'realistic', renderDistance: 6 };
+// 默认使用原生 16×16、固定色板、无抗锯齿的标准像素包。
+export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'classic', renderDistance: 6 };
 
 const KEY = 'mineworld.settings';
-const TEXTURE_STYLE_VERSION = 4;
+const TEXTURE_STYLE_VERSION = 5;
 const LQ: LightingQuality[] = ['off', 'standard', 'high'];
 
 // 把任意(可能脏的)输入收敛成合法 Settings：音量夹到 0..100 整数，枚举/布尔校验，缺省补默认。
@@ -34,7 +33,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     lightingQuality = DEFAULT_SETTINGS.lightingQuality;
   }
   const texturePack: TexturePack =
-    r.texturePack === 'cartoon' || r.texturePack === 'classic' || r.texturePack === 'realistic'
+    r.texturePack === 'cartoon' || r.texturePack === 'classic'
       ? r.texturePack
       : DEFAULT_SETTINGS.texturePack;
   const renderDistance =
