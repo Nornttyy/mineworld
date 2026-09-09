@@ -19,6 +19,10 @@ import {
 } from './multiplayer/MultiplayerClient';
 import { PeerMultiplayerClient } from './multiplayer/PeerMultiplayerClient';
 import { gameAudio } from './audio/GameAudio';
+import { startUpdateWatcher } from './updateWatcher';
+
+// 页面已打开时也会自动跟上新部署，避免 GitHub Pages 的 10 分钟缓存让玩家一直看到旧画面。
+startUpdateWatcher();
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
