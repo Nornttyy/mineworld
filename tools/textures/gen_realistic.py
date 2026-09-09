@@ -99,6 +99,12 @@ def build_icons(tiles):
     for name, (top, side) in classic.ICON_FACES.items():
         icon = source.iso_icon(tiles[top], tiles[side], tiles[side])
         icon.save(ICONS_OUT / f"{name}.png", optimize=True)
+    plant = tiles["grass_plant"].resize((28, 28), Image.Resampling.LANCZOS)
+    plant_icon = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    plant_icon.alpha_composite(plant, (2, 4))
+    plant_icon.save(ICONS_OUT / "grass_plant.png", optimize=True)
+    tall = plant_icon.crop((0, 2, 32, 32)).resize((32, 32), Image.Resampling.LANCZOS)
+    tall.save(ICONS_OUT / "tall_grass.png", optimize=True)
 
 
 def main():

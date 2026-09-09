@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { Section } from '../world/section';
 import { ChunkWorld } from '../world/chunkWorld';
 import { meshSection, meshChunk, meshChunkData, aoLevel } from './mesher';
-import { OAK_LEAVES, SNOW_LAYER } from '../blocks/registry';
+import { ATLAS_TILES, GRASS, OAK_LEAVES, SNOW_LAYER } from '../blocks/registry';
+import { atlasTileAtUv } from '../blocks/atlasLayout';
 
 describe('mesher (face culling)', () => {
   it('empty section -> no geometry', () => {
@@ -76,6 +77,25 @@ describe('mesher 树叶衔接', () => {
       y === 100 && z === 8 && (x === 8 || x === 9) ? OAK_LEAVES : 0;
     const mesh = meshChunkData(0, 0, getBlock, () => 0);
     expect(mesh.cutout.indices.length).toBe(10 * 6);
+  });
+});
+
+describe('mesher 方块材质标记', () => {
+  it('草方块的每个顶点携带精确 tile，不可误入莹石发光分支', () => {
+    const getBlock = (x: number, y: number, z: number): number =>
+      x === 8 && y === 100 && z === 8 ? GRASS : 0;
+    const mesh = meshChunkData(0, 0, getBlock, () => 0).opaque;
+    expect(mesh.tiles).toBeDefined();
+    expect(mesh.tiles?.length).toBe(mesh.positions.length / 3);
+    expect(new Set(mesh.tiles)).toEqual(
+      new Set([ATLAS_TILES.dirt, ATLAS_TILES.grass_top, ATLAS_TILES.grass_side]),
+    );
+    expect([...mesh.tiles!]).not.toContain(ATLAS_TILES.glowstone);
+    for (let vertex = 0; vertex < mesh.tiles!.length; vertex++) {
+      expect(atlasTileAtUv(mesh.uvs[vertex * 2], mesh.uvs[vertex * 2 + 1])).toBe(
+        mesh.tiles![vertex],
+      );
+    }
   });
 });
 

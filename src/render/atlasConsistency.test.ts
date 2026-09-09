@@ -80,4 +80,18 @@ describe('atlas pack consistency', () => {
   it('草地和树叶受阳光时提亮但不再被暖光染黄', () => {
     expect(chunkManagerSrc).toContain('mwSoil*0.76+mwGrass*0.92+mwFoliage*0.92');
   });
+
+  it('shader 直接使用网格 tile id，并忽略树叶透明孔的黑色 RGB', () => {
+    expect(chunkManagerSrc).toContain('vTileIndex = aTile');
+    expect(chunkManagerSrc).toContain('mwTileIndex = floor(vTileIndex + 0.5)');
+    expect(chunkManagerSrc).not.toContain('mwTileIndex = floor(vMapUv.x');
+    expect(chunkManagerSrc).toContain('step(0.5, mwSL.a)');
+    expect(chunkManagerSrc).toContain('mwBump = mix(mwBump,0.015,mwFoliage)');
+  });
+
+  it('高级水面也采样手绘动画贴图，而不是只显示程序蓝色', () => {
+    expect(chunkManagerSrc).toContain('mwWaterTexel = texture2D(map, vMapUv)');
+    expect(chunkManagerSrc).toContain('float mwPaintedWave');
+    expect(chunkManagerSrc).not.toContain('光影水跳过经典 map 采样');
+  });
 });

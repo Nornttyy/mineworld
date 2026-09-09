@@ -41,6 +41,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     const transfer: ArrayBuffer[] = [];
     const collect = (md: MeshData): void => {
       transfer.push(md.positions.buffer, md.uvs.buffer, md.colors.buffer, md.indices.buffer);
+      if (md.tiles && md.tiles.length) transfer.push(md.tiles.buffer);
       if (md.light && md.light.length) transfer.push(md.light.buffer);
       if (md.underwater && md.underwater.length) transfer.push(md.underwater.buffer);
       if (md.wetness && md.wetness.length) transfer.push(md.wetness.buffer);

@@ -334,19 +334,8 @@ def furnace_front(rng):
 
 
 def _water_still():
-    """1.12 静水：原版水色 #3F76E4 + 低对比细鳞纹(位置固定)。"""
-    rng = random.Random(7_654_321)
-    im = new()
-    fill(im, "#3f76e4")  # 1.12 水色(原版 water tint)
-    speck(im, ["#3d72de", "#427ae8"], 0.03, rng)
-    px = im.load()
-    for _ in range(6):
-        y = rng.randrange(S)
-        x0 = rng.randrange(S)
-        col = "#4b84ea" if rng.random() < 0.55 else "#355fd0"
-        for dx in range(rng.randint(2, 4)):
-            px[(x0 + dx) % S, y] = hx(col)
-    return im
+    """16px 手绘感静水：天蓝底色 + 多道不规整的像素波峰。"""
+    return _paint_water_frame(0, 24)
 
 
 def water(rng):
@@ -354,33 +343,47 @@ def water(rng):
 
 
 def water_frames(n):
-    """1.12 风水动画：纹样固定位置淡入淡出(不平移),24 帧无缝循环。"""
+    """24 帧像素水纹：波峰成道、密集但不规整，首尾无缝循环。"""
+    return [_paint_water_frame(frame, n) for frame in range(n)]
+
+
+def _paint_water_frame(frame, frame_count):
+    """Draw one native 16×16 water frame without scaling or antialiasing."""
     import math
 
-    base = hx("#3f76e4")  # 1.12 水色
-    rng = random.Random(424242)
-    marks = []
-    for _ in range(14):
-        y = rng.randrange(S)
-        x0 = rng.randrange(S)
-        ln = rng.randint(2, 4)
-        col = hx("#4f88ec") if rng.random() < 0.55 else hx("#3260cc")
-        mid = tuple((base[k] + col[k]) // 2 for k in range(3))
-        marks.append((y, x0, ln, col, mid, rng.uniform(0, 2 * math.pi)))
-    frames = []
-    for f in range(n):
-        ph = 2 * math.pi * f / n
-        im = new()
-        fill(im, "#3f76e4")
-        px = im.load()
-        for (y, x0, ln, col, mid, phase) in marks:
-            s = math.sin(ph + phase)
-            c = col if s > 0.55 else mid if s > 0.1 else None
-            if c is not None:
-                for dx in range(ln):
-                    px[(x0 + dx) % S, y] = c
-        frames.append(im)
-    return frames
+    im = new()
+    fill(im, "#4b86df")
+    px = im.load()
+    phase = 2 * math.pi * frame / frame_count
+    # 三组不同波长/方向的波带。每道都是手绘式断续线，而不是整齐条纹。
+    ribbons = (
+        (2, 7, 0.00, 0),
+        (6, 9, 1.85, 3),
+        (10, 6, 3.35, 1),
+        (14, 11, 4.70, 5),
+    )
+    bright = hx("#6aa3ee")
+    mid = hx("#5793e8")
+    dark = hx("#356fc9")
+    deep = hx("#2d64bc")
+    for base_y, wavelength, phase_offset, gap_offset in ribbons:
+        for x in range(S):
+            # 两个周期叠加并量化到整像素，做出不对称的起伏。
+            wave = math.sin((x / wavelength) * 2 * math.pi + phase + phase_offset)
+            wave += math.sin((x / 16) * 4 * math.pi - phase * 0.55 + phase_offset * 0.7) * 0.42
+            y = (base_y + int(round(wave * 0.72))) % S
+            gate = (x * 5 + gap_offset + frame // 3) % 11
+            if gate not in (0, 1, 7):
+                pulse = math.sin(phase * 1.3 + x * 0.72 + phase_offset)
+                px[x, y] = bright if pulse > 0.42 else mid
+            # 下沿只画少量暗色断点，给波峰厚度，不画成黑线。
+            if (x * 3 + gap_offset + frame // 4) % 9 in (2, 3):
+                px[x, (y + 1) % S] = dark
+    # 不跟随波带的零星涟漪，破坏周期感；仍固定在整像素。
+    for index, (x, y) in enumerate(((1, 4), (8, 1), (13, 5), (4, 9), (11, 12), (6, 15))):
+        if math.sin(phase + index * 1.17) > -0.15:
+            px[x, y] = deep if index % 2 else mid
+    return im
 
 
 LEAF_CLUSTER_ROWS = [
@@ -1053,6 +1056,14 @@ def iso_icon(top_tex, left_tex, right_tex):
     return canvas
 
 
+def sprite_icon(texture, scale=2):
+    """Turn a transparent native tile into a centered inventory sprite."""
+    image = texture.convert("RGBA").resize((S * scale, S * scale), Image.Resampling.NEAREST)
+    canvas = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    canvas.alpha_composite(image, ((32 - image.width) // 2, 32 - image.height))
+    return canvas
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     tex = {}
@@ -1125,11 +1136,17 @@ def main():
         'spruce_log': ('oak_log_top', 'spruce_log'),
         'spruce_leaves': ('spruce_leaves', 'spruce_leaves'),
         'bedrock': ('bedrock', 'bedrock'),
+        'snow_layer': ('snow', 'snow'),
     }
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
     for nm, (top, side) in ICON_FACES.items():
         iso_icon(tex[top], tex[side], tex[side]).save(os.path.join(icons_dir, nm + '.png'))
+    # 草丛是交叉竖片，不能画成实心立方体图标。长草保持同一叶型，在 UI 中稍向上拉长。
+    sprite_icon(tex['grass_plant']).save(os.path.join(icons_dir, 'grass_plant.png'))
+    tall = sprite_icon(tex['grass_plant'])
+    tall = tall.crop((0, 2, 32, 32)).resize((32, 32), Image.Resampling.NEAREST)
+    tall.save(os.path.join(icons_dir, 'tall_grass.png'))
     print(f'wrote {len(ICON_FACES)} iso icons -> public/textures/icons/')
 
     # 挖掘裂纹条（10 段，160x16）→ public/textures/crack.png

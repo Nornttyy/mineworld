@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MOB_SKIN_PARTS, MOB_SKIN_SIZE, skinFaceRect, type SkinFace } from './mobTextures';
+import {
+  MOB_SKIN_PARTS,
+  MOB_SKIN_SIZE,
+  MOB_TEXTURE_KINDS,
+  mobSkinUrl,
+  skinFaceRect,
+  type SkinFace,
+} from './mobTextures';
 
 describe('生物 64×64 方盒皮肤展开', () => {
   const faces: SkinFace[] = ['right', 'front', 'left', 'back', 'top', 'bottom'];
@@ -25,5 +32,12 @@ describe('生物 64×64 方盒皮肤展开', () => {
   it('四肢保持经典 4×12×4 像素比例', () => {
     expect(MOB_SKIN_PARTS.arm).toMatchObject({ x: 4, y: 12, z: 4 });
     expect(MOB_SKIN_PARTS.leg).toMatchObject({ x: 4, y: 12, z: 4 });
+  });
+
+  it('每种已实装生物都有独立 64px PNG 皮肤', () => {
+    expect(MOB_TEXTURE_KINDS).toHaveLength(10);
+    for (const kind of MOB_TEXTURE_KINDS) {
+      expect(mobSkinUrl(kind)).toContain(`/textures/mobs/${kind}.png`);
+    }
   });
 });

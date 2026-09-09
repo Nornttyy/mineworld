@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MobKind } from '../core/entity/mob';
+import { asset } from '../asset';
 
 // 生物皮肤采用 64×64 像素图集。每个方盒部位按「顶/底/右/前/左/后」展开，
 // 与经典方块生物的做法一致；所有线条均落在整数像素，无缩放绘制或抗锯齿。
@@ -49,7 +50,22 @@ export function skinFaceRect(part: SkinPart, face: SkinFace): SkinRect {
   }
 }
 
-const cache = new Map<MobKind, THREE.CanvasTexture>();
+const cache = new Map<MobKind, THREE.Texture>();
+
+export const MOB_TEXTURE_KINDS: readonly MobKind[] = [
+  'pig',
+  'cow',
+  'sheep',
+  'chicken',
+  'rabbit',
+  'zombie',
+  'skeleton',
+  'creeper',
+  'husk',
+  'spider',
+] as const;
+
+export const mobSkinUrl = (kind: MobKind): string => asset(`textures/mobs/${kind}.png`);
 
 function srand(seed: number): () => number {
   let state = seed % 2147483647;
@@ -258,14 +274,18 @@ function drawSkin(kind: MobKind, ctx: CanvasRenderingContext2D): void {
   else paintHumanoid(ctx, kind);
 }
 
-export function mobTexture(kind: MobKind): THREE.CanvasTexture {
+export function mobTexture(kind: MobKind): THREE.Texture {
   const cached = cache.get(kind);
   if (cached) return cached;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = MOB_SKIN_SIZE;
-  const ctx = canvas.getContext('2d');
-  if (ctx) drawSkin(kind, ctx);
-  const texture = new THREE.CanvasTexture(canvas);
+  // 正常路径加载独立 PNG 皮肤；只有资源加载失败时才回退到旧 Canvas 绘制，避免生物变纯色白模。
+  const texture = new THREE.TextureLoader().load(mobSkinUrl(kind), undefined, undefined, () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = MOB_SKIN_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (ctx) drawSkin(kind, ctx);
+    texture.image = canvas;
+    texture.needsUpdate = true;
+  });
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   texture.generateMipmaps = false;

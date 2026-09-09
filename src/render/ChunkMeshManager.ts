@@ -297,10 +297,10 @@ export class ChunkMeshManager {
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute vec2 aLight;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
+          '#include <common>\nattribute vec2 aLight;\nattribute float aTile;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
             (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
             (underwater ? 'attribute float aUnderwater;\nattribute float aWetness;\n' : '') +
-            'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
+            'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying float vTileIndex;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             MC_BRIGHT_GLSL,
         )
         .replace(
@@ -310,6 +310,7 @@ export class ChunkMeshManager {
             MC_LIGHT_GLSL +
             '\n' +
             'vSky = aLight.x;\n' +
+            'vTileIndex = aTile;\n' +
             'vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' + // 世界坐标(阳光泽面法线/视线用)
             (underwater
               ? 'vUnderwater = aUnderwater;\nvWetness = aWetness;\n'
@@ -319,7 +320,7 @@ export class ChunkMeshManager {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
+          '#include <common>\nvarying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying float vTileIndex;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             'uniform sampler2D uShadowMap;\nuniform vec2 uShadowTexel;\nuniform float uShadowOn;\nuniform float uHq;\nuniform float uSunUp;\nuniform float uShaders;\nuniform vec3 uSunDirW;\n' +
             'uniform float uTime;\nuniform vec2 uAtlasSize;\nuniform sampler2D uSurfaceNoise;\nuniform sampler2D uWaterWaves;\n' +
             'float mwTile(float id,float target){ return 1.0-step(0.5,abs(id-target)); }\n' +
@@ -390,8 +391,8 @@ export class ChunkMeshManager {
             '  vec2 mwTexel = 1.0 / mwAtlasSize;\n' +
             `  vec2 mwTileSize = vec2(1.0 / ${ATLAS_COLUMNS}.0, 1.0 / ${ATLAS_ROWS}.0);\n` +
             '  vec2 mwTileBase = floor(vMapUv / mwTileSize) * mwTileSize;\n' +
-            `  float mwTileRow = clamp(floor((1.0 - vMapUv.y) * ${ATLAS_ROWS}.0), 0.0, ${ATLAS_ROWS - 1}.0);\n` +
-            `  mwTileIndex = floor(vMapUv.x * ${ATLAS_COLUMNS}.0) + mwTileRow * ${ATLAS_COLUMNS}.0;\n` +
+            // 材质类型由网格直接传入，不用 UV 反推。这会彻底隔离草地与莹石/熔岩的 HDR 发光分支。
+            '  mwTileIndex = floor(vTileIndex + 0.5);\n' +
             '  mwRock = max(max(max(mwTile(mwTileIndex,0.0),mwTile(mwTileIndex,4.0)),max(mwTile(mwTileIndex,9.0),mwTile(mwTileIndex,14.0))),max(max(mwTile(mwTileIndex,16.0),mwTile(mwTileIndex,22.0)),max(mwTile(mwTileIndex,24.0),mwTile(mwTileIndex,35.0))));\n' +
             // 草方块侧面主体是泥土；不能整面套草顶的鲜绿/暖光材质，否则坡面会像金色方块。
             '  mwSoil = max(max(mwTile(mwTileIndex,1.0),mwTile(mwTileIndex,3.0)),mwTile(mwTileIndex,20.0));\n' +
@@ -403,11 +404,16 @@ export class ChunkMeshManager {
             '  mwPolished = max(max(mwTile(mwTileIndex,18.0),mwTile(mwTileIndex,33.0)),max(mwTile(mwTileIndex,34.0),mwTile(mwTileIndex,36.0)));\n' +
             '  vec2 mwUvMin = mwTileBase + mwTexel * 0.55;\n' +
             '  vec2 mwUvMax = mwTileBase + mwTileSize - mwTexel * 0.55;\n' +
-            '  float mwHL = dot(texture2D(map, clamp(vMapUv - vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
-            '  float mwHR = dot(texture2D(map, clamp(vMapUv + vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
-            '  float mwHD = dot(texture2D(map, clamp(vMapUv - vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
-            '  float mwHU = dot(texture2D(map, clamp(vMapUv + vec2(0.0, mwTexel.y), mwUvMin, mwUvMax)).rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
             '  float mwHC = dot(mwBlockAlbedo, vec3(0.2126, 0.7152, 0.0722));\n' +
+            '  vec4 mwSL = texture2D(map, clamp(vMapUv - vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax));\n' +
+            '  vec4 mwSR = texture2D(map, clamp(vMapUv + vec2(mwTexel.x, 0.0), mwUvMin, mwUvMax));\n' +
+            '  vec4 mwSD = texture2D(map, clamp(vMapUv - vec2(0.0, mwTexel.y), mwUvMin, mwUvMax));\n' +
+            '  vec4 mwSU = texture2D(map, clamp(vMapUv + vec2(0.0, mwTexel.y), mwUvMin, mwUvMax));\n' +
+            // 透明叶孔的 RGB 是黑色，不能当成高度为 0 的深坑；否则孔边微法线会被压成黑轮廓。
+            '  float mwHL = mix(mwHC, dot(mwSL.rgb, vec3(0.2126, 0.7152, 0.0722)), step(0.5, mwSL.a));\n' +
+            '  float mwHR = mix(mwHC, dot(mwSR.rgb, vec3(0.2126, 0.7152, 0.0722)), step(0.5, mwSR.a));\n' +
+            '  float mwHD = mix(mwHC, dot(mwSD.rgb, vec3(0.2126, 0.7152, 0.0722)), step(0.5, mwSD.a));\n' +
+            '  float mwHU = mix(mwHC, dot(mwSU.rgb, vec3(0.2126, 0.7152, 0.0722)), step(0.5, mwSU.a));\n' +
             '  mwTexCavity = clamp(((mwHL+mwHR+mwHD+mwHU)*0.25-mwHC)*2.2,0.0,1.0);\n' +
             '  vec3 mwDp1 = dFdx(vWp); vec3 mwDp2 = dFdy(vWp);\n' +
             '  vec2 mwDuv1 = dFdx(vMapUv); vec2 mwDuv2 = dFdy(vMapUv);\n' +
@@ -422,6 +428,8 @@ export class ChunkMeshManager {
             '  mwBump = mix(mwBump,mix(0.13,0.19,uHq),mwSand);\n' +
             '  mwBump = mix(mwBump,mix(0.16,0.23,uHq),mwWood);\n' +
             '  mwBump = mix(mwBump,mix(0.08,0.13,uHq),max(mwSnow,mwPolished));\n' +
+            // 叶片靠像素色块表现细节，孔缘不叠加浮雕式凹凸，防止黑边在不同角度复现。
+            '  mwBump = mix(mwBump,0.015,mwFoliage);\n' +
             '  vec3 mwTangentN = normalize(vec3(-(mwHR - mwHL) * mwBump, -(mwHU - mwHD) * mwBump, 1.0));\n' +
             '  vec3 mwPixelN = normalize(mwT * mwInvBasis * mwTangentN.x + mwB * mwInvBasis * mwTangentN.y + mwGeomN * mwTangentN.z);\n' +
             '  float mwFootprint = max(length(dFdx(vMapUv) * mwAtlasSize), length(dFdy(vMapUv) * mwAtlasSize));\n' +
@@ -772,11 +780,14 @@ float mwDepthMatch(vec2 uv, float centerDistance, float rejectDistance) {
 }
 `,
         )
-        // 光影水完全由程序材质着色，跳过原 16px map 采样；off 档仍保留经典帧动画。
+        // 所有档位都读取 16px 手绘水纹。光影档不直接乘蓝色图，而把它作为微表面反射率变化，
+        // 避免覆盖真实折射/倒影，同时近看能辨认像素波峰贴图。
         .replace(
           '#include <map_fragment>',
-          `#ifdef USE_MAP
-if (uShaders < 0.5) diffuseColor *= texture2D(map, vMapUv);
+          `vec4 mwWaterTexel = vec4(0.294, 0.525, 0.875, 1.0);
+#ifdef USE_MAP
+mwWaterTexel = texture2D(map, vMapUv);
+if (uShaders < 0.5) diffuseColor *= mwWaterTexel;
 #endif`,
         )
         .replace(
@@ -789,6 +800,8 @@ if (uShaders < 0.5) {
   vec3 toEye = cameraPosition - vWPos;
   float dist = length(toEye);
   vec3 V = toEye / max(dist, 0.0001);
+  float mwPaintedLuma = dot(mwWaterTexel.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float mwPaintedWave = clamp((mwPaintedLuma - 0.42) * 4.2, -0.32, 0.55);
   // 介质选择必须与 Renderer 的 half-space capture 使用同一个状态。不能按每个
   // 波面片元的 V.y 判断，否则浪峰/浪谷会在同一帧混用两张相反含义的折射图。
   float cameraAbove = 1.0 - step(0.5, uCameraUnderwater);
@@ -934,6 +947,10 @@ if (uShaders < 0.5) {
     * (vec3(1.0) - transmittance);
   inScatter *= mix(0.95, 1.15, smoothstep(3.0, 18.0, opticalThickness));
   vec3 refracted = opaqueBehind * transmittance + inScatter;
+  // 只在近中景以低强度显示手绘波峰，远景淡出防止 16px 纹理闪烁。
+  float mwPaintedVis = (1.0 - smoothstep(24.0, 82.0, dist)) * horiz;
+  refracted *= 1.0 + mwPaintedWave * mwPaintedVis * 0.055;
+  refracted += vec3(0.010, 0.026, 0.040) * max(mwPaintedWave, 0.0) * mwPaintedVis;
   float localThickness = clamp(
     max(vWaterDepth, 0.4) / max(abs(dot(V, baseFaceN)), 0.24),
     0.0,
@@ -1080,6 +1097,8 @@ if (uShaders < 0.5) {
   vec3 toEye = cameraPosition - vWPos;
   float dist = length(toEye);
   vec3 V = toEye / max(dist, 0.0001);
+  float mwPaintedLuma = dot(mwWaterTexel.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float mwPaintedWave = clamp((mwPaintedLuma - 0.42) * 4.2, -0.32, 0.55);
 
   // 只有显式顶面接收天空反射；侧壁和底面保持原来的非反射行为。
   float horiz = step(0.5, vTopFace);
@@ -1105,6 +1124,7 @@ if (uShaders < 0.5) {
   vec3 shallowWater = vec3(0.028, 0.32, 0.52);
   vec3 deepWater = vec3(0.008, 0.12, 0.31);
   vec3 base = mix(shallowWater, deepWater, deep) * vLF * vTint * mwFaceShade;
+  base *= 1.0 + mwPaintedWave * (1.0 - smoothstep(24.0, 82.0, dist)) * horiz * 0.055;
 
   float skyGate = smoothstep(-0.015, 0.025, V.y) * horiz * vSkyVis;
   vec3 reflected = reflect(-V, N);
@@ -1485,8 +1505,6 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
    *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
   animateWater(dt: number): void {
     this.uTime.value += dt; // 驱动光影水面波动
-    // 光影水跳过经典 map 采样；此时不再每 90ms 把 16px 帧重传 GPU。
-    if (this.uShaders.value > 0.5) return;
     this.waterAnimT += dt;
     const FRAME_DUR = 0.09; // 每帧约 90ms（接近 MC 水的节奏）
     while (this.waterAnimT >= FRAME_DUR) {
@@ -1572,6 +1590,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     if (data.normals) g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3)); // MeshBasicMaterial 不打灯，区块网格不带法线
     g.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
     g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+    if (data.tiles && data.tiles.length)
+      g.setAttribute('aTile', new THREE.BufferAttribute(data.tiles, 1)); // 精确 tile id，杜绝 UV 边界把草地判成发光方块
     if (data.light && data.light.length)
       g.setAttribute('aLight', new THREE.BufferAttribute(data.light, 2)); // 天光/方块光(火把网格不带)
     if (data.underwater && data.underwater.length)

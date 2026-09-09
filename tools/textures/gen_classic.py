@@ -406,6 +406,7 @@ ICON_FACES = {
     "red_sand": ("red_sand", "red_sand"),
     "birch_log": ("birch_log_top", "birch_log_side"),
     "birch_leaves": ("birch_leaves", "birch_leaves"),
+    "snow_layer": ("snow", "snow"),
 }
 
 
@@ -435,6 +436,13 @@ def main():
     for name, (top, side) in ICON_FACES.items():
         icon = source.iso_icon(tiles[top], tiles[side], tiles[side])
         icon.save(os.path.join(ICONS_OUT, f"{name}.png"), optimize=True)
+    source.sprite_icon(tiles["grass_plant"]).save(
+        os.path.join(ICONS_OUT, "grass_plant.png"), optimize=True
+    )
+    tall = source.sprite_icon(tiles["grass_plant"]).crop((0, 2, 32, 32)).resize(
+        (32, 32), Image.Resampling.NEAREST
+    )
+    tall.save(os.path.join(ICONS_OUT, "tall_grass.png"), optimize=True)
 
     print(f"wrote {ATLAS_OUT} ({atlas.width}x{atlas.height}; {len(ATLAS_ORDER)} 16x16 tiles)")
     print(f"wrote {len(ICON_FACES)} matching block icons to {ICONS_OUT}")

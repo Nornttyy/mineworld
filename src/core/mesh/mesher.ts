@@ -198,6 +198,7 @@ export interface MeshData {
   normals?: Float32Array; // 只有旧 meshGrid 路径产出；区块走 MeshBasicMaterial 不打灯，不需法线(省 ~23% 顶点带宽)
   uvs: Float32Array;
   colors: Float32Array;
+  tiles?: Uint8Array; // 每顶点精确图集格编号；shader 不再由浮点 UV 反推，避免草地误认成莹石
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
@@ -296,6 +297,7 @@ interface FaceArrays {
   P: number[];
   U: number[];
   C: number[];
+  TI: number[]; // 图集 tile id，每顶点 1 个
   I: number[];
   L: number[]; // 每顶点 (天光01, 方块光01)
   UW: number[]; // 仅不透明网格：面外连续水柱深度 0..8；其他网格留空
@@ -310,6 +312,7 @@ const emptyArrays = (): FaceArrays => ({
   P: [],
   U: [],
   C: [],
+  TI: [],
   I: [],
   L: [],
   UW: [],
@@ -326,6 +329,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     positions: new Float32Array(a.P),
     uvs: new Float32Array(a.U),
     colors: new Float32Array(a.C),
+    tiles: a.TI.length ? new Uint8Array(a.TI) : undefined,
     // 顶点数没超 Uint16 上限就用 Uint16(绝大多数区块如此)，否则退回 Uint32
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
@@ -512,6 +516,7 @@ export function meshChunkData(
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
+      a.TI.push(tile);
       a.L.push(sky, blk);
       if (a === op) {
         a.UW.push(underwaterDepth);
@@ -616,6 +621,7 @@ export function meshChunkData(
       cut.P.push(x0, ly, z0, x1, ly, z1, x1, ly + hgt, z1, x0, ly + hgt, z0); // 底左,底右,顶右,顶左
       cut.U.push(u0, vB, u1, vB, u1, vT, u0, vT);
       cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+      cut.TI.push(tile, tile, tile, tile);
       cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
       cut.SW.push(0, 0, 1, 1); // 底左,底右=根锚定(0)；顶右,顶左=草尖摆(1)
       cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
@@ -638,6 +644,7 @@ export function meshChunkData(
     cut.P.push(lx, yTop, lz, lx, yTop, lz + 1, lx + 1, yTop, lz + 1, lx + 1, yTop, lz);
     cut.U.push(u0, vB, u0, vT, u1, vT, u1, vB);
     cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+    cut.TI.push(tile, tile, tile, tile);
     cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
     cut.SW.push(0, 0, 0, 0); // 雪层不摆动；但必须补齐 cut.SW(否则 cutout 网格 aSway 比顶点数短→属性长度不匹配,树叶/雪摆动错乱)
     cut.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
