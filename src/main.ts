@@ -20,9 +20,16 @@ import {
 import { PeerMultiplayerClient } from './multiplayer/PeerMultiplayerClient';
 import { gameAudio } from './audio/GameAudio';
 import { startUpdateWatcher } from './updateWatcher';
+import { loadSettings } from './core/settings';
+import { setIconTexturePack } from './ui/itemIcons';
 
 // 页面已打开时也会自动跟上新部署，避免 GitHub Pages 的 10 分钟缓存让玩家一直看到旧画面。
 startUpdateWatcher();
+
+// 在创建主菜单、快捷栏或游戏对象之前就应用材质设置。旧版本曾直到进入世界后才设置，
+// 因而菜单和首屏会一直显示经典资源，让已部署的写实贴图看起来完全没生效。
+const initialSettings = loadSettings();
+setIconTexturePack(initialSettings.texturePack);
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -81,7 +88,7 @@ window.addEventListener('unhandledrejection', (e) =>
 // 必须在全局错误界面就绪之后再创建 WebGL 菜单背景。否则浏览器不支持 WebGL、
 // GPU 上下文创建失败时，模块会在错误监听器安装前中断，只剩永久“加载中”。
 try {
-  menubg = new MenuBackground(menubgCanvas);
+  menubg = new MenuBackground(menubgCanvas, 4242, initialSettings.texturePack);
 } catch (error) {
   console.error('[menubg] 初始化失败:', error);
   // 菜单全景只是装饰。GPU 暂时无法再创建一个 WebGL 上下文时仍应显示菜单，
@@ -190,6 +197,8 @@ void (async () => {
 const settingsMenu = new SettingsMenu($('settings'));
 settingsMenu.onChange = (s): void => {
   gameAudio.setVolume(s.volume);
+  setIconTexturePack(s.texturePack);
+  menubg?.setTexturePack(s.texturePack);
   game?.setTexturePack(s.texturePack);
   game?.setLightingQuality(s.lightingQuality); // 光影画质即时套用
   game?.setRenderDistance(s.renderDistance); // 渲染距离：即时改区块加载半径 + 雾距

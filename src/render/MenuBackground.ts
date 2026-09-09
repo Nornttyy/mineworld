@@ -8,6 +8,7 @@ import { loadAtlas } from './atlas';
 import { makeSkyTexture, HORIZON_COLOR } from './sky';
 import { browserViewportSize } from './browserViewport';
 import { WATER_RENDER_LAYER } from './renderLayers';
+import type { TexturePack } from '../core/settings';
 
 // 主菜单旋转全景：低空飞过无限世界（与游戏同款地形：水/海滩），相机缓缓前飞 + 转向，
 // 区块随飞随加载。固定种子、纯装饰，与玩家存档/游戏无关。独立画布，不冲突。
@@ -26,10 +27,12 @@ export class MenuBackground {
   private readonly y = 175; // 飞行高度（地表~100-180，在地形之上俯瞰海/湖）
   private disposed = false;
   private preloadAbort: AbortController | null = null;
+  private texturePack: TexturePack;
   // resize 监听存成字段：dispose 时 removeEventListener，否则这个闭包持有 this → 整套菜单世界永不被 GC(进游戏后双份占内存→OOM)。
   private readonly onResize = (): void => this.resize();
 
-  constructor(canvas: HTMLCanvasElement, seed = 4242) {
+  constructor(canvas: HTMLCanvasElement, seed = 4242, texturePack: TexturePack = 'realistic') {
+    this.texturePack = texturePack;
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 分辨率按设备(保清晰)。⚠️ 不加 powerPreference(部分机器会创建上下文失败)
     this.scene.background = makeSkyTexture();
@@ -38,7 +41,12 @@ export class MenuBackground {
 
     this.world = new ChunkWorld(seed);
     this.seekWater(); // 起点设到附近的水边，开局就有湖
-    this.chunks = new ChunkMeshManager(this.scene, this.world, loadAtlas());
+    this.chunks = new ChunkMeshManager(
+      this.scene,
+      this.world,
+      loadAtlas(this.texturePack),
+      this.texturePack,
+    );
     this.chunks.update(
       worldToChunk(Math.floor(this.x)),
       worldToChunk(Math.floor(this.z)),
@@ -175,6 +183,13 @@ export class MenuBackground {
 
   stop(): void {
     this.running = false;
+  }
+
+  /** 主菜单与游戏共用同一材质选择，设置页切换后背景立即跟着变化。 */
+  setTexturePack(pack: TexturePack): void {
+    if (pack === this.texturePack) return;
+    this.texturePack = pack;
+    this.chunks.setAtlas(loadAtlas(pack), pack);
   }
 
   /**

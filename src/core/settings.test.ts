@@ -15,11 +15,11 @@ describe('settings sanitize', () => {
     expect(sanitizeSettings({ volume: NaN }).volume).toBe(DEFAULT_SETTINGS.volume);
   });
 
-  it('材质只认 cartoon/classic/realistic，其余回退默认经典包', () => {
+  it('材质只认 cartoon/classic/realistic，其余回退默认包', () => {
     expect(sanitizeSettings({ texturePack: 'classic' }).texturePack).toBe('classic');
     expect(sanitizeSettings({ texturePack: 'cartoon' }).texturePack).toBe('cartoon');
     expect(sanitizeSettings({ texturePack: 'realistic' }).texturePack).toBe('realistic');
-    expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe('classic');
+    expect(sanitizeSettings({ texturePack: 'weird' }).texturePack).toBe(DEFAULT_SETTINGS.texturePack);
   });
 
   it('空对象回退到默认', () => {
@@ -27,25 +27,25 @@ describe('settings sanitize', () => {
   });
 });
 
-describe('texture pack v3 migration', () => {
-  it('新安装默认使用经典像素包', () => {
-    expect(DEFAULT_SETTINGS.texturePack).toBe('classic');
+describe('texture pack v4 migration', () => {
+  it('新安装默认使用写实材质包', () => {
+    expect(DEFAULT_SETTINGS.texturePack).toBe('realistic');
   });
 
-  it('旧版卡通设置首次加载时迁移到经典像素包', () => {
-    expect(settingsFromStorage({ texturePack: 'cartoon' }).texturePack).toBe('classic');
+  it('旧设置首次加载时迁移到写实材质包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon' }).texturePack).toBe('realistic');
   });
 
-  it('上一版近似纹样再次迁移到新的标准像素包', () => {
-    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 2 }).texturePack).toBe('classic');
+  it('上一版设置迁移到写实材质包', () => {
+    expect(settingsFromStorage({ texturePack: 'classic', textureStyleVersion: 3 }).texturePack).toBe('realistic');
   });
 
-  it('v3 迁移完成后尊重用户手动选择的鲜艳包', () => {
-    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 3 }).texturePack).toBe('cartoon');
+  it('v4 迁移完成后尊重用户手动选择的鲜艳包', () => {
+    expect(settingsFromStorage({ texturePack: 'cartoon', textureStyleVersion: 4 }).texturePack).toBe('cartoon');
   });
 
-  it('v3 设置可以保留写实材质包', () => {
-    expect(settingsFromStorage({ texturePack: 'realistic', textureStyleVersion: 3 }).texturePack).toBe('realistic');
+  it('v4 设置可以保留经典材质包', () => {
+    expect(settingsFromStorage({ texturePack: 'classic', textureStyleVersion: 4 }).texturePack).toBe('classic');
   });
 });
 

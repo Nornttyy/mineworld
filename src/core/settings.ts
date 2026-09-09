@@ -11,11 +11,12 @@ export interface Settings {
   renderDistance: number; // 区块加载半径(3~12)：小=雾近、区块少、流畅；大=看得远、更吃性能
 }
 
-// 标准像素包采用原生 16×16、固定色板、无抗锯齿，作为默认材质。
-export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'classic', renderDistance: 6 };
+// 写实包是当前重点展示的完整 128px 材质；新玩家和本次材质升级后的旧设置默认启用它，
+// 避免资源已经部署、实际游戏却仍悄悄使用经典包，造成“完全没变化”。
+export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'realistic', renderDistance: 6 };
 
 const KEY = 'mineworld.settings';
-const TEXTURE_STYLE_VERSION = 3;
+const TEXTURE_STYLE_VERSION = 4;
 const LQ: LightingQuality[] = ['off', 'standard', 'high'];
 
 // 把任意(可能脏的)输入收敛成合法 Settings：音量夹到 0..100 整数，枚举/布尔校验，缺省补默认。
@@ -33,7 +34,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     lightingQuality = DEFAULT_SETTINGS.lightingQuality;
   }
   const texturePack: TexturePack =
-    r.texturePack === 'cartoon' || r.texturePack === 'realistic' ? r.texturePack : 'classic';
+    r.texturePack === 'cartoon' || r.texturePack === 'classic' || r.texturePack === 'realistic'
+      ? r.texturePack
+      : DEFAULT_SETTINGS.texturePack;
   const renderDistance =
     typeof r.renderDistance === 'number' && isFinite(r.renderDistance)
       ? Math.max(3, Math.min(12, Math.round(r.renderDistance)))
@@ -41,13 +44,13 @@ export function sanitizeSettings(raw: unknown): Settings {
   return { volume, lightingQuality, texturePack, renderDistance };
 }
 
-/** 材质纹样升级时强制迁移一次到标准像素包；之后仍可在设置里手动切回。 */
+/** 材质资源升级时强制迁移一次到当前展示包；之后仍尊重用户手动切换。 */
 export function settingsFromStorage(raw: unknown): Settings {
   const settings = sanitizeSettings(raw);
   const r = (raw ?? {}) as Partial<Record<string, unknown>>;
   return r.textureStyleVersion === TEXTURE_STYLE_VERSION
     ? settings
-    : { ...settings, texturePack: 'classic' };
+    : { ...settings, texturePack: DEFAULT_SETTINGS.texturePack };
 }
 
 export function loadSettings(): Settings {
