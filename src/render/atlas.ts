@@ -11,10 +11,11 @@ import {
 const atlasCache = new Map<string, THREE.Texture>();
 
 /** 加载方块图集：经典与鲜艳均为 16px 像素材质。 */
-export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
-  const cached = atlasCache.get(pack);
+export function loadAtlas(pack: TexturePack = 'classic', terrain = false): THREE.Texture {
+  const key = pack + (terrain ? '-terrain' : '');
+  const cached = atlasCache.get(key);
   if (cached) return cached;
-  const file = pack === 'classic' ? 'textures/atlas_classic.png' : 'textures/atlas.png';
+  const file = pack === 'classic' ? (terrain ? 'textures/atlas_terrain.png' : 'textures/atlas_classic.png') : 'textures/atlas.png';
   const tex = new THREE.TextureLoader().load(asset(file));
   tex.magFilter = THREE.NearestFilter;
   // 整张图集生成 mipmap 会在较远处把相邻格平均到一起，造成沙子黑线、仙人掌橙线。
@@ -22,7 +23,7 @@ export function loadAtlas(pack: TexturePack = 'classic'): THREE.Texture {
   tex.generateMipmaps = false;
   tex.userData.atlasSize = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
   tex.colorSpace = THREE.SRGBColorSpace;
-  atlasCache.set(pack, tex);
+  atlasCache.set(key, tex);
   return tex;
 }
 

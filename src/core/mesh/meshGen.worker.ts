@@ -4,9 +4,12 @@
 import { meshChunkData, type ChunkMesh, type MeshData } from './mesher';
 import { CHUNK_W, CHUNK_H, flAmount } from '../world/chunk';
 import { worldToChunk, localCoord } from '../world/coords';
+import { createFoliageSampler } from '../worldgen/foliageTint';
+import type { GeneratorVersion } from '../world/worldBounds';
 import { WATER } from '../blocks/registry';
 
 interface MeshRequest {
+  seed: number; seed64?: string; generator: GeneratorVersion; dimension?: string;
   jobId: number;
   minY?: number;
   height?: number;
@@ -38,11 +41,13 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
   };
 
   try {
-    const m = meshChunkData(cx, cz, getBlock, waterAmount, minY, height);
+    const m = meshChunkData(cx, cz, getBlock, waterAmount, minY, height, createFoliageSampler(e.data));
 
     const transfer: ArrayBuffer[] = [];
     const collect = (md: MeshData): void => {
       transfer.push(md.positions.buffer, md.uvs.buffer, md.colors.buffer, md.indices.buffer);
+      if (md.foliage?.length) transfer.push(md.foliage.buffer);
+      if (md.sway?.length) transfer.push(md.sway.buffer);
       if (md.tiles && md.tiles.length) transfer.push(md.tiles.buffer);
       if (md.light && md.light.length) transfer.push(md.light.buffer);
       if (md.underwater && md.underwater.length) transfer.push(md.underwater.buffer);

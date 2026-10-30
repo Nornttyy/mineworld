@@ -1,0 +1,334 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "files": [
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_0.png",
+      "sha1": "42d7772b042b274aa41d201d0959d06900c4fc51"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_1.png",
+      "sha1": "de261090e6852f24fcbdc5c28eca8dce38651bf6"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_2.png",
+      "sha1": "dbc0196b05c4a25ebfbffb62e693aa2f400e9f76"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_3.png",
+      "sha1": "ba26a43c9b2d67af370651a6662a1177fca9bf2a"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_4.png",
+      "sha1": "9ef95422900a4c4828ca62972b7bf49092e22434"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_5.png",
+      "sha1": "26b4d3d689a5a60e5ab6e706d9799287c5072ce3"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_6.png",
+      "sha1": "f14323cceb7b6df237535062f8acf2d293236c11"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_7.png",
+      "sha1": "f7181d2f1d49e8ee880bd1ccd2e40d2eb1af7b40"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_8.png",
+      "sha1": "405d4d36e50f8b974a5fd17afff13b6564d3d8ac"
+    },
+    {
+      "source": "assets/minecraft/textures/block/destroy_stage_9.png",
+      "sha1": "11d3999c4a43c6ade66acfc9798798f667ead0ea"
+    },
+    {
+      "source": "assets/minecraft/textures/colormap/foliage.png",
+      "sha1": "c9f25b5e0f8afd8aed4e14148d9f4bda2d5d5c90"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/badlands.json",
+      "sha1": "e5fa1d3af87a996f7e4993d8d939d61f630549c9"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/bamboo_jungle.json",
+      "sha1": "3063fed050351766405143c32c1d6c442a2565cf"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/basalt_deltas.json",
+      "sha1": "e63b25efd1b49d5e46a1333732374b842ea86e01"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/beach.json",
+      "sha1": "3269e71acb564cc515f30a357b17f3c90af6af75"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/birch_forest.json",
+      "sha1": "33f0a0e2bdc2717215b4313b6f876039a6c13d76"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/cherry_grove.json",
+      "sha1": "a902026f4eac21f617594c312aeacd4019fc8a02"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/cold_ocean.json",
+      "sha1": "4af7e9a693d85b2a0406a07a68ddbae6bd3333a5"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/crimson_forest.json",
+      "sha1": "b4b06b4687798adf60ccb515432c022e8a6da708"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/dappled_forest.json",
+      "sha1": "06e23d219b09fc24f5437fd18ae66784f1025e4f"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/dark_forest.json",
+      "sha1": "c215ad4505a025a897408873e2cd69e96146fff6"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/deep_cold_ocean.json",
+      "sha1": "a53af067d7842dcca570a5c02fe5d137a0c7f47c"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/deep_dark.json",
+      "sha1": "71a6ae3c227a9f810627e66e0b57f25ac9776368"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/deep_frozen_ocean.json",
+      "sha1": "3f4980a87cd4c7ace590cb3f1ef3540b02a5782e"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/deep_lukewarm_ocean.json",
+      "sha1": "77d5d79f76578d6738d22f816838348ce7f64bf8"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/deep_ocean.json",
+      "sha1": "989e1f42846590478580ddc8a48f715b87466e0c"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/desert.json",
+      "sha1": "6ad1ad78f1d4de983a02f824c4f96a6be4883ecd"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/dripstone_caves.json",
+      "sha1": "95ca9726a05cb43324856c82224feeaa81c43753"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/end_barrens.json",
+      "sha1": "c1e9213ec9910c43530c6cfb75c8a7a6c61a5483"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/end_highlands.json",
+      "sha1": "a39bccf270711e32ba8b29b3881c678599504eeb"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/end_midlands.json",
+      "sha1": "c1e9213ec9910c43530c6cfb75c8a7a6c61a5483"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/eroded_badlands.json",
+      "sha1": "e5fa1d3af87a996f7e4993d8d939d61f630549c9"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/flower_forest.json",
+      "sha1": "add8023f7e2591aeb9561a4bafcf9dd742b1f026"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/forest.json",
+      "sha1": "9acee24704b7928719eca677f8e20f18e82f151a"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/frozen_ocean.json",
+      "sha1": "416b733c4fdf89a936efdb1541943448b59fae4c"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/frozen_peaks.json",
+      "sha1": "31a30ec0c37e724cb9d6c444e8137177a4a2d86f"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/frozen_river.json",
+      "sha1": "61f5db3cb3492705144d1910294452158e30aeb1"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/grove.json",
+      "sha1": "382704132bcedcb91b016af9de6ef49a03a6a166"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/ice_spikes.json",
+      "sha1": "1a7a328b81e81b0788d32a28bf5f03df24592104"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/jagged_peaks.json",
+      "sha1": "03f8365035b157cd831928bde66f070408dd3d03"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/jungle.json",
+      "sha1": "ebb2bfa8654aa641b035b1af076ebfaf43dc2cf6"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/lukewarm_ocean.json",
+      "sha1": "6a1acd3145c656477c545698909a3027389c75cd"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/lush_caves.json",
+      "sha1": "bd09b59cafe53c4625c55968bca527e241a81f74"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/mangrove_swamp.json",
+      "sha1": "3e21843d404eda3e5e036682bde32086cd69e5cb"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/meadow.json",
+      "sha1": "f4775457744add7a7d57a4759ff64a4ebf8d125f"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/mushroom_fields.json",
+      "sha1": "3f5aba758b93e6cc66a99326ff5d02ae473f7f97"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/nether_wastes.json",
+      "sha1": "baa882609e4aa936cc9e63bb4e413ec7b1db9e42"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/ocean.json",
+      "sha1": "a0aee15c2c743213d420e05f36fdba9d12bbc63c"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/old_growth_birch_forest.json",
+      "sha1": "20da7eb1639d4e1a6655e85e9277a7eca207b2fd"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/old_growth_pine_taiga.json",
+      "sha1": "f37380d5b9782e87b3253bdce1da7d8df772bb63"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/old_growth_spruce_taiga.json",
+      "sha1": "5e842007fc876a526fda9ccb6eec3b3403689ebb"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/pale_garden.json",
+      "sha1": "f1ab497703d0f156fb0fb64de47f293acd745612"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/plains.json",
+      "sha1": "19baffb314c3e7fd6788a60488acede51d741f4f"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/river.json",
+      "sha1": "b853753f1fb27c349ac8193ea487b94a1791a611"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/savanna.json",
+      "sha1": "00ba260d99b0c407303a42850b4b3482f5daaf4c"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/savanna_plateau.json",
+      "sha1": "02da4d88fc429d74faf04db21b8261a959bcbe0e"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/small_end_islands.json",
+      "sha1": "cd3bf356f2029b510d9a94d4e176e481f4bf8cb7"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/snowy_beach.json",
+      "sha1": "1e8de0621d9905ba40212fc6791e6ae13bc97fbe"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/snowy_plains.json",
+      "sha1": "b30b361199e90bbe3df16e7d6f6d87e7e7ff53d2"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/snowy_slopes.json",
+      "sha1": "977fcdd0023224864131dda405b49396ad4ca492"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/snowy_taiga.json",
+      "sha1": "87a27302c82f6cfa09655072efc223d6d91f4996"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/soul_sand_valley.json",
+      "sha1": "2c26b6dff00e5c1c795614a6612c94b5aacd2278"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/sparse_jungle.json",
+      "sha1": "071c1c827679d56e7a3fd34c370753bbeaef719d"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/stony_peaks.json",
+      "sha1": "3684af59f01e48c2d1e39c31db5a2b48a96d8247"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/stony_shore.json",
+      "sha1": "0100b15ce2ce07ce332bb48d3f544c693dceefce"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/sulfur_caves.json",
+      "sha1": "cfefd260b69dc37a1e6690d5d30c73b06d088f45"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/sunflower_plains.json",
+      "sha1": "8f5924aa0df95934afe6a823453415f6c27ef6ac"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/swamp.json",
+      "sha1": "448cb22171617665830aa3652abf52bc7af684c0"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/taiga.json",
+      "sha1": "bd8601ea62dbc7693fb57dc51724e7aa1bcde98b"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/the_end.json",
+      "sha1": "1eef0a99b705ed43e54b356ab5b105e3a7430634"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/the_void.json",
+      "sha1": "151ab8d24fb17ae231bbe206d3f72f3663aa5768"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/warm_ocean.json",
+      "sha1": "6ae431d8317a412bfe9163dc3d92679eb3a541aa"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/warped_forest.json",
+      "sha1": "2eb3fbf6f96c8a8d7d38fae66c609261bdae1d77"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/windswept_forest.json",
+      "sha1": "53ef7cf7a55803cb9a1cc8bfef2f0f8930bd755a"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/windswept_gravelly_hills.json",
+      "sha1": "a5e1ab320fb57482a2e5ef91cd9f7cde4c155863"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/windswept_hills.json",
+      "sha1": "a5e1ab320fb57482a2e5ef91cd9f7cde4c155863"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/windswept_savanna.json",
+      "sha1": "6601ecdc41b9fb621554d4932a4e165cb92e4459"
+    },
+    {
+      "source": "data/minecraft/worldgen/biome/wooded_badlands.json",
+      "sha1": "6deed64e438938f47a243b0ea548ff4c941db94c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_leaves.png",
+      "sha1": "88edd77292cde729c8a429aa78fa95ff2d9e2136"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_leaves.png",
+      "sha1": "b86377380c127456a702ee80d788694ef4989aaa"
+    },
+    {
+      "source": "assets/minecraft/textures/block/birch_leaves.png",
+      "sha1": "e744b728497da21661ec7b5904662cead76dac89"
+    }
+  ],
+  "adaptations": [
+    "Ten unchanged destroy sprites packed horizontally",
+    "Leaf atlas cells retain neutral RGB and original alpha; biome/species tint is applied at render time"
+  ]
+}

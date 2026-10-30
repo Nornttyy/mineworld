@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><title>Mineworld · 破坏与树叶检查</title>
+  <style>
+    body {
+      margin: 0;
+      background: #91b7e5;
+      font: 15px system-ui;
+      color: white;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    aside {
+      position: absolute;
+      left: 20px;
+      top: 18px;
+      background: #182434e8;
+      padding: 18px;
+      border: 1px solid #748193;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px;
+    }
+    button,
+    select {
+      padding: 8px;
+      margin: 5px 4px 0 0;
+      font: inherit;
+    }
+    p {
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    #status {
+      color: #cce7ae;
+    }
+  </style>
+  <canvas></canvas>
+  <aside>
+    <h1>方块破坏 · 树叶显示</h1>
+    <p>共用游戏渲染代码：十阶段裂纹／纹理碎屑／透明树叶</p>
+    <select id="block" aria-label="测试方块">
+      <option value="1">石头</option>
+      <option value="2">泥土</option>
+      <option value="7">橡木木板</option>
+      <option value="10">橡树树叶</option></select
+    ><button id="break">破坏方块</button><button id="hit">敲击方块</button
+    ><button id="freeze">暂停动画</button>
+    <p id="status">准备就绪 · 背景依次为橡树、白桦、云杉树叶</p>
+  </aside>
+  <script type="module" src="./effects-check.ts"></script>
+</html>

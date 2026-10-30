@@ -1,7 +1,18 @@
 // 方块碎屑粒子（纯逻辑，可单测）：挖方块时四溅的小颗粒。渲染层把它们画成带色的点。
 // 单位同游戏=方块；重力把颗粒往下拽，过了寿命就移除。
 
+import { sweepAabb } from '../physics/aabbSweep';
+import type { VoxelWorld } from '../physics/player';
+
 export interface Particle {
+  collisionSize?: number;
+  tile?: number;
+  size?: number; // Quad half-size in world units.
+  u?: number;
+  v?: number; // 4x4 pixel crop inside the 16x16 block sprite.
+  tint?: readonly [number, number, number];
+  tickRemainder?: number;
+  previous?: { x: number; y: number; z: number };
   x: number;
   y: number;
   z: number;
@@ -37,7 +48,8 @@ const PARTICLE_COLOR: Record<number, [number, number, number]> = {
   296: [0.28, 0.78, 0.75], // 钻石
 };
 
-export const particleColor = (id: number): [number, number, number] => PARTICLE_COLOR[id] ?? [0.5, 0.5, 0.5];
+export const particleColor = (id: number): [number, number, number] =>
+  PARTICLE_COLOR[id] ?? [0.5, 0.5, 0.5];
 
 // 在 (cx,cy,cz) 附近喷出 count 个碎屑：随机散开 + 向上初速，之后受重力下落。
 export function spawnBurst(
@@ -70,11 +82,49 @@ export function spawnBurst(
 }
 
 // 推进一帧：重力 + 位移 + 老化，返回仍存活的颗粒（原地老化、过滤死亡）。
-export function stepParticles(ps: Particle[], dt: number): Particle[] {
+export function stepParticles(ps: Particle[], dt: number, world?: VoxelWorld): Particle[] {
   const alive: Particle[] = [];
   for (const p of ps) {
     p.age += dt;
     if (p.age >= p.life) continue;
+    if (p.tile !== undefined) {
+      p.tickRemainder = (p.tickRemainder ?? 0) + dt;
+      while (p.tickRemainder >= 0.05 - 1e-9) {
+        p.tickRemainder = Math.max(0, p.tickRemainder - 0.05);
+        p.previous = { x: p.x, y: p.y, z: p.z };
+        p.vy -= 0.8; // Java: 0.04 blocks/tick, at 20 Hz.
+        let grounded = false;
+        if (world) {
+          const moved = sweepAabb(
+            p,
+            p.collisionSize ?? 0.2,
+            p.collisionSize ?? 0.2,
+            { x: p.vx / 20, y: p.vy / 20, z: p.vz / 20 },
+            world,
+          );
+          p.x = moved.pos.x;
+          p.y = moved.pos.y;
+          p.z = moved.pos.z;
+          p.vx = moved.vel.x * 20;
+          p.vy = moved.vel.y * 20;
+          p.vz = moved.vel.z * 20;
+          grounded = moved.onGround;
+        } else {
+          p.x += p.vx / 20;
+          p.y += p.vy / 20;
+          p.z += p.vz / 20;
+        }
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.vz *= 0.98;
+        if (grounded) {
+          p.vx *= 0.7;
+          p.vz *= 0.7;
+        }
+      }
+      alive.push(p);
+      continue;
+    }
     p.vy -= GRAVITY * dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;

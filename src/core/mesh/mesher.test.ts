@@ -74,11 +74,12 @@ describe('mesher (face culling)', () => {
 });
 
 describe('mesher 树叶衔接', () => {
-  it('相邻叶块剔除重叠内部面，避免黑线和深度闪缝', () => {
+  it('透明树叶保留内部叶面，透过孔洞仍能看到树冠内部', () => {
     const getBlock = (x: number, y: number, z: number): number =>
       y === 100 && z === 8 && (x === 8 || x === 9) ? OAK_LEAVES : 0;
     const mesh = meshChunkData(0, 0, getBlock, () => 0);
-    expect(mesh.cutout.indices.length).toBe(10 * 6);
+    expect(mesh.cutout.indices.length).toBe(12 * 6);
+    expect(Array.from(mesh.cutout.sway!)).toEqual(Array(48).fill(0));
   });
 });
 

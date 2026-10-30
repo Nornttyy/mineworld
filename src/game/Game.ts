@@ -46,6 +46,8 @@ import { findUnsupportedLeaves } from '../core/world/leafDecay';
 import { loadAtlas } from '../render/atlas';
 import { loadSettings, type TexturePack, type LightingQuality } from '../core/settings';
 import { ChunkMeshManager } from '../render/ChunkMeshManager';
+import { spawnBlockBreak, spawnBlockHit } from '../core/particles/blockParticles';
+import { createFoliageSampler } from '../core/worldgen/foliageTint';
 import { CrackOverlay } from '../render/CrackOverlay';
 import { DropRenderer } from '../render/DropRenderer';
 import { FirstPersonHand } from '../render/FirstPersonHand';
@@ -482,7 +484,7 @@ export class Game {
     this.lightingQuality = settings.lightingQuality; // 光影档位初值（决定 god-ray 是否开启）
     this.renderDistance = settings.renderDistance; // 渲染距离初值
     const atlas = loadAtlas(this.texturePack);
-    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, atlas, this.texturePack);
+    this.chunks = new ChunkMeshManager(this.renderer.scene, this.world, loadAtlas(this.texturePack, true), this.texturePack);
     this.renderer.setWaterRefractionSink((color, depth, width, height, underwaterAmount) =>
       this.chunks.setWaterRefraction(color, depth, width, height, underwaterAmount),
     );
@@ -495,7 +497,7 @@ export class Game {
     this.setRenderDistance(this.renderDistance); // 套用初始雾距 + 雾剔除（须在 chunks 初始化之后，否则 setFogFar 崩）
     // welcome 到创建 Game 之间可能已经收到了别人的方块包；MultiplayerClient 会排队，直到这里世界/网格都就绪后再交付。
     if (this.multiplayer) this.bindMultiplayer(this.multiplayer);
-    this.crack = new CrackOverlay(this.renderer.scene);
+    this.crack = new CrackOverlay(this.renderer.scene, loadAtlas(this.texturePack, true));
     this.dropRenderer = new DropRenderer(this.renderer.scene, atlas);
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
     this.mobRenderer = new MobRenderer(this.renderer.scene, this.texturePack);
@@ -510,7 +512,7 @@ export class Game {
     } };
     this.hand = new FirstPersonHand(atlas);
     this.hand.setLightingQuality(settings.lightingQuality);
-    this.particleFx = new ParticleRenderer(this.renderer.scene);
+    this.particleFx = new ParticleRenderer(this.renderer.scene, loadAtlas(this.texturePack, true), this.texturePack);
     this.skyObjects = new SkyObjects(this.renderer.scene); // 方块太阳/月亮/云
     this.skyObjects.setLightingQuality(settings.lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
     this.skyObjects.setDimension(this.dimension); // 初始维度同步（默认 overworld，Task 9 接真实切换）
@@ -986,7 +988,7 @@ export class Game {
     this.dropRenderer.sync(this.drops, this.entityLight);
     this.arrowRenderer.sync(this.arrows);
     this.particles = [];
-    this.particleFx.sync(this.particles);
+    this.particleFx.sync(this.particles, this.entityLight);
     this.portalCooldown = 60; // ~过门后 60 刻冷却，防来回弹
     this.portalFlash = PORTAL_FLASH_SECONDS;
   }
@@ -1523,8 +1525,8 @@ export class Game {
       this.updatePortalEffect(dt, playing);
       this.updateHighlight();
       // 碎屑粒子：每帧推进 + 刷新
-      this.particles = stepParticles(this.particles, dt);
-      this.particleFx.sync(this.particles);
+      this.particles = stepParticles(this.particles, dt, { isSolid: (x,y,z) => isSolidId(this.world.getBlock(x,y,z)) });
+      this.particleFx.sync(this.particles, this.entityLight);
       this.mobRenderer.sync(this.mobs, dt, this.entityLight); // 生物模型跟随/动画(+按所在处光照变暗)
       // 远端玩家走独立渲染器，绝不塞进 mobs（否则会被本地 AI/攻击系统接管）。
       this.remotePlayers.sync(
@@ -1817,7 +1819,9 @@ export class Game {
     this.texturePack = pack;
     setIconTexturePack(pack);
     const atlas = loadAtlas(pack);
-    this.chunks.setAtlas(atlas, pack);
+    this.chunks.setAtlas(loadAtlas(pack, true), pack);
+    this.crack.setAtlas(loadAtlas(pack, true));
+    this.particleFx.setAtlas(loadAtlas(pack, true), pack);
     this.hand.setAtlas(atlas);
     this.dropRenderer.setAtlas(atlas);
     this.mobRenderer.setTexturePack(pack);
@@ -2488,7 +2492,7 @@ export class Game {
       const lv = this.world.getBlock(d.x, d.y, d.z);
       if (lv !== OAK_LEAVES && lv !== SPRUCE_LEAVES && lv !== BIRCH_LEAVES) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
       this.edit(d.x, d.y, d.z, AIR);
-      this.particles.push(...spawnBurst(d.x + 0.5, d.y + 0.5, d.z + 0.5, particleColor(lv), 8));
+      this.particles.push(...spawnBlockBreak(d.x, d.y, d.z, lv, this.blockTint(lv,d.x,d.y,d.z)));
       if (lv === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE)
         this.drops.push(spawnDrop(APPLE, d.x, d.y, d.z));
     }
@@ -2524,6 +2528,7 @@ export class Game {
     ) {
       this.digTarget = { x: hit.x, y: hit.y, z: hit.z }; // 换了目标 → 进度归零
       this.digProgress = 0;
+      this.digFxT = 0;
       gameAudio.resetDig();
     }
     if (!this.creative && blockHardness(id) < 0) {
@@ -2541,15 +2546,13 @@ export class Game {
       this.mineBlock(hit.x, hit.y, hit.z, id);
       if (this.touchDigging) this.stopDigging();
     } else {
-      this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
+      this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need, id);
       if (!this.creative) gameAudio.blockHit(id, { x: hit.x + 0.5, y: hit.y + 0.5, z: hit.z + 0.5 });
       // 挖掘中持续喷碎屑（节流，免得每帧爆量）
       this.digFxT += dt;
-      if (this.digFxT >= 0.07) {
-        this.digFxT = 0;
-        this.particles.push(
-          ...spawnBurst(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, particleColor(id), 3),
-        );
+      if (this.digFxT >= 0.05 && !this.creative) {
+        this.digFxT %= 0.05;
+        this.particles.push(spawnBlockHit(hit, id, this.blockTint(id, hit.x, hit.y, hit.z)));
       }
     }
   }
@@ -2693,6 +2696,11 @@ export class Game {
     this.furnaces.delete(key);
   }
 
+  private blockTint(id: number, x: number, y: number, z: number): readonly [number,number,number] {
+    if (![OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES].includes(id)) return [1,1,1];
+    return createFoliageSampler(this.world)(id,x,y,z);
+  }
+
   // 破坏一个方块：清空 + 按掉落表生成掉落物（树叶概率掉苹果）+ 累积疲劳。
   private mineBlock(x: number, y: number, z: number, id: number): void {
     // 草丛/长草：瞬破、无掉落、不耗工具耐久/疲劳。直接清掉即可。
@@ -2701,7 +2709,7 @@ export class Game {
       gameAudio.blockBreak(id, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       const loot = this.creative ? null : plantDrops(id);
       if (loot) this.drops.push(spawnDrop(loot.id, x, y, z, Math.random, loot.count));
-      this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 6));
+      this.particles.push(...spawnBlockBreak(x, y, z, id, this.blockTint(id,x,y,z)));
       this.digProgress = 0;
       this.digTarget = null;
       this.crack.hide();
@@ -2722,10 +2730,10 @@ export class Game {
         const loot = above === TORCH ? { id: TORCH, count: 1 } : plantDrops(above);
         if (loot) this.drops.push(spawnDrop(loot.id, x, y + 1, z, Math.random, loot.count));
       }
-      this.particles.push(...spawnBurst(x + 0.5, y + 1.5, z + 0.5, particleColor(above), 6));
+      this.particles.push(...spawnBlockBreak(x, y+1, z, above, this.blockTint(above,x,y+1,z)));
     }
     this.settleFallingAt(x, y, z); // 重力方块(沙/砾石)失去支撑整列下落(1.12)
-    this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
+    this.particles.push(...spawnBlockBreak(x, y, z, id, this.blockTint(id,x,y,z))); // 破碎爆一蓬碎屑
     if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z, Math.random, id === COPPER_ORE ? 2 + Math.floor(Math.random() * 4) : 1));
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）

@@ -106,6 +106,7 @@ export class ChunkMeshManager {
   private readonly uSkyDarken = { value: 0 };
   // 光影(真实水面)：uShaders 开关(0/1)、uTime 秒(驱动波动)、uSkyRefl 反射的天空色、uSunDir 太阳方向(高光)。
   private readonly uShaders = { value: 0 };
+  private readonly uBiomeTint = { value: 1 };
   private readonly uRealisticWater = { value: 0 };
   private readonly uTime = { value: 0 };
   private readonly uAtlasSize = { value: new THREE.Vector2(...DEFAULT_ATLAS_SIZE) };
@@ -165,6 +166,7 @@ export class ChunkMeshManager {
     atlas: THREE.Texture,
     private texturePack: TexturePack = 'classic',
   ) {
+    this.uBiomeTint.value = this.texturePack === 'classic' ? 1 : 0;
     this.syncAtlasSize(atlas);
     this.opaqueMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
     // 投影阴影深度 pass 渲【背面】：体素地形是闭合壳，受光面永远拿不到与自身相等的深度
@@ -293,9 +295,10 @@ export class ChunkMeshManager {
       shader.uniforms.uSunDirW = this.uSunDir; // 阳光方向(世界系,阳光泽面用;与水面共用)
       shader.uniforms.uTime = this.uTime;
       shader.uniforms.uAtlasSize = this.uAtlasSize;
+      shader.uniforms.uBiomeTint = this.uBiomeTint;
       shader.uniforms.uSurfaceNoise = { value: this.cloudNoiseTex };
       shader.uniforms.uWaterWaves = { value: this.waterWaveTex };
-      // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=1 整体摆。
+      // cutout 随风摆：草丛按 aSway 高度加权（底=0根锚定，顶=1草尖摆）；树叶 aSway=0，保持原版静止。
       // 位移按【世界坐标(原始 position)+时间】→相邻顶点共享相位、无裂缝。×uShaders=只在光影开时摆。
       const swayCode = sway
         ? '{ float sw = uShaders * 0.06 * aSway; vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; float ph = wp.x*0.6 + wp.z*0.5 + wp.y*0.3;' +
@@ -307,7 +310,7 @@ export class ChunkMeshManager {
         .replace(
           '#include <common>',
           '#include <common>\nattribute vec2 aLight;\nattribute float aTile;\nuniform vec3 uSkyTint;\nuniform float uSkyDarken;\nuniform mat4 uShadowMatrix;\nuniform float uShaders;\n' +
-            (sway ? 'uniform float uTime;\nattribute float aSway;\n' : '') +
+            (sway ? 'uniform float uTime;\nattribute float aSway;\nattribute vec3 aFoliage;\nuniform float uBiomeTint;\n' : '') +
             (underwater ? 'attribute float aUnderwater;\nattribute float aWetness;\n' : '') +
             'varying float vLF;\nvarying float vSkyBright;\nvarying float vBlockBright;\nvarying vec3 vTint;\nvarying vec4 vShadowCoord;\nvarying float vSky;\nvarying float vTileIndex;\nvarying vec3 vWp;\nvarying float vUnderwater;\nvarying float vWetness;\n' +
             MC_BRIGHT_GLSL,
@@ -326,6 +329,12 @@ export class ChunkMeshManager {
               : 'vUnderwater = 0.0;\nvWetness = 0.0;\n') +
             'vShadowCoord = uShadowMatrix * (modelMatrix * vec4(transformed, 1.0));',
         );
+      if (sway) {
+        shader.vertexShader = shader.vertexShader.replace('#include <color_vertex>',
+          '#include <color_vertex>\nvColor *= mix(vec3(1.0), aFoliage, uBiomeTint);');
+        shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>',
+          '#include <alphatest_fragment>\nif (!gl_FrontFacing && (abs(vTileIndex-11.0)<0.1 || abs(vTileIndex-31.0)<0.1 || abs(vTileIndex-45.0)<0.1)) discard;');
+      }
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
@@ -1501,6 +1510,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
 
   /** 切换整套环境材质：图集 + 对应水纹。 */
   setAtlas(tex: THREE.Texture, pack: TexturePack = this.texturePack): void {
+    this.uBiomeTint.value = pack === 'classic' ? 1 : 0;
     this.syncAtlasSize(tex);
     this.opaqueMat.map = tex;
     this.iceMat.map = tex;
@@ -1684,8 +1694,9 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       g.setAttribute('aShore', new THREE.BufferAttribute(data.shore, 1)); // 仅水：精确岸线覆盖率(细浪/泡沫)
     if (data.waveOpen && data.waveOpen.length)
       g.setAttribute('aWaveOpen', new THREE.BufferAttribute(data.waveOpen, 1)); // 仅水：远离岸/冰/顶板才允许真实大浪
+    if (data.foliage?.length) g.setAttribute('aFoliage', new THREE.BufferAttribute(data.foliage, 3));
     if (data.sway && data.sway.length)
-      g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶1)
+      g.setAttribute('aSway', new THREE.BufferAttribute(data.sway, 1)); // cutout：摆动权重(草丛底0顶1；树叶0)
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
     // shader 会把开阔海浪峰抬高约 0.37 格；扩大 CPU 包围球，避免视锥边缘先裁掉浪尖。
     if (data.top?.length) {
@@ -1905,6 +1916,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
           cz,
           blocks: nb.blocks,
           fluid: nb.fluid,
+          seed: this.world.seed, seed64: this.world.seed64, generator: this.world.generator, dimension: this.world.dimension,
           minY: this.world.minY,
           height: this.world.height,
         },

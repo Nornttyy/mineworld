@@ -1,3 +1,4 @@
+import { createFoliageSampler, defaultLeafTint, type FoliageSampler } from '../worldgen/foliageTint';
 import { Section } from '../world/section';
 import { World } from '../world/world';
 import type { ChunkWorld } from '../world/chunkWorld';
@@ -206,7 +207,8 @@ export interface MeshData {
   topFace?: Float32Array; // 仅水：显式面类别；顶面=1，侧壁/底面=0，避免 shader 在 draw-call 边界用导数猜面
   shore?: Float32Array; // 仅水：角周围缺水覆盖率 0..1；精确画岸边细浪，不把整片浅水误判成岸线
   waveOpen?: Float32Array; // 仅水：0..1 几何大浪安全度；远离非水/冰/顶板才趋近 1，固定顶点为 0
-  sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=1整体摆）
+  foliage?: Float32Array; // Linear RGB tint for the neutral terrain leaf atlas.
+  sway?: Float32Array; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1根锚定；树叶=0）
 }
 
 interface BlockGrid {
@@ -305,7 +307,8 @@ interface FaceArrays {
   TF: number[]; // 仅水用：顶面=1，侧壁/底面=0；其余网格留空
   SH: number[]; // 仅水用：每顶点岸线覆盖率 0..1；其余网格留空
   WO: number[]; // 仅水用：每顶点几何大浪安全度 0..1；固定顶点写 0
-  SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=1）
+  FT: number[];
+  SW: number[]; // 仅 cutout：每顶点摆动权重 0..1（草丛底=0顶=1；树叶=0）
 }
 const emptyArrays = (): FaceArrays => ({
   P: [],
@@ -320,6 +323,7 @@ const emptyArrays = (): FaceArrays => ({
   TF: [],
   SH: [],
   WO: [],
+  FT: [],
   SW: [],
 });
 const toMeshData = (a: FaceArrays): MeshData => {
@@ -338,6 +342,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     topFace: a.TF.length ? new Float32Array(a.TF) : undefined,
     shore: a.SH.length ? new Float32Array(a.SH) : undefined,
     waveOpen: a.WO.length ? new Float32Array(a.WO) : undefined,
+    foliage: a.FT.length ? new Float32Array(a.FT) : undefined,
     sway: a.SW.length ? new Float32Array(a.SW) : undefined,
   };
 };
@@ -364,6 +369,7 @@ export function meshChunkData(
   waterAmount: (wx: number, wy: number, wz: number) => number,
   minY = 0,
   height = CHUNK_H,
+  foliageAt: FoliageSampler = defaultLeafTint,
 ): ChunkMesh {
   const maxY = minY + height;
   const ox = cx * CHUNK_W;
@@ -508,6 +514,7 @@ export function meshChunkData(
     const ey = ly + d.o[1];
     const ez = lz + d.o[2];
     const underwaterDepth = a === op ? underwaterDepthAt(ox + ex, ey, oz + ez) : 0;
+    const tint = a === cut ? foliageAt(id, ox+lx, ly, oz+lz) : [1,1,1];
     const base = a.P.length / 3;
     const ao = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) {
@@ -518,6 +525,7 @@ export function meshChunkData(
       a.P.push(lx + corner[0], ly + corner[1], lz + corner[2]);
       a.U.push(u0 + d.uv[k][0] * du, v0 + d.uv[k][1] * dv);
       a.C.push(c, c, c);
+      if (a === cut) a.FT.push(...tint);
       a.TI.push(tile);
       a.L.push(sky, blk);
       if (a === op) {
@@ -534,7 +542,7 @@ export function meshChunkData(
     } else {
       a.I.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
     }
-    if (a === cut) a.SW.push(1, 1, 1, 1); // cutout(树叶等)：整体摆
+    if (a === cut) a.SW.push(0, 0, 0, 0); // Vanilla leaves have no wind deformation.
   };
 
   // 火把：在格中心立一个暖色"交叉竖片"小网格，自发光(走独立材质，不参与天光 shader)。
@@ -623,6 +631,7 @@ export function meshChunkData(
       cut.P.push(x0, ly, z0, x1, ly, z1, x1, ly + hgt, z1, x0, ly + hgt, z0); // 底左,底右,顶右,顶左
       cut.U.push(u0, vB, u1, vB, u1, vT, u0, vT);
       cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+      cut.FT.push(1,1,1,1,1,1,1,1,1,1,1,1);
       cut.TI.push(tile, tile, tile, tile);
       cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
       cut.SW.push(0, 0, 1, 1); // 底左,底右=根锚定(0)；顶右,顶左=草尖摆(1)
@@ -646,6 +655,7 @@ export function meshChunkData(
     cut.P.push(lx, yTop, lz, lx, yTop, lz + 1, lx + 1, yTop, lz + 1, lx + 1, yTop, lz);
     cut.U.push(u0, vB, u0, vT, u1, vT, u1, vB);
     cut.C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh, sh);
+    cut.FT.push(1,1,1,1,1,1,1,1,1,1,1,1);
     cut.TI.push(tile, tile, tile, tile);
     cut.L.push(sky, blk, sky, blk, sky, blk, sky, blk);
     cut.SW.push(0, 0, 0, 0); // 雪层不摆动；但必须补齐 cut.SW(否则 cutout 网格 aSway 比顶点数短→属性长度不匹配,树叶/雪摆动错乱)
@@ -862,9 +872,9 @@ export function meshChunkData(
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
             const neighbor = getBlock(ox + lx + d.o[0], ly + d.o[1], oz + lz + d.o[2]);
-            // 相邻叶块的两张共面内部面会争抢深度，远看形成黑线/闪缝；剔除后挖开树冠时
-            // 邻块会正常重建外表面，所以既不露洞，也不会保留重叠接缝。
-            if (isOpaque(neighbor) || isCutoutId(neighbor)) continue;
+            // Java cutout leaves retain interior faces. Back-face culling makes opposite
+            // coplanar faces mutually exclusive and preserves depth through the holes.
+            if (isOpaque(neighbor)) continue;
             emit(cut, lx, ly, lz, id, f);
           }
         } else if (isWaterId(id)) {
@@ -994,5 +1004,6 @@ export function meshChunk(w: ChunkWorld, cx: number, cz: number): ChunkMesh {
     (wx, wy, wz) => w.waterAmount(wx, wy, wz),
     w.minY,
     w.height,
+    createFoliageSampler(w),
   );
 }

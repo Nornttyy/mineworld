@@ -141,3 +141,7 @@ provenance = {
 provenance['adaptations'] = list(dict.fromkeys(previous.get('adaptations', []) + provenance['adaptations'] + ['Append copper ore and raw-metal blocks in slots 102..104; expand both atlases to 4x27']))
 (OUT / 'java-resource-provenance.json').write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
 print(f'Imported {len(tiles)} block faces, {item_count} item sprites, {frames} water frames.')
+
+# Refresh the neutral world leaf atlas and destroy stages after every atlas import.
+import subprocess
+subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_effects.py")), str(jar)], check=True)
