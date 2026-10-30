@@ -365,9 +365,11 @@ ATLAS_ORDER = [
 
 VEGETATION_TILES = ['poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'fern', 'dead_bush']
 ATLAS_ORDER += VEGETATION_TILES
+ORE_VEIN_TILES = ['copper_ore', 'raw_copper_block', 'raw_iron_block']
+ATLAS_ORDER += ORE_VEIN_TILES
 
 MODERN_TILES = ['deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']
-for _name in MODERN_TILES + VEGETATION_TILES:
+for _name in MODERN_TILES + VEGETATION_TILES + ORE_VEIN_TILES:
     BLOCKS[_name] = lambda _rng, n=_name: source.official_furnace_face(n)
 
 ICON_FACES = {
@@ -411,6 +413,9 @@ ICON_FACES = {
     "snow_layer": ("snow", "snow"),
 }
 
+
+for _name in ORE_VEIN_TILES:
+    ICON_FACES[_name] = (_name, _name)
 
 def build_tiles():
     tiles = {}

@@ -24,6 +24,7 @@ import {
   OAK_LOG,
   CRAFTING_TABLE,
   FURNACE,
+  COPPER_ORE,
   GRAVEL,
   OBSIDIAN,
   NETHER_PORTAL,
@@ -2711,7 +2712,7 @@ export class Game {
     }
     this.settleFallingAt(x, y, z); // 重力方块(沙/砾石)失去支撑整列下落(1.12)
     this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 16)); // 破碎爆一蓬碎屑
-    if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z));
+    if (drop !== null) this.drops.push(spawnDrop(drop, x, y, z, Math.random, id === COPPER_ORE ? 2 + Math.floor(Math.random() * 4) : 1));
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }

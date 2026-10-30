@@ -19,6 +19,7 @@ afterEach(async () => {
 });
 
 const worlds = [
+  { label: 'terrain revision 3', generator: 'java26v3' as const, seed64: '-9223372036854775808' },
   { label: 'vegetation revision 2', generator: 'java26v2' as const, seed64: '9223372036854775807' },
   { label: 'maximum signed long', generator: 'java26' as const, seed64: '9223372036854775807' },
   { label: 'minimum signed long', generator: 'java26' as const, seed64: '-9223372036854775808' },

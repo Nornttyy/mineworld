@@ -1,6 +1,6 @@
 # Java 26.3 terrain adapter
 
-`generator: 'java26'` identifies a versioned target/configuration. It is not a
+`generator: 'java26v3'` now identifies a versioned target/configuration. It is not a
 claim that this browser game reproduces every vanilla block at the same seed.
 Old worlds continue using the unchanged `terrain.ts` generator and 0..191 Y.
 
@@ -29,15 +29,31 @@ indices 0..47 retain their previous pixels; indices 48..87 add official faces.
 The library's current `NoiseChunkGenerator` is a preview implementation:
 `MaterialSystem.buildSurface` loops only over z=0 and its caller supplies a
 fixed plains biome. The adapter performs its own 16x16 surface pass with real
-quart-cell biomes, true world Y and integer surface depth. It also seeds
+biomes, true world Y and integer surface depth. Revision 3 uses block-level biome
+zoom for material rules; revisions 1/2 preserve their original quart lookups. It also seeds
 `settings.aquifers` using the `RandomState` density visitor before constructing
 `NoiseChunk`; directly passing parsed aquifers leaves their noises uninitialized.
 The absent `hole` and `steep` material conditions are implemented locally.
-Quart-cell biome results are reused for all 64 blocks within each 4x4x4 cell.
+Biome-zoom jitter and resolved quart-cell labels are cached within each chunk.
 Library interpolation caches are periodically discarded; sampler/height
 caches are bounded so exploration does not retain the entire sampled world.
 
-## Actual vanilla comparison
+## Revision 3 chunk audit (2026-10-30)
+
+See `docs/terrain-26.3-audit.md` for the complete reproducible audit. Against the
+actual Java 26.3 engine, 30 chunks across six signed-long seeds match every block
+in both tested stages: noise/aquifers and surface/material rules. The comparison
+covers 2,949,120 block positions per stage, including large copper/iron veins.
+It explicitly excludes carvers, structures, placed features and block properties.
+
+Revision 3 fixes the renamed chunk-surface and water/stone-depth fields; uses
+Java's biome zoom; restores the omitted interval-selector branch for caves;
+corrects signed positional random state and integer overflow; corrects aquifer
+sampling coordinates, Y bounds, fluid spread, dry-level sentinel and negative-X
+cache collisions; and implements the large ore-vein material rule. Revisions
+`java26` and `java26v2` keep their original terrain and decoration algorithms.
+
+## Earlier point comparison
 
 `reference/MineworldNoiseProbe.java` is a small test harness written for this
 project. It calls official 26.3 `RandomState.sampleBlockValueUncached` and the
@@ -72,21 +88,21 @@ These measurements are not mobile guarantees.
 - No structures, structure density adjustment, carvers, geodes, lakes or full
   configured/placed-feature engine. The density-function `beardifier` is zero
   without structures; old/new world blending is not used.
-- Quart-cell biome selection is used directly. Java's block-level biome zoom,
-  climate quantization/tie-breaking and all surface outputs are not separately
-  proven exact by the 50-point comparison.
+- Revision 3 implements block-level biome zoom. Climate float rounding and
+  tie-breaking are not proven exact across every coordinate; the full-chunk
+  results are a finite sample, not a proof over all seeds.
 - Badlands colour-band material currently returns the correct terracotta
-  material but does not reproduce band colours. The modern large ore-vein
-  material rule is not implemented. Terracotta colours and modern mineral
-  blocks exist as real assets, not aliases to stone.
+  material but does not reproduce band colours. Eroded-badlands pillars and
+  frozen-ocean icebergs are still absent. Revision 3 does implement the large
+  copper/iron ore-vein material rule, with separate ore, raw-metal and filler blocks.
 - `modernFeatures.ts` reads official coal/iron/gold/diamond attempt counts,
   height providers, vein sizes, replaceable tags and exposure probabilities.
   Its salted candidate RNG, ellipsoid sequence and external-column exposure
   checks differ from Java's complete feature-step pipeline. Mineral locations
-  therefore do not match vanilla seeds. Ores crossing chunks are regenerated
+  for these ordinary ore features therefore do not match vanilla seeds. Ores crossing chunks are regenerated
   from a fixed ordered 3x3 source-chunk set, independent of loading order.
 - Saved `java26` worlds retain their original approximate tree candidates and
-  canopies. New `java26v2` worlds use configured small oak/birch/spruce/pine
+  canopies. `java26v2` and new `java26v3` worlds use configured small oak/birch/spruce/pine
   foliage rules and selected biome vegetation patches. See
   `docs/vegetation-26.3-audit.md`. Exact feature coordinates and unsupported
   tree species remain absent.
@@ -96,12 +112,15 @@ These measurements are not mobile guarantees.
 
 ## Integration interface
 
-`generateModernChunk(cx, cz, seed: number|string, revision: 1|2 = 1): Chunk` returns
+`generateModernChunk(cx, cz, seed: number|string, revision: 1|2|3 = 1, stage: 'noise'|'surface'|'decorated' = 'decorated'): Chunk` returns
 `new Chunk(-64, 384)`, with real world-Y `get/set` and fluid bytes.
 It also fills `surfaceHeights: Int16Array(256)`, indexed by `x + z*16`, so loaded
 terrain height can be transferred to the main thread without recomputation.
 `modernColumnHeight(x,z,seed)` returns top solid **ground** Y, not Y+1 and not
-the canopy. Generated ground heights populate a 16,384-entry cache. Spawn logic
+the canopy. A 16,384-entry cache is isolated by generator revision. In revision 3,
+this estimate is based on density only so feature placement cannot depend on
+which neighboring chunks have already generated aquifer barriers. Actual chunk
+heights are always returned in `surfaceHeights`. Spawn logic
 must still check headroom/collision after decoration.
 `modernBiomeAt(x,z,seed,y=63)` returns a `minecraft:*` quart-cell biome name.
 `modernDensityAt(x,y,z,seed)` and `modernSeed(seed)` are exposed for verification.

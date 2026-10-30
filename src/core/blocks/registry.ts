@@ -118,6 +118,9 @@ export const ATLAS_TILES = {
   lily_of_the_valley: 99,
   fern: 100,
   dead_bush: 101,
+  copper_ore: 102,
+  raw_copper_block: 103,
+  raw_iron_block: 104,
 } as const;
 const T = ATLAS_TILES;
 
@@ -451,6 +454,9 @@ export const BLOCKS: BlockDef[] = [
   { id: 92, name: 'lily_of_the_valley', solid: false, transparent: true, faces: all(T.lily_of_the_valley), hardness: 0, drop: 92, needsTool: false, tool: null },
   { id: 93, name: 'fern', solid: false, transparent: true, faces: all(T.fern), hardness: 0, drop: null, needsTool: false, tool: null },
   { id: 94, name: 'dead_bush', solid: false, transparent: true, faces: all(T.dead_bush), hardness: 0, drop: null, needsTool: false, tool: null },
+  { id: 95, name: 'copper_ore', solid: true, transparent: false, faces: all(T.copper_ore), hardness: 3, drop: 321, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 96, name: 'raw_copper_block', solid: true, transparent: false, faces: all(T.raw_copper_block), hardness: 5, drop: 96, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 97, name: 'raw_iron_block', solid: true, transparent: false, faces: all(T.raw_iron_block), hardness: 5, drop: 97, needsTool: true, tool: 'pickaxe', minTier: 2 },
 ];
 
 export const POPPY = 81;
@@ -625,3 +631,7 @@ export function plantDrops(id: number, random: () => number = Math.random): { id
   if (id === DEAD_BUSH) { const count = Math.floor(random() * 3); return count ? { id: 257, count } : null; }
   return null;
 }
+
+export const COPPER_ORE = 95;
+export const RAW_COPPER_BLOCK = 96;
+export const RAW_IRON_BLOCK = 97;

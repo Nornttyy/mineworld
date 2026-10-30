@@ -70,6 +70,8 @@ export const DIAMOND_BOOTS = 317;
 export const GOLD_INGOT = 318;
 export const RAW_IRON = 319;
 export const RAW_GOLD = 320;
+export const RAW_COPPER = 321;
+export const COPPER_INGOT = 322;
 export const ARMOR_ITEM_IDS = [
   LEATHER_HELMET,
   LEATHER_CHESTPLATE,
@@ -237,6 +239,8 @@ export const ITEMS: Record<number, ItemDef> = {
     armor: { slot: 'feet', armor: 3.0, toughness: 2.0, maxDurability: 429, material: 'diamond' },
   },
   [RAW_IRON]: { name: 'raw_iron', maxStack: 64, food: null, tool: null },
+  [RAW_COPPER]: { name: 'raw_copper', maxStack: 64, food: null, tool: null },
+  [COPPER_INGOT]: { name: 'copper_ingot', maxStack: 64, food: null, tool: null },
   [RAW_GOLD]: { name: 'raw_gold', maxStack: 64, food: null, tool: null },
   [GOLD_INGOT]: { name: 'gold_ingot', maxStack: 64, food: null, tool: null },
   [APPLE]: {

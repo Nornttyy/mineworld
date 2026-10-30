@@ -97,6 +97,9 @@ const ICON: Record<number, string> = {
   92: 'lily_of_the_valley',
   93: 'fern',
   94: 'dead_bush',
+  95: 'copper_ore',
+  96: 'raw_copper_block',
+  97: 'raw_iron_block',
 
 
   [APPLE]: 'apple',
@@ -164,6 +167,8 @@ const ICON: Record<number, string> = {
   318: 'gold_ingot',
   319: 'raw_iron',
   320: 'raw_gold',
+  321: 'raw_copper',
+  322: 'copper_ingot',
 };
 
 let activeTexturePack: TexturePack = 'classic';
@@ -189,6 +194,9 @@ const ZH: Record<number, string> = {
   92: '铃兰',
   93: '蕨',
   94: '枯灌木',
+  95: '铜矿石',
+  96: '粗铜块',
+  97: '粗铁块',
 
   302: '皮革帽子',
   303: '皮革外套',
@@ -209,6 +217,8 @@ const ZH: Record<number, string> = {
   318: '金锭',
   319: '粗铁',
   320: '粗金',
+  321: '粗铜',
+  322: '铜锭',
   1: '石头',
   2: '泥土',
   3: '草方块',

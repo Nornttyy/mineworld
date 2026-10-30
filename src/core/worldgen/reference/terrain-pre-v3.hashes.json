@@ -1,0 +1,30 @@
+[
+  {
+    "seed": "0",
+    "cx": 0,
+    "cz": 0,
+    "revision": 1,
+    "sha256": "3cabe209b8e3563d35f5639d9dc6caae7311352d0ff946271f775878f732a91e"
+  },
+  {
+    "seed": "36",
+    "cx": -1,
+    "cz": 0,
+    "revision": 1,
+    "sha256": "c5c5e2714af16cd0a45bee66b238bd2f7f43f2ec6565bfeebe73d16bf64fffe4"
+  },
+  {
+    "seed": "0",
+    "cx": 0,
+    "cz": 0,
+    "revision": 2,
+    "sha256": "8a0a5737b2f4a78a897fb4836f54e4f1b91614e4158a09dda54487670d2d2eba"
+  },
+  {
+    "seed": "36",
+    "cx": -1,
+    "cz": 0,
+    "revision": 2,
+    "sha256": "6c1248b5dbd9e250be616ba6d307551f47d79222e047346b9bd6f6fb1d45fe8b"
+  }
+]

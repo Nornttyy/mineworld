@@ -11,7 +11,8 @@
     "Furnace atlas cells 46/47 hold official top/side; fallback atlas receives same furnace pixels",
     "Furnace icon projects one front and one side from official face textures",
     "Modern terrain faces appended in atlas slots 48..87; both packs expanded to 4x22 without changing previous tile or block IDs.",
-    "Append 14 original cross-plant textures at atlas slots 88..101; matching inventory sprites; fern uses representative grass tint"
+    "Append 14 original cross-plant textures at atlas slots 88..101; matching inventory sprites; fern uses representative grass tint",
+    "Append copper ore and raw-metal blocks in slots 102..104; expand both atlases to 4x27"
   ],
   "known_limits": [
     "Biome tint is not yet sampled per biome",
@@ -714,6 +715,26 @@
     {
       "source": "textures/item/raw_iron.png",
       "sha1": "3b0c0323f5e6629ddc01759b94a3935b32cf68b2"
+    },
+    {
+      "source": "textures/block/copper_ore.png",
+      "sha1": "1e01a0d74a1ff6d1c11d6c18072a04751ac42dda"
+    },
+    {
+      "source": "textures/block/raw_copper_block.png",
+      "sha1": "0636ad82e9c91d683d02a52be07797e5179882e3"
+    },
+    {
+      "source": "textures/block/raw_iron_block.png",
+      "sha1": "ace8d55b228cb2c50016d2502e072300eb97f202"
+    },
+    {
+      "source": "textures/item/raw_copper.png",
+      "sha1": "60a7e90680656b3b922ea45cee9400ed7abae1fc"
+    },
+    {
+      "source": "textures/item/copper_ingot.png",
+      "sha1": "d7379aca7f8c9d607942c74ecd6e1481127c8170"
     }
   ]
 }

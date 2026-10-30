@@ -18,6 +18,10 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 }
 
 export const RECIPES: Recipe[] = [
+  ...['iron', 'copper'].flatMap((metal): Recipe[] => [
+    { type: 'shaped', pattern: ['XXX', 'XXX', 'XXX'], key: { X: `raw_${metal}` }, result: { item: `raw_${metal}_block`, count: 1 } },
+    { type: 'shapeless', ingredients: [`raw_${metal}_block`], result: { item: `raw_${metal}`, count: 9 } },
+  ]),
   {
     type: 'shaped',
     pattern: ['XXX', 'X X'],

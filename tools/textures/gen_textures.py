@@ -1089,8 +1089,9 @@ def main():
     'deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore'
 ]
     vegetation = ['poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'fern', 'dead_bush']
-    ATLAS_ORDER += vegetation
-    for name in vegetation:
+    ore_veins = ['copper_ore', 'raw_copper_block', 'raw_iron_block']
+    ATLAS_ORDER += vegetation + ore_veins
+    for name in vegetation + ore_veins:
         tex[name] = official_furnace_face(name)
     ATLAS_COLS, ATLAS_ROWS = 4, (len(ATLAS_ORDER) + 3) // 4  # 同步 mesher/DropRenderer/FirstPersonHand
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
@@ -1147,6 +1148,8 @@ def main():
         top = {"deepslate":"deepslate_top", "snow_block":"snow", "podzol":"podzol_top", "mycelium":"mycelium_top", "red_sandstone":"red_sandstone_top"}.get(nm,nm)
         side = {"snow_block":"snow", "podzol":"podzol_side", "mycelium":"mycelium_side"}.get(nm,nm)
         ICON_FACES[nm] = (top,side)
+    for name in ore_veins:
+        ICON_FACES[name] = (name, name)
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
     for nm, (top, side) in ICON_FACES.items():

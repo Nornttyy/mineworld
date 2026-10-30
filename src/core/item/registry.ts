@@ -10,6 +10,10 @@ const DEFS: ItemDef[] = [
   def('gold_ingot', 'Gold Ingot'),
   def('raw_iron', 'Raw Iron'),
   def('raw_gold', 'Raw Gold'),
+  def('raw_copper', 'Raw Copper'),
+  def('copper_ingot', 'Copper Ingot'),
+  def('raw_copper_block', 'Block of Raw Copper'),
+  def('raw_iron_block', 'Block of Raw Iron'),
   ...ARMOR_ITEM_IDS.map((id) => {
     const name = itemName(id)!;
     return def(name, name.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '), 1);

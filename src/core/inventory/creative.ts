@@ -5,6 +5,8 @@ import {
   GOLD_INGOT,
   RAW_IRON,
   RAW_GOLD,
+  RAW_COPPER,
+  COPPER_INGOT,
   itemMaxStack,
 } from '../items/items';
 
@@ -63,6 +65,7 @@ export const CREATIVE_CATEGORIES: readonly CreativeCategoryDef[] = [
       43,
       44,
       ...Array.from({ length: 36 }, (_, i) => 45 + i),
+      95, 96, 97,
     ],
   },
   { id: 'decoration', label: '装饰方块', items: [14, 16, 17, 29, ...Array.from({ length: 14 }, (_, i) => 81 + i)] },
@@ -121,6 +124,8 @@ export const CREATIVE_CATEGORIES: readonly CreativeCategoryDef[] = [
       GOLD_INGOT,
       RAW_IRON,
       RAW_GOLD,
+      RAW_COPPER,
+      COPPER_INGOT,
     ],
   },
 ] as const;

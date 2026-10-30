@@ -66,7 +66,7 @@ if fallback_path.exists():
     expanded = Image.new('RGBA', (64, ((len(layout.ATLAS_ORDER) + 3) // 4) * 16), (0,0,0,0))
     expanded.paste(fallback, (0,0))
     fallback = expanded
-    for name in ['furnace_front', 'furnace_top', 'furnace_side'] + layout.MODERN_TILES + layout.VEGETATION_TILES:
+    for name in ['furnace_front', 'furnace_top', 'furnace_side'] + layout.MODERN_TILES + layout.VEGETATION_TILES + layout.ORE_VEIN_TILES:
         index = layout.ATLAS_ORDER.index(name)
         fallback.paste(tiles[name], ((index % 4) * 16, (index // 4) * 16))
     fallback.save(fallback_path, optimize=True)
@@ -86,6 +86,13 @@ for name in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block', 
     layout.source.iso_icon(tiles[top], tiles[side], tiles[side]).save(legacy_icons / f'{name}.png')
 for name, original in [('grass_plant', 'short_grass'), ('tall_grass', 'tall_grass_top')]:
     tint(block(original), grass_tint).save(icons / f'{name}.png')
+
+for name in layout.ORE_VEIN_TILES:
+    layout.source.iso_icon(tiles[name], tiles[name], tiles[name]).save(legacy_icons / f'{name}.png')
+for name in ['raw_copper', 'copper_ingot']:
+    im = read_image(f'textures/item/{name}.png')
+    im.save(icons / f'{name}.png')
+    im.save(legacy_icons / f'{name}.png')
 
 for name in layout.VEGETATION_TILES:
     tiles[name].save(icons / f'{name}.png')
@@ -117,6 +124,8 @@ for i in range(frames):
     frame.putalpha(255)
     frame.save(OUT / 'blocks' / f'water_{i}.png')
 
+previous_path = OUT / 'java-resource-provenance.json'
+previous = json.loads(previous_path.read_text()) if previous_path.exists() else {}
 provenance = {
     'target': 'Minecraft Java 26.3', 'client_sha1': EXPECTED_SHA1,
     'source': 'Official Mojang version manifest client download',
@@ -127,7 +136,8 @@ provenance = {
                     'Furnace icon projects one front and one side from official face textures'],
     'known_limits': ['Biome tint is not yet sampled per biome', 'Some blocks still use simplified cube models',
                      'Furnace opening is fixed north (-Z); per-block orientation and lit-front states are not implemented'],
-    'files': list({r['source']: r for r in records}.values()),
+    'files': list({r['source']: r for r in previous.get('files', []) + records}.values()),
 }
+provenance['adaptations'] = list(dict.fromkeys(previous.get('adaptations', []) + provenance['adaptations'] + ['Append copper ore and raw-metal blocks in slots 102..104; expand both atlases to 4x27']))
 (OUT / 'java-resource-provenance.json').write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
 print(f'Imported {len(tiles)} block faces, {item_count} item sprites, {frames} water frames.')
