@@ -3,8 +3,8 @@ import type { MobKind } from '../core/entity/mob';
 import type { TexturePack } from '../core/settings';
 import { asset } from '../asset';
 
-// 生物皮肤采用 64×64 像素图集。每个方盒部位按「顶/底/右/前/左/后」展开，
-// 与经典方块生物的做法一致；所有线条均落在整数像素，无缩放绘制或抗锯齿。
+// Legacy procedural atlas layout is retained only for spider/rabbit. Adapted
+// official Java 26.3 skins use their own 64×32 or 64×64 layouts below.
 export const MOB_SKIN_SIZE = 64;
 
 export interface SkinPart {
@@ -13,6 +13,10 @@ export interface SkinPart {
   x: number; // 方盒 X 向贴图像素数
   y: number; // 方盒高度贴图像素数
   z: number; // 方盒 Z 向贴图像素数
+  textureWidth?: number;
+  textureHeight?: number;
+  vanilla?: boolean; // Java model coordinates: +Y down, -Z front.
+  mirror?: boolean;
 }
 
 export type SkinFace = 'right' | 'front' | 'left' | 'back' | 'top' | 'bottom';
@@ -59,6 +63,21 @@ export function skinFaceRect(part: SkinPart, face: SkinFace): SkinRect {
 
 const cache = new Map<string, THREE.Texture>();
 
+export const OFFICIAL_MOB_TEXTURE_SIZE = {
+  zombie: [64, 64],
+  husk: [64, 64],
+  skeleton: [64, 32],
+  creeper: [64, 32],
+  pig: [64, 64],
+  cow: [64, 64],
+  sheep: [64, 32],
+  sheep_wool: [64, 32],
+  chicken: [64, 32],
+} as const;
+export type MobTextureKind = MobKind | 'sheep_wool';
+export const isOfficialMobSkin = (kind: MobTextureKind): boolean =>
+  kind in OFFICIAL_MOB_TEXTURE_SIZE;
+
 export const MOB_TEXTURE_KINDS: readonly MobKind[] = [
   'pig',
   'cow',
@@ -72,7 +91,7 @@ export const MOB_TEXTURE_KINDS: readonly MobKind[] = [
   'spider',
 ] as const;
 
-export const mobSkinUrl = (kind: MobKind, _pack: TexturePack = 'classic'): string =>
+export const mobSkinUrl = (kind: MobTextureKind, _pack: TexturePack = 'classic'): string =>
   asset(`textures/mobs/${kind}.png`);
 
 function srand(seed: number): () => number {
@@ -332,20 +351,27 @@ function drawSkin(kind: MobKind, ctx: CanvasRenderingContext2D): void {
   else paintHumanoid(ctx, kind);
 }
 
-export function mobTexture(kind: MobKind, pack: TexturePack = 'classic'): THREE.Texture {
+export function mobTexture(kind: MobTextureKind, pack: TexturePack = 'classic'): THREE.Texture {
   const key = `${pack}:${kind}`;
   const cached = cache.get(key);
   if (cached) return cached;
-  // 正常路径加载独立 PNG 皮肤；只有资源加载失败时才回退到旧 Canvas 绘制，避免生物变纯色白模。
+  // Official atlas failure must not silently use the incompatible legacy UV layout.
   const texture = new THREE.TextureLoader().load(
     mobSkinUrl(kind, pack),
     undefined,
     undefined,
     () => {
       const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = MOB_SKIN_SIZE;
+      const dimensions = OFFICIAL_MOB_TEXTURE_SIZE[kind as keyof typeof OFFICIAL_MOB_TEXTURE_SIZE];
+      canvas.width = dimensions?.[0] ?? MOB_SKIN_SIZE;
+      canvas.height = dimensions?.[1] ?? MOB_SKIN_SIZE;
       const ctx = canvas.getContext('2d');
-      if (ctx) drawSkin(kind, ctx);
+      if (ctx && !isOfficialMobSkin(kind)) drawSkin(kind as MobKind, ctx);
+      else if (ctx) {
+        // Never paint the old incompatible 64x64 atlas onto official UV islands.
+        ctx.fillStyle = '#9b9b9b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
       texture.image = canvas;
       texture.needsUpdate = true;
     },

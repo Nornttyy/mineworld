@@ -31,10 +31,10 @@ export class Hotbar {
       count.className = 'hotbar-count';
       // 耐久条（仅工具且未满时显示）：底部一条，绿→红随剩余比例
       const durTrack = document.createElement('div');
-      durTrack.style.cssText =
-        'position:absolute;left:12%;right:12%;bottom:9%;height:3px;background:rgba(0,0,0,.55);border-radius:1px;display:none;overflow:hidden;';
+      durTrack.className = 'hotbar-durability';
+      durTrack.style.display = 'none';
       const durFill = document.createElement('div');
-      durFill.style.cssText = 'height:100%;width:100%;';
+      durFill.className = 'hotbar-durability-fill';
       durTrack.appendChild(durFill);
       slot.append(icon, count, durTrack);
       // 触屏直接点快捷栏选格；pointerdown 可在多指操作中与移动/转向并行。
@@ -74,8 +74,10 @@ export class Hotbar {
       if (s && maxDur && (s.dur ?? maxDur) < maxDur) {
         const ratio = Math.max(0, (s.dur ?? maxDur) / maxDur);
         this.durTracks[i].style.display = 'block';
-        this.durFills[i].style.width = `${ratio * 100}%`;
-        this.durFills[i].style.background = `hsl(${Math.round(ratio * 120)},85%,45%)`; // 120=绿 → 0=红
+        // Java's item durability bar has 13 integer pixels; do not stretch a
+        // fractional percentage across the frame or smooth its square corners.
+        this.durFills[i].style.width = `calc(var(--gui-scale) * ${Math.round(ratio * 13)}px)`;
+        this.durFills[i].style.background = `hsl(${Math.round(ratio * 120)},100%,50%)`;
       } else {
         this.durTracks[i].style.display = 'none';
       }

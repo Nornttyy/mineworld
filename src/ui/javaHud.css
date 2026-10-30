@@ -1,0 +1,191 @@
+/* Java 26.3 HUD sprites, extracted without redrawing. Asset hashes and archive
+   paths: public/textures/ui/java/provenance.json. One GUI pixel is --gui-scale
+   physical pixels; the root sets that variable to an integer for every viewport. */
+html body #hotbar,
+html.touch-device body #hotbar {
+  left: 50%;
+  bottom: var(--hud-safe-bottom, 0px);
+  width: calc(var(--gui-scale) * 182px);
+  height: calc(var(--gui-scale) * 22px);
+  padding: calc(var(--gui-scale) * 1px);
+  box-sizing: border-box;
+  gap: 0;
+  border: 0;
+  outline: 0;
+  background: url('/textures/ui/java/hud/hotbar.png') center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+html body #hotbar .hotbar-slot {
+  flex: 0 0 calc(var(--gui-scale) * 20px);
+  width: calc(var(--gui-scale) * 20px);
+  height: calc(var(--gui-scale) * 20px);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  touch-action: none;
+}
+
+html body #hotbar .hotbar-icon {
+  inset: auto;
+  left: calc(var(--gui-scale) * 2px);
+  top: calc(var(--gui-scale) * 2px);
+  width: calc(var(--gui-scale) * 16px);
+  height: calc(var(--gui-scale) * 16px);
+  background-size: 100% 100%;
+}
+
+html body #hotbar .hotbar-slot.selected::after {
+  inset: auto;
+  left: calc(var(--gui-scale) * -2px);
+  top: calc(var(--gui-scale) * -2px);
+  width: calc(var(--gui-scale) * 24px);
+  height: calc(var(--gui-scale) * 23px);
+  border: 0;
+  box-shadow: none;
+  background: url('/textures/ui/java/hud/hotbar_selection.png') center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+html body #hotbar .hotbar-count {
+  right: calc(var(--gui-scale) * 1px);
+  bottom: 0;
+  font-family: var(--game-font);
+  font-size: calc(var(--gui-scale) * 9px);
+  line-height: calc(var(--gui-scale) * 9px);
+  text-shadow: calc(var(--gui-scale) * 1px) calc(var(--gui-scale) * 1px) 0 #3f3f3f;
+  z-index: 1;
+}
+
+.hotbar-durability {
+  position: absolute;
+  left: calc(var(--gui-scale) * 4px);
+  top: calc(var(--gui-scale) * 15px);
+  width: calc(var(--gui-scale) * 13px);
+  height: calc(var(--gui-scale) * 2px);
+  background: #000;
+  pointer-events: none;
+}
+
+.hotbar-durability-fill {
+  height: calc(var(--gui-scale) * 1px);
+}
+
+html body #status,
+html.touch-device body #status {
+  width: calc(var(--gui-scale) * 182px);
+  height: calc(var(--gui-scale) * 9px);
+  bottom: calc(var(--hud-safe-bottom, 0px) + var(--gui-scale) * 30px);
+  align-items: flex-start;
+}
+
+/* Empty XP track only: this build has no XP state, level, or earned progress. */
+html body #status::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--gui-scale) * 10px);
+  left: 0;
+  width: calc(var(--gui-scale) * 182px);
+  height: calc(var(--gui-scale) * 5px);
+  background: url('/textures/ui/java/hud/experience_bar_background.png') center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+html body #health,
+html body #hunger {
+  width: calc(var(--gui-scale) * 81px);
+  height: calc(var(--gui-scale) * 9px);
+}
+
+html body .hud-icon {
+  flex: 0 0 calc(var(--gui-scale) * 9px);
+  width: calc(var(--gui-scale) * 9px);
+  height: calc(var(--gui-scale) * 9px);
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+html body #health .hud-icon:not(:last-child) {
+  margin-right: calc(var(--gui-scale) * -1px);
+}
+
+html body #hunger .hud-icon:not(:last-child),
+html body #oxygen .hud-icon:not(:last-child) {
+  margin-left: calc(var(--gui-scale) * -1px);
+}
+
+/* Do not retain the old smooth whole-row shaking, which is not a Java HUD
+   animation. State-driven per-heart damage/regen animation is a separate task. */
+html body #health.low .hud-icon,
+html body #hunger.low .hud-icon {
+  animation: none;
+}
+
+html body #oxygen,
+html.touch-device body #oxygen {
+  width: calc(var(--gui-scale) * 182px);
+  height: calc(var(--gui-scale) * 9px);
+  bottom: calc(var(--hud-safe-bottom, 0px) + var(--gui-scale) * 40px);
+}
+
+html body #crosshair {
+  width: calc(var(--gui-scale) * 15px);
+  height: calc(var(--gui-scale) * 15px);
+  margin: calc(var(--gui-scale) * -7px) 0 0 calc(var(--gui-scale) * -7px);
+  opacity: 1;
+  background: url('/textures/ui/java/hud/crosshair.png') center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  mix-blend-mode: difference;
+}
+
+html body #crosshair::before,
+html body #crosshair::after {
+  display: none;
+}
+
+html body #attack-indicator {
+  left: calc(var(--gui-scale) * -1px);
+  top: calc(var(--gui-scale) * 16px);
+  width: calc(var(--gui-scale) * 16px);
+  height: calc(var(--gui-scale) * 4px);
+  border: 0;
+  background: url('/textures/ui/java/hud/crosshair_attack_indicator_background.png') center / 100% 100% no-repeat;
+}
+
+html body #attack-indicator i {
+  width: 100%;
+  height: 100%;
+  transform: none;
+  background: url('/textures/ui/java/hud/crosshair_attack_indicator_progress.png') left center / 100% 100% no-repeat;
+  clip-path: inset(0 calc((1 - var(--attack-charge, 0)) * 100%) 0 0);
+}
+
+html body #held-item-name,
+html.touch-device body #held-item-name {
+  bottom: calc(var(--hud-safe-bottom, 0px) + var(--gui-scale) * 50px);
+  min-width: calc(var(--gui-scale) * 182px);
+  font-family: var(--game-font);
+  font-size: calc(var(--gui-scale) * 9px);
+  line-height: calc(var(--gui-scale) * 9px);
+  text-shadow: calc(var(--gui-scale) * 1px) calc(var(--gui-scale) * 1px) 0 #3f3f3f;
+}
+
+html body.creative-mode #held-item-name {
+  bottom: calc(var(--hud-safe-bottom, 0px) + var(--gui-scale) * 36px);
+}
+
+html body.hud-hidden #crosshair,
+html body.hud-hidden #hotbar,
+html body.hud-hidden #held-item-name,
+html body.hud-hidden #status,
+html body.hud-hidden #oxygen,
+html body.creative-mode #status,
+html body.creative-mode #oxygen {
+  display: none !important;
+}
+
+/* Java itself has no touch HUD. Preserve this project's multi-touch slot taps
+   and safe-area clearance while retaining the same integer-scaled geometry. */
+html.touch-device body {
+  --hud-safe-bottom: env(safe-area-inset-bottom, 0px);
+}

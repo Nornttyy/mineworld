@@ -15,13 +15,14 @@ export function touchesCactus(
   py: number,
   pz: number,
   getBlock: (x: number, y: number, z: number) => number,
+  height = HEIGHT,
 ): boolean {
   const e = 0.1; // 检测扩展余量，比碰撞箱略大，确保贴边触发
   const hw = WIDTH / 2;
   const x0 = Math.floor(px - hw - e);
   const x1 = Math.floor(px + hw + e);
   const y0 = Math.floor(py - e); // 含脚下贴面格：站在仙人掌【顶上】也要受伤(MC 仙人掌 15/16 高)
-  const y1 = Math.floor(py + HEIGHT);
+  const y1 = Math.floor(py + height - 1e-6);
   const z0 = Math.floor(pz - hw - e);
   const z1 = Math.floor(pz + hw + e);
   for (let x = x0; x <= x1; x++) {

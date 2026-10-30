@@ -1,17 +1,19 @@
-// 生命/饥饿核心逻辑（纯数据，禁止 import three / render）。数值 1:1 对齐 MC Java。
-// 参考 MC FoodData.tick：先结算疲劳，再走回血/掉血计时。
+// 生命/饥饿核心逻辑（纯数据，禁止 import three / render）。目标为 Java 26.3 普通难度。
+// 先结算疲劳，再走回血/掉血计时；已核实规则与未覆盖项见 docs/survival-audit.md。
 
 export const MAX_HEALTH = 20; // 10 颗心（半心 = 1 HP）
 export const MAX_FOOD = 20; // 10 个鸡腿
 export const MAX_OXYGEN = 10; // 10 个气泡（水下憋气）
-// Java 1.12：食物值必须大于 6（即至少 7）才能开始或保持疾跑。
+// Java：食物值必须大于 6（即至少 7）才能开始或保持疾跑。
 export const MIN_SPRINT_FOOD = 7;
-const STARVE_FLOOR = 1; // 普通难度：饿到剩 1 心就不再掉（不会饿死）
-const HEAL_EXHAUSTION = 6; // 自然回 1 心所消耗的疲劳（MC 1.9+）
+const STARVE_FLOOR = 1; // 普通难度：1 HP = 半颗心，此时饥饿不再扣血
+const HEAL_EXHAUSTION = 6; // 自然回血每 1 HP（半颗心）的耗竭（Java 1.11+）
 const REGEN_TICKS = 80; // 慢速回血 / 掉血周期（4s）
 const FAST_REGEN_TICKS = 10; // 满饥饿+饱和时的快速回血周期（0.5s）
-const OXY_DRAIN_TICKS = 30; // 头在水下每 30 刻(1.5s)耗 1 气泡（10 泡≈15s）
+export const OXYGEN_AIR_TICKS = 300; // 最大空气容量，供 HUD 与模拟共享。
+const OXY_DRAIN_TICKS = OXYGEN_AIR_TICKS / MAX_OXYGEN; // 头在水下每 30 刻(1.5s)耗 1 气泡（10 泡≈15s）
 const DROWN_TICKS = 20; // 气泡耗尽后每 20 刻(1s)淹溺掉 2 血
+const AIR_RECOVERY_PER_TICK = 4; // 现代 Java 出水逐刻回气，0→300 需 75 刻。
 
 export interface Survival {
   health: number; // 0..MAX_HEALTH
@@ -20,7 +22,7 @@ export interface Survival {
   exhaustion: number; // 0..40，>4 时结算
   foodTimer: number; // 朝下一次回血/掉血累计的刻数
   oxygen: number; // 0..MAX_OXYGEN 气泡数（仅头在水下时消耗）
-  oxygenTimer: number; // 氧气消耗 / 淹溺计时
+  oxygenTimer: number; // 与气泡编码空气刻数：oxygen * 30 - oxygenTimer，兼容旧存档
 }
 
 export interface FoodValue {
@@ -91,14 +93,16 @@ export function tickSurvival(s: Survival): void {
   }
 
   // 2) 回血 / 掉血计时
-  if (s.food >= MAX_FOOD && s.saturation > 0 && s.health < MAX_HEALTH) {
-    // 满饥饿且有饱和：快速回血
+  const canHeal = s.health > 0 && s.health < MAX_HEALTH;
+  if (s.food >= MAX_FOOD && s.saturation > 0 && canHeal) {
+    // 满饥饿且有饱和：低饱和度恢复小于 1 HP，同时按比例增加耗竭。
     if (++s.foodTimer >= FAST_REGEN_TICKS) {
-      s.health = Math.min(MAX_HEALTH, s.health + 1);
-      addExhaustion(s, HEAL_EXHAUSTION);
+      const regeneration = Math.min(s.saturation, HEAL_EXHAUSTION);
+      s.health = Math.min(MAX_HEALTH, s.health + regeneration / HEAL_EXHAUSTION);
+      addExhaustion(s, regeneration);
       s.foodTimer = 0;
     }
-  } else if (s.food >= 18 && s.health < MAX_HEALTH) {
+  } else if (s.food >= 18 && canHeal) {
     // 饥饿≥18：慢速回血
     if (++s.foodTimer >= REGEN_TICKS) {
       s.health = Math.min(MAX_HEALTH, s.health + 1);
@@ -116,22 +120,20 @@ export function tickSurvival(s: Survival): void {
   }
 }
 
-// 氧气：头在水下才消耗（每 30 刻 -1 气泡），耗尽后每 20 刻淹溺掉 2 血；出水立即回满。
+export function oxygenAirTicks(s: Pick<Survival, 'oxygen' | 'oxygenTimer'>): number {
+  return s.oxygen * OXY_DRAIN_TICKS - s.oxygenTimer;
+}
+
+// 保留旧气泡+计时两个存档字段，无损表示正空气与 -19..0 的淹溺等待。
+// 头在水下每刻 -1 air；出水每刻 +4 air，不能靠一瞬出水回满。
 // headInWater 由游戏层（玩家眼睛所在格是否为水）传入。
 export function tickOxygen(s: Survival, headInWater: boolean): void {
-  if (!headInWater) {
-    s.oxygen = MAX_OXYGEN;
-    s.oxygenTimer = 0;
-    return;
-  }
-  s.oxygenTimer++;
-  if (s.oxygen > 0) {
-    if (s.oxygenTimer >= OXY_DRAIN_TICKS) {
-      s.oxygen = Math.max(0, s.oxygen - 1);
-      s.oxygenTimer = 0;
-    }
-  } else if (s.oxygenTimer >= DROWN_TICKS) {
+  let air = oxygenAirTicks(s);
+  air = headInWater ? air - 1 : Math.min(MAX_OXYGEN * OXY_DRAIN_TICKS, air + AIR_RECOVERY_PER_TICK);
+  if (headInWater && air <= -DROWN_TICKS) {
     applyDamage(s, 2);
-    s.oxygenTimer = 0;
+    air = 0;
   }
+  s.oxygen = Math.max(0, Math.ceil(air / OXY_DRAIN_TICKS));
+  s.oxygenTimer = s.oxygen * OXY_DRAIN_TICKS - air;
 }

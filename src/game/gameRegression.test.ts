@@ -108,6 +108,8 @@ describe('Game high-risk regressions', () => {
       inv,
       invUI: { showCreative, show },
       touch: { setActive },
+      crack: { hide: vi.fn() },
+      publishControlState: vi.fn(),
     });
 
     (game as unknown as { openPlayerInventory(): void }).openPlayerInventory();

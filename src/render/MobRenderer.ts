@@ -8,6 +8,9 @@ import {
   skinFaceRect,
   type SkinFace,
   type SkinPart,
+  OFFICIAL_MOB_TEXTURE_SIZE,
+  isOfficialMobSkin,
+  type MobTextureKind,
 } from './mobTextures';
 import { creeperFuseVisual } from './creeperVisual';
 
@@ -19,7 +22,13 @@ const SWING_RATE = 3.4; // 摆腿快慢(弧度/走过一格)，按位移推进 �
 
 const BOX_SKIN_FACES: SkinFace[] = ['right', 'left', 'top', 'bottom', 'front', 'back'];
 
-function box(w: number, h: number, d: number, hex: number, skin?: SkinPart): THREE.BufferGeometry {
+export function mobBoxGeometry(
+  w: number,
+  h: number,
+  d: number,
+  hex: number,
+  skin?: SkinPart,
+): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
   const c = new THREE.Color(hex);
   const colors: number[] = [];
@@ -30,6 +39,52 @@ function box(w: number, h: number, d: number, hex: number, skin?: SkinPart): THR
   g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   if (skin) {
     const uv = g.attributes.uv as THREE.BufferAttribute;
+    if (skin.vanilla) {
+      const p = g.getAttribute('position'),
+        n = g.getAttribute('normal');
+      for (let i = 0; i < p.count; i++) {
+        const x = skin.mirror ? 0.5 - p.getX(i) / w : p.getX(i) / w + 0.5;
+        const y = p.getY(i) / h + 0.5,
+          z = p.getZ(i) / d + 0.5;
+        const nx = n.getX(i) * (skin.mirror ? -1 : 1),
+          ny = n.getY(i),
+          nz = n.getZ(i);
+        let face: SkinFace, fu: number, fv: number;
+        if (nx > 0.5) {
+          face = 'left';
+          fu = z;
+          fv = y;
+        } else if (nx < -0.5) {
+          face = 'right';
+          fu = 1 - z;
+          fv = y;
+        } else if (ny > 0.5) {
+          face = 'bottom';
+          fu = x;
+          fv = z;
+        } else if (ny < -0.5) {
+          face = 'top';
+          fu = x;
+          fv = 1 - z;
+        } else if (nz > 0.5) {
+          face = 'back';
+          fu = 1 - x;
+          fv = y;
+        } else {
+          face = 'front';
+          fu = x;
+          fv = y;
+        }
+        const r = skinFaceRect(skin, face);
+        uv.setXY(
+          i,
+          (r.x + fu * r.w) / (skin.textureWidth ?? 64),
+          1 - (r.y + fv * r.h) / (skin.textureHeight ?? 64),
+        );
+      }
+      g.userData.skin = { ...skin };
+      return g;
+    }
     for (let face = 0; face < BOX_SKIN_FACES.length; face++) {
       const rect = skinFaceRect(skin, BOX_SKIN_FACES[face]);
       const u0 = rect.x / MOB_SKIN_SIZE;
@@ -59,7 +114,7 @@ function part(
   z: number,
   skin?: SkinPart,
 ): THREE.Mesh {
-  const m = new THREE.Mesh(box(w, h, d, hex, skin), mat);
+  const m = new THREE.Mesh(mobBoxGeometry(w, h, d, hex, skin), mat);
   m.position.set(x, y, z);
   g.add(m);
   return m;
@@ -71,9 +126,262 @@ interface Model {
   arms: THREE.Group[];
   mats: THREE.MeshBasicMaterial[]; // 全部可染色材质(纯色 + 像素皮肤) → 受击染红 / 个体微染色
   base: THREE.Color; // 个体基础色(平时用，受击换红)
-  head?: THREE.Mesh;
+  head?: THREE.Object3D;
   tail?: THREE.Mesh;
   headY: number; // 头的原始 y(动画基准)
+  nativeRig?: boolean;
+}
+
+// Authored boxes use dimensions/UV islands verified from the official 26.3 adult
+// model definitions. Minecraft's +Y-down/-Z-forward frame is converted once to
+// the game's +Y-up/+X-forward frame. Keep this separate from legacy custom UVs.
+type NativeCube = readonly [
+  u: number,
+  v: number,
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  h: number,
+  d: number,
+  inflate?: number,
+  mirror?: boolean,
+];
+function buildOfficialModel(
+  kind: MobKind,
+  pack: TexturePack,
+  textures?: Partial<Record<MobTextureKind, THREE.Texture>>,
+): Model {
+  const group = new THREE.Group(),
+    rig = new THREE.Group();
+  group.add(rig);
+  rig.position.y = 24 / 16;
+  rig.rotation.set(Math.PI, -Math.PI / 2, 0);
+  const legs: THREE.Group[] = [],
+    arms: THREE.Group[] = [];
+  const skinMat = new THREE.MeshBasicMaterial({
+    map: textures?.[kind] ?? mobTexture(kind, pack),
+    vertexColors: true,
+    alphaTest: 0.5,
+  });
+  const mats = [skinMat];
+  const dimensions = OFFICIAL_MOB_TEXTURE_SIZE[kind as keyof typeof OFFICIAL_MOB_TEXTURE_SIZE];
+  function cubes(
+    parent: THREE.Group,
+    data: readonly NativeCube[],
+    mat = skinMat,
+    texSize: readonly [number, number] = dimensions,
+  ): void {
+    for (const [i, [u, v, x, y, z, w, h, d, inflate = 0, mirror = false]] of data.entries()) {
+      const skin: SkinPart = {
+        u,
+        v,
+        x: w,
+        y: h,
+        z: d,
+        textureWidth: texSize[0],
+        textureHeight: texSize[1],
+        vanilla: true,
+        mirror,
+      };
+      const mesh = part(
+        parent,
+        mat,
+        (w + 2 * inflate) / 16,
+        (h + 2 * inflate) / 16,
+        (d + 2 * inflate) / 16,
+        0xffffff,
+        (x + w / 2) / 16,
+        (y + h / 2) / 16,
+        (z + d / 2) / 16,
+        skin,
+      );
+      mesh.name = parent.name + ':' + i;
+    }
+  }
+  function node(
+    name: string,
+    pivot: readonly [number, number, number],
+    data: readonly NativeCube[],
+    rx = 0,
+    parent = rig,
+    mat = skinMat,
+    texSize: readonly [number, number] = dimensions,
+  ): THREE.Group {
+    const g = new THREE.Group();
+    g.name = name;
+    g.position.set(...(pivot.map((v) => v / 16) as [number, number, number]));
+    g.rotation.x = rx;
+    parent.add(g);
+    cubes(g, data, mat, texSize);
+    return g;
+  }
+  let head: THREE.Group;
+  if (kind === 'zombie' || kind === 'husk' || kind === 'skeleton') {
+    const skeleton = kind === 'skeleton',
+      thick = skeleton ? 2 : 4;
+    head = node('head', [0, 0, 0], [[0, 0, -4, -8, -4, 8, 8, 8]]);
+    if (!skeleton) cubes(head, [[32, 0, -4, -8, -4, 8, 8, 8, 0.5]]);
+    node('body', [0, 0, 0], [[16, 16, -4, 0, -2, 8, 12, 4]]);
+    for (const [side, name] of [
+      [-1, 'right'],
+      [1, 'left'],
+    ] as const) {
+      const x = skeleton ? -1 : side < 0 ? -3 : -1;
+      const arm = node(
+        name + '_arm',
+        [side * 5, 2, 0],
+        [[40, 16, x, -2, -thick / 2, thick, 12, thick, 0, side > 0]],
+        skeleton ? (side < 0 ? -1.18 : 0) : -Math.PI / 2,
+      );
+      arms.push(arm);
+      legs.push(
+        node(
+          name + '_leg',
+          [side * (skeleton ? 2 : 1.9), 12, 0],
+          [[0, 16, -thick / 2, 0, -thick / 2, thick, 12, thick, 0, side > 0]],
+        ),
+      );
+    }
+    if (skeleton) {
+      const wood = new THREE.MeshBasicMaterial({ color: 0x78532d }),
+        string = new THREE.MeshBasicMaterial({ color: 0xd9d7c9 });
+      mats.push(wood, string);
+      const bow = new THREE.Group();
+      bow.name = 'reconstructed-bow';
+      bow.position.set(0, 0.57, -0.08);
+      arms[0].add(bow);
+      part(bow, wood, 0.04, 0.54, 0.04, 0xffffff, 0, 0, 0);
+      part(bow, wood, 0.04, 0.12, 0.04, 0xffffff, 0, 0.27, 0.05);
+      part(bow, wood, 0.04, 0.12, 0.04, 0xffffff, 0, -0.27, 0.05);
+      part(bow, string, 0.012, 0.6, 0.012, 0xffffff, 0, 0, 0.1);
+    }
+  } else if (kind === 'creeper') {
+    head = node('head', [0, 6, 0], [[0, 0, -4, -8, -4, 8, 8, 8]]);
+    node('body', [0, 6, 0], [[16, 16, -4, 0, -2, 8, 12, 4]]);
+    for (const [x, z, name] of [
+      [-2, 4, 'right_hind'],
+      [2, -4, 'left_front'],
+      [2, 4, 'left_hind'],
+      [-2, -4, 'right_front'],
+    ] as const)
+      legs.push(node(name + '_leg', [x, 18, z], [[0, 16, -2, 0, -2, 4, 6, 4]]));
+  } else if (kind === 'pig' || kind === 'cow' || kind === 'sheep') {
+    const pig = kind === 'pig',
+      cow = kind === 'cow';
+    if (pig) {
+      head = node(
+        'head',
+        [0, 12, -6],
+        [
+          [0, 0, -4, -4, -8, 8, 8, 8],
+          [16, 16, -2, 0, -9, 4, 3, 1],
+        ],
+      );
+      node('body', [0, 11, 2], [[28, 8, -5, -10, -7, 10, 16, 8]], Math.PI / 2);
+    } else if (cow) {
+      head = node(
+        'head',
+        [0, 4, -8],
+        [
+          [0, 0, -4, -4, -6, 8, 8, 6],
+          [1, 33, -3, 1, -7, 6, 3, 1],
+          [22, 0, -5, -5, -5, 1, 3, 1],
+          [22, 0, 4, -5, -5, 1, 3, 1],
+        ],
+      );
+      node(
+        'body',
+        [0, 5, 2],
+        [
+          [18, 4, -6, -10, -7, 12, 18, 10],
+          [52, 0, -2, 2, -8, 4, 6, 1],
+        ],
+        Math.PI / 2,
+      );
+    } else {
+      head = node('head', [0, 6, -8], [[0, 0, -3, -4, -6, 6, 6, 8]]);
+      node('body', [0, 5, 2], [[28, 8, -4, -10, -7, 8, 16, 6]], Math.PI / 2);
+    }
+    const legH = pig ? 6 : 12,
+      legX = cow ? 4 : 3;
+    for (const [side, z, name] of [
+      [-1, 7, 'right_hind'],
+      [1, -5, 'left_front'],
+      [1, 7, 'left_hind'],
+      [-1, -5, 'right_front'],
+    ] as const)
+      legs.push(
+        node(
+          name + '_leg',
+          [side * legX, 24 - legH, z],
+          [[0, 16, -2, 0, -2, 4, legH, 4, 0, pig ? side > 0 : cow ? side > 0 : side < 0]],
+        ),
+      );
+    if (kind === 'sheep') {
+      const wool = new THREE.MeshBasicMaterial({
+        map: textures?.sheep_wool ?? mobTexture('sheep_wool', pack),
+        vertexColors: true,
+        alphaTest: 0.5,
+      });
+      mats.push(wool);
+      cubes(head, [[0, 0, -3, -4, -4, 6, 6, 6, 0.6]], wool, [64, 32]);
+      node(
+        'wool_body',
+        [0, 5, 2],
+        [[28, 8, -4, -10, -7, 8, 16, 6, 1.75]],
+        Math.PI / 2,
+        rig,
+        wool,
+        [64, 32],
+      );
+      for (const leg of legs) cubes(leg, [[0, 16, -2, 0, -2, 4, 6, 4, 0.5]], wool, [64, 32]);
+    }
+  } else {
+    head = node(
+      'head',
+      [0, 15, -4],
+      [
+        [0, 0, -2, -6, -2, 4, 6, 3],
+        [14, 0, -2, -4, -4, 4, 2, 2],
+        [14, 4, -1, -2, -3, 2, 2, 2],
+      ],
+    );
+    node('body', [0, 16, 0], [[0, 9, -3, -4, -3, 6, 8, 6]], Math.PI / 2);
+    for (const [x, name] of [
+      [-2, 'right'],
+      [1, 'left'],
+    ] as const)
+      legs.push(node(name + '_leg', [x, 19, 1], [[26, 0, -1, 0, -3, 3, 5, 3]]));
+    node('right_wing', [-4, 13, 0], [[24, 13, 0, 0, -3, 1, 4, 6]]);
+    node('left_wing', [4, 13, 0], [[24, 13, -1, 0, -3, 1, 4, 6]]);
+  }
+  // The old fake face lighting assumed +Y-up boxes. Bake it only after the
+  // Java frame and rotated animal torsos are in place, so heads do not have
+  // dark tops and luminous bottoms. Full vanilla entity lighting is separate.
+  group.updateMatrixWorld(true);
+  group.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !object.geometry.userData.skin) return;
+    const n = object.geometry.getAttribute('normal'),
+      color = object.geometry.getAttribute('color');
+    const normal = new THREE.Vector3();
+    for (let i = 0; i < n.count; i++) {
+      normal.fromBufferAttribute(n, i).transformDirection(object.matrixWorld);
+      const shade = normal.y > 0.5 ? 1 : normal.y < -0.5 ? 0.42 : 0.8;
+      color.setXYZ(i, shade, shade, shade);
+    }
+  });
+  group.name = 'mob:' + kind;
+  return {
+    group,
+    legs,
+    arms,
+    mats,
+    base: new THREE.Color(1, 1, 1),
+    head,
+    headY: head.position.y,
+    nativeRig: true,
+  };
 }
 
 function addLeg(
@@ -113,7 +421,12 @@ function addArm(
 }
 
 // 模型本地朝 +X 为正面；x=体长、z=体宽、y 从脚(0)向上。
-function buildModel(kind: MobKind, texturePack: TexturePack): Model {
+export function buildMobModel(
+  kind: MobKind,
+  texturePack: TexturePack,
+  textures?: Partial<Record<MobTextureKind, THREE.Texture>>,
+): Model {
+  if (isOfficialMobSkin(kind)) return buildOfficialModel(kind, texturePack, textures);
   const g = new THREE.Group();
   const legs: THREE.Group[] = [];
   const arms: THREE.Group[] = [];
@@ -353,7 +666,7 @@ export class MobRenderer {
     for (const mob of mobs) {
       let m = this.models.get(mob);
       if (!m) {
-        const built = buildModel(mob.kind, this.texturePack);
+        const built = buildMobModel(mob.kind, this.texturePack);
         this.scene.add(built.group);
         // baseScale = 建模时的个体大小(g.scale)；苦力怕引信鼓胀时在它基础上放大、引信熄灭即复原
         m = {
@@ -362,7 +675,7 @@ export class MobRenderer {
           t: Math.random() * 10,
           baseScale: built.group.scale.x,
           bright: 1,
-          dispYaw: mob.yaw,
+          dispYaw: -mob.yaw,
           swingAmt: 0,
         }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
@@ -399,17 +712,24 @@ export class MobRenderer {
       if (mob.kind === 'spider') {
         m.legs.forEach((leg, i) => (leg.rotation.y = (i % 2 === 0 ? swing : -swing) * 0.45));
       } else {
-        m.legs.forEach((leg, i) => (leg.rotation.z = i % 2 === 0 ? swing : -swing));
+        m.legs.forEach(
+          (leg, i) => (leg.rotation[m.nativeRig ? 'x' : 'z'] = i % 2 === 0 ? swing : -swing),
+        );
       }
       if (mob.kind === 'zombie' || mob.kind === 'husk') {
         // 双臂保持前伸，但随步伐轻微错相摆动，不再是一整根静态横条。
         m.arms.forEach(
           (arm, i) =>
-            (arm.rotation.z = 1.28 + (i ? -1 : 1) * Math.sin(m.phase) * 0.08 * m.swingAmt),
+            (arm.rotation[m.nativeRig ? 'x' : 'z'] =
+              (m.nativeRig ? -Math.PI / 2 : 1.28) +
+              (i ? -1 : 1) * Math.sin(m.phase) * 0.08 * m.swingAmt),
         );
       } else if (mob.kind === 'skeleton') {
-        if (m.arms[0]) m.arms[0].rotation.z = 1.18 + Math.sin(m.phase) * 0.06 * m.swingAmt;
-        if (m.arms[1]) m.arms[1].rotation.z = 0.12 - swing * 0.45;
+        if (m.arms[0])
+          m.arms[0].rotation[m.nativeRig ? 'x' : 'z'] =
+            (m.nativeRig ? -1.18 : 1.18) + Math.sin(m.phase) * 0.06 * m.swingAmt;
+        if (m.arms[1])
+          m.arms[1].rotation[m.nativeRig ? 'x' : 'z'] = (m.nativeRig ? 0 : 0.12) - swing * 0.45;
       }
       m.group.position.set(
         mob.pos.x,
@@ -421,14 +741,14 @@ export class MobRenderer {
       if (m.head) {
         if (moving) {
           m.head.position.y = m.headY + Math.sin(m.phase * 2) * 0.015;
-          m.head.rotation.z = Math.sin(m.phase) * 0.05;
+          m.head.rotation[m.nativeRig ? 'x' : 'z'] = Math.sin(m.phase) * 0.05;
         } else if (mob.kind === 'chicken') {
           const peck = Math.max(0, Math.sin(m.t * 1.6)); // 周期低头啄地
-          m.head.rotation.z = -peck * 0.5;
+          m.head.rotation[m.nativeRig ? 'x' : 'z'] = -peck * 0.5;
           m.head.position.y = m.headY - peck * 0.04;
         } else {
           m.head.position.y = m.headY + Math.sin(m.t * 1.4) * 0.012; // 呼吸起伏
-          m.head.rotation.z = 0;
+          m.head.rotation[m.nativeRig ? 'x' : 'z'] = 0;
           m.head.rotation.y = Math.sin(m.t * 0.55) * 0.4 * (1 - m.swingAmt); // 待机张望(走路时归零)
         }
       }

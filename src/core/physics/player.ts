@@ -8,6 +8,7 @@ export interface Player {
   pos: Vec3; // 脚部中心（AABB 底面中心）
   vel: Vec3; // 方块 / tick
   onGround: boolean;
+  crouching?: boolean; // 实际矮姿态；头顶受限时可与 crouch 按键不同，旧存档缺省直立
   kbx?: number; // 被击退的水平速度(格/tick)，叠加到移动上并逐刻衰减；缺省=0(无击退)
   kbz?: number;
 }
@@ -38,8 +39,8 @@ export interface VoxelWorld {
 export const WIDTH = 0.6;
 export const HEIGHT = 1.8;
 export const EYE = 1.62;
-export const CROUCH_HEIGHT = 1.8; // 1.12 潜行【不改】碰撞箱(1.5 矮箱是 1.14+;曾 1.25 能钻 1.3 格缝)
-export const CROUCH_EYE = 1.54; // 1.12 潜行眼高 1.54(曾 1.1 蹲得过深)
+export const CROUCH_HEIGHT = 1.5; // 现代 Java 站立潜行姿态，不等同于 0.6 格高的爬行
+export const CROUCH_EYE = 1.27;
 export const CROUCH_SPEED_MULT = 0.3; // 下蹲移动倍率（同 MC sneak ≈0.3）
 export const SLOW_SPEED_MULT = 0.2; // 用物品(吃东西)移动倍率（同 MC ≈0.2）
 export const GRAVITY = 0.08;
@@ -51,3 +52,11 @@ export const SPRINT_PER_TICK = 5.612 / 20; // ≈0.281 b/tick 疾跑速度（同
 export const FLY_PER_TICK = 0.42;
 export const FLY_SPRINT_PER_TICK = 0.84;
 export const FLY_VERT_PER_TICK = 0.42;
+
+export function playerEyeHeight(player: Pick<Player, 'crouching'>): number {
+  return player.crouching ? CROUCH_EYE : EYE;
+}
+
+export function playerHeight(player: Pick<Player, 'crouching'>): number {
+  return player.crouching ? CROUCH_HEIGHT : HEIGHT;
+}

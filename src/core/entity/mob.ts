@@ -69,6 +69,7 @@ export interface Mob {
   onGround: boolean;
   health: number;
   hurtCooldown: number; // 受击无敌帧（tick）
+  hurtWindowDamage?: number; // 当前保护窗口已结算的最高伤害；更强的一击仅补差。
   ai: { state: 'idle' | 'wander' | 'panic' | 'chase'; timer: number; target: Vec3 | null };
   eggTimer: number; // 仅鸡：下个蛋的 tick
   atkCd: number; // 敌对：攻击冷却（tick），>0 时不再造成接触伤害
@@ -266,20 +267,25 @@ export function hurtMob(
 ): MobUpdate {
   const mob = clone(m);
   const events: MobEvent[] = [];
-  if (mob.hurtCooldown > 0) return { mob, events }; // 无敌帧内免伤
-
-  mob.health -= amount;
-  mob.hurtCooldown = HURT_INVULN;
+  if (amount <= 0 || mob.health <= 0) return { mob, events };
+  const protectedHit = mob.hurtCooldown > 0;
+  const previous = protectedHit ? (mob.hurtWindowDamage ?? 0) : 0;
+  if (amount <= previous) return { mob, events };
+  mob.health -= amount - previous;
+  mob.hurtWindowDamage = amount;
+  if (!protectedHit) mob.hurtCooldown = HURT_INVULN;
   events.push({ kind: 'hurt' });
 
-  const len = Math.hypot(knock.x, knock.z) || 1;
-  mob.kbx = (knock.x / len) * KNOCK_H; // 存进持久击退分量(updateMob/updateHostile 叠加+衰减)
-  mob.kbz = (knock.z / len) * KNOCK_H;
-  mob.vel.x = mob.kbx;
-  mob.vel.z = mob.kbz;
-  mob.vel.y = KNOCK_UP;
-  mob.onGround = false;
-  mob.yaw = Math.atan2(mob.vel.z, mob.vel.x);
+  if (!protectedHit) {
+    const len = Math.hypot(knock.x, knock.z) || 1;
+    mob.kbx = (knock.x / len) * KNOCK_H; // 存进持久击退分量(updateMob/updateHostile 叠加+衰减)
+    mob.kbz = (knock.z / len) * KNOCK_H;
+    mob.vel.x = mob.kbx;
+    mob.vel.z = mob.kbz;
+    mob.vel.y = KNOCK_UP;
+    mob.onGround = false;
+    mob.yaw = Math.atan2(mob.vel.z, mob.vel.x);
+  }
 
   if (MOB_DEFS[mob.kind].hostile) {
     // 受击仇恨(1.12 revenge target)：敌对怪被打立刻还手,临时无视感知半径(300 刻)

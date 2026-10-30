@@ -309,28 +309,22 @@ def diamond_ore(rng):
     return im
 
 
-def furnace_front(rng):
-    """熔炉正面：原版灰石壳 + 深炉口 + 底部余烬。"""
-    im = new()
-    fill(im, "#828282")
-    speck(im, ["#757575", "#8f8f8f", "#6f6f6f"], 0.35, rng)
-    px = im.load()
-    for i in range(S):  # 外框略深(原版熔炉边)
-        px[i, 0] = hx("#6a6a6a")
-        px[i, S - 1] = hx("#5c5c5c")
-        px[0, i] = hx("#6a6a6a")
-        px[S - 1, i] = hx("#6a6a6a")
-    dk, md, em = hx("#171717"), hx("#2c2c2c"), hx("#3c3c3c")
-    for x in range(4, 12):  # 炉膛
-        for y in range(5, 13):
-            px[x, y] = dk if (5 < x < 11 and 5 < y < 12) else md
-    for x in range(3, 13):
-        px[x, 4] = em
-    for x in range(5, 11):  # 余烬
-        px[x, 11] = hx("#b34d1c") if x % 2 == 0 else hx("#7a2c0e")
-    px[6, 12] = hx("#d0721e")
-    px[9, 12] = hx("#d0721e")
-    return im
+def official_furnace_face(name):
+    """Reuse committed official Java PNGs; never draw replacement furnace art."""
+    with Image.open(os.path.join(OUT, name + ".png")) as image:
+        return image.convert("RGBA")
+
+
+def furnace_front(_rng):
+    return official_furnace_face("furnace_front")
+
+
+def furnace_top(_rng):
+    return official_furnace_face("furnace_top")
+
+
+def furnace_side(_rng):
+    return official_furnace_face("furnace_side")
 
 
 def _water_still():
@@ -993,6 +987,8 @@ BLOCKS = [
     ("birch_log_top", birch_log_top),
     ("birch_log_side", birch_log_side),
     ("birch_leaves", birch_leaves),
+    ("furnace_top", furnace_top),
+    ("furnace_side", furnace_side),
 ]
 
 BASE_SEED = 20260616  # bump this to reroll every texture; per-block offset keeps them independent
@@ -1076,7 +1072,7 @@ def main():
 
     # Pack block tiles into one atlas (4 cols × 12 rows, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
-    # 4×12=48 槽: 0-36 基础内容, 37-45 扩展建材/白桦林
+    # 4×12=48 槽: 0-36 基础内容, 37-45 扩展建材/白桦林, 46/47 原版熔炉顶/侧
     # 改行数时务必同步 mesher.ts / DropRenderer.ts / FirstPersonHand.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
@@ -1086,7 +1082,7 @@ def main():
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
                    'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block',
                    'granite', 'diorite', 'andesite', 'bricks', 'mossy_cobblestone', 'red_sand',
-                   'birch_log_top', 'birch_log_side', 'birch_leaves']
+                   'birch_log_top', 'birch_log_side', 'birch_leaves', 'furnace_top', 'furnace_side']
     ATLAS_COLS, ATLAS_ROWS = 4, 12  # 同步 mesher/DropRenderer/FirstPersonHand
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
@@ -1108,7 +1104,7 @@ def main():
         'coal_ore': ('coal_ore', 'coal_ore'),
         'iron_ore': ('iron_ore', 'iron_ore'),
         'diamond_ore': ('diamond_ore', 'diamond_ore'),
-        'furnace': ('cobblestone', 'furnace_front'),
+        'furnace': ('furnace_top', 'furnace_side'),
         'oak_leaves': ('oak_leaves', 'oak_leaves'),
         'crafting_table': ('crafting_table_top', 'crafting_table_side'),
         'gravel': ('gravel', 'gravel'),
@@ -1141,7 +1137,8 @@ def main():
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
     for nm, (top, side) in ICON_FACES.items():
-        iso_icon(tex[top], tex[side], tex[side]).save(os.path.join(icons_dir, nm + '.png'))
+        front = 'furnace_front' if nm == 'furnace' else side
+        iso_icon(tex[top], tex[side], tex[front]).save(os.path.join(icons_dir, nm + '.png'))
     # 草丛是交叉竖片，不能画成实心立方体图标。长草保持同一叶型，在 UI 中稍向上拉长。
     sprite_icon(tex['grass_plant']).save(os.path.join(icons_dir, 'grass_plant.png'))
     tall = sprite_icon(tex['grass_plant'])

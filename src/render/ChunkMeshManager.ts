@@ -21,7 +21,7 @@ import { ATLAS_TILES } from '../core/blocks/registry';
 
 const perfNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-const WATER_FRAMES = 24; // 水动画帧数（与 gen_textures.py 的 water_frames(24) 一致）
+const WATER_FRAMES = 32; // Java 26.3 water_still.png，32帧（官方mcmeta每帧2tick）。
 const SHADOW_MAP_SIZE = 2048; // 标准档 2K；高档会在 setLightingQuality 中升级为 4K
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
 const WATER_PLANAR_Y = SEA_LEVEL + 8 / 9;
@@ -1519,11 +1519,11 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   }
 
   /** 水面动画（MC 风格帧动画）：按固定步长切换整张水纹理（所有水格同步），波纹原地流动+变化，
-   *  不做 UV 平移（那样像水单向滑走）。24 帧首尾无缝循环。 */
+   *  不做 UV 平移（那样像水单向滑走）。32 帧循环，与官方水纹 mcmeta 保持一致。 */
   animateWater(dt: number): void {
     this.uTime.value += dt; // 驱动光影水面波动
     this.waterAnimT += dt;
-    const FRAME_DUR = 0.09; // 每帧约 90ms（接近 MC 水的节奏）
+    const FRAME_DUR = 0.1; // 官方 water_still.png.mcmeta：2 ticks。
     while (this.waterAnimT >= FRAME_DUR) {
       this.waterAnimT -= FRAME_DUR;
       this.waterFrame = (this.waterFrame + 1) % this.waterFrames.length;

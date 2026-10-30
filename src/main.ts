@@ -1,5 +1,5 @@
 import { Game } from './game/Game';
-import { MenuBackground } from './render/MenuBackground';
+import { JavaPanorama as MenuBackground } from './render/JavaPanorama';
 import {
   listWorlds,
   createWorld,
@@ -22,6 +22,11 @@ import { gameAudio } from './audio/GameAudio';
 import { startUpdateWatcher } from './updateWatcher';
 import { loadSettings } from './core/settings';
 import { setIconTexturePack } from './ui/itemIcons';
+import { installGuiScale } from './ui/guiScale';
+import './ui/javaScreens.css';
+import './ui/javaHud.css';
+
+installGuiScale();
 
 // 页面已打开时也会自动跟上新部署，避免 GitHub Pages 的 10 分钟缓存让玩家一直看到旧画面。
 startUpdateWatcher();
@@ -142,6 +147,8 @@ if (bootHintEl) {
 }
 
 function setHud(show: boolean): void {
+  document.body.classList.toggle('hud-hidden', !show);
+  document.body.classList.toggle('creative-mode', game?.isCreativeMode() ?? false);
   $('crosshair').style.display = show ? 'block' : 'none';
   $('hotbar').style.display = show ? 'flex' : 'none';
   $('held-item-name').style.display = show ? 'block' : 'none';
@@ -388,7 +395,7 @@ function setMultiplayerSession(online: MultiplayerSession | null): void {
       : `联机已断开\n${reason}`;
     // 如果断线时正在容器里，prepareForSave 已收起 UI；回到暂停页等用户点击后再恢复控制。
     if (containerWasOpen && game) {
-      game.setTouchActive(false);
+      game.pausePlayControl();
       setHud(false);
       pause.classList.remove('hidden');
     }
@@ -516,7 +523,7 @@ async function finishPeerHostConnection(): Promise<void> {
     pause.classList.add('hidden');
     showLoading(false);
     setHud(true);
-    if (!touchMode) void canvas.requestPointerLock();
+    void game.requestPlayControl();
   } catch (error) {
     client.disconnect('连接未完成');
     if (pendingPeer === client) pendingPeer = null;
@@ -687,10 +694,7 @@ function startGame(world: WorldSave, online: MultiplayerSession | null = null): 
         gameStarted = true;
         (window as unknown as { __mw?: Game }).__mw = nextGame; // 调试/截图工具用：暴露 game 实例(tools/shot.mjs 定机位)
         showLoading(false);
-        if (touchMode) {
-          setHud(true);
-          nextGame.setTouchActive(true);
-        } else void canvas.requestPointerLock();
+        void nextGame.requestPlayControl();
       } catch (e) {
         gameStarting = false;
         // 任何报错都显示到加载界面，别再静默卡死（方便定位"进不去"到底卡在哪）
@@ -713,11 +717,7 @@ function saveLocalGame(): boolean {
 }
 
 $('resume').addEventListener('click', () => {
-  if (touchMode) {
-    pause.classList.add('hidden');
-    setHud(true);
-    game?.setTouchActive(true);
-  } else void canvas.requestPointerLock();
+  void game?.requestPlayControl();
 });
 $('save-quit').addEventListener('click', () => {
   const leavingOnline = multiplayer?.isConnected === true;
@@ -732,31 +732,43 @@ $('save-quit').addEventListener('click', () => {
   location.reload(); // 干净重置；reload 后走启动流程(加载界面 + 菜单背景预加载)
 });
 
-// 指针锁定 = 游戏中；解锁(ESC) = 暂停；死亡时改显示死亡界面
+// Both real pointer lock and the embedded-browser fallback drive the same HUD/menu state.
 const death = $('death');
-document.addEventListener('pointerlockchange', () => {
-  if (touchMode) return;
-  const playing = document.pointerLockElement === canvas;
+function syncPlayControl(): void {
+  if (!game) return;
+  const playing = game.isGameplayActive();
   if (playing) {
     pause.classList.add('hidden');
     death.style.display = 'none';
     setHud(true);
-  } else if (game) {
+  } else {
     saveLocalGame();
     if (game.isContainerOpen()) return; // 背包/工作台/熔炉：保持 HUD、不把暂停菜单盖在容器上
     setHud(false);
     if (game.isDead()) death.style.display = 'flex';
     else pause.classList.remove('hidden');
   }
+}
+window.addEventListener('mineworld:control-change', syncPlayControl);
+
+function pauseGame(): void {
+  if (!game || gameStarting) return;
+  // Blur must also close containers without their normal resume request.
+  game.prepareForSave();
+  game.pausePlayControl();
+  syncPlayControl();
+}
+window.addEventListener('keydown', (event) => {
+  if (event.code !== 'Escape' || event.repeat || !game || game.isContainerOpen()) return;
+  event.preventDefault();
+  pauseGame();
 });
+window.addEventListener('blur', pauseGame);
 
 // 触屏没有 Pointer Lock，虚拟按钮通过事件让外层 UI 显示暂停/死亡页。
 window.addEventListener('mineworld:touch-pause', () => {
   if (!game || game.isDead()) return;
-  game.setTouchActive(false);
-  saveLocalGame();
-  setHud(false);
-  pause.classList.remove('hidden');
+  pauseGame();
 });
 // 死亡可能发生在指针已解锁的容器界面，不能只依赖 pointerlockchange 才显示死亡页。
 window.addEventListener('mineworld:death', () => {
@@ -770,8 +782,7 @@ $('respawn').addEventListener('click', () => {
   if (!game) return;
   game.respawn();
   death.style.display = 'none';
-  if (touchMode) setHud(true);
-  else void canvas.requestPointerLock();
+  void game.requestPlayControl();
 });
 
 // 定时自动存盘 + 关页面前存盘
@@ -786,27 +797,20 @@ function saveBeforePageExit(): void {
   if (pageExitSaved) return;
   pageExitSaved = true;
   game?.prepareForSave();
+  game?.pausePlayControl();
   saveLocalGame();
 }
 window.addEventListener('pagehide', saveBeforePageExit);
 // iOS/Android 可能只先发 visibilitychange 就冻结页面；此时立即收好容器临时物品并存盘。
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden' || !game) return;
-  game.setTouchActive(false);
-  game.prepareForSave();
-  saveLocalGame();
-  setHud(false);
-  if (game.isDead()) death.style.display = 'flex';
-  else pause.classList.remove('hidden');
+  pauseGame();
 });
 window.addEventListener('pageshow', () => {
   pageExitSaved = false;
   // 从 BFCache 返回时，pagehide 已安全收起容器且触控仍处于禁用态；统一落到可恢复的暂停页，避免假死。
   if (game) {
-    game.setTouchActive(false);
-    setHud(false);
-    if (game.isDead()) death.style.display = 'flex';
-    else pause.classList.remove('hidden');
+    pauseGame();
   }
 });
 window.addEventListener('beforeunload', () => {

@@ -39,8 +39,18 @@ describe('atlas pack consistency', () => {
       'birch_log_top',
       'birch_log_side',
       'birch_leaves',
+      'furnace_top',
+      'furnace_side',
     ]);
     expect(cartoon.length).toBeLessThanOrEqual(ATLAS_COLUMNS * ATLAS_ROWS);
+  });
+
+  it('uses the final two existing atlas cells for furnace top/side in both packs', () => {
+    expect(ATLAS_TILES.furnace_top).toBe(46);
+    expect(ATLAS_TILES.furnace_side).toBe(47);
+    expect(classic[ATLAS_TILES.furnace_top]).toBe('furnace_top');
+    expect(cartoon[ATLAS_TILES.furnace_side]).toBe('furnace_side');
+    expect(classic.length).toBe(48);
   });
 
   it('classic pack explicitly overrides every leaf species instead of borrowing vivid leaves', () => {

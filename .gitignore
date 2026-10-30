@@ -18,3 +18,7 @@ node_modules
 
 # playwright MCP scratch output (screenshots/snapshots/logs)
 .playwright-mcp/
+
+# Python asset conversion cache
+__pycache__/
+*.pyc

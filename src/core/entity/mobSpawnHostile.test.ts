@@ -51,13 +51,23 @@ describe('敌对刷新：暗度门控 + 16–32 环带', () => {
     }
   });
 
-  it('MC 1.12 光照规则：光照>7 不刷(白天地表苦力怕也不刷——sunImmune≠白天能刷)', () => {
+  it('现代Java将方块光与天空光分开判断', () => {
     // 白天地表：有效光照 15 → 连"不怕晒"的苦力怕也不能刷(修"苦力怕白天生成"bug)
-    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => 15)).toEqual([]);
+    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => ({sky:15,block:0}))).toEqual([]);
     // 火把照亮处(光照 ≥8) → 不刷(火把防刷怪机制)
-    expect(spawnHostileRing('zombie', 0, 0, rng, world([]), surfaceY, 16, 32, () => 10)).toEqual([]);
+    expect(spawnHostileRing('zombie', 0, 0, rng, world([]), surfaceY, 16, 32, () => ({sky:4,block:10}))).toEqual([]);
+    // 即使只剩 1 级火把光，也禁止现代主世界自然刷怪。
+    expect(spawnHostileRing('zombie', 0, 0, rng, world([]), surfaceY, 16, 32, () => ({sky:0,block:1}))).toEqual([]);
     // 夜里地表(15-skyDarken11=4 ≤7) → 刷
-    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => 4).length).toBeGreaterThan(0);
+    expect(spawnHostileRing('creeper', 0, 0, rng, world([]), surfaceY, 16, 32, () => ({sky:4,block:0})).length).toBeGreaterThan(0);
+  });
+
+  it('整群散开后的每个格子都检查光照，不能从暗格溢出到火把安全区', () => {
+    let reads = 0;
+    // 每轮中心是暗的，但后续两个散开位置都在灯光范围内。
+    const lightAt = () => ({ sky: 0, block: reads++ % 3 === 0 ? 0 : 1 });
+    expect(spawnHostileRing('zombie', 0, 0, rng, world([]), surfaceY, 16, 32, lightAt)).toEqual([]);
+    expect(reads).toBe(14 * 3);
   });
 });
 
@@ -75,6 +85,9 @@ function caveWorld(torches: [number, number, number][] = []): SpawnWorld {
 }
 
 describe('矿洞刷怪：地下暗洞(白天黑夜)', () => {
+  it('洞中只要还有 1 级方块光就不刷怪', () => {
+    expect(spawnHostileCave('zombie', 0, 41, 0, rng, caveWorld(), surfaceY, 5, 24, () => ({ sky: 0, block: 1 }))).toEqual([]);
+  });
   it('地下暗洞里能刷怪，且落在地表下够深(暗)', () => {
     const mobs = spawnHostileCave('zombie', 0, 41, 0, rng, caveWorld(), surfaceY);
     expect(mobs.length).toBeGreaterThan(0);

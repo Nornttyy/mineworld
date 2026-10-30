@@ -8,6 +8,10 @@ const only =
     x === cx && y === cy && z === cz ? CACTUS : 0;
 
 describe('touchesCactus', () => {
+  it('蹲姿头顶不碰到高处仙人掌，站起来后才接触', () => {
+    expect(touchesCactus(5.5, 0.3, 5.5, only(5, 2, 5), 1.5)).toBe(false);
+    expect(touchesCactus(5.5, 0.3, 5.5, only(5, 2, 5), 1.8)).toBe(true);
+  });
   it('紧贴仙人掌侧面→true', () => {
     // 玩家中心 (5.71, 1, 5.5)，宽 0.6，半宽 0.3
     // 玩家 x 右边沿 = 5.71+0.3 = 6.01，仙人掌在 x=6 → 贴住

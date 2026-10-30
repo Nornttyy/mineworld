@@ -43,9 +43,9 @@ import { FirstPersonHand } from '../render/FirstPersonHand';
 import { step } from '../core/physics/step';
 import {
   EYE,
-  CROUCH_EYE,
   WIDTH,
-  HEIGHT,
+  playerEyeHeight,
+  playerHeight,
   type Player,
   type VoxelWorld,
 } from '../core/physics/player';
@@ -167,13 +167,13 @@ import {
   portalEffectProgress,
 } from './portalEffect';
 import { gameAudio } from '../audio/GameAudio';
+import { attackStrength, chargedMeleeDamage } from '../core/combat/melee';
 
 const TICK_MS = 50; // 20 TPS 固定步长
 const REACH_SURVIVAL = 4.5; // 交互距离(1.12 生存 4.5)
 const REACH_CREATIVE = 5.0; // 创造 5.0
 const HOTBAR_SLOTS = 9;
 const DROP_TTL = 300; // 掉落物存活上限（秒，同 MC 5 分钟）
-const WORLD_Y_OFFSET = -125; // 坐标显示整体下移：世界底(内部 y=0)显示为 -125，地表≈-9。仅影响 F3 坐标显示，世界存储/性能不变。
 const AIR = 0;
 const CREATIVE_BREAK_SECONDS = 0.12; // 创造仍是快速破坏，但保留约 3 刻的挥手/裂纹反馈，避免一碰就误删。
 
@@ -208,14 +208,6 @@ const BOW_DAMAGE = 9; // 满蓄力伤害(1.12 满蓄力 9,暴击可到 10)
 // 骷髅箭速从 hostileAi 导入（与那边的下坠瞄准补偿同一值）
 const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
 const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
-
-// 近战伤害（1:1 MC）：拳 1 / 木剑 4 / 石剑 5 / 铁剑 6 / 钻石剑 7（非剑按拳算）。
-function mobDamage(heldId: number | null): number {
-  if (heldId == null) return 1;
-  const t = toolOf(heldId);
-  if (t?.kind === 'sword') return t.tier === 1 ? 4 : t.tier === 2 ? 5 : t.tier === 3 ? 6 : 7;
-  return 1;
-}
 
 // 射线 vs 轴对齐盒（slab 法）：返回最近正向命中距离 t，未命中返回 null。
 function rayAabb(
@@ -263,13 +255,13 @@ type LeafDecayEntry = { x: number; y: number; z: number; t: number };
 
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置 + 生命/饥饿。从存档启动。 */
 export class Game {
-  private readonly canvas: HTMLCanvasElement;
   private readonly save: WorldSave;
   private readonly renderer: Renderer;
   /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。单人世界可在暂停时直接开放为房间。 */
   private multiplayer: MultiplayerSession | null;
   private readonly remotePlayers: RemotePlayerRenderer;
   private readonly look: PointerLookControls;
+  private readonly controlHint: HTMLElement;
   private readonly touch: TouchControls | null;
   private world!: ChunkWorld; // 切维度时整体替换(去 readonly)；构造里由 buildDimension() 赋值(故用 ! 断言已赋值)；fluidGrid/physWorld 等闭包始终读 this.world，自动跟随
   /** 每次替换 ChunkWorld 都递增；让超时后仍存活的异步预加载链自行失效。 */
@@ -332,7 +324,8 @@ export class Game {
   private readonly surfaceY = (x: number, z: number): number => columnHeight(x, z, this.save.seed);
   private mobSpawnTick = 0; // 补刷计时
   private digging = false; // 是否按住左键挖掘
-  private lastMeleeMs = 0; // 上次近战命中时刻(ms)：加 ~0.5s 攻击冷却，防疯狂点击=无限伤害(同 MC 1.9+)
+  private meleeTicks = 1000; // 按模拟刻恢复；暂停不蓄力，挥空和换物品也重置。
+  private meleeHeldId: number | null = null;
   private digTarget: { x: number; y: number; z: number } | null = null;
   private digProgress = 0; // 当前目标已挖秒数
   private readonly fluidSim = new FluidSim();
@@ -369,13 +362,12 @@ export class Game {
   private flyTapWindow = 0; // 双击空格检测窗口(刻)；>0 时再按一次空格即切换飞行
   private fallDistance = 0; // 当前连续下落格数
   private hurtCd = 0; // 受伤无敌帧剩余刻(同 MC：受伤后 0.5s=10 刻无敌，防多怪/多箭同刻叠加爆伤)
-  private readonly coordEl: HTMLElement; // F3 坐标显示(X/Y/Z；Y 按 WORLD_Y_OFFSET 偏移)
+  private readonly coordEl: HTMLElement; // F3 显示实际世界坐标，与方块/存档使用同一坐标系。
   private coordOn = false;
   private eating = false; // 是否按住右键吃东西
   private eatProgress = 0;
   private eatFxT = 0; // 吃东西喷食物渣的节流计时
-  private crouching = false; // 当前是否下蹲（驱动相机下沉）
-  private camEye = EYE; // 平滑后的视点高度（下蹲时降向 CROUCH_EYE）
+  private camEye = EYE; // 平滑后的视点高度（以物理系统返回的实际姿态为准）。
   private readonly decayQueueByDimension: Record<Dimension, LeafDecayEntry[]> = {
     overworld: [],
     nether: [],
@@ -400,7 +392,6 @@ export class Game {
     const settings = loadSettings();
     gameAudio.setVolume(settings.volume);
     setIconTexturePack(settings.texturePack);
-    this.canvas = canvas;
     this.save = save;
     this.waterSurfaceWorld = {
       // world 会在切维度时替换；闭包必须始终读取当前实例。
@@ -577,6 +568,13 @@ export class Game {
 
     const touchEnabled = supportsTouchControls();
     this.look = new PointerLookControls(canvas, !touchEnabled);
+    this.controlHint = document.createElement('div');
+    this.controlHint.id = 'mouse-fallback-hint';
+    this.controlHint.textContent = '兼容鼠标模式：移动鼠标转向 · WASD 移动 · 左键挖掘 · 右键使用 · E 背包 · Esc 暂停';
+    this.controlHint.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);z-index:12;padding:4px 8px;color:#fff;background:#0009;font:12px/1.5 var(--game-font,monospace);text-align:center;pointer-events:none;display:none';
+    this.controlHint.setAttribute('role', 'status');
+    document.body.appendChild(this.controlHint);
+    this.look.onChange = () => this.publishControlState();
     this.look.yaw = p ? p.yaw : Math.atan2(-spawn.z, -spawn.x);
     this.look.pitch = p ? p.pitch : -0.18;
 
@@ -598,7 +596,7 @@ export class Game {
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
-      if (document.pointerLockElement !== canvas) return;
+      if (!this.isGameplayActive()) return;
       if (e.button === 0) this.beginPrimaryAction();
       else if (e.button === 2)
         this.onUseDown(); // 右键：吃 / 放方块
@@ -610,20 +608,22 @@ export class Game {
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.stopDigging();
       else if (e.button === 2) {
-        this.releaseBow(); // 松开右键：弓发射
-        this.stopEating();
-      }
-    });
-    document.addEventListener('pointerlockchange', () => {
-      if (this.touch) return;
-      if (document.pointerLockElement !== canvas) {
-        this.stopDigging(); // 松开锁定即停挖
-        this.drawingBow = false; // 失焦取消拉弓
-        this.bowCharge = 0;
+        if (this.isGameplayActive()) this.releaseBow(); // 暂停/容器内松手不能发射。
         this.stopEating();
       }
     });
     window.addEventListener('keydown', (e) => {
+      if (e.repeat && (e.code === 'KeyE' || e.code === 'Escape')) return;
+      if (e.code === 'Escape' && this.furnaceKey) {
+        e.preventDefault();
+        this.closeFurnace();
+        return;
+      }
+      if (e.code === 'Escape' && this.craftingGrid > 0) {
+        e.preventDefault();
+        this.closeCrafting();
+        return;
+      }
       const target = e.target as HTMLElement | null;
       if (target?.matches?.('input, textarea, [contenteditable="true"]')) return;
       if (e.code === 'KeyE') {
@@ -638,14 +638,6 @@ export class Game {
         this.coordEl.style.display = this.coordOn ? 'block' : 'none';
         return;
       }
-      if (e.code === 'Escape' && this.furnaceKey) {
-        this.closeFurnace();
-        return;
-      }
-      if (e.code === 'Escape' && this.craftingGrid > 0) {
-        this.closeCrafting();
-        return;
-      }
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= HOTBAR_SLOTS) this.hotbar.setSelected(n - 1);
     });
@@ -653,6 +645,7 @@ export class Game {
       'wheel',
       (e) => {
         e.preventDefault();
+        if (!this.isGameplayActive()) return;
         this.hotbar.scroll(Math.sign(e.deltaY));
       },
       { passive: false },
@@ -662,9 +655,43 @@ export class Game {
     this.publishMultiplayerState();
   }
 
-  /** 主循环与外层 UI 共用：桌面靠指针锁定，触屏靠虚拟控制层的 active 状态。 */
+  /** Shared active state includes the embedded-browser fallback, but never containers or death. */
   isGameplayActive(): boolean {
-    return this.touch?.isActive ?? document.pointerLockElement === this.canvas;
+    if (this.dead || this.craftingGrid > 0 || this.furnaceKey != null) return false;
+    return this.touch?.isActive ?? this.look.isActive;
+  }
+
+  async requestPlayControl(): Promise<boolean> {
+    if (this.dead || this.isContainerOpen()) return false;
+    consumeJump(); // Do not replay a jump typed while a menu was open.
+    if (this.touch) {
+      this.touch.setActive(true);
+      this.publishControlState();
+      return true;
+    }
+    return this.look.requestPlayControl();
+  }
+
+  pausePlayControl(): void {
+    this.cancelPlayActions();
+    if (this.touch) {
+      this.touch.setActive(false);
+      this.publishControlState();
+    } else this.look.pause();
+  }
+
+  private cancelPlayActions(): void {
+    this.stopDigging();
+    this.drawingBow = false;
+    this.bowCharge = 0;
+    this.stopEating();
+    consumeJump();
+  }
+
+  private publishControlState(): void {
+    if (!this.isGameplayActive()) this.cancelPlayActions();
+    this.controlHint.style.display = this.look.isFallback && this.isGameplayActive() ? 'block' : 'none';
+    window.dispatchEvent(new Event('mineworld:control-change'));
   }
 
   usesTouchControls(): boolean {
@@ -746,17 +773,17 @@ export class Game {
     this.touchDigHit = null;
     const target = this.mobUnderRay(aim);
     if (target) {
-      // 攻击冷却 ~0.5s(同 MC 1.9+)：冷却内的点击不再造成伤害。对着生物时不挖它后面的方块。
-      const nowMs = performance.now();
-      if (nowMs - this.lastMeleeMs >= 500) {
-        this.attackMob(target, aim);
-        this.lastMeleeMs = nowMs;
-      }
+      this.attackMob(target, aim);
       return;
     }
     // 传入 aim 即代表触屏：即便箭头当时没有命中方块，也绝不能在玩家转镜头后换目标。
     this.touchDigging = aim !== undefined;
     this.touchDigHit = aim ? this.rayHitFor(aim) : null;
+    if (!(aim ? this.touchDigHit : this.rayHit())) {
+      this.syncMeleeItem();
+      this.meleeTicks = 0;
+      this.hand.swing();
+    }
     this.digging = true;
     this.digTarget = null;
   }
@@ -1187,6 +1214,7 @@ export class Game {
       // 背包/熔炉不是暂停菜单：原版里世界、怪物、流体和熔炉仍继续运行，只冻结玩家输入。
       const simulating = playing || this.craftingGrid > 0 || this.furnaceKey !== null;
       while (simulating && this.acc >= TICK_MS) {
+        this.advanceMeleeTick();
         this.waterProbeEpoch++;
         this.prev = this.player;
         if (playing) {
@@ -1201,7 +1229,6 @@ export class Game {
           }
           if (this.flyTapWindow > 0) this.flyTapWindow--;
           if (!this.creative) this.flying = false;
-          this.crouching = this.flying ? false : m.crouch; // 飞行时 Shift=下降，不当下蹲(相机不下沉)
           // Java 1.12 生存模式食物值至少 7 才能疾跑；创造模式不受饥饿限制。
           this.actualSprinting = m.sprint && (this.creative || canSprint(this.survival));
           const jumpedFromGround =
@@ -1233,6 +1260,7 @@ export class Game {
             },
             this.playerPhysWorld,
           );
+          this.actualSprinting = this.actualSprinting && !this.player.crouching;
           if (jumpedFromGround) gameAudio.jump(jumpGroundBlock);
           this.publishMultiplayerState();
           this.stepSurvival(this.actualSprinting, jumped);
@@ -1335,7 +1363,10 @@ export class Game {
         this.crack.hide();
         if (this.craftingGrid > 0) this.invUI.render(); // 容器打开时捡到物品也要刷新格子。
       }
-      this.statusBar.render(this.survival); // 容器打开时世界仍运行，受伤/饥饿变化也要立即显示。
+      this.statusBar.render(this.survival, this.pointInWater(
+        this.player.pos.x, this.player.pos.y + playerEyeHeight(this.player), this.player.pos.z,
+      )); // 水下即显示气泡；出水后继续显示到空气恢复满。
+      this.updateAttackIndicator(playing);
       this.waterWaveTime += dt;
       this.chunks.animateWater(dt); // 水面流动动画
       this.updateDayNight(); // 昼夜更替：天空/雾/世界亮度
@@ -1370,7 +1401,7 @@ export class Game {
         this.multiplayer?.remotePlayers.filter((player) => player.dimension === this.dimension) ??
           [],
         dt,
-        this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z),
+        this.entityLight(this.player.pos.x, this.player.pos.y + playerEyeHeight(this.player), this.player.pos.z),
       );
       this.arrowRenderer.sync(this.arrows); // 箭模型跟随
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
@@ -1387,7 +1418,7 @@ export class Game {
       );
       const underwater = this.pointInWater(
         this.player.pos.x,
-        this.player.pos.y + EYE,
+        this.player.pos.y + playerEyeHeight(this.player),
         this.player.pos.z,
       );
       gameAudio.update(dt, {
@@ -1406,7 +1437,7 @@ export class Game {
       });
       const [handSky, handBlock] = this.chunks.lightLevelAt(
         this.player.pos.x,
-        this.player.pos.y + EYE,
+        this.player.pos.y + playerEyeHeight(this.player),
         this.player.pos.z,
       );
       // 手持/手臂按眼睛处环境光变暗。下界刚切换、光照网格尚未回传时的
@@ -1414,7 +1445,7 @@ export class Game {
       const handEntityLight =
         this.dimension === 'nether' && handSky > 14.5 && handBlock < 0.5
           ? 0.08
-          : this.entityLight(this.player.pos.x, this.player.pos.y + EYE, this.player.pos.z);
+          : this.entityLight(this.player.pos.x, this.player.pos.y + playerEyeHeight(this.player), this.player.pos.z);
       this.hand.setBrightness(handEntityLight);
       const handPhi = (this.worldTime / DAY_LENGTH) * Math.PI * 2;
       this._handSun.set(Math.cos(handPhi), Math.sin(handPhi), 0.1).normalize();
@@ -1441,7 +1472,7 @@ export class Game {
         const p = this.player.pos;
         const cs = this.chunks.pipelineStats(); // 区块管线：再现"加载不出来"时看哪阶段堵
         this.coordEl.textContent =
-          `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y) + WORLD_Y_OFFSET} / ${Math.floor(p.z)}\n` +
+          `XYZ  ${Math.floor(p.x)} / ${Math.floor(p.y)} / ${Math.floor(p.z)}\n` +
           `区块 已上屏${cs.meshed} 可见${cs.visible} 派发中${cs.pending} 待上屏${cs.queued}`;
       }
       this.updateGodRays(); // 体积光：每帧喂太阳屏幕 UV + 档位给 Renderer
@@ -1539,8 +1570,8 @@ export class Game {
     }
     // 仙人掌接触伤害(MC 1.12：贴住每 0.5s 掉 1 血，复用 hurtCd 无敌帧防多刻叠加)
     if (
-      touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z, (x, y, z) =>
-        this.world.getBlock(x, y, z),
+      touchesCactus(this.player.pos.x, this.player.pos.y, this.player.pos.z,
+        (x, y, z) => this.world.getBlock(x, y, z), playerHeight(this.player),
       )
     ) {
       this.hurtPlayer(1, 0, 0, true);
@@ -1552,7 +1583,7 @@ export class Game {
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = this.pointInWater(
       this.player.pos.x,
-      this.player.pos.y + EYE,
+      this.player.pos.y + playerEyeHeight(this.player),
       this.player.pos.z,
     );
     const hpBefore = this.survival.health;
@@ -1621,9 +1652,7 @@ export class Game {
     this.hotbar.render(this.inv);
     this.dropRenderer.sync(this.drops, this.entityLight);
     window.dispatchEvent(new Event('mineworld:death'));
-    if (this.touch) {
-      this.touch.setActive(false);
-    } else void document.exitPointerLock(); // 解锁 → main 切到死亡界面
+    this.pausePlayControl();
   }
 
   isDead(): boolean {
@@ -1668,6 +1697,8 @@ export class Game {
   respawn(): void {
     this.survival = newSurvival();
     this.dead = false;
+    this.meleeTicks = 1000;
+    this.meleeHeldId = this.inv[this.hotbar.index]?.id ?? null;
     this.fallDistance = 0;
     this.portalTimer = 0;
     this.portalArmed = true;
@@ -1784,7 +1815,7 @@ export class Game {
     const cp = Math.cos(this.look.pitch);
     const sp = Math.sin(this.look.pitch);
     const ox = this.player.pos.x;
-    const oy = this.player.pos.y + EYE;
+    const oy = this.player.pos.y + playerEyeHeight(this.player);
     const oz = this.player.pos.z;
     this.arrows.push(
       spawnArrow(
@@ -1814,14 +1845,12 @@ export class Game {
     this.craftingGrid = 2; // 复用容器打开状态；创造界面本身不生成 2×2 合成格。
     if (this.creative) this.invUI.showCreative(this.inv);
     else this.invUI.show(this.inv, 2);
-    if (this.touch) this.touch.setActive(false);
-    else document.exitPointerLock();
+    this.pausePlayControl();
   }
   private openCrafting(gridSize: number): void {
     this.craftingGrid = gridSize;
     this.invUI.show(this.inv, gridSize);
-    if (this.touch) this.touch.setActive(false);
-    else document.exitPointerLock(); // 解锁鼠标操作界面（暂停在 pointerlockchange 里被抑制）
+    this.pausePlayControl();
   }
   private dropOverflow(stacks: readonly ItemStack[]): void {
     if (stacks.length === 0) return;
@@ -1837,8 +1866,7 @@ export class Game {
   private closeCrafting(): void {
     this.craftingGrid = 0;
     this.dropOverflow(this.invUI.hide());
-    if (this.touch) this.touch.setActive(!this.dead);
-    else void this.canvas.requestPointerLock(); // 回到游戏
+    void this.requestPlayControl();
   }
 
   // —— 熔炉界面 ——
@@ -1860,14 +1888,12 @@ export class Game {
     }
     this.furnaceKey = key;
     this.furnaceUI.show(this.inv, st);
-    if (this.touch) this.touch.setActive(false);
-    else document.exitPointerLock();
+    this.pausePlayControl();
   }
   private closeFurnace(): void {
     this.furnaceKey = null;
     this.dropOverflow(this.furnaceUI.hide());
-    if (this.touch) this.touch.setActive(!this.dead);
-    else void this.canvas.requestPointerLock();
+    void this.requestPlayControl();
   }
 
   /**
@@ -1910,7 +1936,7 @@ export class Game {
       const cp = Math.cos(this.look.pitch);
       const sp = Math.sin(this.look.pitch);
       const ox = this.player.pos.x + cy * cp * 0.4;
-      const oy = this.player.pos.y + EYE - 0.18 + sp * 0.4;
+      const oy = this.player.pos.y + playerEyeHeight(this.player) - 0.18 + sp * 0.4;
       const oz = this.player.pos.z + sy * cp * 0.4;
       this.particles.push(...spawnBurst(ox, oy, oz, particleColor(stack.id), 2));
     }
@@ -1928,7 +1954,7 @@ export class Game {
 
   /** 桌面准星中心射线。保持原有的玩家眼睛原点，桌面鼠标行为不发生变化。 */
   private crosshairRay(): InteractionRay {
-    const origin = { x: this.player.pos.x, y: this.player.pos.y + EYE, z: this.player.pos.z };
+    const origin = { x: this.player.pos.x, y: this.player.pos.y + playerEyeHeight(this.player), z: this.player.pos.z };
     const cy = Math.cos(this.look.yaw);
     const sy = Math.sin(this.look.yaw);
     const cp = Math.cos(this.look.pitch);
@@ -2710,12 +2736,10 @@ export class Game {
         const rk = this.mobRng();
         const biome = biomeAt(px, pz, this.save.seed);
         const kind: MobKind = hostileKindFor(biome, rk);
-        // MC 1.12 刷怪光照规则：敌对只在【位置光照 ≤7】生成(用区块粗光照网格,天光按昼夜衰减)。
-        // 白天地表天光 15 → 自然不刷(修"苦力怕白天生成"——它 sunImmune 只是不怕晒,不等于白天能刷)；
-        // 夜里地表 15-11=4 → 刷；矿洞恒暗 → 全天刷；火把(光 ≥8)圈出安全区(1:1 火把防刷怪机制)。
-        const spawnLight = (x: number, y: number, z: number): number => {
+        // Modern Java separates block light (must be 0) from darkened sky light.
+        const spawnLight = (x: number, y: number, z: number): { sky: number; block: number } => {
           const [sky, blk] = this.chunks.lightLevelAt(x, y, z);
-          return Math.max(blk, sky - this.skyDarkenNow);
+          return { block: blk, sky: Math.max(0, sky - this.skyDarkenNow) };
         };
         const cave = spawnHostileCave(
           kind,
@@ -2943,7 +2967,7 @@ export class Game {
             this.player.pos.z,
             this.player.pos.y,
             WIDTH / 2,
-            HEIGHT,
+            playerHeight(this.player),
           )
         ) {
           // 中箭：扣血 + 闪红/抖手 + 沿箭飞行方向被击退
@@ -3028,14 +3052,43 @@ export class Game {
   }
 
   // 攻击一只生物：按手持武器结算伤害 + 击退；死亡则掉落 + 移除。
+  private syncMeleeItem(): number | null {
+    const id = this.inv[this.hotbar.index]?.id ?? null;
+    if (id !== this.meleeHeldId) {
+      this.meleeHeldId = id;
+      this.meleeTicks = 0;
+    }
+    return id;
+  }
+
+  private advanceMeleeTick(): void {
+    this.syncMeleeItem();
+    this.meleeTicks = Math.min(1000, this.meleeTicks + 1);
+  }
+
+  private updateAttackIndicator(playing: boolean): void {
+    const indicator = document.getElementById('attack-indicator');
+    if (!indicator) return;
+    const id = this.syncMeleeItem();
+    const strength = attackStrength(id, this.meleeTicks, 0);
+    indicator.hidden = !playing || this.creative || strength >= 1;
+    indicator.style.setProperty('--attack-charge', String(strength));
+    indicator.setAttribute('aria-valuenow', String(Math.round(strength * 100)));
+  }
+
   private attackMob(mob: Mob, aim?: InteractionRay): void {
     gameAudio.attack();
     this.hand.swing();
     const held = this.inv[this.hotbar.index];
-    const dmg = mobDamage(held ? held.id : null);
+    const id = this.syncMeleeItem();
+    const falling = this.player.vel.y < 0 && !this.player.onGround && !this.actualSprinting &&
+      !this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z);
+    const dmg = chargedMeleeDamage(id, this.meleeTicks, falling);
+    this.meleeTicks = 0;
     // MC：攻击生物消耗耐久——剑每击 −1，其它工具当武器用每击 −2（非工具/空手不掉）
     const wtd = held ? toolOf(held.id) : null;
-    if (!this.creative && wtd) {
+    const mayDamage = mob.hurtCooldown <= 0 || dmg > (mob.hurtWindowDamage ?? 0);
+    if (!this.creative && wtd && mayDamage) {
       let broke = false;
       for (let n = wtd.kind === 'sword' ? 1 : 2; n > 0; n--)
         broke = damageTool(this.inv, this.hotbar.index, wtd.maxDurability) || broke;
@@ -3048,6 +3101,7 @@ export class Game {
     const knockX = dir && horizontal > 1e-6 ? dir.x / horizontal : Math.cos(this.look.yaw);
     const knockZ = dir && horizontal > 1e-6 ? dir.z / horizontal : Math.sin(this.look.yaw);
     const res = hurtMob(mob, dmg, { x: knockX, z: knockZ }, this.mobRng);
+    if (!this.creative && res.events.some((event) => event.kind === 'hurt')) addExhaustion(this.survival, 0.1);
     if (res.events.some((event) => event.kind === 'hurt'))
       gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'));
     Object.assign(mob, res.mob);
@@ -3103,7 +3157,7 @@ export class Game {
     return (
       bx < p.x + hw &&
       bx + 1 > p.x - hw &&
-      by < p.y + HEIGHT &&
+      by < p.y + playerHeight(this.player) &&
       by + 1 > p.y &&
       bz < p.z + hw &&
       bz + 1 > p.z - hw
@@ -3270,8 +3324,8 @@ export class Game {
     const y = a.y + (b.y - a.y) * alpha;
     const z = a.z + (b.z - a.z) * alpha;
     const cam = this.renderer.camera;
-    // 视点高度向目标(下蹲=CROUCH_EYE)平滑过渡，下蹲时相机下沉
-    this.camEye += ((this.crouching ? CROUCH_EYE : EYE) - this.camEye) * 0.3;
+    // 头顶受限时松开潜行仍保持低视点，直到实际碰撞姿态允许站立。
+    this.camEye += (playerEyeHeight(this.player) - this.camEye) * 0.3;
     const eye = this.camEye;
     cam.position.set(x, y + eye, z);
     const cy = Math.cos(this.look.yaw);

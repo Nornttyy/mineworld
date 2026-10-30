@@ -3,8 +3,8 @@ import { RECIPES } from './recipes';
 import { hasItem } from '../item/registry';
 
 describe('recipe data', () => {
-  it('contains all 38 recipes', () => {
-    expect(RECIPES).toHaveLength(38);
+  it('contains all 39 recipes', () => {
+    expect(RECIPES).toHaveLength(39);
   });
 
   it('储存方块：沙石/石英(2×2)、煤块/铁块(3×3) + 可逆拆解', () => {
@@ -45,8 +45,8 @@ describe('recipe data', () => {
     }
   });
 
-  it('橡木和云杉原木都能无序合成 4 块木板', () => {
-    for (const log of ['oak_log', 'spruce_log']) {
+  it('橡木、云杉和白桦原木都能无序合成 4 块木板', () => {
+    for (const log of ['oak_log', 'spruce_log', 'birch_log']) {
       const planks = RECIPES.find(
         (r) => r.type === 'shapeless' && r.ingredients.length === 1 && r.ingredients[0] === log,
       );

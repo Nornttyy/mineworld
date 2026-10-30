@@ -11,11 +11,11 @@ export interface Settings {
   renderDistance: number; // 区块加载半径(3~12)：小=雾近、区块少、流畅；大=看得远、更吃性能
 }
 
-// 默认使用原生 16×16、固定色板、无抗锯齿的标准像素包。
-export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'standard', texturePack: 'classic', renderDistance: 6 };
+// 新安装默认标准像素包 + 基础方块光照；已有用户的光影选项保留。
+export const DEFAULT_SETTINGS: Settings = { volume: 70, lightingQuality: 'off', texturePack: 'classic', renderDistance: 6 };
 
 const KEY = 'mineworld.settings';
-const TEXTURE_STYLE_VERSION = 5;
+const TEXTURE_STYLE_VERSION = 6;
 const LQ: LightingQuality[] = ['off', 'standard', 'high'];
 
 // 把任意(可能脏的)输入收敛成合法 Settings：音量夹到 0..100 整数，枚举/布尔校验，缺省补默认。
@@ -49,7 +49,7 @@ export function settingsFromStorage(raw: unknown): Settings {
   const r = (raw ?? {}) as Partial<Record<string, unknown>>;
   return r.textureStyleVersion === TEXTURE_STYLE_VERSION
     ? settings
-    : { ...settings, texturePack: DEFAULT_SETTINGS.texturePack };
+    : { ...settings, texturePack: DEFAULT_SETTINGS.texturePack, lightingQuality: 'off' };
 }
 
 export function loadSettings(): Settings {

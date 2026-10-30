@@ -667,6 +667,9 @@
         height: 2px;
         width: 18px;
       }
+      #attack-indicator {position:absolute;left:-7px;top:27px;width:32px;height:6px;background:#151515b0;border:1px solid #111;}
+      #attack-indicator[hidden]{display:none;}
+      #attack-indicator i {display:block;height:100%;background:#ececec;transform:scaleX(var(--attack-charge,0));transform-origin:left;}
       /* 生命/饥饿条：快捷栏正上方，红心居左、饥饿居右（同 MC 布局） */
       #status {
         position: fixed;
@@ -1919,30 +1922,31 @@
         <div class="boot-tip">加载中…</div>
       </div>
       <div class="boot-hint">提示: 按住左键挖方块</div>
-      <div class="boot-ver">v0.1.0</div>
+      <div class="boot-ver">Mineworld · Java 26.3</div>
     </div>
     <canvas id="app"></canvas>
     <canvas id="menubg"></canvas>
     <div id="menu">
       <div class="menu-main">
         <div class="logo">
-          <h1>MINEWORLD</h1>
+          <h1><img src="./textures/ui/java/title/minecraft.png" alt="Minecraft" /></h1>
+          <div class="edition"><img src="./textures/ui/java/title/edition.png" alt="Java Edition" /></div>
           <div id="splash"></div>
         </div>
         <button id="play" class="btn btn-wide">单人游戏</button>
         <button id="multiplayer-play" class="btn btn-wide">点对点联机</button>
-        <div class="btn-row">
+        <button id="settings-btn" class="btn btn-wide">选项…</button>
+        <div class="btn-row menu-bottom-row">
           <button id="fullscreen" class="btn">全屏</button>
-          <button id="settings-btn" class="btn">设置</button>
-          <button id="about" class="btn">关于</button>
+          <button id="about" class="btn">关于 Mineworld</button>
         </div>
       </div>
-      <div class="footer-left">MINEWORLD 0.1.0</div>
-      <div class="footer-right">用 Three.js 打造</div>
+      <div class="footer-left">Mineworld · Java 26.3 复刻中</div>
+      <div class="footer-right">非官方复刻</div>
       <div id="about-panel" class="hidden">
         <h2>MINEWORLD</h2>
         <p>浏览器里的体素沙盒</p>
-        <p>TypeScript + Three.js 纯手工打造</p>
+        <p>目标版本：Minecraft Java 26.3<br />正在还原画面与玩法；尚未覆盖原版全部内容。</p>
         <p class="ctrl">
           <span class="desktop-help"
             >WASD 移动 · 鼠标看 · 按住左键挖 · 右键放(消耗)<br />
@@ -2031,7 +2035,7 @@
     <div id="settings" class="hidden"></div>
     <div id="underwater"></div>
     <div id="portal-effect" aria-hidden="true"></div>
-    <div id="crosshair"></div>
+    <div id="crosshair"><div id="attack-indicator" role="progressbar" aria-label="攻击恢复" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" hidden><i></i></div></div>
     <div id="status">
       <div id="health"></div>
       <div id="hunger"></div>

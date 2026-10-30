@@ -1,0 +1,427 @@
+{
+  "version": "26.3",
+  "source": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+  "metadata": "https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json",
+  "clientSha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "copyright": "Minecraft assets \u00a9 Mojang AB / Microsoft. Original extracted pixels; no open-source license claimed.",
+  "files": [
+    {
+      "file": "hud/hotbar.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/hotbar.png",
+      "sha1": "8035ad2e0e175846060174125e82a07139fc56cb",
+      "size": [
+        182,
+        22
+      ]
+    },
+    {
+      "file": "hud/hotbar_selection.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/hotbar_selection.png",
+      "sha1": "c87141cbfebba79b51c309fcef5975ea9ded002a",
+      "size": [
+        24,
+        23
+      ]
+    },
+    {
+      "file": "hud/crosshair.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/crosshair.png",
+      "sha1": "279a45bbf41786833310bed09ae84e140c1baa76",
+      "size": [
+        15,
+        15
+      ]
+    },
+    {
+      "file": "hud/crosshair_attack_indicator_background.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/crosshair_attack_indicator_background.png",
+      "sha1": "98152e90f180b555df8b4fd9573b2db004bc26e7",
+      "size": [
+        16,
+        4
+      ]
+    },
+    {
+      "file": "hud/crosshair_attack_indicator_progress.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/crosshair_attack_indicator_progress.png",
+      "sha1": "7b07dfece0af1ec2d8708e49efb1bdfa78d50928",
+      "size": [
+        16,
+        4
+      ]
+    },
+    {
+      "file": "hud/crosshair_attack_indicator_full.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/crosshair_attack_indicator_full.png",
+      "sha1": "4da794718ad849c4429e395c9fcf786ab750c12f",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "hud/experience_bar_background.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/experience_bar_background.png",
+      "sha1": "8802788b1a197c49d98bb5c9b506d1647c37c3a7",
+      "size": [
+        182,
+        5
+      ]
+    },
+    {
+      "file": "hud/food_empty.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/food_empty.png",
+      "sha1": "bc098e61bd4d49dc50432d68b7d582665c9d0661",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/food_full.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/food_full.png",
+      "sha1": "db663d2a2905931d4dae74b3b822e250f3b1c9bc",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/food_half.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/food_half.png",
+      "sha1": "c69b09b7609ef1ec7756e79fd62946b08acb75bb",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/air.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/air.png",
+      "sha1": "ba8f22cb1ad3bd0f85282ab463494072eae75cea",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/air_bursting.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/air_bursting.png",
+      "sha1": "2e28dc0e2f2d4a85faee10188a968902eb0d7f29",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/air_empty.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/air_empty.png",
+      "sha1": "64f0875941ec791f1adcc09f03c948267c397920",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/container.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/container.png",
+      "sha1": "52059f9a66b07e15d316b03216db2e215d6e2fff",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/full.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/full.png",
+      "sha1": "074797819b925cc90a2c076d17b96a9a55227328",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/half.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/half.png",
+      "sha1": "6f69b2eaff4919635b6e233cbce6bad881025474",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/container_blinking.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/container_blinking.png",
+      "sha1": "528737229872610458414a67f79270802f114017",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/full_blinking.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/full_blinking.png",
+      "sha1": "b37403e0bb5fefdd878805261c9ff960e1cc2ece",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "hud/heart/half_blinking.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/hud/heart/half_blinking.png",
+      "sha1": "bb99001f45e7e3e09de7b85806ddd69782462241",
+      "size": [
+        9,
+        9
+      ]
+    },
+    {
+      "file": "widget/button.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button.png",
+      "sha1": "f40672478dcb295d71c73ce79a731b25546d6571",
+      "size": [
+        200,
+        20
+      ]
+    },
+    {
+      "file": "widget/button.png.mcmeta",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button.png.mcmeta",
+      "sha1": "11bf074d748f2449c8133e33f5c4ff652092d2de"
+    },
+    {
+      "file": "widget/button_disabled.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button_disabled.png",
+      "sha1": "ed54e29d3f4042ee0da42f51dc7c798cf82aa37b",
+      "size": [
+        200,
+        20
+      ]
+    },
+    {
+      "file": "widget/button_disabled.png.mcmeta",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button_disabled.png.mcmeta",
+      "sha1": "9ffeef6939aac78028b8dc7a8d637f03ba6f4b01"
+    },
+    {
+      "file": "widget/button_highlighted.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button_highlighted.png",
+      "sha1": "d2fbd6d805506112eef3fc314571e1c6b7318f99",
+      "size": [
+        200,
+        20
+      ]
+    },
+    {
+      "file": "widget/button_highlighted.png.mcmeta",
+      "archivePath": "assets/minecraft/textures/gui/sprites/widget/button_highlighted.png.mcmeta",
+      "sha1": "11bf074d748f2449c8133e33f5c4ff652092d2de"
+    },
+    {
+      "file": "panorama/panorama_overlay.png",
+      "archivePath": "assets/minecraft/textures/gui/title/background/panorama_overlay.png",
+      "sha1": "088c360594f0e9c38b32f343aa4a369f4fbd3a70",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "file": "container/inventory.png",
+      "archivePath": "assets/minecraft/textures/gui/container/inventory.png",
+      "sha1": "44c96b674ad438d2c0d8c816b70b52a1a27a38fd",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "file": "container/crafting_table.png",
+      "archivePath": "assets/minecraft/textures/gui/container/crafting_table.png",
+      "sha1": "fb9902bbe83fd043a9a06ea83d993ee722bfb207",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "file": "container/furnace.png",
+      "archivePath": "assets/minecraft/textures/gui/container/furnace.png",
+      "sha1": "484e3d84b90d860a14626affcbe0662dcb380b36",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "file": "container/furnace/burn_progress.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/furnace/burn_progress.png",
+      "sha1": "f920bf63df7c5365f39726af6f713348a704cf45",
+      "size": [
+        24,
+        16
+      ]
+    },
+    {
+      "file": "container/furnace/lit_progress.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/furnace/lit_progress.png",
+      "sha1": "836700214b76a99ed07c7384dd68a43e07a34125",
+      "size": [
+        14,
+        14
+      ]
+    },
+    {
+      "file": "container/slot/helmet.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/slot/helmet.png",
+      "sha1": "432b36c58a7c130ed13b9c74ca1c3adaf023054e",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "container/slot/chestplate.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/slot/chestplate.png",
+      "sha1": "c8bd892ef41f55e444c43273ee0f0ce42e6114ba",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "container/slot/leggings.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/slot/leggings.png",
+      "sha1": "f46f7710c6756a6befae9d73d89b55cfb5643a4d",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "container/slot/boots.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/slot/boots.png",
+      "sha1": "37133fceb0a5e39771691281e12c8fd5e8a47128",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "container/slot/shield.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/container/slot/shield.png",
+      "sha1": "36f42f848cf87539e0ff819caf4bd7324659c844",
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "file": "recipe_book/button.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/recipe_book/button.png",
+      "sha1": "3431ab665968df7c34bb633f8205832dc63c82b3",
+      "size": [
+        20,
+        18
+      ]
+    },
+    {
+      "file": "recipe_book/button_highlighted.png",
+      "archivePath": "assets/minecraft/textures/gui/sprites/recipe_book/button_highlighted.png",
+      "sha1": "014574ebdbb25b61e806491aa4063fe1e22a8091",
+      "size": [
+        20,
+        18
+      ]
+    },
+    {
+      "file": "panorama/panorama_0.png",
+      "source": "https://resources.download.minecraft.net/47/479ad40b906b87eab6d9eaa66f273226988dc2b2",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_0.png",
+      "sha1": "479ad40b906b87eab6d9eaa66f273226988dc2b2",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "panorama/panorama_1.png",
+      "source": "https://resources.download.minecraft.net/6a/6a84d4afab797aaf9f6ad283ebcd5899493c5c64",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_1.png",
+      "sha1": "6a84d4afab797aaf9f6ad283ebcd5899493c5c64",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "panorama/panorama_2.png",
+      "source": "https://resources.download.minecraft.net/a9/a9368ad23ea1b7517cc2fdf5b3d73cec45a045db",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_2.png",
+      "sha1": "a9368ad23ea1b7517cc2fdf5b3d73cec45a045db",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "panorama/panorama_3.png",
+      "source": "https://resources.download.minecraft.net/4e/4e260704b88f2cd57fbc05abcd1a4264df733f91",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_3.png",
+      "sha1": "4e260704b88f2cd57fbc05abcd1a4264df733f91",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "panorama/panorama_4.png",
+      "source": "https://resources.download.minecraft.net/17/17229c85a056fa9e97e9b025fd76e1e081b36317",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_4.png",
+      "sha1": "17229c85a056fa9e97e9b025fd76e1e081b36317",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "panorama/panorama_5.png",
+      "source": "https://resources.download.minecraft.net/61/61331fc97f54d2f7500cdbb14d16bc1244539272",
+      "assetIndexPath": "minecraft/textures/gui/title/background/panorama_5.png",
+      "sha1": "61331fc97f54d2f7500cdbb14d16bc1244539272",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "file": "container/creative_inventory/tab_item_search.png",
+      "archivePath": "assets/minecraft/textures/gui/container/creative_inventory/tab_item_search.png",
+      "sha1": "84ed4c38eee70929b1c640741025fc7bbed57d5b",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "file": "title/minecraft.png",
+      "archivePath": "assets/minecraft/textures/gui/title/minecraft.png",
+      "sha1": "9e7e32d1b3476604a2d14ace47d59a689ddb78a5",
+      "size": [
+        1024,
+        256
+      ]
+    },
+    {
+      "file": "title/edition.png",
+      "archivePath": "assets/minecraft/textures/gui/title/edition.png",
+      "sha1": "b7d846889417ae277024f23eb820b0c5551746b0",
+      "size": [
+        512,
+        64
+      ]
+    }
+  ],
+  "assetIndex": "https://piston-meta.mojang.com/v1/packages/917ff6d74b9f635c46bac0d28857206bbcc1ffe4/34.json"
+}

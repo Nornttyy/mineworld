@@ -5,6 +5,8 @@ import { leftClick, rightClick } from '../core/inventory/slots';
 import { itemMaxStack } from '../core/items/items';
 import { iconUrl, itemLabel } from './itemIcons';
 import { type FurnaceState, isFuel, isSmeltable, COOK_TICKS } from '../core/crafting/smelting';
+import { asset } from '../asset';
+import './javaInventory.css';
 
 const maxOf = (id: number): number => itemMaxStack(id);
 const HOTBAR = 9;
@@ -36,6 +38,8 @@ export class FurnaceUI {
   private furnace: FurnaceState | null = null;
   private cursor: ItemStack | null = null;
   private open = false;
+  private viewportHandler: (() => void) | null = null;
+  private trackedViewport: VisualViewport | null = null;
 
   private readonly cursorEl: HTMLElement;
   private readonly cursorIcon: HTMLElement;
@@ -54,12 +58,25 @@ export class FurnaceUI {
 
   constructor(root: HTMLElement) {
     this.root = root;
-    root.classList.add('hidden');
+    root.classList.add('hidden', 'java-container');
+    root.dataset.container = 'furnace';
+    root.style.setProperty(
+      '--furnace-background',
+      `url(${asset('textures/ui/java/container/furnace.png')})`,
+    );
+    root.style.setProperty(
+      '--furnace-burn',
+      `url(${asset('textures/ui/java/container/furnace/burn_progress.png')})`,
+    );
+    root.style.setProperty(
+      '--furnace-lit',
+      `url(${asset('textures/ui/java/container/furnace/lit_progress.png')})`,
+    );
     root.innerHTML = `
-      <div class="inv-panel">
+      <div class="inv-panel" role="dialog" aria-label="熔炉" aria-describedby="furnace-controls">
         <div class="inv-title-row">
           <div class="inv-title">熔炉</div>
-          <button class="inv-close" type="button">关闭</button>
+          <button class="inv-close" type="button" aria-label="关闭熔炉" title="关闭（E / Esc）">×</button>
         </div>
         <div class="fur-top">
           <div class="fur-col">
@@ -70,9 +87,10 @@ export class FurnaceUI {
           <div class="fur-arrow"><div class="fur-arrow-fill"></div></div>
           <div class="fur-slot fur-out"></div>
         </div>
+        <div class="java-inventory-label">物品栏</div>
         <div class="inv-main"></div>
         <div class="inv-hotbar"></div>
-        <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · 上槽放矿、下槽放燃料 · E / Esc 关闭</div>
+        <div class="inv-hint" id="furnace-controls">轻点拿放 · 长按放一个/拿一半 · 上槽放矿、下槽放燃料 · E / Esc 关闭</div>
       </div>`;
     (root.querySelector('.inv-close') as HTMLButtonElement).addEventListener('click', () =>
       this.onClose?.(),
@@ -93,7 +111,7 @@ export class FurnaceUI {
     for (let i = 0; i < HOTBAR; i++) this.hotbarCells.push(this.makeInvSlot(hotEl, 'hotbar', i));
 
     this.cursorEl = document.createElement('div');
-    this.cursorEl.className = 'inv-cursor';
+    this.cursorEl.className = 'inv-cursor java-item-cursor';
     this.cursorIcon = document.createElement('div');
     this.cursorIcon.className = 'slot-icon';
     this.cursorCnt = document.createElement('div');
@@ -112,6 +130,44 @@ export class FurnaceUI {
     document.addEventListener('pointercancel', (e) => {
       if (this.touchPress?.pointerId === e.pointerId) this.cancelTouchPress();
     });
+  }
+
+  private trackViewport(): void {
+    if (this.viewportHandler) return;
+    this.viewportHandler = () => this.positionPanel();
+    this.trackedViewport = window.visualViewport ?? null;
+    window.addEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.addEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.addEventListener('scroll', this.viewportHandler);
+  }
+
+  private untrackViewport(): void {
+    if (!this.viewportHandler) return;
+    window.removeEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.removeEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.removeEventListener('scroll', this.viewportHandler);
+    this.viewportHandler = null;
+    this.trackedViewport = null;
+  }
+
+  private positionPanel(): void {
+    const scale = Math.max(
+      1,
+      Math.floor(Number(getComputedStyle(this.root).getPropertyValue('--gui-scale')) || 2),
+    );
+    const viewport = window.visualViewport;
+    const availableWidth = viewport?.width ?? window.innerWidth;
+    const availableHeight = viewport?.height ?? window.innerHeight;
+    const left = Math.round(viewport?.offsetLeft ?? 0);
+    const top = Math.round(viewport?.offsetTop ?? 0);
+    this.root.style.setProperty(
+      '--container-left',
+      `${left + Math.max(0, Math.floor((availableWidth / scale - 176) / 2)) * scale}px`,
+    );
+    this.root.style.setProperty(
+      '--container-top',
+      `${top + Math.max(0, Math.floor((availableHeight / scale - 166) / 2)) * scale}px`,
+    );
   }
 
   private bindSlot(el: HTMLElement): Cell {
@@ -150,6 +206,8 @@ export class FurnaceUI {
   show(inv: Inventory, furnace: FurnaceState): void {
     this.inv = inv;
     this.furnace = furnace;
+    this.positionPanel();
+    this.trackViewport();
     this.open = true;
     this.root.classList.remove('hidden');
     this.render();
@@ -157,6 +215,7 @@ export class FurnaceUI {
 
   // 关闭：光标残留退回背包；放不下的交给 Game 生成掉落物。
   hide(): ItemStack[] {
+    this.untrackViewport();
     this.cancelTouchPress();
     const overflow: ItemStack[] = [];
     if (this.cursor) {
@@ -393,6 +452,7 @@ export class FurnaceUI {
 
   private fill(cell: Cell, stack: ItemStack | null): void {
     this.fillRaw(cell.icon, cell.cnt, stack);
+    cell.el.title = stack ? itemLabel(stack.id) : '';
   }
 
   private fillRaw(icon: HTMLElement, cnt: HTMLElement, stack: ItemStack | null): void {

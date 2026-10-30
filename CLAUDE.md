@@ -1,3 +1,5 @@
+> 历史设计草案：以下 Godot/2D 方案不再用于当前项目。当前代码为 TypeScript + Three.js，目标 Java 26.3。实现范围与运行方式以 README.md、现有源码及当前用户要求为准。
+
 # Teilaruia · 体验版（Demo）设计规范
 
 - **项目代号**：teilaruia（"泰拉瑞亚"音译）

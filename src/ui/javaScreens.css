@@ -1,0 +1,356 @@
+@font-face {
+  font-family: 'Minecraft Seven';
+  src: url('../../public/fonts/minecraft-seven.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Minecraft Unicode';
+  src: url('../../public/fonts/minecraft-unicode.woff2') format('woff2');
+  font-display: swap;
+}
+:root {
+  --gui-scale: 2;
+  --game-font: 'Minecraft Seven', 'Minecraft Unicode', 'Zpix', monospace;
+  --button-normal: url('../../public/textures/ui/java/widget/button.png');
+  --button-hover: url('../../public/textures/ui/java/widget/button_highlighted.png');
+  --button-disabled: url('../../public/textures/ui/java/widget/button_disabled.png');
+}
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--game-font);
+  font-synthesis: none;
+}
+#menu,
+#worldlist,
+#pause,
+#newworld,
+#multiplayer,
+#settings {
+  font-family: var(--game-font);
+  -webkit-font-smoothing: none;
+  image-rendering: pixelated;
+}
+#menubg {
+  filter: blur(1px);
+  transform: scale(1.01);
+}
+#menu {
+  background: linear-gradient(#ffffff10, #00000028);
+}
+#menu .menu-main {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+#menu .logo {
+  position: absolute;
+  top: calc(28px * var(--gui-scale));
+  left: 50%;
+  width: calc(274px * var(--gui-scale));
+  height: calc(58px * var(--gui-scale));
+  transform: translateX(-50%);
+  text-align: center;
+}
+#menu .logo h1 {
+  width: calc(256px * var(--gui-scale));
+  height: calc(64px * var(--gui-scale));
+  margin: 0 auto;
+  font-size: 0;
+  line-height: 0;
+  text-shadow: none;
+}
+#menu .logo h1 img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.edition {
+  position: absolute;
+  top: calc(46px * var(--gui-scale));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(128px * var(--gui-scale));
+  height: calc(16px * var(--gui-scale));
+}
+.edition img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+#menu #splash {
+  right: calc(-14px * var(--gui-scale));
+  bottom: calc(7px * var(--gui-scale));
+  font: calc(9px * var(--gui-scale)) / 1 var(--game-font);
+  color: #ffff00;
+  text-shadow: calc(1px * var(--gui-scale)) calc(1px * var(--gui-scale)) #3f3f00;
+}
+.btn,
+.nw-mode {
+  box-sizing: border-box;
+  padding: 0 calc(4px * var(--gui-scale));
+  min-height: calc(20px * var(--gui-scale));
+  height: calc(20px * var(--gui-scale));
+  border: calc(3px * var(--gui-scale)) solid transparent;
+  border-image: var(--button-normal) 3 fill / calc(3px * var(--gui-scale)) stretch;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font: calc(9px * var(--gui-scale)) / 1 var(--game-font);
+  color: #fff;
+  text-shadow: calc(1px * var(--gui-scale)) calc(1px * var(--gui-scale)) #3f3f3f;
+  image-rendering: pixelated;
+}
+.btn:hover,
+.btn:focus-visible,
+.nw-mode:hover,
+.nw-mode.active {
+  background: transparent;
+  border-image-source: var(--button-hover);
+  outline: none;
+  color: #fff;
+}
+.btn:disabled {
+  border-image-source: var(--button-disabled);
+  color: #a0a0a0;
+  cursor: default;
+}
+.btn-wide {
+  width: calc(200px * var(--gui-scale));
+}
+#menu .btn-wide {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#play {
+  top: calc(25% + 48px * var(--gui-scale));
+}
+#multiplayer-play {
+  top: calc(25% + 72px * var(--gui-scale));
+}
+#settings-btn {
+  top: calc(25% + 96px * var(--gui-scale));
+}
+#menu .menu-bottom-row {
+  position: absolute;
+  top: calc(25% + 132px * var(--gui-scale));
+  left: 50%;
+  transform: translateX(-50%);
+  gap: calc(4px * var(--gui-scale));
+}
+#menu .menu-bottom-row .btn {
+  width: calc(98px * var(--gui-scale));
+}
+#menu .footer-left,
+#menu .footer-right {
+  bottom: calc(2px * var(--gui-scale));
+  font-size: calc(9px * var(--gui-scale));
+  line-height: 1;
+  text-shadow: calc(1px * var(--gui-scale)) calc(1px * var(--gui-scale)) #333;
+}
+#menu .footer-left {
+  left: calc(2px * var(--gui-scale));
+}
+#menu .footer-right {
+  right: calc(2px * var(--gui-scale));
+}
+.screen-title {
+  font-size: calc(12px * var(--gui-scale));
+  font-weight: normal;
+}
+#pause {
+  background: linear-gradient(#101010a0, #000000c0);
+  gap: calc(4px * var(--gui-scale));
+}
+#pause .screen-title {
+  margin-bottom: calc(24px * var(--gui-scale));
+}
+#pause #save-quit {
+  margin-top: calc(12px * var(--gui-scale));
+}
+#worldlist {
+  background: #0009;
+  gap: calc(8px * var(--gui-scale));
+}
+.world-rows {
+  width: min(90vw, calc(310px * var(--gui-scale)));
+  max-height: 50vh;
+  gap: 0;
+}
+.world-row {
+  border: calc(1px * var(--gui-scale)) solid transparent;
+  padding: calc(8px * var(--gui-scale));
+  background: #0005;
+}
+.world-row:hover {
+  background: #0009;
+  border-color: #aaa;
+}
+.world-row .wname {
+  font-size: calc(9px * var(--gui-scale));
+}
+.world-row .wmeta {
+  font-size: calc(8px * var(--gui-scale));
+}
+.world-row .wdel {
+  font: calc(8px * var(--gui-scale)) var(--game-font);
+}
+#worldlist .btn-row {
+  gap: calc(4px * var(--gui-scale));
+}
+#worldlist .btn-row .btn {
+  width: calc(150px * var(--gui-scale));
+}
+#newworld,
+#multiplayer,
+#about-panel {
+  width: min(94vw, calc(310px * var(--gui-scale)));
+  padding: calc(12px * var(--gui-scale));
+  background: #202020f5;
+  border: calc(1px * var(--gui-scale)) solid #080808;
+  box-shadow: inset 0 calc(1px * var(--gui-scale)) #555;
+  border-radius: 0;
+}
+#newworld h2,
+#multiplayer h2,
+#about-panel h2 {
+  font-weight: normal;
+  font-size: calc(12px * var(--gui-scale));
+}
+.nw-field,
+.mp-field,
+#about-panel p {
+  font-size: calc(9px * var(--gui-scale));
+  color: #ddd;
+}
+.nw-field input,
+.mp-field input,
+.mp-field textarea {
+  border: calc(1px * var(--gui-scale)) solid #a0a0a0;
+  background: #000;
+  color: white;
+  font: calc(9px * var(--gui-scale)) / 1.4 var(--game-font);
+}
+.nw-desc {
+  color: #aaa;
+  font-size: calc(8px * var(--gui-scale));
+}
+#newworld .btn-row .btn {
+  width: calc(140px * var(--gui-scale));
+}
+#about-panel .ctrl {
+  color: #ddd;
+}
+#settings {
+  background: #202020f7 !important;
+}
+#settings .settings-card {
+  font-family: var(--game-font) !important;
+  color: #fff !important;
+}
+#settings select {
+  background: #333 !important;
+  color: #fff !important;
+  border-color: #888 !important;
+}
+#settings .btn {
+  font-family: var(--game-font) !important;
+}
+#boot {
+  background: #ef323d !important;
+}
+#boot .boot-blocks,
+#boot .boot-splash {
+  display: none;
+}
+#boot .boot-logo {
+  font-family: var(--game-font);
+  color: white;
+  text-shadow: none;
+  letter-spacing: 2px;
+}
+#boot .boot-bar {
+  background: transparent;
+  border: 3px solid white;
+  box-shadow: none;
+  padding: 3px;
+}
+#boot .boot-fill {
+  background: white;
+}
+#boot .boot-tip,
+#boot .boot-hint,
+#boot .boot-ver {
+  color: white;
+  letter-spacing: 0;
+}
+@media (max-height: 480px) {
+  #menu .footer-right {
+    display: none;
+  }
+}
+
+/* Settings share the same logical pixel and widget language as the title UI. */
+#settings .settings-card {
+  width: min(94vw, calc(310px * var(--gui-scale)));
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(12px * var(--gui-scale));
+  font-size: calc(9px * var(--gui-scale));
+}
+#settings .screen-title {
+  text-align: center;
+  margin: 0 0 calc(16px * var(--gui-scale));
+}
+#settings label,
+#settings .settings-textures {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--gui-scale));
+}
+#settings label > span:first-child,
+#settings .settings-textures > span {
+  width: calc(80px * var(--gui-scale));
+  flex-shrink: 0;
+}
+#settings label > span:last-child {
+  width: calc(28px * var(--gui-scale));
+  text-align: right;
+}
+#settings input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  height: calc(20px * var(--gui-scale));
+}
+#settings input[type='range']::-webkit-slider-runnable-track {
+  height: calc(20px * var(--gui-scale));
+  background: #444;
+  border: calc(1px * var(--gui-scale)) solid #000;
+}
+#settings input[type='range']::-webkit-slider-thumb {
+  width: calc(8px * var(--gui-scale));
+  height: calc(20px * var(--gui-scale));
+  margin-top: calc(-1px * var(--gui-scale));
+  background: #a0a0a0;
+  border: calc(1px * var(--gui-scale)) solid #fff;
+}
+#settings select {
+  flex: 1;
+  min-height: calc(20px * var(--gui-scale));
+  font: inherit;
+  padding: 0 calc(4px * var(--gui-scale));
+}
+#settings .settings-textures .btn {
+  flex: 1;
+  font-size: calc(8px * var(--gui-scale));
+}
+#settings #set-close {
+  margin: calc(16px * var(--gui-scale)) auto 0;
+}

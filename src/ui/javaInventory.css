@@ -1,0 +1,491 @@
+/* Java 26.3 container coordinates, measured against the original 256px atlases.
+ * Logical pixels are scaled once, as a complete panel; never resize individual slots. */
+#inventory.java-container,
+#furnace.java-container {
+  background: rgba(16, 16, 16, 0.65);
+  font-family: var(--game-font, 'Zpix', monospace);
+  font-size: 9px;
+  line-height: 1;
+  user-select: none;
+}
+
+.java-container .inv-panel {
+  position: absolute;
+  left: var(--container-left);
+  top: var(--container-top);
+  display: block;
+  flex: none;
+  width: 176px;
+  height: 166px;
+  min-width: 176px;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  background: transparent var(--inventory-background) no-repeat 0 0 / 256px 256px;
+  image-rendering: pixelated;
+  transform: scale(var(--gui-scale, 2));
+  transform-origin: top left;
+  touch-action: none;
+}
+
+.java-container[data-container='crafting'] .inv-panel {
+  background-image: var(--crafting-background);
+}
+
+.java-container[data-container='furnace'] .inv-panel {
+  background-image: var(--furnace-background);
+}
+
+.java-container .inv-standard,
+.java-container .inv-top,
+.java-container .fur-top,
+.java-container .fur-col,
+.java-container .inv-title-row {
+  display: block;
+  position: static;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.java-container .inv-title,
+.java-container .java-inventory-label {
+  position: absolute;
+  left: 97px;
+  top: 6px;
+  height: 9px;
+  font-size: 9px;
+  line-height: 9px;
+  font-weight: normal;
+  color: #404040;
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.java-container[data-container='crafting'] .inv-title {
+  left: 28px;
+}
+
+.java-container[data-container='furnace'] .inv-title {
+  left: 0;
+  width: 176px;
+  text-align: center;
+}
+
+.java-container .java-inventory-label {
+  left: 8px;
+  top: 72px;
+}
+
+.java-container[data-container='inventory'] .java-inventory-label {
+  display: none;
+}
+
+.java-container .inv-main,
+.java-container .inv-hotbar,
+.java-container .inv-cgrid {
+  display: grid;
+  grid-template-columns: repeat(9, 18px);
+  grid-auto-rows: 18px;
+  gap: 0;
+  position: absolute;
+  left: 7px;
+  top: 83px;
+  margin: 0;
+  padding: 0;
+}
+
+.java-container .inv-hotbar {
+  top: 141px;
+}
+
+.java-container .inv-cgrid {
+  left: 97px;
+  top: 17px;
+  width: 36px;
+}
+
+.java-container[data-container='crafting'] .inv-cgrid {
+  left: 29px;
+  top: 16px;
+  width: 54px;
+}
+
+.java-container .inv-slot {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+  touch-action: none;
+}
+
+.java-container .inv-slot:hover,
+.java-container .inv-slot.inv-drag-hi {
+  background: transparent;
+  box-shadow: none;
+}
+
+.java-container .inv-slot:hover::after,
+.java-container .inv-slot.inv-drag-hi::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+.java-container .slot-icon,
+.inv-cursor.java-item-cursor .slot-icon {
+  position: absolute;
+  inset: auto;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  background-position: center;
+  background-size: 16px 16px;
+  image-rendering: pixelated;
+  font: 5px/6px var(--game-font, 'Zpix', monospace);
+}
+
+.java-container .slot-count,
+.inv-cursor.java-item-cursor .slot-count {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: -1px;
+  font: 9px/9px var(--game-font, 'Zpix', monospace);
+  color: #fff;
+  text-shadow: 1px 1px 0 #3f3f3f;
+  pointer-events: none;
+}
+
+.java-container .inv-out-wrap {
+  position: absolute;
+  left: 153px;
+  top: 27px;
+}
+
+.java-container[data-container='crafting'] .inv-out-wrap {
+  left: 119px;
+  top: 30px;
+}
+
+.java-container[data-container='crafting'] .inv-out,
+.java-container .fur-out {
+  width: 26px;
+  height: 26px;
+}
+
+.java-container[data-container='crafting'] .inv-out .slot-icon,
+.java-container .fur-out .slot-icon {
+  left: 5px;
+  top: 5px;
+}
+
+.java-container[data-container='crafting'] .inv-out .slot-count,
+.java-container .fur-out .slot-count {
+  right: 4px;
+  bottom: 3px;
+}
+
+.java-container .java-player-area {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.java-container[data-container='crafting'] .java-player-area {
+  display: none;
+}
+
+.java-container .java-equipment {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+}
+
+.java-container .java-equipment-slot {
+  width: 18px;
+  height: 18px;
+  background-repeat: no-repeat;
+  background-position: 1px 1px;
+  background-size: 16px 16px;
+  pointer-events: auto;
+  cursor: not-allowed;
+}
+
+.java-container [data-equipment='helmet'] {
+  background-image: var(--empty-helmet);
+}
+.java-container [data-equipment='chestplate'] {
+  background-image: var(--empty-chestplate);
+}
+.java-container [data-equipment='leggings'] {
+  background-image: var(--empty-leggings);
+}
+.java-container [data-equipment='boots'] {
+  background-image: var(--empty-boots);
+}
+
+.java-container .java-offhand {
+  position: absolute;
+  left: 76px;
+  top: 61px;
+  background-image: var(--empty-shield);
+}
+
+.java-container .java-player-preview {
+  position: absolute;
+  left: 26px;
+  top: 8px;
+  width: 48px;
+  height: 70px;
+  pointer-events: auto;
+}
+
+.java-container .fur-input,
+.java-container .fur-fuel,
+.java-container .fur-out {
+  position: absolute;
+}
+
+.java-container .fur-input {
+  left: 55px;
+  top: 16px;
+}
+.java-container .fur-fuel {
+  left: 55px;
+  top: 52px;
+}
+.java-container .fur-out {
+  left: 111px;
+  top: 30px;
+}
+
+.java-container .fur-flame {
+  position: absolute;
+  left: 56px;
+  top: 36px;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.java-container .fur-flame-fill {
+  background: var(--furnace-lit) no-repeat left bottom / 14px 14px;
+}
+
+.java-container .fur-arrow {
+  position: absolute;
+  left: 79px;
+  top: 34px;
+  width: 24px;
+  height: 16px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.java-container .fur-arrow-fill {
+  background: var(--furnace-burn) no-repeat left top / 24px 16px;
+}
+
+.java-container .inv-close {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  right: 4px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid #373737;
+  color: #404040;
+  background: #c6c6c6;
+  box-shadow:
+    inset 1px 1px #fff,
+    inset -1px -1px #555;
+  font: 9px/8px var(--game-font, 'Zpix', monospace);
+}
+
+.java-container .inv-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.inv-cursor.java-item-cursor {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  transform: translate(-50%, -50%) scale(var(--gui-scale, 2));
+  transform-origin: center;
+  font-family: var(--game-font, 'Zpix', monospace);
+}
+
+/* The five categories list only implemented items; no unsupported catalog entries. */
+.java-container[data-container='creative'] .inv-panel {
+  width: 195px;
+  min-width: 195px;
+  height: 136px;
+  background-image: var(--creative-background);
+}
+
+.java-container[data-container='creative'] .inv-title {
+  left: 8px;
+  top: 6px;
+}
+
+.java-container .creative-view {
+  display: block;
+}
+
+.java-container .creative-tabs {
+  position: absolute;
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  gap: 1px;
+  left: 7px;
+  top: -28px;
+}
+
+.java-container .creative-tab {
+  position: relative;
+  width: 28px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid #080808;
+  border-bottom: 0;
+  background: #8b8b8b;
+  box-shadow:
+    inset 1px 1px #fff,
+    inset -1px 0 #555;
+}
+
+.java-container .creative-tab.active {
+  background: #c6c6c6;
+  box-shadow: inset 1px 1px #fff;
+}
+.java-container .creative-tab .slot-icon {
+  top: 7px;
+  left: 6px;
+}
+
+.java-container .creative-search {
+  position: absolute;
+  left: 82px;
+  top: 5px;
+  width: 80px;
+  height: 10px;
+  min-height: 0;
+  padding: 1px;
+  border: 0;
+  border-radius: 0;
+  background: #8b8b8b;
+  box-shadow: none;
+  outline: none;
+  font: 9px/9px var(--game-font, 'Zpix', monospace);
+  color: #fff;
+}
+
+.java-container .creative-search:focus {
+  outline: none;
+  border: 0;
+}
+.java-container .creative-search::placeholder {
+  color: transparent;
+}
+.java-container .creative-search::-webkit-search-cancel-button {
+  display: none;
+}
+
+.java-container .creative-grid {
+  position: absolute;
+  left: 7px;
+  top: 17px;
+  display: grid;
+  grid-template-columns: repeat(9, 18px);
+  grid-auto-rows: 18px;
+  align-content: start;
+  gap: 0;
+  width: 181px;
+  height: 90px;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: transparent;
+  box-shadow: none;
+  scrollbar-color: #c6c6c6 #333;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+
+.java-container .creative-grid .inv-slot {
+  background: #8b8b8b;
+  box-shadow:
+    inset 1px 1px #373737,
+    inset -1px -1px #fff;
+}
+
+.java-container .creative-grid::-webkit-scrollbar {
+  width: 12px;
+}
+.java-container .creative-grid::-webkit-scrollbar-track {
+  background: #333;
+}
+.java-container .creative-grid::-webkit-scrollbar-thumb {
+  background: #c6c6c6;
+  border: 1px solid #373737;
+  box-shadow:
+    inset 1px 1px #fff,
+    inset -1px -1px #555;
+}
+
+.java-container[data-container='creative'] .inv-hotbar {
+  top: 111px;
+}
+.java-container .creative-trash-row {
+  position: absolute;
+  left: 172px;
+  top: 111px;
+  display: block;
+  min-height: 0;
+}
+.java-container .creative-trash-row > span {
+  display: none;
+}
+.java-container .creative-trash {
+  background: #8b8b8b;
+  box-shadow:
+    inset 1px 1px #373737,
+    inset -1px -1px #fff;
+}
+.java-container .creative-trash .slot-icon {
+  color: #555;
+  font: 14px/16px var(--game-font, 'Zpix', monospace);
+  text-shadow: none;
+}
+
+@media (pointer: coarse) {
+  .java-container .inv-close {
+    display: block;
+  }
+}

@@ -1,26 +1,5 @@
 import { loadSettings, saveSettings, type Settings, type TexturePack, type LightingQuality } from '../core/settings';
 
-// 像素风控件样式（拉杆 + 复选框）：方块化、硬边、无圆角。原生控件无法用内联样式改伪元素，故注入一次。
-function ensureControlStyles(): void {
-  if (document.getElementById('mw-settings-css')) return;
-  const st = document.createElement('style');
-  st.id = 'mw-settings-css';
-  st.textContent = `
-    #settings input[type=range]{-webkit-appearance:none;appearance:none;height:20px;background:transparent;cursor:pointer;}
-    #settings input[type=range]::-webkit-slider-runnable-track{height:12px;border:2px solid #5a7390;border-radius:0;box-sizing:border-box;
-      background:linear-gradient(to right,#6ab0ff 0,#6ab0ff var(--fill,70%),#16212e var(--fill,70%));}
-    #settings input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:10px;height:20px;margin-top:-6px;
-      background:#dce8f2;border:2px solid #2a3b4d;border-radius:0;box-sizing:border-box;}
-    #settings input[type=range]::-moz-range-track{height:12px;border:2px solid #5a7390;border-radius:0;box-sizing:border-box;background:#16212e;}
-    #settings input[type=range]::-moz-range-progress{height:12px;background:#6ab0ff;}
-    #settings input[type=range]::-moz-range-thumb{width:10px;height:20px;background:#dce8f2;border:2px solid #2a3b4d;border-radius:0;box-sizing:border-box;}
-    #settings input[type=checkbox]{-webkit-appearance:none;appearance:none;width:22px;height:22px;box-sizing:border-box;margin:0;
-      background:#16212e;border:2px solid #5a7390;border-radius:0;cursor:pointer;position:relative;}
-    #settings input[type=checkbox]:checked{background:#6ab0ff;}
-    #settings input[type=checkbox]:checked::after{content:'';position:absolute;inset:4px;background:#0e1a28;}`;
-  document.head.appendChild(st);
-}
-
 // 设置面板：局内(暂停菜单)与局外(主菜单)共用。改动即存盘并通过 onChange 通知应用。
 // 覆盖在其它界面之上（半透明背板 + 居中卡片）；点"返回"只是隐藏，露出后面的菜单。
 export class SettingsMenu {
@@ -32,40 +11,23 @@ export class SettingsMenu {
     this.root = root;
     this.settings = loadSettings();
     root.classList.remove('hidden'); // 改用内联 display 控制(避开 .hidden 的 !important)
-    ensureControlStyles(); // 注入像素风拉杆/复选框样式
     // 占满全屏的设置页（不再是小浮窗）：不透明深底铺满，控件居中成列。
     root.style.cssText =
       'position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#0e1a28;' +
       'overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;';
     root.innerHTML = `
-      <div class="settings-card" style="width:min(560px,90vw);margin:24px auto;color:#dce8f2;font-family:'Zpix',monospace;display:flex;flex-direction:column;gap:24px;">
-        <h2 class="screen-title" style="margin:0 0 4px;text-align:center;">设置</h2>
-        <label style="display:flex;align-items:center;gap:12px;">
-          <span style="width:108px;">音量</span>
-          <input id="set-vol" type="range" min="0" max="100" style="flex:1;" />
-          <span id="set-vol-val" style="width:46px;text-align:right;"></span>
-        </label>
-        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">同时控制环境音乐与游戏音效</div>
-        <label style="display:flex;align-items:center;gap:12px;">
-          <span style="width:108px;">光影</span>
-          <select id="set-lighting" style="background:#16212e;color:#dce8f2;border:2px solid #5a7390;padding:2px 6px;font-family:'Zpix',monospace;font-size:14px;cursor:pointer;">
-            <option value="off">关</option>
-            <option value="standard">标准</option>
-            <option value="high">超高</option>
-          </select>
-        </label>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span style="width:108px;">材质</span>
-          <button id="set-tex-classic" class="btn" type="button" style="font-size:15px;padding:9px 10px;">标准像素</button>
-          <button id="set-tex-cartoon" class="btn" type="button" style="font-size:15px;padding:9px 10px;">鲜艳像素</button>
+      <div class="settings-card">
+        <h2 class="screen-title">选项</h2>
+        <label><span>音乐和音效</span><input id="set-vol" type="range" min="0" max="100" /><span id="set-vol-val"></span></label>
+        <label><span>光照</span><select id="set-lighting">
+          <option value="off">原版风格</option><option value="standard">增强光影</option><option value="high">高质量光影</option>
+        </select></label>
+        <div class="settings-textures"><span>资源包</span>
+          <button id="set-tex-classic" class="btn" type="button">原版材质</button>
+          <button id="set-tex-cartoon" class="btn" type="button">鲜艳像素</button>
         </div>
-        <label style="display:flex;align-items:center;gap:12px;">
-          <span style="width:108px;">渲染距离</span>
-          <input id="set-rd" type="range" min="3" max="12" style="flex:1;" />
-          <span id="set-rd-val" style="width:46px;text-align:right;"></span>
-        </label>
-        <div style="font-size:12px;color:#8aa;margin-top:-10px;margin-left:120px;">小=白雾更近、更流畅；大=看得远、更吃性能</div>
-        <button id="set-close" class="btn btn-wide" type="button" style="margin-top:6px;">返回</button>
+        <label><span>渲染距离</span><input id="set-rd" type="range" min="3" max="12" /><span id="set-rd-val"></span></label>
+        <button id="set-close" class="btn btn-wide" type="button">完成</button>
       </div>`;
 
     const vol = root.querySelector('#set-vol') as HTMLInputElement;
@@ -77,8 +39,8 @@ export class SettingsMenu {
     const syncTexButtons = (): void => {
       texCartoon.classList.toggle('active', this.settings.texturePack === 'cartoon');
       texClassic.classList.toggle('active', this.settings.texturePack === 'classic');
-      texCartoon.style.outline = this.settings.texturePack === 'cartoon' ? '2px solid #6ab0ff' : 'none';
-      texClassic.style.outline = this.settings.texturePack === 'classic' ? '2px solid #6ab0ff' : 'none';
+      texCartoon.style.outline = this.settings.texturePack === 'cartoon' ? '2px solid #fff' : 'none';
+      texClassic.style.outline = this.settings.texturePack === 'classic' ? '2px solid #fff' : 'none';
     };
     const apply = (): void => {
       saveSettings(this.settings);

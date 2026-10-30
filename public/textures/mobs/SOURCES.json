@@ -1,0 +1,124 @@
+{
+  "version": "Java 26.3",
+  "retrieved": "2026-10-30",
+  "metadata": "https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json",
+  "client": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "copyright": "Mojang Studios / Microsoft. Original artwork; not relicensed by this project.",
+  "usage_guidelines": "https://www.minecraft.net/usage-guidelines",
+  "assets": [
+    {
+      "file": "zombie.png",
+      "jar_entry": "assets/minecraft/textures/entity/zombie/zombie.png",
+      "size": [
+        64,
+        64
+      ],
+      "sha256": "1b88eea9b63889c2c3399773f887af375defc3aad0e7a375adc84249da54cbbd",
+      "modified": false
+    },
+    {
+      "file": "husk.png",
+      "jar_entry": "assets/minecraft/textures/entity/zombie/husk.png",
+      "size": [
+        64,
+        64
+      ],
+      "sha256": "317492552dc374f62fe1e7743fdd20a453e6e22b3816a2f7e14963b36c063621",
+      "modified": false
+    },
+    {
+      "file": "skeleton.png",
+      "jar_entry": "assets/minecraft/textures/entity/skeleton/skeleton.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "854dd39acb1d8852db3b9e5d3d2bdc032070e37f421b53661ff48d0c1ddf290a",
+      "modified": false
+    },
+    {
+      "file": "creeper.png",
+      "jar_entry": "assets/minecraft/textures/entity/creeper/creeper.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "e5f1cbe223f6838049e4632b250cad7b70c1d30e9717ad7bfe32912731887283",
+      "modified": false
+    },
+    {
+      "file": "pig.png",
+      "jar_entry": "assets/minecraft/textures/entity/pig/pig_temperate.png",
+      "size": [
+        64,
+        64
+      ],
+      "sha256": "4e2891d9e7d7ac592c911a43c419e9bc6c91918fad3c45a1e8db2021b5553f0d",
+      "modified": false
+    },
+    {
+      "file": "cow.png",
+      "jar_entry": "assets/minecraft/textures/entity/cow/cow_temperate.png",
+      "size": [
+        64,
+        64
+      ],
+      "sha256": "5106c2676c70d64b2af4bc0792cb4adfa75cf587d05cc370ee7c6ca01465efdc",
+      "modified": false
+    },
+    {
+      "file": "sheep.png",
+      "jar_entry": "assets/minecraft/textures/entity/sheep/sheep.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "5356607cc2b8979f00d2aafd31bdfcbbff792a6eebd6206d44733ad63ad303f9",
+      "modified": false
+    },
+    {
+      "file": "sheep_wool.png",
+      "jar_entry": "assets/minecraft/textures/entity/sheep/sheep_wool.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "4f76a7d14c8248288e7ad1bc73ea76bd509c19c828dd02268453406fd59d961c",
+      "modified": false
+    },
+    {
+      "file": "chicken.png",
+      "jar_entry": "assets/minecraft/textures/entity/chicken/chicken_temperate.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "80340dc8559bbeaa994728c23ea7df655d8f8e6b462257c7570dd5a8cf57b36b",
+      "modified": false
+    }
+  ],
+  "retained_procedural": [
+    "spider.png",
+    "rabbit.png"
+  ],
+  "model_basis": "Cube sizes, UV origins, pivots and inflation values checked against the corresponding adult model definitions in the official 26.3 client. Render geometry and coordinate adaptation are authored in this project.",
+  "limits": [
+    "Only adult temperate pig/cow/chicken variants are represented. No cold/warm variants or babies.",
+    "Spider and rabbit retain prior procedural skins and substitute models.",
+    "Locomotion, head tracking, skeleton bow geometry and creeper swelling are still project animation/reconstruction.",
+    "Entity lighting uses the project baked face shades and sampled world brightness; it is not the full vanilla entity shader."
+  ],
+  "model_definitions_checked": [
+    "HumanoidModel.createMesh",
+    "SkeletonModel.createDefaultSkeletonMesh",
+    "CreeperModel.createBodyLayer",
+    "QuadrupedModel.createBodyMesh/createLegs",
+    "PigModel.createBasePigModel",
+    "CowModel.createBaseCowModel",
+    "SheepModel.createBodyLayer",
+    "SheepFurModel.createFurLayer",
+    "AdultChickenModel.createBaseChickenModel"
+  ],
+  "model_units": "1 model pixel = 1/16 world unit; model frame +Y down / -Z forward converted once to world +Y up / +X forward."
+}

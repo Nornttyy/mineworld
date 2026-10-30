@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   FirstPersonHand,
   bowChargeStage,
@@ -7,16 +7,25 @@ import {
   heldSpritePose,
   heldRenderKind,
   mcSwingPose,
+  mcSwingQuaternion,
+  rightArmGeometry,
 } from './FirstPersonHand';
+import { heldItemGeometry, type SpriteAlpha } from './heldItemGeometry';
 
 type InspectableHand = {
   item: THREE.Mesh | null;
   arm: THREE.Mesh;
+  sleeve: THREE.Mesh;
   skyLight: THREE.HemisphereLight;
   sunLight: THREE.DirectionalLight;
+  root: THREE.Group;
+  itemId: number | null;
+  equipped: number;
+  swingT: number;
+  spriteMasks: WeakMap<THREE.Texture, SpriteAlpha>;
 };
 
-// 手持渲染分类：方块=3D 立方体，物品(食物/工具/材料)=平面图标精灵，其余=只露手臂。
+// 分类名 sprite 保持 API 兼容；实际几何有正反面和不透明像素边缘侧壁。
 describe('FirstPersonHand heldRenderKind', () => {
   it('方块(木板/工作台/泥土) → block（3D 立方体）', () => {
     expect(heldRenderKind(2)).toBe('block'); // 泥土
@@ -40,17 +49,38 @@ describe('FirstPersonHand heldRenderKind', () => {
   });
 });
 
-describe('手持物品尺寸与方向', () => {
-  it('长工具比普通材料更大，且使用稳定的斜握方向', () => {
+describe('Java 26.3 资源模型的手持显示变换', () => {
+  it('工具、普通物品和弓使用官方JSON显示参数，透明轮廓决定可见大小', () => {
     const sword = heldSpritePose(300);
     const coal = heldSpritePose(258);
-    expect(sword.size).toBeGreaterThan(coal.size);
-    expect(sword.position[1]).toBeGreaterThan(coal.position[1]);
-    expect(sword.rotation[2]).toBeLessThan(0);
+    // External expectations read from the SHA-verified official 26.3 client.
+    expect(sword).toEqual({
+      size: 0.68,
+      position: [1.13 / 16, 3.2 / 16, 1.13 / 16],
+      rotation: [0, -Math.PI / 2, (25 * Math.PI) / 180],
+    });
+    expect(sword).toEqual(coal);
+    expect(heldSpritePose(292)).toEqual(sword);
+    expect(heldSpritePose(256)).toEqual(sword);
   });
 
-  it('食物不会像工具一样占满视野', () => {
-    expect(heldSpritePose(256).size).toBeLessThan(heldSpritePose(297).size);
+  it('方块采用官方0.4比例与45度偏航，不再套空手斜姿或额外露出代理手臂', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    const inspect = hand as unknown as InspectableHand;
+    hand.setHeld(2);
+    hand.update(0, 0);
+    inspect.item!.geometry.computeBoundingBox();
+    const size = new THREE.Vector3();
+    inspect.item!.geometry.boundingBox!.getSize(size);
+    expect(size.x).toBeCloseTo(0.4);
+    expect(inspect.item!.rotation.y).toBeCloseTo(Math.PI / 4);
+    expect(inspect.item!.position.length()).toBe(0);
+    expect(inspect.root.position.toArray()).toEqual([0.56, -0.52, -0.72]);
+    expect(inspect.root.quaternion.angleTo(new THREE.Quaternion())).toBeCloseTo(0);
+    expect(inspect.arm.visible).toBe(false);
+    hand.setHeld(null);
+    for (let i = 0; i < 20; i++) hand.update(1 / 60, 0);
+    expect(inspect.arm.visible).toBe(true);
   });
 });
 
@@ -66,7 +96,7 @@ describe('弓蓄力动画帧', () => {
   });
 });
 
-describe('mcSwingPose（1:1 复刻 MC 挥击）', () => {
+describe('mcSwingPose（参考挥击曲线，待机基姿仍是适配）', () => {
   it('t=0 静止：无平移、绕 X 不下劈、Y 旋转净为 0', () => {
     const p = mcSwingPose(0);
     expect(p.tx).toBeCloseTo(0);
@@ -87,6 +117,250 @@ describe('mcSwingPose（1:1 复刻 MC 挥击）', () => {
     const m = mcSwingPose(0.25);
     expect(m.tx).toBeLessThan(0); // 右手往左(中间)
     expect(m.tz).toBeLessThan(0); // 往画面里(前方)
+  });
+});
+
+describe('挥击旋转链', () => {
+  it('实际手持根按 Y→Z→X→Y 次序使用全部旋转，没有把 Z 旋转用在 Y 轴上', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    const inspect = hand as unknown as InspectableHand;
+    inspect.swingT = 0.25;
+    hand.update(0, 0);
+    const p = mcSwingPose(0.25);
+    const expected = new THREE.Matrix4()
+      .makeRotationY(p.ry1)
+      .multiply(new THREE.Matrix4().makeRotationZ(p.rz))
+      .multiply(new THREE.Matrix4().makeRotationX(p.rx))
+      .multiply(new THREE.Matrix4().makeRotationY(p.ry2))
+      .multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.1, -0.5, 0.4)));
+    for (const axis of [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1),
+    ]) {
+      const actual = axis.clone().applyQuaternion(inspect.root.quaternion);
+      expect(actual.distanceTo(axis.clone().transformDirection(expected))).toBeLessThan(1e-10);
+    }
+    expect(mcSwingQuaternion(mcSwingPose(0)).angleTo(new THREE.Quaternion())).toBeCloseTo(0);
+  });
+
+  it('持续挖掘在30/60/120fps保留挥击跨帧余量，松开后回到待机', () => {
+    for (const fps of [30, 60, 120]) {
+      const hand = new FirstPersonHand(new THREE.Texture());
+      const inspect = hand as unknown as InspectableHand;
+      for (let frame = 0; frame < fps; frame++) {
+        hand.swing();
+        hand.update(1 / fps, 0);
+      }
+      expect(inspect.swingT).toBeCloseTo(1 / 3 + 0.0001, 5);
+      for (let frame = 0; frame < fps / 2; frame++) hand.update(1 / fps, 0);
+      expect(inspect.swingT).toBe(0);
+    }
+  });
+});
+
+describe('手持物切换', () => {
+  it('保留旧物品下放，低位才换模型，再抬起；逐帧setHeld不重置动画', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    const inspect = hand as unknown as InspectableHand;
+    hand.setHeld(2);
+    hand.update(0, 0);
+    const old = inspect.item;
+    const dispose = vi.spyOn(old!.geometry, 'dispose');
+    const idleY = inspect.root.position.y;
+    for (let frame = 0; frame < 6; frame++) {
+      hand.setHeld(7);
+      hand.update(1 / 60, 0);
+    }
+    expect(inspect.item).toBe(old);
+    expect(inspect.root.position.y).toBeLessThan(idleY - 0.4);
+    expect(dispose).not.toHaveBeenCalled();
+    hand.setHeld(7);
+    hand.update(1 / 60, 0);
+    expect(inspect.itemId).toBe(7);
+    expect(inspect.item).not.toBe(old);
+    expect(inspect.equipped).toBeLessThan(0.1);
+    expect(dispose).toHaveBeenCalledOnce();
+    for (let frame = 0; frame < 10; frame++) {
+      hand.setHeld(7);
+      hand.update(1 / 60, 0);
+    }
+    expect(inspect.equipped).toBe(1);
+    expect(inspect.root.position.y).toBeCloseTo(idleY);
+  });
+
+  it('快速滚轮只换最后一个目标；切空手与改变光照不遗失待切换物品', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    const inspect = hand as unknown as InspectableHand;
+    hand.setHeld(2);
+    hand.setHeld(7);
+    hand.update(0.05, 0);
+    hand.setHeld(11);
+    hand.setLightingQuality('high');
+    expect(inspect.itemId).toBe(2);
+    hand.update(0.05, 0);
+    hand.update(0.025, 0);
+    expect(inspect.itemId).toBe(11);
+    hand.setHeld(null);
+    for (let i = 0; i < 20; i++) hand.update(1 / 60, 0);
+    expect(inspect.item).toBeNull();
+    expect(inspect.itemId).toBeNull();
+    expect(inspect.equipped).toBe(1);
+  });
+});
+
+describe('物品薄实体像素侧壁', () => {
+  it('异步纹理到达后建立侧壁，旧物品的迟到加载不会改写当前手持几何', () => {
+    const pending: { texture: THREE.Texture; done: () => void }[] = [];
+    const loader = vi
+      .spyOn(THREE.TextureLoader.prototype, 'load')
+      .mockImplementation((_url, onLoad) => {
+        const texture = new THREE.Texture();
+        pending.push({ texture, done: () => onLoad?.(texture) });
+        return texture;
+      });
+    try {
+      const hand = new FirstPersonHand(new THREE.Texture());
+      const inspect = hand as unknown as InspectableHand;
+      hand.setHeld(259);
+      expect(inspect.item!.geometry.index!.count).toBe(12); // texture not loaded yet
+      inspect.spriteMasks.set(pending[0].texture, { width: 2, height: 1, alpha: [255, 255] });
+      pending[0].done();
+      expect(inspect.item!.geometry.index!.count).toBe(48);
+      hand.setHeld(2);
+      hand.update(0.2, 0);
+      const current = inspect.item!.geometry;
+      const dispose = vi.spyOn(current, 'dispose');
+      pending[0].done();
+      expect(inspect.item!.geometry).toBe(current);
+      expect(dispose).not.toHaveBeenCalled();
+    } finally {
+      loader.mockRestore();
+    }
+  });
+
+  it('相邻像素之间没有内部侧面，外缘和孔洞有侧壁且有真实厚度', () => {
+    const pair = heldItemGeometry({ width: 2, height: 1, alpha: [255, 255] }, 1);
+    // 2 front/back faces + 6 exposed pixel edges, no shared interior wall.
+    expect(pair.index!.count).toBe(8 * 6);
+    expect(pair.boundingBox!.max.z - pair.boundingBox!.min.z).toBeCloseTo(1 / 16);
+    const ring = heldItemGeometry(
+      { width: 3, height: 3, alpha: [255, 255, 255, 255, 0, 255, 255, 255, 255] },
+      1,
+    );
+    // 12 exterior pixel edges + 4 around the transparent centre.
+    expect(ring.index!.count).toBe(18 * 6);
+    pair.dispose();
+    ring.dispose();
+  });
+
+  it('侧壁UV采样不透明像素中心，法线和面绕序一致', () => {
+    const g = heldItemGeometry({ width: 2, height: 2, alpha: [255, 0, 0, 0] }, 0.48);
+    const uv = g.getAttribute('uv'),
+      pos = g.getAttribute('position'),
+      normal = g.getAttribute('normal');
+    for (let i = 8; i < uv.count; i++) {
+      expect(uv.getX(i)).toBe(0.25);
+      expect(uv.getY(i)).toBe(0.75);
+    }
+    for (let face = 0; face < pos.count / 4; face++) {
+      const a = new THREE.Vector3().fromBufferAttribute(pos, face * 4);
+      const b = new THREE.Vector3().fromBufferAttribute(pos, face * 4 + 1).sub(a);
+      const c = new THREE.Vector3().fromBufferAttribute(pos, face * 4 + 2).sub(a);
+      const n = new THREE.Vector3().fromBufferAttribute(normal, face * 4);
+      expect(b.cross(c).normalize().dot(n)).toBeGreaterThan(0.999);
+    }
+    g.dispose();
+  });
+});
+
+describe('原版Steve右臂和袖子', () => {
+  it('待机画面露出肤色拳端，肩部和袖子退向右下方，不能把手臂反着举起', () => {
+    const hand = new FirstPersonHand(new THREE.Texture());
+    const inspect = hand as unknown as InspectableHand;
+    hand.setHeld(null);
+    hand.update(0, 0);
+    hand.scene.updateMatrixWorld(true);
+    // The skin is anatomical: local +Y is shoulder, local -Y is the fist.
+    // Check the rendered space, not the rotation values used to obtain it.
+    const fist = inspect.arm.localToWorld(new THREE.Vector3(0, -6 / 16, 0));
+    const shoulder = inspect.arm.localToWorld(new THREE.Vector3(0, 6 / 16, 0));
+    const fistNormal = new THREE.Vector3(0, -1, 0).transformDirection(inspect.arm.matrixWorld);
+    expect(fist.x).toBeLessThan(shoulder.x);
+    expect(fist.y).toBeGreaterThan(shoulder.y);
+    expect(fist.z).toBeLessThan(shoulder.z);
+    expect(fistNormal.dot(fist.clone().negate().normalize())).toBeGreaterThan(0.1);
+    for (const aspect of [940 / 898, 16 / 9]) {
+      hand.resize(aspect);
+      const screenFist = fist.clone().project(hand.camera);
+      const screenShoulder = shoulder.clone().project(hand.camera);
+      expect(screenFist.x).toBeGreaterThan(0);
+      expect(screenFist.x).toBeLessThan(1);
+      expect(screenFist.y).toBeGreaterThan(-0.5);
+      expect(screenFist.y).toBeLessThan(0);
+      expect(screenShoulder.y).toBeLessThan(-1);
+    }
+    // A camera ray aimed at the visible tip hits the fist UV cap (48,16),
+    // not the blue shoulder cap (44,16). This fails with the former pose.
+    const ray = new THREE.Raycaster(new THREE.Vector3(), fist.clone().normalize());
+    const hit = ray.intersectObject(inspect.arm, false)[0];
+    expect(hit).toBeDefined();
+    expect(hit.face!.normal.toArray()).toEqual([0, -1, 0]);
+    expect(hit.uv!.x * 64).toBeCloseTo(50);
+    expect((1 - hit.uv!.y) * 64).toBeCloseTo(18);
+  });
+
+  it('基础层4×12×4，袖子扩张0.25像素且映射独立的64×64皮肤UV区域', () => {
+    for (const outer of [false, true]) {
+      const g = rightArmGeometry(outer);
+      g.computeBoundingBox();
+      const size = new THREE.Vector3();
+      g.boundingBox!.getSize(size);
+      expect(size.x).toBeCloseTo((outer ? 4.5 : 4) / 16);
+      expect(size.y).toBeCloseTo((outer ? 12.5 : 12) / 16);
+      expect(size.z).toBeCloseTo((outer ? 4.5 : 4) / 16);
+      const v = outer ? 32 : 16;
+      const expected = [
+        [40, v + 4, 44, v + 16],
+        [48, v + 4, 52, v + 16],
+        [44, v, 48, v + 4],
+        [48, v, 52, v + 4],
+        [44, v + 4, 48, v + 16],
+        [52, v + 4, 56, v + 16],
+      ];
+      const uv = g.getAttribute('uv');
+      for (const [face, [left, top, right, bottom]] of expected.entries()) {
+        const xs = [],
+          ys = [];
+        for (let k = 0; k < 4; k++) {
+          xs.push(uv.getX(face * 4 + k) * 64);
+          ys.push((1 - uv.getY(face * 4 + k)) * 64);
+        }
+        expect([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]).toEqual([
+          left,
+          top,
+          right,
+          bottom,
+        ]);
+      }
+      g.dispose();
+    }
+  });
+
+  it('皮肤和袖子共用最近邻原版贴图，水下与明暗变化保持一致', () => {
+    const skin = new THREE.Texture();
+    const hand = new FirstPersonHand(new THREE.Texture(), skin);
+    const inspect = hand as unknown as InspectableHand;
+    const base = inspect.arm.material as THREE.MeshBasicMaterial;
+    const outer = inspect.sleeve.material as THREE.MeshBasicMaterial;
+    expect(base.map).toBe(skin);
+    expect(outer.map).toBe(skin);
+    expect(skin.magFilter).toBe(THREE.NearestFilter);
+    expect(inspect.sleeve.parent).toBe(inspect.arm);
+    expect(outer.alphaTest).toBe(0.5);
+    hand.setUnderwater(true);
+    hand.setBrightness(0.3);
+    expect(outer.color.equals(base.color)).toBe(true);
   });
 });
 

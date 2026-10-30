@@ -20,6 +20,9 @@ import {
   type CreativeCategory,
 } from '../core/inventory/creative';
 import { iconUrl, itemLabel } from './itemIcons';
+import { asset } from '../asset';
+import { PlayerPreview } from './PlayerPreview';
+import './javaInventory.css';
 
 const maxOf = (id: number): number => itemMaxStack(id);
 const HOTBAR = 9;
@@ -62,6 +65,9 @@ export class InventoryUI {
   private mode: 'survival' | 'creative' = 'survival';
   private creativeCategory: CreativeCategory = 'building';
   private creativeIds: readonly number[] = [];
+  private viewportHandler: (() => void) | null = null;
+  private trackedViewport: VisualViewport | null = null;
+  private playerPreview: PlayerPreview | null = null;
 
   private readonly cursorEl: HTMLElement;
   private readonly cursorIcon: HTMLElement;
@@ -90,19 +96,47 @@ export class InventoryUI {
 
   constructor(root: HTMLElement) {
     this.root = root;
-    root.classList.add('hidden');
+    root.classList.add('hidden', 'java-container');
+    root.dataset.container = 'inventory';
+    root.style.setProperty(
+      '--inventory-background',
+      `url(${asset('textures/ui/java/container/inventory.png')})`,
+    );
+    root.style.setProperty(
+      '--crafting-background',
+      `url(${asset('textures/ui/java/container/crafting_table.png')})`,
+    );
+    root.style.setProperty(
+      '--creative-background',
+      `url(${asset('textures/ui/java/container/creative_inventory/tab_item_search.png')})`,
+    );
+    for (const name of ['helmet', 'chestplate', 'leggings', 'boots', 'shield'])
+      root.style.setProperty(
+        `--empty-${name}`,
+        `url(${asset(`textures/ui/java/container/slot/${name}.png`)})`,
+      );
     root.innerHTML = `
-      <div class="inv-panel">
+      <div class="inv-panel" role="dialog" aria-label="背包" aria-describedby="inventory-controls">
         <div class="inv-title-row">
           <div class="inv-title">合成</div>
-          <button class="inv-close" type="button">关闭</button>
+          <button class="inv-close" type="button" aria-label="关闭背包" title="关闭（E / Esc）">×</button>
         </div>
         <div class="inv-standard">
+          <div class="java-player-area">
+            <div class="java-equipment" aria-label="装备栏暂不可用">
+              <div class="java-equipment-slot" data-equipment="helmet" aria-disabled="true" title="头盔栏尚未实现"></div>
+              <div class="java-equipment-slot" data-equipment="chestplate" aria-disabled="true" title="胸甲栏尚未实现"></div>
+              <div class="java-equipment-slot" data-equipment="leggings" aria-disabled="true" title="护腿栏尚未实现"></div>
+              <div class="java-equipment-slot" data-equipment="boots" aria-disabled="true" title="靴子栏尚未实现"></div>
+            </div>
+            <div class="java-player-preview" role="img" aria-label="Steve 角色预览"></div>
+            <div class="java-equipment-slot java-offhand" aria-disabled="true" title="副手栏尚未实现"></div>
+          </div>
           <div class="inv-top">
             <div class="inv-cgrid"></div>
-            <div class="inv-arrow">▶</div>
             <div class="inv-out-wrap"></div>
           </div>
+          <div class="java-inventory-label">物品栏</div>
           <div class="inv-main"></div>
         </div>
         <div class="creative-view hidden">
@@ -115,7 +149,7 @@ export class InventoryUI {
           </div>
         </div>
         <div class="inv-hotbar"></div>
-        <div class="inv-hint">轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭</div>
+        <div class="inv-hint" id="inventory-controls">轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭</div>
       </div>`;
     this.titleEl = root.querySelector('.inv-title') as HTMLElement;
     this.standardEl = root.querySelector('.inv-standard') as HTMLElement;
@@ -148,7 +182,13 @@ export class InventoryUI {
       const button = document.createElement('button');
       button.className = 'creative-tab';
       button.type = 'button';
-      button.textContent = category.label;
+      button.title = category.label;
+      button.setAttribute('aria-label', category.label);
+      const icon = document.createElement('span');
+      icon.className = 'slot-icon';
+      const categoryIcon = iconUrl(category.items[0]);
+      if (categoryIcon) icon.style.backgroundImage = `url(${categoryIcon})`;
+      button.appendChild(icon);
       button.dataset.category = category.id;
       button.addEventListener('click', () => {
         this.creativeCategory = category.id;
@@ -161,7 +201,7 @@ export class InventoryUI {
     this.creativeSearchEl.addEventListener('input', () => this.rebuildCreativeCatalog());
 
     this.cursorEl = document.createElement('div');
-    this.cursorEl.className = 'inv-cursor';
+    this.cursorEl.className = 'inv-cursor java-item-cursor';
     this.cursorIcon = document.createElement('div');
     this.cursorIcon.className = 'slot-icon';
     this.cursorCnt = document.createElement('div');
@@ -182,6 +222,47 @@ export class InventoryUI {
     document.addEventListener('pointercancel', (e) => {
       if (this.open && this.drag?.pointerId === e.pointerId) this.cancelDrag();
     });
+  }
+
+  private trackViewport(): void {
+    if (this.viewportHandler) return;
+    this.viewportHandler = () => this.positionPanel();
+    this.trackedViewport = window.visualViewport ?? null;
+    window.addEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.addEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.addEventListener('scroll', this.viewportHandler);
+  }
+
+  private untrackViewport(): void {
+    if (!this.viewportHandler) return;
+    window.removeEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.removeEventListener('resize', this.viewportHandler);
+    this.trackedViewport?.removeEventListener('scroll', this.viewportHandler);
+    this.viewportHandler = null;
+    this.trackedViewport = null;
+  }
+
+  private positionPanel(): void {
+    const scale = Math.max(
+      1,
+      Math.floor(Number(getComputedStyle(this.root).getPropertyValue('--gui-scale')) || 2),
+    );
+    const width = this.mode === 'creative' ? 195 : 176;
+    const height = this.mode === 'creative' ? 136 : 166;
+    const viewport = window.visualViewport;
+    const availableWidth = viewport?.width ?? window.innerWidth;
+    const availableHeight = viewport?.height ?? window.innerHeight;
+    const left = Math.round(viewport?.offsetLeft ?? 0);
+    const top = Math.round(viewport?.offsetTop ?? 0);
+    // Java rounds in logical pixels before scaling; ordinary CSS centering can land on half pixels.
+    this.root.style.setProperty(
+      '--container-left',
+      `${left + Math.max(0, Math.floor((availableWidth / scale - width) / 2)) * scale}px`,
+    );
+    this.root.style.setProperty(
+      '--container-top',
+      `${top + Math.max(0, Math.floor((availableHeight / scale - height) / 2)) * scale}px`,
+    );
   }
 
   private makeSlot(parent: HTMLElement, region: Region, i: number): Cell {
@@ -210,6 +291,12 @@ export class InventoryUI {
     return this.open;
   }
 
+  /** For application teardown; normal close keeps the single preview context reusable. */
+  disposePlayerPreview(): void {
+    this.playerPreview?.dispose();
+    this.playerPreview = null;
+  }
+
   // gridN=2 个人背包合成 / 3 工作台
   show(inv: Inventory, gridN: number): void {
     this.inv = inv;
@@ -217,26 +304,44 @@ export class InventoryUI {
     this.gridN = gridN;
     this.craft = Array.from({ length: gridN }, () => Array<ItemStack | null>(gridN).fill(null));
     this.buildCraftGrid(gridN);
-    this.titleEl.textContent = gridN >= 3 ? '工作台' : '背包';
+    this.root.dataset.container = gridN >= 3 ? 'crafting' : 'inventory';
+    this.root
+      .querySelector('.inv-panel')
+      ?.setAttribute('aria-label', gridN >= 3 ? '工作台' : '背包');
+    this.titleEl.textContent = '合成';
     this.standardEl.classList.remove('hidden');
     this.creativeEl.classList.add('hidden');
     this.hintEl.textContent = '轻点拿放 · 长按放一个/拿一半 · Shift 快速转移 · E / Esc 关闭';
+    this.positionPanel();
+    this.trackViewport();
     this.open = true;
     this.root.classList.remove('hidden');
+    if (gridN === 2 && !this.playerPreview) {
+      const host = this.root.querySelector('.java-player-preview') as HTMLElement | null;
+      if (host) this.playerPreview = new PlayerPreview(host);
+    }
+    this.playerPreview?.setVisible(gridN === 2);
     this.render();
   }
 
-  /** Java 1.12 风格创造物品栏：分类目录/搜索、底部快捷栏和删除槽。 */
+  /** 已实现物品的创造目录：分类/搜索、底部快捷栏和删除槽。 */
   showCreative(inv: Inventory): void {
+    this.playerPreview?.setVisible(false);
     this.inv = inv;
     this.mode = 'creative';
     this.gridN = 0;
     this.craft = [];
+    this.craftCells = [];
+    this.cgridEl.innerHTML = '';
     this.cursor = null;
+    this.root.dataset.container = 'creative';
+    this.root.querySelector('.inv-panel')?.setAttribute('aria-label', '创造模式物品栏');
     this.titleEl.textContent = '创造模式物品栏';
     this.standardEl.classList.add('hidden');
     this.creativeEl.classList.remove('hidden');
     this.hintEl.textContent = '左键拿一组 · 右键拿一个 · Shift 放入快捷栏 · 中键可在世界中选方块';
+    this.positionPanel();
+    this.trackViewport();
     this.open = true;
     this.root.classList.remove('hidden');
     this.rebuildCreativeCatalog();
@@ -246,6 +351,8 @@ export class InventoryUI {
   // 关闭：合成格 + 光标里的残留物品退回背包。背包放不下的
   // 完整返回给 Game 变成掉落物，不在 UI 里静默吞掉；耐久也必须保留。
   hide(): ItemStack[] {
+    this.playerPreview?.setVisible(false);
+    this.untrackViewport();
     this.cancelDrag();
     const overflow: ItemStack[] = [];
     for (const row of this.craft) {
@@ -522,6 +629,10 @@ export class InventoryUI {
     }
     for (const button of this.creativeTabButtons)
       button.classList.toggle('active', button.dataset.category === this.creativeCategory);
+    this.titleEl.textContent = this.creativeSearchEl.value.trim()
+      ? '搜索物品'
+      : CREATIVE_CATEGORIES.find((category) => category.id === this.creativeCategory)?.label ??
+        '物品栏';
     this.render();
   }
 
@@ -559,6 +670,7 @@ export class InventoryUI {
 
   private paint(cell: Cell, stack: ItemStack | null): void {
     this.fill(cell.icon, cell.cnt, stack);
+    cell.el.title = stack ? itemLabel(stack.id) : '';
   }
 
   private fill(icon: HTMLElement, cnt: HTMLElement, stack: ItemStack | null): void {

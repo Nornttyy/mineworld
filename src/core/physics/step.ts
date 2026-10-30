@@ -39,7 +39,13 @@ function overlaps(p: Vec3, world: VoxelWorld, height = HEIGHT): boolean {
 }
 
 // 沿单轴扫掠移动 delta；碰撞则精确钳到接触面。返回是否撞到。
-function resolveAxis(p: Vec3, axis: Axis, delta: number, world: VoxelWorld, height = HEIGHT): boolean {
+function resolveAxis(
+  p: Vec3,
+  axis: Axis,
+  delta: number,
+  world: VoxelWorld,
+  height = HEIGHT,
+): boolean {
   if (delta === 0) return false;
   const sign = Math.sign(delta);
   const SUB = 0.2; // 子步 ≤0.2 < 0.6 AABB，防高速穿越
@@ -100,10 +106,14 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
     if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
     if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
     if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
-    return { pos, vel, onGround: isOnGround(pos, world), kbx: 0, kbz: 0 };
+    return { pos, vel, onGround: isOnGround(pos, world), kbx: 0, kbz: 0, crouching: false };
   }
 
-  const crouch = intent.crouch === true;
+  // 松开潜行时先检查站立空间。头顶受限但矮姿态能容纳时保持低姿态，
+  // 避免立即扩大 AABB 穿进天花板；相机必须使用返回的实际 crouching。
+  const crouch =
+    intent.crouch === true ||
+    (overlaps(pos, world, HEIGHT) && !overlaps(pos, world, CROUCH_HEIGHT));
   const h = crouch ? CROUCH_HEIGHT : HEIGHT; // 下蹲时碰撞箱变矮
 
   const grounded = isOnGround(pos, world, h);
@@ -119,7 +129,11 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
 
   const wish = wishDir(intent);
   // 基础速度：水中略慢；下蹲时不疾跑。再按下蹲/用物品(吃)逐级减速。
-  let speed = inWater ? WALK_PER_TICK * 0.7 : intent.sprint && !crouch ? SPRINT_PER_TICK : WALK_PER_TICK;
+  let speed = inWater
+    ? WALK_PER_TICK * 0.7
+    : intent.sprint && !crouch
+      ? SPRINT_PER_TICK
+      : WALK_PER_TICK;
   if (crouch) speed *= CROUCH_SPEED_MULT;
   if (intent.slow) speed *= SLOW_SPEED_MULT;
   // 击退速度叠加到移动意图上（被怪打中时由 Game 设置），逐刻衰减，碰墙归零靠下面的扫掠
@@ -194,5 +208,12 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   // 击退衰减；撞墙(vel 那一轴被归零)则击退也清掉，免得贴墙抖
   const nkbx = vel.x === 0 ? 0 : kbx * KB_DECAY;
   const nkbz = vel.z === 0 ? 0 : kbz * KB_DECAY;
-  return { pos, vel, onGround, kbx: Math.abs(nkbx) < 0.005 ? 0 : nkbx, kbz: Math.abs(nkbz) < 0.005 ? 0 : nkbz };
+  return {
+    pos,
+    vel,
+    onGround,
+    crouching: crouch,
+    kbx: Math.abs(nkbx) < 0.005 ? 0 : nkbx,
+    kbz: Math.abs(nkbz) < 0.005 ? 0 : nkbz,
+  };
 }

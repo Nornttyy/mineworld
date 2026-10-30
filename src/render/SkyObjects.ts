@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { asset } from '../asset';
 import { NO_WATER_REFLECTION_LAYER, SKY_RENDER_LAYER } from './renderLayers';
 import { DAY_LENGTH, skyStateAt, skyDarkenAt } from '../core/world/dayNight';
 import type { LightingQuality } from '../core/settings';
@@ -139,80 +140,47 @@ function makeStars(): THREE.Points {
   return p;
 }
 
-// 像素太阳：亮黄方块 + 暖芯（MC 风方块太阳）
-function makeSunTex(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 16;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  x.fillStyle = '#fff6c0';
-  x.fillRect(1, 1, 14, 14);
-  x.fillStyle = '#ffe25a';
-  x.fillRect(3, 3, 10, 10);
-  x.fillStyle = '#ffcf26';
-  x.fillRect(5, 5, 6, 6);
-  return pixelTex(c);
+// Raw 26.3 files are additive sky sprites, including opaque black surroundings.
+// Preserve their original pixels; the full moon is fixed until the save stores
+// a total day counter (worldTime currently wraps after one day).
+function loadCelestialTexture(loader: THREE.TextureLoader, path: string): THREE.Texture {
+  const texture = loader.load(asset(`textures/environment/${path}`));
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
-// 像素月亮：青白方块 + 暗陨坑（简化满月）
-function makeMoonTex(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 16;
-  const x = c.getContext('2d') as CanvasRenderingContext2D;
-  x.fillStyle = '#eef2f7';
-  x.fillRect(2, 2, 12, 12);
-  x.fillStyle = '#c2ccd8';
-  x.fillRect(5, 4, 3, 3);
-  x.fillRect(9, 7, 2, 2);
-  x.fillRect(4, 9, 2, 3);
-  x.fillRect(10, 11, 2, 2);
-  return pixelTex(c);
+export interface CloudMask {
+  width: number;
+  height: number;
+  alpha: Uint8Array;
 }
 
-function pixelTex(c: HTMLCanvasElement): THREE.CanvasTexture {
-  const t = new THREE.CanvasTexture(c);
-  t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestFilter;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+export function cloudMaskFromRgba(width: number, height: number, rgba: ArrayLike<number>): CloudMask {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 || rgba.length !== width * height * 4)
+    throw new Error('Invalid cloud texture dimensions');
+  const alpha = new Uint8Array(width * height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
+  return { width, height, alpha };
 }
 
-// —— 云形噪声（确定性，世界固定）——
-function hash2(x: number, z: number): number {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-function vnoise(x: number, z: number): number {
-  const xi = Math.floor(x);
-  const zi = Math.floor(z);
-  const xf = x - xi;
-  const zf = z - zi;
-  const u = xf * xf * (3 - 2 * xf); // smoothstep → 云团聚成块、不零散
-  const v = zf * zf * (3 - 2 * zf);
-  const a = hash2(xi, zi);
-  const b = hash2(xi + 1, zi);
-  const c = hash2(xi, zi + 1);
-  const d = hash2(xi + 1, zi + 1);
-  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
-}
-function fbm(x: number, z: number): number {
-  return (
-    vnoise(x, z) * 0.6 + vnoise(x * 2.3 + 5.1, z * 2.3 - 3.7) * 0.3 + vnoise(x * 4.7, z * 4.7) * 0.1
-  );
+export function cloudMaskOccupied(mask: CloudMask, cx: number, cz: number): boolean {
+  const x = ((Math.floor(cx) % mask.width) + mask.width) % mask.width;
+  const z = ((Math.floor(cz) % mask.height) + mask.height) % mask.height;
+  return mask.alpha[z * mask.width + x] > 0;
 }
 
-// —— 立体云参数（MC 风：稀疏的 3D 白盒层）——
-const CLOUD_CS = 16; // 每个云格边长（格）
-const CLOUD_TH = 5; // 云层厚度（格）
-const CLOUD_GRID = 28; // 云层覆盖格数（≈448 格，靠雾在地平线淡出）
-const CLOUD_Y = 232; // 抬高云层，避免低空巨型云块贴脸遮住大半天空
-const CLOUD_NOISE_SCALE = 0.18; // 噪声频率（越小云团越大越稀）
-const CLOUD_THRESHOLD = 0.62; // 密度阈值（越高云越少）—— 解决"云太多"
-const CLOUD_DRIFT_SPEED = 0.72; // 每秒飘移（格），与旧 60 FPS 下的速度一致
-
-// 某世界云格是否有云（确定性，世界固定 → 可走出云底，符合 MC）。
-function cloudOn(cx: number, cz: number): boolean {
-  return fbm(cx * CLOUD_NOISE_SCALE, cz * CLOUD_NOISE_SCALE) > CLOUD_THRESHOLD;
-}
+// 26.3 vanilla cloud texels cover 12×12 blocks and extrude vertically 4 blocks.
+// Height/opacity are directly declared in the official client's
+// data/minecraft/dimension_type/overworld.json: cloud_height=192.33,
+// cloud_color=#ccffffff. The finite patch is this renderer's view-distance budget.
+const CLOUD_CS = 12;
+const CLOUD_TH = 4;
+const CLOUD_GRID = 40;
+const CLOUD_Y = 192.33;
+const CLOUD_DRIFT_SPEED = 0.72; // Preserve the shared enhanced-mode animation speed.
 
 // 往数组里塞一个白盒（6 面、面亮度烤进顶点色给 3D 立体感）。双面材质 → 不在意绕序。
 const BOX_FACES: { o: number[][]; s: number }[] = [
@@ -281,11 +249,13 @@ function addBox(
   w: number,
   h: number,
   d: number,
+  faces: readonly boolean[],
 ): void {
   const hw = w / 2;
   const hh = h / 2;
   const hd = d / 2;
-  for (const f of BOX_FACES) {
+  for (const [index, f] of BOX_FACES.entries()) {
+    if (!faces[index]) continue;
     const base = P.length / 3;
     for (const [ox, oy, oz] of f.o) {
       P.push(cx + ox * hw, cy + oy * hh, cz + oz * hd);
@@ -324,14 +294,17 @@ export class SkyObjects {
   private drift = 0; // 云缓飘累计（格）
   private cloudOriginX = NaN; // 立体云已建网格的格原点（变了才重建）
   private cloudOriginZ = NaN;
+  private cloudMask: CloudMask | null = null;
   private lq: LightingQuality = 'off'; // 当前光影档（供 setDimension('overworld') 恢复）
   private dim: 'overworld' | 'nether' = 'overworld'; // 当前维度
 
   constructor(scene: THREE.Scene) {
+    const loader = new THREE.TextureLoader();
     const sky = (tex: THREE.Texture): THREE.MeshBasicMaterial =>
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false });
-    this.sun = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), sky(makeSunTex()));
-    this.moon = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), sky(makeMoonTex()));
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false,
+        blending: THREE.AdditiveBlending, toneMapped: false });
+    this.sun = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), sky(loadCelestialTexture(loader, 'sun.png')));
+    this.moon = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), sky(loadCelestialTexture(loader, 'moon/full_moon.png')));
 
     // 光影档天体使用解析圆盘，不再把低分辨率径向渐变放大成模糊贴片。
     this.realSun = new THREE.Mesh(
@@ -376,12 +349,30 @@ export class SkyObjects {
       vertexColors: true,
       color: 0xffffff,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.8,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
     this.voxelClouds = new THREE.Mesh(new THREE.BufferGeometry(), voxelMat);
     this.voxelClouds.frustumCulled = false;
+    loader.load(asset('textures/environment/clouds.png'), (texture) => {
+      // Canvas is used only to read the official PNG's pixels, never to redraw it.
+      const image = texture.image as HTMLImageElement;
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (context) {
+        context.drawImage(image, 0, 0);
+        this.cloudMask = cloudMaskFromRgba(canvas.width, canvas.height,
+          context.getImageData(0, 0, canvas.width, canvas.height).data);
+        // The camera may not have moved since the initial (empty) cloud mesh.
+        // Rebuild now; otherwise stationary players never see the loaded mask.
+        if (Number.isFinite(this.cloudOriginX) && Number.isFinite(this.cloudOriginZ))
+          this.rebuildVoxelClouds(this.cloudOriginX, this.cloudOriginZ);
+      }
+      texture.dispose(); // Only CPU alpha data is needed by the block-cloud mesh.
+    });
 
     // 真实云(光影档)：2D 天气场只控制云团分布，实际形体来自独立的三维密度纹理。
     // 多高度积云/塔状云/高空薄云在同一世界空间内积分，不再是一张云层平面。
@@ -510,20 +501,22 @@ export class SkyObjects {
     const P: number[] = [];
     const C: number[] = [];
     const I: number[] = [];
-    const w = CLOUD_CS - 1; // 留 1 格缝 → 看出一块块
+    const mask = this.cloudMask;
+    const occupied = (x: number, z: number): boolean => mask !== null && cloudMaskOccupied(mask, x, z);
     for (let i = 0; i < CLOUD_GRID; i++) {
       for (let j = 0; j < CLOUD_GRID; j++) {
-        if (!cloudOn(originX + i, originZ + j)) continue;
+        const x = originX + i, z = originZ + j;
+        if (!occupied(x, z)) continue;
         addBox(
-          P,
-          C,
-          I,
+          P, C, I,
           i * CLOUD_CS + CLOUD_CS / 2,
-          0,
+          CLOUD_TH / 2,
           j * CLOUD_CS + CLOUD_CS / 2,
-          w,
-          CLOUD_TH,
-          w,
+          CLOUD_CS, CLOUD_TH, CLOUD_CS,
+          // Adjacent occupied texels form one continuous cloud. Shared faces
+          // must be omitted to avoid dark transparency seams between cells.
+          [!occupied(x + 1, z), !occupied(x - 1, z), true, true,
+            !occupied(x, z + 1), !occupied(x, z - 1)],
         );
       }
     }

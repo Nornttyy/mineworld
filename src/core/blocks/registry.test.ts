@@ -38,6 +38,8 @@ import {
   RED_SAND,
   BIRCH_LOG,
   BIRCH_LEAVES,
+  FURNACE,
+  ATLAS_TILES,
 } from './registry';
 
 describe('block registry', () => {
@@ -55,6 +57,15 @@ describe('block registry', () => {
   it('stone uses the same tile on every face', () => {
     const f = [Face.PosX, Face.NegX, Face.PosY, Face.NegY, Face.PosZ, Face.NegZ];
     expect(f.every((face) => blockFaceTile(1, face) === 0)).toBe(true);
+  });
+  it('furnace keeps ID 13 and has exactly one opening facing north (-Z)', () => {
+    expect(FURNACE).toBe(13);
+    expect(blockFaceTile(FURNACE, Face.NegZ)).toBe(ATLAS_TILES.furnace_front);
+    expect(BLOCKS[FURNACE].faces.filter((tile) => tile === ATLAS_TILES.furnace_front)).toHaveLength(1);
+    for (const face of [Face.PosX, Face.NegX, Face.PosZ])
+      expect(blockFaceTile(FURNACE, face)).toBe(ATLAS_TILES.furnace_side);
+    for (const face of [Face.PosY, Face.NegY])
+      expect(blockFaceTile(FURNACE, face)).toBe(ATLAS_TILES.furnace_top);
   });
   it('isSolidId of unknown id is false', () => {
     expect(isSolidId(999)).toBe(false);

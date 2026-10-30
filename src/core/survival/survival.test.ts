@@ -14,6 +14,7 @@ import {
   MAX_FOOD,
   MAX_OXYGEN,
   MIN_SPRINT_FOOD,
+  oxygenAirTicks,
 } from './survival';
 
 const APPLE = { nutrition: 4, saturationModifier: 0.3 }; // MC 苹果
@@ -86,15 +87,57 @@ describe('survival: natural regeneration (MC 1:1)', () => {
     expect(s.health).toBe(10); // not yet
     tickSurvival(s);
     expect(s.health).toBe(11); // 80th tick
+    expect(s.exhaustion).toBe(6);
   });
 
-  it('food ==20 with saturation heals fast: 1 HP per 10 ticks', () => {
+  it.each([
+    [0.5, 1 / 12, 0.5],
+    [3, 0.5, 3],
+    [5, 5 / 6, 5],
+    [6, 1, 6],
+    [10, 1, 6],
+  ])(
+    'saturation %s heals %s HP after 10 ticks and adds %s exhaustion',
+    (saturation, healed, exhaustion) => {
+      const s = newSurvival();
+      s.health = 10;
+      s.food = 20;
+      s.saturation = saturation;
+      for (let i = 0; i < 9; i++) tickSurvival(s);
+      expect(s.health).toBe(10);
+      tickSurvival(s);
+      expect(s.health).toBeCloseTo(10 + healed);
+      expect(s.exhaustion).toBeCloseTo(exhaustion);
+      expect(s.foodTimer).toBe(0);
+      expect(s.saturation).toBe(saturation); // 疲劳增加后在下一刻才可能结算扣饱和。
+    },
+  );
+
+  it('uses saturation after the current tick settles exhaustion', () => {
     const s = newSurvival();
-    s.health = 10;
-    s.food = 20;
-    s.saturation = 5;
-    for (let i = 0; i < 10; i++) tickSurvival(s);
-    expect(s.health).toBe(11);
+    Object.assign(s, { health: 10, saturation: 1.5, exhaustion: 4.1, foodTimer: 9 });
+    tickSurvival(s);
+    expect(s.saturation).toBeCloseTo(0.5);
+    expect(s.health).toBeCloseTo(10 + 1 / 12);
+    expect(s.exhaustion).toBeCloseTo(0.6); // 4.1 - 4 + 0.5
+  });
+
+  it('fast healing clamps fractional health at the maximum', () => {
+    const s = newSurvival();
+    Object.assign(s, { health: 19.75, saturation: 3, foodTimer: 9 });
+    tickSurvival(s);
+    expect(s.health).toBe(MAX_HEALTH);
+    expect(s.exhaustion).toBe(3);
+  });
+
+  it.each([18, 20])('food %s cannot naturally regenerate a dead player', (food) => {
+    const s = newSurvival();
+    Object.assign(s, { health: 0, food, saturation: 5, foodTimer: 79 });
+    tickSurvival(s);
+    expect(s.health).toBe(0);
+    expect(isDead(s)).toBe(true);
+    expect(s.exhaustion).toBe(0);
+    expect(s.foodTimer).toBe(0);
   });
 
   it('does not regen past max health', () => {
@@ -122,6 +165,13 @@ describe('survival: starvation (MC normal 1:1)', () => {
     s.food = 0;
     s.saturation = 0;
     for (let i = 0; i < 160; i++) tickSurvival(s);
+    expect(s.health).toBe(1);
+  });
+
+  it('normal starvation reaches half a heart, rather than stopping at one full heart', () => {
+    const s = newSurvival();
+    Object.assign(s, { health: 2, food: 0, saturation: 0 });
+    for (let i = 0; i < 240; i++) tickSurvival(s);
     expect(s.health).toBe(1);
   });
 });
@@ -197,11 +247,11 @@ describe('survival: fall-distance tracking (MC 1:1)', () => {
 });
 
 describe('survival: oxygen 水下憋气', () => {
-  it('头不在水下 → 氧气保持满', () => {
+  it('头不在水下且已满氧 → 不超过空气上限', () => {
     const s = newSurvival();
-    s.oxygen = 3;
     tickOxygen(s, false);
     expect(s.oxygen).toBe(MAX_OXYGEN);
+    expect(oxygenAirTicks(s)).toBe(300);
   });
   it('头在水下每 30 刻耗 1 气泡', () => {
     const s = newSurvival();
@@ -215,10 +265,84 @@ describe('survival: oxygen 水下憋气', () => {
     for (let i = 0; i < 20; i++) tickOxygen(s, true);
     expect(s.health).toBe(8);
   });
-  it('出水立即回满气泡', () => {
+  it('出水每刻恢复4空气，耗尽后需75刻回满', () => {
     const s = newSurvival();
-    s.oxygen = 2;
+    s.oxygen = 0;
     tickOxygen(s, false);
+    expect(oxygenAirTicks(s)).toBe(4);
+    expect(s.oxygen).toBe(1);
+    expect(s.oxygenTimer).toBe(26);
+    for (let i = 0; i < 73; i++) tickOxygen(s, false);
+    expect(oxygenAirTicks(s)).toBe(296);
+    tickOxygen(s, false);
+    expect(oxygenAirTicks(s)).toBe(300);
     expect(s.oxygen).toBe(MAX_OXYGEN);
+    expect(s.oxygenTimer).toBe(0);
+  });
+
+  it('has 300 air ticks, then deals the first drowning hit at tick 320 and the next at 340', () => {
+    const s = newSurvival();
+    for (let i = 0; i < 299; i++) tickOxygen(s, true);
+    expect(s.oxygen).toBe(1);
+    expect(s.oxygenTimer).toBe(29);
+    tickOxygen(s, true);
+    expect(s.oxygen).toBe(0);
+    expect(s.oxygenTimer).toBe(0);
+    expect(s.health).toBe(20);
+    for (let i = 0; i < 19; i++) tickOxygen(s, true);
+    expect(s.health).toBe(20);
+    tickOxygen(s, true);
+    expect(s.health).toBe(18);
+    for (let i = 0; i < 19; i++) tickOxygen(s, true);
+    expect(s.health).toBe(18);
+    tickOxygen(s, true);
+    expect(s.health).toBe(16);
+  });
+
+  it('brief surfacing adds air without erasing a pending drowning deficit', () => {
+    const s = newSurvival();
+    Object.assign(s, { oxygen: 0, oxygenTimer: 19, health: 10 });
+    tickOxygen(s, false);
+    expect(oxygenAirTicks(s)).toBe(-15);
+    expect(s.oxygen).toBe(0);
+    expect(s.oxygenTimer).toBe(15);
+    tickOxygen(s, true);
+    expect(oxygenAirTicks(s)).toBe(-16);
+    expect(s.health).toBe(10);
+    for (let i = 0; i < 4; i++) tickOxygen(s, true);
+    expect(s.health).toBe(8);
+  });
+
+  it('preserves the remaining air interval using the existing saved oxygen fields', () => {
+    const s = newSurvival();
+    for (let i = 0; i < 297; i++) tickOxygen(s, true);
+    const saved = JSON.parse(JSON.stringify({ oxygen: s.oxygen, oxygenTimer: s.oxygenTimer }));
+    const restored = { ...newSurvival(), ...saved };
+    for (let i = 0; i < 22; i++) tickOxygen(restored, true);
+    expect(restored.health).toBe(20); // 总计 319 刻，尚未淹溺。
+    tickOxygen(restored, true);
+    expect(restored.health).toBe(18);
+  });
+
+  it('keeps sub-bubble recovery progress after a save and a return underwater', () => {
+    const s = newSurvival();
+    Object.assign(s, { oxygen: 0, oxygenTimer: 0 });
+    for (let i = 0; i < 11; i++) tickOxygen(s, false);
+    expect(oxygenAirTicks(s)).toBe(44);
+    const saved = JSON.parse(JSON.stringify({ oxygen: s.oxygen, oxygenTimer: s.oxygenTimer }));
+    const restored = { ...newSurvival(), ...saved };
+    tickOxygen(restored, true);
+    expect(oxygenAirTicks(restored)).toBe(43);
+    expect(restored.health).toBe(20);
+  });
+
+  it('lethal drowning cannot be undone by natural regeneration later in the same game tick', () => {
+    const s = newSurvival();
+    Object.assign(s, { health: 2, oxygen: 0, oxygenTimer: 19, foodTimer: 9, saturation: 6 });
+    // Game.stepSurvival 的实际调用次序。
+    tickOxygen(s, true);
+    tickSurvival(s);
+    expect(s.health).toBe(0);
+    expect(isDead(s)).toBe(true);
   });
 });

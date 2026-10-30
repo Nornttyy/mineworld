@@ -1,0 +1,100 @@
+{
+  "version": "26.3",
+  "source": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+  "metadata": "https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json",
+  "clientSha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "copyright": "Minecraft assets \u00a9 Mojang AB / Microsoft. Original extracted pixels; no open-source license claimed.",
+  "notes": "Modern 26.3 stores eight separate moon phase sprites, not the legacy moon_phases atlas. Files are extracted unchanged.",
+  "files": [
+    {
+      "file": "sun.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/sun.png",
+      "sha1": "68b8436752158d29384d633a1b37d4d3a341c6b4",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "clouds.png",
+      "archivePath": "assets/minecraft/textures/environment/clouds.png",
+      "sha1": "835f63bfc5433332f4b6c0541b47e4abdbb59c5a",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "file": "moon/first_quarter.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/first_quarter.png",
+      "sha1": "59d1f870efa8caa95c9ae50d4c241ee43345780c",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/full_moon.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/full_moon.png",
+      "sha1": "8f21ab6fe86bb1e3d2295f1dfd9aaaf90efb2387",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/new_moon.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/new_moon.png",
+      "sha1": "0a375684fe77fdb3c4873c48a638b1aab11bb429",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/third_quarter.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/third_quarter.png",
+      "sha1": "2f62b441b843a7606c17b4c0c7d98bf74f443842",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/waning_crescent.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/waning_crescent.png",
+      "sha1": "80cdfd1331454c6fe4e3d8209c603fb0be507155",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/waning_gibbous.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/waning_gibbous.png",
+      "sha1": "86c0262e5bcf1dedddd28d22796cbbe4cc583f0a",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/waxing_crescent.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/waxing_crescent.png",
+      "sha1": "19c11f722b86fb36e69e8390fce0dce3800b1fb9",
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "file": "moon/waxing_gibbous.png",
+      "archivePath": "assets/minecraft/textures/environment/celestial/moon/waxing_gibbous.png",
+      "sha1": "91c36a0b9595bc7b07359277b4e0ef6b5abe2530",
+      "size": [
+        32,
+        32
+      ]
+    }
+  ]
+}

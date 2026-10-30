@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Build MINEWORLD's standard 16x16 pixel texture pack.
+"""Legacy procedural 16x16 pack builder and shared atlas layout.
 
 The pack is deliberately authored as tiny indexed-looking tiles: every source
 face is exactly 16x16, uses a compact palette, and is rendered without
 anti-aliasing.  Common overworld blocks have their own classic patterns instead
-of reusing the vivid pack; no AI-generated image or external game asset is used.
+of reusing the vivid pack. Furnace faces are an explicit exception: both legacy
+generators now reuse committed official Java PNGs rather than repainting them.
 """
 
 import os
@@ -319,14 +320,7 @@ def crafting_table_side(rng):
 
 
 def furnace_front(rng):
-    image = cobblestone(rng)
-    pixels = image.load()
-    for y in range(7, 14):
-        for x in range(4, 12):
-            pixels[x, y] = source.hx("#353535") if x in (4, 11) or y in (7, 13) else source.hx("#111111")
-    for x in range(6, 10):
-        pixels[x, 12] = source.hx("#8a3b14")
-    return image
+    return source.furnace_front(rng)
 
 
 BLOCKS.update({
@@ -352,7 +346,7 @@ BLOCKS.update({
 })
 
 # Order must stay aligned with src/core/blocks/registry.ts and the renderer's
-# 4x12 atlas constants.  The trailing cells stay transparent for future blocks.
+# 4x12 atlas constants. Slots 46/47 are the official furnace top and side.
 ATLAS_ORDER = [
     "stone", "dirt", "grass_top", "grass_side",
     "cobblestone", "sand", "oak_log_top", "oak_log_side",
@@ -365,7 +359,7 @@ ATLAS_ORDER = [
     "coal_block", "iron_block", "quartz_block", "diamond_ore",
     "diamond_block", "granite", "diorite", "andesite",
     "bricks", "mossy_cobblestone", "red_sand", "birch_log_top",
-    "birch_log_side", "birch_leaves",
+    "birch_log_side", "birch_leaves", "furnace_top", "furnace_side",
 ]
 
 ICON_FACES = {
@@ -379,7 +373,7 @@ ICON_FACES = {
     "coal_ore": ("coal_ore", "coal_ore"),
     "iron_ore": ("iron_ore", "iron_ore"),
     "diamond_ore": ("diamond_ore", "diamond_ore"),
-    "furnace": ("cobblestone", "furnace_front"),
+    "furnace": ("furnace_top", "furnace_side"),
     "oak_leaves": ("oak_leaves", "oak_leaves"),
     "crafting_table": ("crafting_table_top", "crafting_table_side"),
     "gravel": ("gravel", "gravel"),
@@ -434,7 +428,8 @@ def main():
     atlas.save(ATLAS_OUT, optimize=True)
 
     for name, (top, side) in ICON_FACES.items():
-        icon = source.iso_icon(tiles[top], tiles[side], tiles[side])
+        front = "furnace_front" if name == "furnace" else side
+        icon = source.iso_icon(tiles[top], tiles[side], tiles[front])
         icon.save(os.path.join(ICONS_OUT, f"{name}.png"), optimize=True)
     source.sprite_icon(tiles["grass_plant"]).save(
         os.path.join(ICONS_OUT, "grass_plant.png"), optimize=True

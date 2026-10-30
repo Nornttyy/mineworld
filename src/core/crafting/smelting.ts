@@ -18,6 +18,7 @@ import {
   IRON_ORE,
   COBBLESTONE,
   SPRUCE_LOG,
+  BIRCH_LOG,
   CRAFTING_TABLE,
   COAL_BLOCK,
 } from '../blocks/registry';
@@ -47,6 +48,7 @@ const FUEL: Record<number, number> = {
   [COAL_BLOCK]: 16000, // 煤炭块=炼80(1.12;之前煤压成块反而不能烧)
   [OAK_LOG]: 300,
   [SPRUCE_LOG]: 300,
+  [BIRCH_LOG]: 300,
   [OAK_PLANKS]: 300,
   [CRAFTING_TABLE]: 300,
   [STICK]: 100,

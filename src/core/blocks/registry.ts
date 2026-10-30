@@ -61,6 +61,8 @@ export const ATLAS_TILES = {
   birch_log_top: 43,
   birch_log_side: 44,
   birch_leaves: 45,
+  furnace_top: 46,
+  furnace_side: 47,
 } as const;
 const T = ATLAS_TILES;
 
@@ -199,13 +201,14 @@ export const BLOCKS: BlockDef[] = [
     tool: 'pickaxe',
     minTier: 2, // 木镐挖不出来（慢且不掉），需石镐(tier≥2)
   },
-  // 熔炉：圆石质，侧面炉口(4 面同贴图)；右键开冶炼界面(游戏层)。配方已在 recipes(8 圆石)。
+  // 熔炉：沿用官方未旋转模型，炉口固定朝 north/-Z；本项目尚无放置朝向状态。
+  // 官方 models/block/orientable_with_bottom.json: north=#front，其余水平面=#side。
   {
     id: 13,
     name: 'furnace',
     solid: true,
     transparent: false,
-    faces: column(T.furnace_front, T.cobblestone, T.cobblestone),
+    faces: [T.furnace_side, T.furnace_side, T.furnace_top, T.furnace_top, T.furnace_side, T.furnace_front],
     hardness: 3.5,
     drop: 13,
     needsTool: true,
@@ -397,9 +400,9 @@ export const isWaterId = (id: number): boolean => id === WATER;
 export const isCutoutId = (id: number): boolean =>
   id === OAK_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES; // 镂空(树叶)
 export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || id === SNOW_LAYER; // cross/薄层 特判
-// 可被挖掘射线选中/打掉：实心方块 + 植物。草丛虽非实心(可穿过、不挡移动)，但能被瞄准破坏——
+// 可被挖掘射线选中/打掉：实心方块 + 植物 + 火把。草丛/火把虽非实心，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
-export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id);
+export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id) || id === TORCH;
 // 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
 export const isReplaceableId = (id: number): boolean =>
   id === 0 || id === WATER || isPlantId(id) || id === NETHER_PORTAL;

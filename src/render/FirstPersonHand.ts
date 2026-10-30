@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
-import { BOW, FLINT_AND_STEEL, isFood, toolOf } from '../core/items/items';
+import { BOW } from '../core/items/items';
 import type { LightingQuality } from '../core/settings';
 import { iconUrl } from '../ui/itemIcons';
+import { asset } from '../asset';
+import { heldItemGeometry, type SpriteAlpha } from './heldItemGeometry';
 import {
   atlasUvInset,
   ATLAS_COLUMNS,
@@ -11,7 +13,7 @@ import {
 } from '../core/blocks/atlasLayout';
 
 // 第一人称手臂 + 手持物：独立的覆盖层场景/相机，画在世界之上（清深度，不被遮挡）。
-// 挖/放时摆臂，走路时轻微晃动。手持方块=3D 立方体；手持物品(工具/食物/材料)=平面图标精灵；空手只露手臂。
+// 挖/放时摆臂，走路时轻微晃动。方块是立方体；物品按图标透明轮廓挤出薄侧壁。
 
 export type HeldKind = 'block' | 'sprite' | 'none';
 
@@ -58,24 +60,15 @@ export function bowChargeStage(progress: number | null): BowChargeStage {
   return 2;
 }
 
-/** 不同物品按真实用途定尺寸/握持角，避免所有图标都像同尺寸贴纸。 */
-export function heldSpritePose(id: number): HeldSpritePose {
-  const tool = toolOf(id);
-  if (tool) {
-    const long = tool.kind === 'sword' || tool.kind === 'pickaxe';
-    return {
-      size: long ? 0.48 : 0.44,
-      position: [-0.005, long ? 0.245 : 0.23, 0.025],
-      rotation: [-0.04, -0.08, -0.14],
-    };
-  }
-  if (id === BOW)
-    return { size: 0.46, position: [0, 0.24, 0.025], rotation: [-0.03, -0.06, -0.08] };
-  if (id === TORCH || id === FLINT_AND_STEEL)
-    return { size: 0.4, position: [0.01, 0.225, 0.025], rotation: [-0.04, -0.08, -0.12] };
-  if (isFood(id))
-    return { size: 0.35, position: [0.025, 0.205, 0.03], rotation: [0, -0.05, -0.04] };
-  return { size: 0.31, position: [0.025, 0.19, 0.03], rotation: [0, -0.04, -0.03] };
+/** Verified in the official Java 26.3 generated/handheld/bow resource models.
+ * JSON translations are sixteenths of a block; our geometry is centred already.
+ * Each icon's opaque pixels set its visible proportions, not a made-up size by type. */
+export function heldSpritePose(_id: number): HeldSpritePose {
+  return {
+    size: 0.68,
+    position: [1.13 / 16, 3.2 / 16, 1.13 / 16],
+    rotation: [0, -Math.PI / 2, (25 * Math.PI) / 180],
+  };
 }
 
 // 手持物如何渲染：注册表里的方块画 3D 立方体；有图标的物品(id≥256)画平面精灵；其余只露手臂。
@@ -99,9 +92,9 @@ export interface SwingPose {
   ry2: number;
 }
 
-// 1:1 复刻 MC ItemInHandRenderer 的右手挥击：sqrt(t) 时序(出手快收手稳)，
-// 平移往中间+前方+上下颠，主旋转是绕 X 的大幅 −80° 下劈。t∈[0,1]，t=0 即静止(净零旋转)。
-const SWING_POS_SCALE = 0.8; // 适配本手臂的平移尺度（MC 静止位移略大）
+// Classic right-hand swing curve. Resource transforms are verified for 26.3;
+// runtime contact frames and the empty-hand rig still need visual comparison.
+const SWING_POS_SCALE = 1;
 export function mcSwingPose(t: number): SwingPose {
   const D = Math.PI / 180;
   const ft = Math.sin(Math.sqrt(Math.max(0, t)) * Math.PI); // 主弧线项 sin(√t·π)
@@ -120,9 +113,24 @@ export function mcSwingPose(t: number): SwingPose {
 const [EPS_U, EPS_V] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
 // 面亮度（同方块）：+X,-X,+Y,-Y,+Z,-Z
 const SHADE = [0.6, 0.6, 1.0, 0.5, 0.8, 0.8];
-const SWING_TIME = 0.3; // 一次摆臂 0.3 秒（同 MC）
+const SWING_TIME = 0.3; // Existing swing timing; 26.3 contact frames are not measured.
 const X_AXIS = new THREE.Vector3(1, 0, 0); // 视图右轴（主下劈绕它）
 const Y_AXIS = new THREE.Vector3(0, 1, 0); // 视图上轴
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const IDLE_ROTATION = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, -0.5, 0.4));
+// Historical Java equip rate, interpolated in render time. See the 26.3 audit
+// for what has (resource transforms) and has not (runtime timing) been verified.
+const EQUIP_RATE = 0.4 * 20;
+const EQUIP_SWAP_THRESHOLD = 0.1;
+
+/** Preserve the ordered Y→Z→X→Y local rotation chain, not Euler addition. */
+export function mcSwingQuaternion(pose: SwingPose, out = new THREE.Quaternion()): THREE.Quaternion {
+  const q = new THREE.Quaternion();
+  out.setFromAxisAngle(Y_AXIS, pose.ry1);
+  out.multiply(q.setFromAxisAngle(Z_AXIS, pose.rz));
+  out.multiply(q.setFromAxisAngle(X_AXIS, pose.rx));
+  return out.multiply(q.setFromAxisAngle(Y_AXIS, pose.ry2));
+}
 
 // 把面亮度烤进盒子顶点色，给纯色盒子一点立体感
 function shadedBox(w: number, h: number, d: number, color: number): THREE.BufferGeometry {
@@ -134,6 +142,31 @@ function shadedBox(w: number, h: number, d: number, color: number): THREE.Buffer
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   return g;
+}
+
+/** Standard 64×64 Steve skin: right arm (40,16), sleeve (40,32).
+ * The sleeve adds 0.25 model pixels on each side and keeps the same UV islands. */
+export function rightArmGeometry(sleeve = false): THREE.BufferGeometry {
+  const u = 40,
+    v = sleeve ? 32 : 16,
+    inflate = sleeve ? 0.5 : 0;
+  const geometry = shadedBox((4 + inflate) / 16, (12 + inflate) / 16, (4 + inflate) / 16, 0xffffff);
+  const uv = geometry.getAttribute('uv');
+  const faces = [
+    [u, v + 4, 4, 12],
+    [u + 8, v + 4, 4, 12],
+    [u + 4, v, 4, 4],
+    [u + 8, v, 4, 4],
+    [u + 4, v + 4, 4, 12],
+    [u + 12, v + 4, 4, 12],
+  ];
+  for (const [face, [x, y, w, h]] of faces.entries()) {
+    uv.setXY(face * 4, x / 64, 1 - y / 64);
+    uv.setXY(face * 4 + 1, (x + w) / 64, 1 - y / 64);
+    uv.setXY(face * 4 + 2, x / 64, 1 - (y + h) / 64);
+    uv.setXY(face * 4 + 3, (x + w) / 64, 1 - (y + h) / 64);
+  }
+  return geometry;
 }
 
 // 手持方块的小立方体（图集贴图 + 面亮度顶点色）
@@ -168,9 +201,15 @@ export class FirstPersonHand {
   private atlas: THREE.Texture;
   private readonly root = new THREE.Group(); // 手臂+手持物的根（摆臂/晃动作用于它）
   private readonly arm: THREE.Mesh;
+  private readonly sleeve: THREE.Mesh;
   private item: THREE.Mesh | null = null;
   private itemId: number | null = null;
+  private requestedItemId: number | null = null;
+  private hasRequestedItem = false;
+  private equipped = 1;
+  private readonly swingRotation = new THREE.Quaternion();
   private readonly spriteTex = new Map<string, THREE.Texture>(); // 物品图标纹理缓存（物品+动画帧）
+  private readonly spriteMasks = new WeakMap<THREE.Texture, SpriteAlpha>();
   private swingT = 0; // 0=不摆；(0,1]=摆臂进度
   private wantSwing = false;
   private bobPhase = 0;
@@ -196,14 +235,38 @@ export class FirstPersonHand {
   private readonly underwaterTint = new THREE.Color().setRGB(0.62, 0.84, 0.96);
   private readonly neutralTint = new THREE.Color(1, 1, 1);
 
-  constructor(atlas: THREE.Texture) {
+  constructor(atlas: THREE.Texture, skinTexture?: THREE.Texture) {
     this.atlas = atlas;
-    // 手臂：肤色盒子，从右下角斜插入画面
+    const skin =
+      skinTexture ??
+      (typeof document === 'undefined'
+        ? new THREE.Texture()
+        : new THREE.TextureLoader().load(asset('textures/player/steve.png')));
+    skin.magFilter = THREE.NearestFilter;
+    skin.minFilter = THREE.NearestFilter;
+    skin.generateMipmaps = false;
+    skin.colorSpace = THREE.SRGBColorSpace;
+    // Keep skin and sleeve on the same empty-hand pose; held items have their own display transforms.
     this.arm = new THREE.Mesh(
-      shadedBox(0.14, 0.5, 0.14, 0xe8b07a),
-      new THREE.MeshBasicMaterial({ vertexColors: true }),
+      rightArmGeometry(),
+      new THREE.MeshBasicMaterial({ map: skin, vertexColors: true }),
     );
-    this.arm.position.set(0, -0.22, 0); // 盒子主体在根的下方
+    this.sleeve = new THREE.Mesh(
+      rightArmGeometry(true),
+      new THREE.MeshBasicMaterial({
+        map: skin,
+        vertexColors: true,
+        transparent: true,
+        alphaTest: 0.5,
+      }),
+    );
+    this.arm.add(this.sleeve);
+    // The skin's shoulder is +Y and its fist is -Y. Point the fist toward the
+    // upper-left visible tip; the shoulder/sleeve must leave the bottom-right
+    // of the view. Without this local turn the blue shoulder faces the player
+    // and the skin-coloured hand is below the viewport. Sleeve inherits it.
+    this.arm.rotation.z = Math.PI;
+    this.arm.position.set(0, -0.22, 0);
     this.root.add(this.arm);
     this.root.position.set(0.5, -0.45, -0.7); // 右下、稍前
     this.root.rotation.set(0.2, -0.5, 0.45); // 斜插入
@@ -230,7 +293,7 @@ export class FirstPersonHand {
     if (cached) return cached;
     const url = iconUrl(id, variant);
     if (!url) return null;
-    const tex = new THREE.TextureLoader().load(url);
+    const tex = new THREE.TextureLoader().load(url, (loaded) => this.refreshSpriteGeometry(loaded));
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
@@ -239,7 +302,47 @@ export class FirstPersonHand {
     return tex;
   }
 
-  // 设置手持物（null=空手，只露手臂）：方块→3D 立方体；物品→平面图标精灵。
+  private spriteGeometry(texture: THREE.Texture, size: number): THREE.BufferGeometry {
+    let mask = this.spriteMasks.get(texture);
+    const image = texture.image as HTMLImageElement | HTMLCanvasElement | ImageBitmap | undefined;
+    if (!mask && image && typeof document !== 'undefined') {
+      const width = 'naturalWidth' in image ? image.naturalWidth : image.width;
+      const height = 'naturalHeight' in image ? image.naturalHeight : image.height;
+      if (width > 0 && height > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          try {
+            ctx.drawImage(image, 0, 0);
+            const rgba = ctx.getImageData(0, 0, width, height).data;
+            const alpha = new Uint8Array(width * height);
+            for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
+            mask = { width, height, alpha };
+            this.spriteMasks.set(texture, mask);
+          } catch {
+            /* Cross-origin/custom textures retain front and back until readable. */
+          }
+        }
+      }
+    }
+    return heldItemGeometry(mask ?? { width: 1, height: 1, alpha: [0] }, size);
+  }
+
+  private refreshSpriteGeometry(texture: THREE.Texture): void {
+    if (!this.item || this.itemId === null || Array.isArray(this.item.material)) return;
+    if (
+      !(this.item.material instanceof THREE.MeshBasicMaterial) ||
+      this.item.material.map !== texture
+    )
+      return;
+    if (heldRenderKind(this.itemId) !== 'sprite') return;
+    const geometry = this.spriteGeometry(texture, heldSpritePose(this.itemId).size);
+    this.item.geometry.dispose();
+    this.item.geometry = geometry;
+  }
+
   /** 环境亮度(由 Game 每帧采玩家眼睛处光照传入)：乘到手臂/手持材质色上。内部平滑,跨光照格不跳变。 */
   setBrightness(b: number): void {
     this.bright += (b - this.bright) * 0.12;
@@ -263,9 +366,7 @@ export class FirstPersonHand {
       this.blockLight.intensity = 0;
       this.sunLight.intensity = 0;
     }
-    const id = this.itemId;
-    this.itemId = null;
-    this.setHeld(id);
+    this.rebuildHeld(this.itemId);
   }
 
   setLighting(state: HandLightingState): void {
@@ -306,7 +407,13 @@ export class FirstPersonHand {
   }
 
   setHeld(id: number | null): void {
-    if (id === this.itemId) return;
+    this.requestedItemId = id;
+    if (this.hasRequestedItem) return;
+    this.hasRequestedItem = true;
+    this.rebuildHeld(id);
+  }
+
+  private rebuildHeld(id: number | null): void {
     this.itemId = id;
     if (this.item) {
       this.root.remove(this.item);
@@ -319,6 +426,8 @@ export class FirstPersonHand {
       this.item = null;
     }
     const kind = heldRenderKind(id);
+    // Normal held items render on their own; the skin arm is the empty-hand path.
+    this.arm.visible = kind === 'none';
     if (kind === 'block' && id !== null) {
       const profile = handBlockMaterialProfile(id);
       const material =
@@ -331,23 +440,24 @@ export class FirstPersonHand {
               ior: 1.35,
               specularIntensity: profile.specularIntensity,
             });
-      this.item = new THREE.Mesh(blockCube(id, 0.3), material);
-      this.item.position.set(-0.015, 0.17, 0.035); // 方块略小，握点贴住手掌而非悬空
-      this.item.rotation.set(-0.16, 0.72, -0.06);
+      // Java 26.3 block/block.json firstperson_righthand: [0,45,0], scale .4.
+      this.item = new THREE.Mesh(blockCube(id, 0.4), material);
+      this.item.rotation.y = Math.PI / 4;
       this.root.add(this.item);
     } else if (kind === 'sprite' && id !== null) {
-      // 物品：用图标贴一个平面，斜握在手里（同 MC 手持物品=平面精灵）
+      // Use the existing icon pixels for front/back and exposed outline side walls.
       const variant = id === BOW && this.bowStage >= 0 ? `pulling_${this.bowStage}` : undefined;
       const tex = this.itemTexture(id, variant);
       if (tex) {
         const pose = heldSpritePose(id);
         this.item = new THREE.Mesh(
-          new THREE.PlaneGeometry(pose.size, pose.size),
+          this.spriteGeometry(tex, pose.size),
           new THREE.MeshBasicMaterial({
             map: tex,
             transparent: true,
             alphaTest: 0.5,
             side: THREE.DoubleSide,
+            vertexColors: true,
           }),
         );
         this.item.position.set(...pose.position);
@@ -362,6 +472,7 @@ export class FirstPersonHand {
     const tint = this.underwater ? this.underwaterTint : this.neutralTint;
     const armMaterial = this.arm.material as THREE.MeshBasicMaterial;
     armMaterial.color.copy(tint).multiplyScalar(this.bright);
+    (this.sleeve.material as THREE.MeshBasicMaterial).color.copy(armMaterial.color);
     if (!this.item || Array.isArray(this.item.material)) return;
     if (this.item.material instanceof THREE.MeshPhysicalMaterial) {
       // 物理材质的亮度来自灯光，只乘水体色；避免与环境光再重复变暗。
@@ -387,9 +498,7 @@ export class FirstPersonHand {
     // iconUrl 会随材质包切目录；旧缓存必须清空，否则同一个 id 仍显示切换前的物品材质。
     for (const texture of this.spriteTex.values()) texture.dispose();
     this.spriteTex.clear();
-    const id = this.itemId;
-    this.itemId = null; // 强制 setHeld 重建
-    this.setHeld(id);
+    this.rebuildHeld(this.itemId);
   }
 
   // 吃东西状态（手持食物时由游戏层每帧设置）：true=把食物送到嘴边快速抖动。
@@ -416,14 +525,25 @@ export class FirstPersonHand {
     if (!texture) return;
     this.item.material.map = texture;
     this.item.material.needsUpdate = true;
+    this.refreshSpriteGeometry(texture);
   }
 
   update(dt: number, walkSpeed: number): void {
+    // Keep the old item while lowering, swap out of the main view, then lift.
+    // Repeated per-frame setHeld calls and fast scrolling never restart the dip.
+    const changing = this.requestedItemId !== this.itemId;
+    const desired = changing ? 0 : 1;
+    this.equipped += THREE.MathUtils.clamp(
+      desired - this.equipped,
+      -EQUIP_RATE * dt,
+      EQUIP_RATE * dt,
+    );
+    if (changing && this.equipped < EQUIP_SWAP_THRESHOLD) this.rebuildHeld(this.requestedItemId);
     // 摆臂进度
     if (this.wantSwing && this.swingT === 0) this.swingT = 0.0001;
     if (this.swingT > 0) {
       this.swingT += dt / SWING_TIME;
-      if (this.swingT >= 1) this.swingT = this.wantSwing ? 0.0001 : 0;
+      if (this.swingT >= 1) this.swingT = this.wantSwing ? this.swingT % 1 : 0;
     }
     this.wantSwing = false;
 
@@ -432,13 +552,18 @@ export class FirstPersonHand {
     const bobX = Math.cos(this.bobPhase) * 0.012 * Math.min(1, walkSpeed);
     const bobY = Math.abs(Math.sin(this.bobPhase)) * 0.012 * Math.min(1, walkSpeed);
 
-    // 挥击：静止基姿 + MC 挥臂。主下劈绕【视图】X 轴(世界轴)做，保证永远朝正下-前方挥，
-    // 不被静止基姿的偏航带歪；再叠加一点朝中间的偏转。
+    // Held items use a camera-local equip anchor then the resource model display
+    // transform. Keep the old empty-arm base separate so it cannot rotate items twice.
     const sp = mcSwingPose(this.swingT);
-    this.root.position.set(0.42 + bobX + sp.tx, -0.28 + bobY + sp.ty, -0.72 + sp.tz);
-    this.root.rotation.set(0.1, -0.5, 0.4); // 静止基姿（手臂斜插入）
-    this.root.rotateOnWorldAxis(X_AXIS, sp.rx); // 主下劈：绕视图 X，最多 −80°
-    this.root.rotateOnWorldAxis(Y_AXIS, sp.rz); // 轻微朝中间偏
+    const holding = this.item !== null;
+    this.root.position.set(
+      (holding ? 0.56 : 0.42) + bobX + sp.tx,
+      (holding ? -0.52 : -0.28) + bobY + sp.ty - 0.6 * (1 - this.equipped),
+      -0.72 + sp.tz,
+    );
+    mcSwingQuaternion(sp, this.swingRotation);
+    this.root.quaternion.copy(this.swingRotation);
+    if (!holding) this.root.quaternion.multiply(IDLE_ROTATION);
 
     // 吃东西：把食物抬到嘴边(往中间+往脸前) + 高频抖动（叠加在静止/挥击之上）。
     if (this.eating) {

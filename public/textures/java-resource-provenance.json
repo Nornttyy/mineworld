@@ -1,0 +1,425 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "source": "Official Mojang version manifest client download",
+  "copyright": "Minecraft game textures © Mojang AB / Microsoft. Not original Mineworld artwork.",
+  "adaptations": [
+    "Atlas packing preserves existing block IDs",
+    "Static representative grass and foliage tint",
+    "Inventory cubes projected from face textures",
+    "Water frames tinted for current renderer",
+    "Furnace atlas cells 46/47 hold official top/side; fallback atlas receives same furnace pixels",
+    "Furnace icon projects one front and one side from official face textures"
+  ],
+  "known_limits": [
+    "Biome tint is not yet sampled per biome",
+    "Some blocks still use simplified cube models",
+    "Furnace opening is fixed north (-Z); per-block orientation and lit-front states are not implemented"
+  ],
+  "files": [
+    {
+      "source": "textures/colormap/grass.png",
+      "sha1": "c6e30ab90edb1051fad60d6ffcb1da6b54dab15d"
+    },
+    {
+      "source": "textures/colormap/foliage.png",
+      "sha1": "c9f25b5e0f8afd8aed4e14148d9f4bda2d5d5c90"
+    },
+    {
+      "source": "textures/block/stone.png",
+      "sha1": "730b77cdb1fc6c08b870e32b5e69c78720db73ef"
+    },
+    {
+      "source": "textures/block/dirt.png",
+      "sha1": "a6364b91067e176052f598b2e1c3ca3835cb44fe"
+    },
+    {
+      "source": "textures/block/grass_block_top.png",
+      "sha1": "57447ae357bce2055bdf1023d91edeaa10310200"
+    },
+    {
+      "source": "textures/block/grass_block_side.png",
+      "sha1": "638224bfab84fb3fd672dc7e393e4094dff551f0"
+    },
+    {
+      "source": "textures/block/grass_block_side_overlay.png",
+      "sha1": "11e6e5ad4594f3e87b7c673b32c4f0989ceebf61"
+    },
+    {
+      "source": "textures/block/cobblestone.png",
+      "sha1": "bf009cfed85345e275e2952c3c2686a70885e6b6"
+    },
+    {
+      "source": "textures/block/sand.png",
+      "sha1": "8efbe7df4797a973e92f85c050eb01790cf537ca"
+    },
+    {
+      "source": "textures/block/oak_log_top.png",
+      "sha1": "57913658259b04949ee905991dd4706f8859f792"
+    },
+    {
+      "source": "textures/block/oak_log.png",
+      "sha1": "d4470abd918d8c26f106e9357a3f1b3c2bee9ec2"
+    },
+    {
+      "source": "textures/block/oak_planks.png",
+      "sha1": "e5368890d90337ac8f491d66d125558b47d6f998"
+    },
+    {
+      "source": "textures/block/coal_ore.png",
+      "sha1": "10770634b85b724e24ab71c81df5dfb69d2e071b"
+    },
+    {
+      "source": "textures/block/water_still.png",
+      "sha1": "e59992e0075e9e3201e2fc40c059b98c8b3f9fe9"
+    },
+    {
+      "source": "textures/block/oak_leaves.png",
+      "sha1": "88edd77292cde729c8a429aa78fa95ff2d9e2136"
+    },
+    {
+      "source": "textures/block/crafting_table_top.png",
+      "sha1": "2df5d7fe4d22296ddcacdf4b117b11c350e27777"
+    },
+    {
+      "source": "textures/block/crafting_table_side.png",
+      "sha1": "19c7796251dcc72029c600e1df23672bfca82cb3"
+    },
+    {
+      "source": "textures/block/iron_ore.png",
+      "sha1": "da412ba20f1739f0cc64c2342f5a79ec92a8ba8e"
+    },
+    {
+      "source": "textures/block/gravel.png",
+      "sha1": "df75150ffdf5ba6282abe91eeb7c2efb2ba43279"
+    },
+    {
+      "source": "textures/block/short_grass.png",
+      "sha1": "1e1299822c6a6778e7ba1feabbe03d098d4ffb6c"
+    },
+    {
+      "source": "textures/block/obsidian.png",
+      "sha1": "9d87480d5ed773de1b05c2ca05293e46575910d0"
+    },
+    {
+      "source": "textures/block/netherrack.png",
+      "sha1": "8aff5d650b2fbcce724f9d3053876c2c6201c378"
+    },
+    {
+      "source": "textures/block/soul_sand.png",
+      "sha1": "9b54daa047ce266d8f2f0dc53d64e418ba0436db"
+    },
+    {
+      "source": "textures/block/glowstone.png",
+      "sha1": "caa027b82104deba1e134a8080e4c22fa5e52abf"
+    },
+    {
+      "source": "textures/block/nether_quartz_ore.png",
+      "sha1": "f0fd61bdd3c27393956afabec1a1ea287025b577"
+    },
+    {
+      "source": "textures/block/lava_still.png",
+      "sha1": "88e58db5e15be5fab0b695e318158d5a2540bc27"
+    },
+    {
+      "source": "textures/block/bedrock.png",
+      "sha1": "f0909783cd59b57df02bce377bd78a0ed18399fd"
+    },
+    {
+      "source": "textures/block/nether_portal.png",
+      "sha1": "fb238d0c6f52553accf57016bd5cef0bd08282ef"
+    },
+    {
+      "source": "textures/block/sandstone.png",
+      "sha1": "36579db81e4840f4bfb1598b8fd1c60ed9161266"
+    },
+    {
+      "source": "textures/block/cactus_side.png",
+      "sha1": "2f1bc07b4de30e825c74c7cdb6b022af142ff6fb"
+    },
+    {
+      "source": "textures/block/ice.png",
+      "sha1": "6a1789812903dfc344cc2f3661655b7d83dad50d"
+    },
+    {
+      "source": "textures/block/snow.png",
+      "sha1": "376538351a085b2552cb2ec0467f7c8070b85287"
+    },
+    {
+      "source": "textures/block/spruce_log.png",
+      "sha1": "73ced2d377ce6dad2d5a1e196619f5cbdeeb8db0"
+    },
+    {
+      "source": "textures/block/spruce_leaves.png",
+      "sha1": "b86377380c127456a702ee80d788694ef4989aaa"
+    },
+    {
+      "source": "textures/block/coal_block.png",
+      "sha1": "0a126df3425ad72ff7e6c0c50f591f70ff3c667a"
+    },
+    {
+      "source": "textures/block/iron_block.png",
+      "sha1": "9b069395bdc14e56502bfe3381157415e21f109e"
+    },
+    {
+      "source": "textures/block/quartz_block_side.png",
+      "sha1": "bc7c6154f3b5a57ebdfd7fb1adc2a0c72e31711c"
+    },
+    {
+      "source": "textures/block/diamond_ore.png",
+      "sha1": "a7af531c419ce3560c00f67140312df208c7d565"
+    },
+    {
+      "source": "textures/block/diamond_block.png",
+      "sha1": "571d44ffc0e36ff74e467f74b61c9eae5821396f"
+    },
+    {
+      "source": "textures/block/granite.png",
+      "sha1": "af2518fc3822d9d2909c1c405e9e8aa6210581be"
+    },
+    {
+      "source": "textures/block/diorite.png",
+      "sha1": "c76fef801da7b088dbbf2b892a09f91b8ea04e57"
+    },
+    {
+      "source": "textures/block/andesite.png",
+      "sha1": "65a03404f1bbbc5b3c387e1a7a671e2b0d210cc0"
+    },
+    {
+      "source": "textures/block/bricks.png",
+      "sha1": "ceef3b22f50997148e5b6e6295eeab3ce50fc378"
+    },
+    {
+      "source": "textures/block/mossy_cobblestone.png",
+      "sha1": "19fdab3218ea92cf646c0a86028db0f7b93d6cfe"
+    },
+    {
+      "source": "textures/block/red_sand.png",
+      "sha1": "3a751eb141f91a7232ea2adea02f3a353035c46e"
+    },
+    {
+      "source": "textures/block/birch_log_top.png",
+      "sha1": "558b49def45716a25843299e39d33ef1dc5f4980"
+    },
+    {
+      "source": "textures/block/birch_log.png",
+      "sha1": "60901222e36f43f720dfca5233d37c8c0a464e41"
+    },
+    {
+      "source": "textures/block/birch_leaves.png",
+      "sha1": "e744b728497da21661ec7b5904662cead76dac89"
+    },
+    {
+      "source": "textures/block/tall_grass_top.png",
+      "sha1": "5efb753c10cc4348e9d88843f09016e8a43484b4"
+    },
+    {
+      "source": "textures/item/apple.png",
+      "sha1": "40bfc68d38046f6fb59e96efb98d1a2319571d17"
+    },
+    {
+      "source": "textures/item/arrow.png",
+      "sha1": "945023fa43cf341956decbb828a3a5eb557f3d0e"
+    },
+    {
+      "source": "textures/item/bone.png",
+      "sha1": "a50ead046e386d3db46994dff4fb66c15aaee6ba"
+    },
+    {
+      "source": "textures/item/bow.png",
+      "sha1": "03ba9836ae26775aceb3397d89196525a330384b"
+    },
+    {
+      "source": "textures/item/bow_pulling_0.png",
+      "sha1": "88f43d74eba59eddf54c3c889167ded99d95d34d"
+    },
+    {
+      "source": "textures/item/bow_pulling_1.png",
+      "sha1": "b2e395b5059fc06afae2424559148db2acc089cd"
+    },
+    {
+      "source": "textures/item/bow_pulling_2.png",
+      "sha1": "095c7e23b9ff2b5915ba09250d6158801c30c15f"
+    },
+    {
+      "source": "textures/item/coal.png",
+      "sha1": "a915938d9b09dbc27e087ea9a96836b086dd8fd3"
+    },
+    {
+      "source": "textures/item/cooked_beef.png",
+      "sha1": "9eedcba6384fe7bffef68a91922da660b16faa0e"
+    },
+    {
+      "source": "textures/item/cooked_chicken.png",
+      "sha1": "b13db39a9818e036419c830e8f681d68031cb5c2"
+    },
+    {
+      "source": "textures/item/cooked_mutton.png",
+      "sha1": "cde1ceaf4c23240764e6f1932e80f19b3660b653"
+    },
+    {
+      "source": "textures/item/cooked_porkchop.png",
+      "sha1": "4c7f9891a02144d8398f82851300dad7aa53bda4"
+    },
+    {
+      "source": "textures/item/diamond.png",
+      "sha1": "5f8d8d0990073f364532b0482c2797fa532f43df"
+    },
+    {
+      "source": "textures/item/diamond_axe.png",
+      "sha1": "ccd07a5353d4edbe16ebdae797177e5b3019551a"
+    },
+    {
+      "source": "textures/item/diamond_hoe.png",
+      "sha1": "19a4c76a9452f75544ac825674db145327d58b31"
+    },
+    {
+      "source": "textures/item/diamond_pickaxe.png",
+      "sha1": "f9d9e85c2b423ecb835307d2c3f6a9f79b2ef3e9"
+    },
+    {
+      "source": "textures/item/diamond_shovel.png",
+      "sha1": "7a0b15c74bb0d7db3215cd07ef6877c877dfbd27"
+    },
+    {
+      "source": "textures/item/diamond_sword.png",
+      "sha1": "370ce9d80e756007ed964229539e3cde87807ad8"
+    },
+    {
+      "source": "textures/item/egg.png",
+      "sha1": "c3d97200b2a3ff3a9c114b0da0ca1d907d171ab2"
+    },
+    {
+      "source": "textures/item/feather.png",
+      "sha1": "ee2859646c90316d5519ff68b7477c24dc5be748"
+    },
+    {
+      "source": "textures/item/flint.png",
+      "sha1": "4793bedb7854d6497cbaca2e2756e963aea1fc1b"
+    },
+    {
+      "source": "textures/item/flint_and_steel.png",
+      "sha1": "9cf661586398631b709936363067605b540fd68f"
+    },
+    {
+      "source": "textures/item/gunpowder.png",
+      "sha1": "ea4c5eea3680d7c79d4db51b6c9fcec35b59e5af"
+    },
+    {
+      "source": "textures/item/iron_axe.png",
+      "sha1": "d7ebd968518f7bf67ccd1b4a5145837cdb0a39db"
+    },
+    {
+      "source": "textures/item/iron_hoe.png",
+      "sha1": "d4950f0e47e6ebae796dcdbfcf00fe69b4ef048f"
+    },
+    {
+      "source": "textures/item/iron_ingot.png",
+      "sha1": "51cbac49b4be48dedbe431cde99dfb40806cab4d"
+    },
+    {
+      "source": "textures/item/iron_pickaxe.png",
+      "sha1": "385134078cafbacd0efd98ae192097d3448e9163"
+    },
+    {
+      "source": "textures/item/iron_shovel.png",
+      "sha1": "fbdce5f17b73f2f2f65663d0e8b1b3a10d5afb2d"
+    },
+    {
+      "source": "textures/item/iron_sword.png",
+      "sha1": "f4638d9308707af2c48d29dfc97efbf872bdb7c6"
+    },
+    {
+      "source": "textures/item/leather.png",
+      "sha1": "47e18380f982a8fecb35eacadf6adedc7b169545"
+    },
+    {
+      "source": "textures/item/quartz.png",
+      "sha1": "8d9376cd4086aac0f2531a37ab11f0906161f2ca"
+    },
+    {
+      "source": "textures/item/beef.png",
+      "sha1": "bcfe84b476c7f9097d594e86a2bc10f157b73835"
+    },
+    {
+      "source": "textures/item/chicken.png",
+      "sha1": "6828b5f1319b1998025aa05245999caa3aa3dad9"
+    },
+    {
+      "source": "textures/item/mutton.png",
+      "sha1": "52bfbb609fceceaaa58d6d570052227fc271087e"
+    },
+    {
+      "source": "textures/item/porkchop.png",
+      "sha1": "149cef0549f43b4998ea2f975213a4f5972d7f09"
+    },
+    {
+      "source": "textures/item/rotten_flesh.png",
+      "sha1": "1b6baa022aa2be8f5bb61bb66755f4fb0aa05370"
+    },
+    {
+      "source": "textures/item/stick.png",
+      "sha1": "907bf8b683594b50e73707d9f9ac6e53c5e3be4f"
+    },
+    {
+      "source": "textures/item/stone_axe.png",
+      "sha1": "e390bbf66978e22e62d7b0c593056d6766735e17"
+    },
+    {
+      "source": "textures/item/stone_hoe.png",
+      "sha1": "f1a82e72785be9240ca3a75b56f3c1744d6b48d3"
+    },
+    {
+      "source": "textures/item/stone_pickaxe.png",
+      "sha1": "384bdba5be5478b265cbba6769a8498cdd47a82c"
+    },
+    {
+      "source": "textures/item/stone_shovel.png",
+      "sha1": "4a95b6e44175bb069f5b93ef4bcc6f0b235d7975"
+    },
+    {
+      "source": "textures/item/stone_sword.png",
+      "sha1": "5932e2d18456ebf6f24b3e17eec2d02618c74e70"
+    },
+    {
+      "source": "textures/item/string.png",
+      "sha1": "4ef35d050adf964f642f55f4a2be459eec6686e8"
+    },
+    {
+      "source": "textures/item/wooden_axe.png",
+      "sha1": "fd953797322040a81e921b79ad76f21440aaebc3"
+    },
+    {
+      "source": "textures/item/wooden_hoe.png",
+      "sha1": "017fc17690f3d3b8eb95fafd320f3f82c7c78aef"
+    },
+    {
+      "source": "textures/item/wooden_pickaxe.png",
+      "sha1": "d28a18e6f8829756728ec2deeab4dca34719b43f"
+    },
+    {
+      "source": "textures/item/wooden_shovel.png",
+      "sha1": "15536a9b5c6ccaff5cba31caed1ff7b6fa568632"
+    },
+    {
+      "source": "textures/item/wooden_sword.png",
+      "sha1": "490c7380b9f800ecd13aeeba8c6d4ef4e299b96e"
+    },
+    {
+      "source": "textures/block/torch.png",
+      "sha1": "75a66a71a7a9c1483167b4efde0cae285f4e623d"
+    },
+    {
+      "source": "textures/block/furnace_front.png",
+      "sha1": "d8a21d5607f6d45ffd0db81b874fbb2aced3ff39"
+    },
+    {
+      "source": "textures/block/furnace_top.png",
+      "sha1": "f5917ed4521617190cc72f74d50a2161b816afdb"
+    },
+    {
+      "source": "textures/block/furnace_side.png",
+      "sha1": "80b3d6acc83b52b91c31919e64ffb093ce5437b7"
+    }
+  ]
+}

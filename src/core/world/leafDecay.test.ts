@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { findUnsupportedLeaves } from './leafDecay';
-import { OAK_LEAVES, OAK_LOG } from '../blocks/registry';
+import { OAK_LEAVES, OAK_LOG, BIRCH_LOG } from '../blocks/registry';
 
 // 用 Map 模拟体素世界：缺省=空气(0)。
 function makeWorld(cells: Record<string, number>) {
@@ -10,6 +10,12 @@ const has = (out: { x: number; y: number; z: number }[], x: number, y: number, z
   out.some((c) => c.x === x && c.y === y && c.z === z);
 
 describe('findUnsupportedLeaves', () => {
+  it('白桦树干能支撑当前树冠，砍断后才腐烂', () => {
+    const cells: Record<string, number> = { '0,0,0': BIRCH_LOG, '1,0,0': OAK_LEAVES };
+    expect(findUnsupportedLeaves(makeWorld(cells), 0, 0, 0, 2)).toEqual([]);
+    delete cells['0,0,0'];
+    expect(findUnsupportedLeaves(makeWorld(cells), 0, 0, 0, 2)).toEqual([{ x: 1, y: 0, z: 0 }]);
+  });
   it('紧挨原木的树叶受支撑，不腐烂', () => {
     const gb = makeWorld({ '0,0,0': OAK_LOG, '1,0,0': OAK_LEAVES });
     const out = findUnsupportedLeaves(gb, 0, 0, 0, 6);
@@ -23,13 +29,12 @@ describe('findUnsupportedLeaves', () => {
     expect(has(out, 0, 0, 0)).toBe(true);
   });
 
-  it('沿树叶洪泛距离 ≤4 受支撑，>4 腐烂(1.12.2 半径=4)', () => {
+  it('现代Java沿树叶距离1–6受支撑，第7格起腐烂', () => {
     const cells: Record<string, number> = { '0,0,0': OAK_LOG };
     for (let x = 1; x <= 8; x++) cells[`${x},0,0`] = OAK_LEAVES; // 连续树叶链 x=1..8
     const out = findUnsupportedLeaves(makeWorld(cells), 0, 0, 0, 8);
-    // x=1..4 距离 1..4 受支撑；x=5.. 腐烂
-    for (let x = 1; x <= 4; x++) expect(has(out, x, 0, 0)).toBe(false);
-    expect(has(out, 5, 0, 0)).toBe(true);
+    for (let x = 1; x <= 6; x++) expect(has(out, x, 0, 0)).toBe(false);
+    expect(has(out, 7, 0, 0)).toBe(true);
     expect(has(out, 8, 0, 0)).toBe(true);
   });
 
