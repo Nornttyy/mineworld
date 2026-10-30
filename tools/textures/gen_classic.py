@@ -346,7 +346,7 @@ BLOCKS.update({
 })
 
 # Order must stay aligned with src/core/blocks/registry.ts and the renderer's
-# 4x22 atlas constants. Slots 0..47 remain fixed; modern tiles append at 48.
+# atlas constants. Slots 0..47 remain fixed; modern tiles append at 48.
 ATLAS_ORDER = [
     "stone", "dirt", "grass_top", "grass_side",
     "cobblestone", "sand", "oak_log_top", "oak_log_side",
@@ -363,8 +363,11 @@ ATLAS_ORDER = [
     'deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore'
 ]
 
+VEGETATION_TILES = ['poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'fern', 'dead_bush']
+ATLAS_ORDER += VEGETATION_TILES
+
 MODERN_TILES = ['deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']
-for _name in MODERN_TILES:
+for _name in MODERN_TILES + VEGETATION_TILES:
     BLOCKS[_name] = lambda _rng, n=_name: source.official_furnace_face(n)
 
 ICON_FACES = {
@@ -426,7 +429,7 @@ for _name in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block',
 
 
 def build_atlas(tiles):
-    atlas = Image.new("RGBA", (S * 4, S * 22), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (S * 4, S * ((len(ATLAS_ORDER) + 3) // 4)), (0, 0, 0, 0))
     for index, name in enumerate(ATLAS_ORDER):
         atlas.paste(tiles[name].convert("RGBA"), ((index % 4) * S, (index // 4) * S))
     return atlas
@@ -435,6 +438,8 @@ def build_atlas(tiles):
 def main():
     os.makedirs(ICONS_OUT, exist_ok=True)
     tiles = build_tiles()
+    for name in VEGETATION_TILES:
+        tiles[name].save(os.path.join(ICONS_OUT, name + ".png"))
     atlas = build_atlas(tiles)
     atlas.save(ATLAS_OUT, optimize=True)
 

@@ -13,6 +13,11 @@ afterEach(() => {
 });
 
 describe('saved generator identity', () => {
+  it('selects the new vegetation only for revision 2 worlds', () => {
+    generateChunkForWorld(1, -2, '42', 'overworld', 'java26v2');
+    expect(generation.modern).toHaveBeenCalledWith(1, -2, '42', 2);
+    expect(generation.legacy).not.toHaveBeenCalled();
+  });
   it.each([-2_000_000_000, 2_000_000_000, -123, 0, 123])(
     'never remaps a valid old seed %s',
     (seed) => {
@@ -24,7 +29,7 @@ describe('saved generator identity', () => {
 
   it('preserves the complete signed-long seed for modern overworld generation', () => {
     generateChunkForWorld(0, 0, '-9223372036854775808', 'overworld', 'java26');
-    expect(generation.modern).toHaveBeenCalledWith(0, 0, '-9223372036854775808');
+    expect(generation.modern).toHaveBeenCalledWith(0, 0, '-9223372036854775808', 1);
     expect(generation.legacy).not.toHaveBeenCalled();
   });
 });

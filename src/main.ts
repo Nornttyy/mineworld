@@ -1,5 +1,5 @@
 import { Game } from './game/Game';
-import { parseJavaSeed } from './core/world/worldBounds';
+import { isModernGenerator, parseJavaSeed } from './core/world/worldBounds';
 import { JavaPanorama as MenuBackground } from './render/JavaPanorama';
 import {
   listWorlds,
@@ -594,7 +594,7 @@ function renderWorldList(): void {
     name.textContent = w.name;
     const meta = document.createElement('span');
     meta.className = 'wmeta';
-    meta.textContent = `${w.generator === 'java26' ? 'Java 26.3 地形' : '旧版世界'} · 种子 ${w.seed64 ?? w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
+    meta.textContent = `${isModernGenerator(w.generator) ? 'Java 26.3 地形' : '旧版世界'} · 种子 ${w.seed64 ?? w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
     const del = document.createElement('span');
     del.className = 'wdel';
     del.textContent = '删除';
@@ -687,10 +687,10 @@ function startGame(world: WorldSave, online: MultiplayerSession | null = null): 
         const preloadAbort = new AbortController();
         try {
           await Promise.race([
-            nextGame.preloadSpawn(world.generator === 'java26' ? 2 : 3, preloadAbort.signal, (loaded, total) => {
+            nextGame.preloadSpawn(isModernGenerator(world.generator) ? 2 : 3, preloadAbort.signal, (loaded, total) => {
               showLoading(true, `生成世界… ${Math.floor(loaded / total * 100)}%`);
             }),
-            timeout(world.generator === 'java26' ? 30000 : 12000),
+            timeout(isModernGenerator(world.generator) ? 30000 : 12000),
           ]);
         } finally {
           // race 超时不会自动取消输掉的预加载；显式停掉轮询，避免后续与切维度争用旧世界。

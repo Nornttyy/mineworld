@@ -224,7 +224,7 @@ function buildSurface(chunk: NoiseBlockChunk, noise: NoiseChunk, seedContext: Se
 }
 
 /** Worker-safe synchronous generation. No old terrain/world height constants. */
-export function generateModernChunk(cx: number, cz: number, seed: ModernSeed): Chunk {
+export function generateModernChunk(cx: number, cz: number, seed: ModernSeed, revision: 1 | 2 = 1): Chunk {
   const ctx = getContext(seed);
   ctx.uses += 32; // bound library caches by approximately 16 generated chunks
   const volume = new DensityVolume(16, MODERN_HEIGHT, 16, cx * 16, MODERN_MIN_Y, cz * 16);
@@ -254,7 +254,7 @@ export function generateModernChunk(cx: number, cz: number, seed: ModernSeed): C
     height: (x, z) => modernColumnHeight(x, z, seed),
     biome: (x, z, y) => biomeSource.getBiome(Math.floor(x / 4), Math.floor(y / 4), Math.floor(z / 4), ctx.state.sampler).toString(),
     density: (x, y, z) => ctx.state.router.finalDensity.compute({ x, y, z }),
-  });
+  }, revision);
   return result;
 }
 

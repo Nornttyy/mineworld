@@ -1,4 +1,4 @@
-import { isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
+import { isGeneratorVersion, isModernGenerator, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import { parseEditKey, type WorldSave } from '../save/worldStore';
 
 /**
@@ -270,7 +270,7 @@ export function isMultiplayerHostWorldValid(world: MultiplayerHostWorld): boolea
     Number.isInteger(world.seed) &&
     world.seed >= -2_000_000_000 &&
     world.seed <= 2_000_000_000 &&
-    (world.generator === undefined || world.generator === 'legacy' || (world.generator === 'java26' && isJavaSeed(world.seed64))) &&
+    (world.generator === undefined || world.generator === 'legacy' || (isModernGenerator(world.generator) && isJavaSeed(world.seed64))) &&
     asGameMode(world.gameMode) !== null &&
     finite(world.worldTime) &&
     Math.abs(world.worldTime) <= 2_000_000_000 &&
@@ -319,8 +319,8 @@ function parseWelcome(value: unknown): WelcomeMessage | null {
   if (
     typeof value.room.id !== 'string' ||
     !integer(value.room.seed) ||
-    (value.room.generator !== undefined && value.room.generator !== 'legacy' && value.room.generator !== 'java26') ||
-    (value.room.generator === 'java26' && !isJavaSeed(value.room.seed64)) ||
+    (value.room.generator !== undefined && !isGeneratorVersion(value.room.generator)) ||
+    (isModernGenerator(value.room.generator) && !isJavaSeed(value.room.seed64)) ||
     gameMode === null ||
     !finite(value.room.worldTime) ||
     !Array.isArray(value.players) ||

@@ -1,7 +1,7 @@
 import { Chunk, flByte, flAmount, flIsSource, flIsFalling } from './chunk';
 import { worldToChunk, localCoord } from './coords';
 import { generateChunkForWorld } from '../worldgen/generator';
-import { worldBounds, type GeneratorVersion } from './worldBounds';
+import { isModernGenerator, worldBounds, type GeneratorVersion } from './worldBounds';
 import { WATER } from '../blocks/registry';
 import ChunkGenWorker from './chunkGen.worker?worker';
 
@@ -29,7 +29,7 @@ export class ChunkWorld {
   }
   /** Noise-settings sea_level is exclusive; the legacy generator filled that Y inclusively. */
   get seaWaterY(): number {
-    return this.seaLevel - (this.generator === 'java26' && this.dimension === 'overworld' ? 1 : 0);
+    return this.seaLevel - (isModernGenerator(this.generator) && this.dimension === 'overworld' ? 1 : 0);
   }
 
   private readonly chunks = new Map<string, Chunk>();
@@ -195,7 +195,7 @@ export class ChunkWorld {
 
   /** 只为已经派发的任务计时；主线程队列等多久都不能被判为执行超时。 */
   retryStuckGen(timeoutMs = 8000): void {
-    if (this.generator === 'java26') timeoutMs = Math.max(timeoutMs, 30000);
+    if (isModernGenerator(this.generator)) timeoutMs = Math.max(timeoutMs, 30000);
     const t = now();
     for (let index = 0; index < this.workers.length; index++) {
       const w = this.workers[index],

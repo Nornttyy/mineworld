@@ -1,0 +1,418 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "source": "Official Mojang version manifest client download",
+  "scope": "Configured oak/birch/spruce/pine shapes and selected ground vegetation modifiers. No executable classes.",
+  "limits": [
+    "Placement RNG is isolated per source chunk, not Java decoration-seed sequencing",
+    "Noise-based flower selection and patch density use Mineworld value noise, not Java noise providers",
+    "Fancy, fallen, giant and unsupported tree species are not implemented",
+    "No vanilla biome zoom, leaf-distance states, bees or leaf-litter features"
+  ],
+  "files": [
+    {
+      "path": "feature/oak",
+      "sha1": "f79a37b0e4a6071d3d3d85d92db4538d61d6e8ea"
+    },
+    {
+      "path": "feature/birch",
+      "sha1": "d7f00aa56d8569449b5513cd692b11ef6cc79486"
+    },
+    {
+      "path": "feature/spruce",
+      "sha1": "fe6f29987600997a5b13f1ea652116a238daec20"
+    },
+    {
+      "path": "feature/pine",
+      "sha1": "5283d6c58443fc9f7b70d6b5bafb62a6b0b49e23"
+    },
+    {
+      "path": "placed_feature/patch_grass_plain",
+      "sha1": "d3426a30f63627df734a6b0843a3848a77afaf64"
+    },
+    {
+      "path": "placed_feature/patch_grass_forest",
+      "sha1": "2a59a1b9b823a97f436125a918eace803464c679"
+    },
+    {
+      "path": "placed_feature/patch_grass_taiga_2",
+      "sha1": "099c71deec16e562aa6aac430e12097c94946122"
+    },
+    {
+      "path": "placed_feature/patch_grass_badlands",
+      "sha1": "a9a25c376bb72fd2324dcfc2ebc323579805bc6e"
+    },
+    {
+      "path": "placed_feature/patch_grass_meadow",
+      "sha1": "50ea444dfd22e4b5c61b61dafbedc1e3a13798b7"
+    },
+    {
+      "path": "placed_feature/patch_dead_bush_2",
+      "sha1": "fdb7f30d5c1e5785be783e17e7e252eab8c758fe"
+    },
+    {
+      "path": "placed_feature/patch_dead_bush_badlands",
+      "sha1": "dd3617fab184695738fa0ae9ed5916acd26393e8"
+    },
+    {
+      "path": "placed_feature/flower_default",
+      "sha1": "7ad3fccebf5140217939e8c88e95cad83c44cd76"
+    },
+    {
+      "path": "placed_feature/flower_plains",
+      "sha1": "536b2fbc5276c1a2785d81da788d86eefb6c96ef"
+    },
+    {
+      "path": "placed_feature/flower_meadow",
+      "sha1": "5aa975edc43d197632e237455f0343de532c7c7c"
+    },
+    {
+      "path": "placed_feature/flower_flower_forest",
+      "sha1": "fbeaa5840056f6329a4fe2e80a04793097f0fc41"
+    },
+    {
+      "path": "placed_feature/flower_swamp",
+      "sha1": "3bb244537334cbbe18f4dd0d6d944f96a6c5b765"
+    },
+    {
+      "path": "feature/grass",
+      "sha1": "452ce7516a5236445445bee2a886fc88171a8660"
+    },
+    {
+      "path": "feature/grass",
+      "sha1": "452ce7516a5236445445bee2a886fc88171a8660"
+    },
+    {
+      "path": "feature/taiga_grass",
+      "sha1": "f45e738cac521de069b76c4f773265230ab5503b"
+    },
+    {
+      "path": "feature/grass",
+      "sha1": "452ce7516a5236445445bee2a886fc88171a8660"
+    },
+    {
+      "path": "feature/grass",
+      "sha1": "452ce7516a5236445445bee2a886fc88171a8660"
+    },
+    {
+      "path": "feature/dead_bush",
+      "sha1": "db81ae95ca06775daa41feff96089c2355cf9738"
+    },
+    {
+      "path": "feature/dead_bush",
+      "sha1": "db81ae95ca06775daa41feff96089c2355cf9738"
+    },
+    {
+      "path": "feature/flower_default",
+      "sha1": "a815df3210c99e065187823c6f9839d8fda22aed"
+    },
+    {
+      "path": "feature/flower_plain",
+      "sha1": "e51e6700e8664f12dc42c00553c4d02419b513b3"
+    },
+    {
+      "path": "feature/flower_meadow",
+      "sha1": "9edb88863d16bc73ecf2c36a3d9a53d86c5193a2"
+    },
+    {
+      "path": "feature/flower_flower_forest",
+      "sha1": "cd1622f963733bb2da82e567f5ab3380adb93009"
+    },
+    {
+      "path": "feature/flower_swamp",
+      "sha1": "fbcbf4b61ba3795d849e6c258ae23d11bb9c1606"
+    },
+    {
+      "path": "block_state_provider/flower_plain",
+      "sha1": "f54109f6530dc713a6752b0b43301b4a87d2cc44"
+    },
+    {
+      "path": "block_state_provider/flower_meadow",
+      "sha1": "f662acbd20a1f8e3e755b5d131bd657c17344b39"
+    },
+    {
+      "path": "block_state_provider/flower_flower_forest",
+      "sha1": "b6f5ad9e03a738aeb3566f6f3bdd329125b26c1e"
+    },
+    {
+      "path": "biome/badlands",
+      "sha1": "e5fa1d3af87a996f7e4993d8d939d61f630549c9"
+    },
+    {
+      "path": "biome/bamboo_jungle",
+      "sha1": "3063fed050351766405143c32c1d6c442a2565cf"
+    },
+    {
+      "path": "biome/basalt_deltas",
+      "sha1": "e63b25efd1b49d5e46a1333732374b842ea86e01"
+    },
+    {
+      "path": "biome/beach",
+      "sha1": "3269e71acb564cc515f30a357b17f3c90af6af75"
+    },
+    {
+      "path": "biome/birch_forest",
+      "sha1": "33f0a0e2bdc2717215b4313b6f876039a6c13d76"
+    },
+    {
+      "path": "biome/cherry_grove",
+      "sha1": "a902026f4eac21f617594c312aeacd4019fc8a02"
+    },
+    {
+      "path": "biome/cold_ocean",
+      "sha1": "4af7e9a693d85b2a0406a07a68ddbae6bd3333a5"
+    },
+    {
+      "path": "biome/crimson_forest",
+      "sha1": "b4b06b4687798adf60ccb515432c022e8a6da708"
+    },
+    {
+      "path": "biome/dappled_forest",
+      "sha1": "06e23d219b09fc24f5437fd18ae66784f1025e4f"
+    },
+    {
+      "path": "biome/dark_forest",
+      "sha1": "c215ad4505a025a897408873e2cd69e96146fff6"
+    },
+    {
+      "path": "biome/deep_cold_ocean",
+      "sha1": "a53af067d7842dcca570a5c02fe5d137a0c7f47c"
+    },
+    {
+      "path": "biome/deep_dark",
+      "sha1": "71a6ae3c227a9f810627e66e0b57f25ac9776368"
+    },
+    {
+      "path": "biome/deep_frozen_ocean",
+      "sha1": "3f4980a87cd4c7ace590cb3f1ef3540b02a5782e"
+    },
+    {
+      "path": "biome/deep_lukewarm_ocean",
+      "sha1": "77d5d79f76578d6738d22f816838348ce7f64bf8"
+    },
+    {
+      "path": "biome/deep_ocean",
+      "sha1": "989e1f42846590478580ddc8a48f715b87466e0c"
+    },
+    {
+      "path": "biome/desert",
+      "sha1": "6ad1ad78f1d4de983a02f824c4f96a6be4883ecd"
+    },
+    {
+      "path": "biome/dripstone_caves",
+      "sha1": "95ca9726a05cb43324856c82224feeaa81c43753"
+    },
+    {
+      "path": "biome/end_barrens",
+      "sha1": "c1e9213ec9910c43530c6cfb75c8a7a6c61a5483"
+    },
+    {
+      "path": "biome/end_highlands",
+      "sha1": "a39bccf270711e32ba8b29b3881c678599504eeb"
+    },
+    {
+      "path": "biome/end_midlands",
+      "sha1": "c1e9213ec9910c43530c6cfb75c8a7a6c61a5483"
+    },
+    {
+      "path": "biome/eroded_badlands",
+      "sha1": "e5fa1d3af87a996f7e4993d8d939d61f630549c9"
+    },
+    {
+      "path": "biome/flower_forest",
+      "sha1": "add8023f7e2591aeb9561a4bafcf9dd742b1f026"
+    },
+    {
+      "path": "biome/forest",
+      "sha1": "9acee24704b7928719eca677f8e20f18e82f151a"
+    },
+    {
+      "path": "biome/frozen_ocean",
+      "sha1": "416b733c4fdf89a936efdb1541943448b59fae4c"
+    },
+    {
+      "path": "biome/frozen_peaks",
+      "sha1": "31a30ec0c37e724cb9d6c444e8137177a4a2d86f"
+    },
+    {
+      "path": "biome/frozen_river",
+      "sha1": "61f5db3cb3492705144d1910294452158e30aeb1"
+    },
+    {
+      "path": "biome/grove",
+      "sha1": "382704132bcedcb91b016af9de6ef49a03a6a166"
+    },
+    {
+      "path": "biome/ice_spikes",
+      "sha1": "1a7a328b81e81b0788d32a28bf5f03df24592104"
+    },
+    {
+      "path": "biome/jagged_peaks",
+      "sha1": "03f8365035b157cd831928bde66f070408dd3d03"
+    },
+    {
+      "path": "biome/jungle",
+      "sha1": "ebb2bfa8654aa641b035b1af076ebfaf43dc2cf6"
+    },
+    {
+      "path": "biome/lukewarm_ocean",
+      "sha1": "6a1acd3145c656477c545698909a3027389c75cd"
+    },
+    {
+      "path": "biome/lush_caves",
+      "sha1": "bd09b59cafe53c4625c55968bca527e241a81f74"
+    },
+    {
+      "path": "biome/mangrove_swamp",
+      "sha1": "3e21843d404eda3e5e036682bde32086cd69e5cb"
+    },
+    {
+      "path": "biome/meadow",
+      "sha1": "f4775457744add7a7d57a4759ff64a4ebf8d125f"
+    },
+    {
+      "path": "biome/mushroom_fields",
+      "sha1": "3f5aba758b93e6cc66a99326ff5d02ae473f7f97"
+    },
+    {
+      "path": "biome/nether_wastes",
+      "sha1": "baa882609e4aa936cc9e63bb4e413ec7b1db9e42"
+    },
+    {
+      "path": "biome/ocean",
+      "sha1": "a0aee15c2c743213d420e05f36fdba9d12bbc63c"
+    },
+    {
+      "path": "biome/old_growth_birch_forest",
+      "sha1": "20da7eb1639d4e1a6655e85e9277a7eca207b2fd"
+    },
+    {
+      "path": "biome/old_growth_pine_taiga",
+      "sha1": "f37380d5b9782e87b3253bdce1da7d8df772bb63"
+    },
+    {
+      "path": "biome/old_growth_spruce_taiga",
+      "sha1": "5e842007fc876a526fda9ccb6eec3b3403689ebb"
+    },
+    {
+      "path": "biome/pale_garden",
+      "sha1": "f1ab497703d0f156fb0fb64de47f293acd745612"
+    },
+    {
+      "path": "biome/plains",
+      "sha1": "19baffb314c3e7fd6788a60488acede51d741f4f"
+    },
+    {
+      "path": "biome/river",
+      "sha1": "b853753f1fb27c349ac8193ea487b94a1791a611"
+    },
+    {
+      "path": "biome/savanna",
+      "sha1": "00ba260d99b0c407303a42850b4b3482f5daaf4c"
+    },
+    {
+      "path": "biome/savanna_plateau",
+      "sha1": "02da4d88fc429d74faf04db21b8261a959bcbe0e"
+    },
+    {
+      "path": "biome/small_end_islands",
+      "sha1": "cd3bf356f2029b510d9a94d4e176e481f4bf8cb7"
+    },
+    {
+      "path": "biome/snowy_beach",
+      "sha1": "1e8de0621d9905ba40212fc6791e6ae13bc97fbe"
+    },
+    {
+      "path": "biome/snowy_plains",
+      "sha1": "b30b361199e90bbe3df16e7d6f6d87e7e7ff53d2"
+    },
+    {
+      "path": "biome/snowy_slopes",
+      "sha1": "977fcdd0023224864131dda405b49396ad4ca492"
+    },
+    {
+      "path": "biome/snowy_taiga",
+      "sha1": "87a27302c82f6cfa09655072efc223d6d91f4996"
+    },
+    {
+      "path": "biome/soul_sand_valley",
+      "sha1": "2c26b6dff00e5c1c795614a6612c94b5aacd2278"
+    },
+    {
+      "path": "biome/sparse_jungle",
+      "sha1": "071c1c827679d56e7a3fd34c370753bbeaef719d"
+    },
+    {
+      "path": "biome/stony_peaks",
+      "sha1": "3684af59f01e48c2d1e39c31db5a2b48a96d8247"
+    },
+    {
+      "path": "biome/stony_shore",
+      "sha1": "0100b15ce2ce07ce332bb48d3f544c693dceefce"
+    },
+    {
+      "path": "biome/sulfur_caves",
+      "sha1": "cfefd260b69dc37a1e6690d5d30c73b06d088f45"
+    },
+    {
+      "path": "biome/sunflower_plains",
+      "sha1": "8f5924aa0df95934afe6a823453415f6c27ef6ac"
+    },
+    {
+      "path": "biome/swamp",
+      "sha1": "448cb22171617665830aa3652abf52bc7af684c0"
+    },
+    {
+      "path": "biome/taiga",
+      "sha1": "bd8601ea62dbc7693fb57dc51724e7aa1bcde98b"
+    },
+    {
+      "path": "biome/the_end",
+      "sha1": "1eef0a99b705ed43e54b356ab5b105e3a7430634"
+    },
+    {
+      "path": "biome/the_void",
+      "sha1": "151ab8d24fb17ae231bbe206d3f72f3663aa5768"
+    },
+    {
+      "path": "biome/warm_ocean",
+      "sha1": "6ae431d8317a412bfe9163dc3d92679eb3a541aa"
+    },
+    {
+      "path": "biome/warped_forest",
+      "sha1": "2eb3fbf6f96c8a8d7d38fae66c609261bdae1d77"
+    },
+    {
+      "path": "biome/windswept_forest",
+      "sha1": "53ef7cf7a55803cb9a1cc8bfef2f0f8930bd755a"
+    },
+    {
+      "path": "biome/windswept_gravelly_hills",
+      "sha1": "a5e1ab320fb57482a2e5ef91cd9f7cde4c155863"
+    },
+    {
+      "path": "biome/windswept_hills",
+      "sha1": "a5e1ab320fb57482a2e5ef91cd9f7cde4c155863"
+    },
+    {
+      "path": "biome/windswept_savanna",
+      "sha1": "6601ecdc41b9fb621554d4932a4e165cb92e4459"
+    },
+    {
+      "path": "biome/wooded_badlands",
+      "sha1": "6deed64e438938f47a243b0ea548ff4c941db94c"
+    },
+    {
+      "path": "placed_feature/trees_birch",
+      "sha1": "b97ce3c762214cf36bc0fcce29f55a4809b4c634"
+    },
+    {
+      "path": "placed_feature/trees_taiga",
+      "sha1": "673b8f368fb89d6010bf1b15271e9d4617ad7fa2"
+    },
+    {
+      "path": "placed_feature/trees_plains",
+      "sha1": "4ae72a714fc4ac96ac52528c6d273e63585570e4"
+    }
+  ]
+}

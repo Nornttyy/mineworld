@@ -580,12 +580,19 @@ describe('写入失败会可靠上报', () => {
 
 
 describe('modern generator persistence', () => {
+  it('retains the previous modern generator and newly placed flower IDs after save/reload', () => {
+    const old = createWorld('previous modern', '42');
+    old.generator = 'java26'; old.edits = { '2,80,2': 81 };
+    expect(saveWorld(old)).toBe(true);
+    expect(getWorld(old.id)?.generator).toBe('java26');
+    expect(getWorld(old.id)?.edits['2,80,2']).toBe(81);
+  });
   it('preserves signed 64-bit seeds and negative/upper world edits on reload', () => {
     const w = createWorld('modern', '-9223372036854775808');
     w.edits = { '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE, '0,-65,0': COBBLESTONE, '0,320,0': COBBLESTONE, 'nether:0,-1,0': COBBLESTONE };
     expect(saveWorld(w)).toBe(true);
     const loaded = getWorld(w.id)!;
-    expect(loaded.generator).toBe('java26');
+    expect(loaded.generator).toBe('java26v2');
     expect(loaded.seed64).toBe('-9223372036854775808');
     expect(loaded.edits).toEqual({ '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE });
   });

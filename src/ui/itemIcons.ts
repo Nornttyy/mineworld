@@ -83,6 +83,21 @@ const ICON: Record<number, string> = {
   78: 'deepslate_iron_ore',
   79: 'deepslate_gold_ore',
   80: 'deepslate_diamond_ore',
+  81: 'poppy',
+  82: 'dandelion',
+  83: 'blue_orchid',
+  84: 'allium',
+  85: 'azure_bluet',
+  86: 'red_tulip',
+  87: 'orange_tulip',
+  88: 'white_tulip',
+  89: 'pink_tulip',
+  90: 'oxeye_daisy',
+  91: 'cornflower',
+  92: 'lily_of_the_valley',
+  93: 'fern',
+  94: 'dead_bush',
+
 
   [APPLE]: 'apple',
   257: 'stick',
@@ -160,6 +175,21 @@ export function setIconTexturePack(pack: TexturePack): void {
 
 // 显示名（无图标时文字占位 + hover 提示）
 const ZH: Record<number, string> = {
+  81: '虞美人',
+  82: '蒲公英',
+  83: '兰花',
+  84: '绒球葱',
+  85: '蓝花美耳草',
+  86: '红色郁金香',
+  87: '橙色郁金香',
+  88: '白色郁金香',
+  89: '粉红色郁金香',
+  90: '滨菊',
+  91: '矢车菊',
+  92: '铃兰',
+  93: '蕨',
+  94: '枯灌木',
+
   302: '皮革帽子',
   303: '皮革外套',
   304: '皮革裤子',

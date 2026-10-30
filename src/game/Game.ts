@@ -4,7 +4,7 @@ import { ChunkWorld } from '../core/world/chunkWorld';
 import { CHUNK_W, flByte } from '../core/world/chunk';
 import { generateChunkForWorld, surfaceHeightForWorld } from '../core/worldgen/generator';
 import { modernBiomeAt } from '../core/worldgen/modernOverworld';
-import { worldBounds } from '../core/world/worldBounds';
+import { isModernGenerator, worldBounds } from '../core/world/worldBounds';
 import { deserializeArmor, serializeArmor, armorStats, damageAfterArmor, wearArmor, bypassesArmor, type ArmorInventory, type ArmorDamageKind } from '../core/equipment/armor';
 import { worldToChunk, localCoord } from '../core/world/coords';
 import {
@@ -13,6 +13,9 @@ import {
   isLavaId,
   isReplaceableId,
   isPlantId,
+  isCrossPlantId,
+  canPlantSurvive,
+  plantDrops,
   isTargetableId,
   breakTimeMs,
   blockHardness,
@@ -329,7 +332,7 @@ export class Game {
   private readonly mobRng: () => number;
   private readonly spawnWorld: SpawnWorld; // 给生物生成用的只读世界视图
   private readonly surfaceY = (x: number, z: number): number => {
-    if (this.generator === 'java26' && this.dimension === 'overworld') {
+    if (isModernGenerator(this.generator) && this.dimension === 'overworld') {
       const cx = worldToChunk(Math.floor(x)), cz = worldToChunk(Math.floor(z));
       const heights = this.world.peek(cx, cz)?.surfaceHeights;
       return heights ? heights[localCoord(Math.floor(x)) + localCoord(Math.floor(z)) * 16] : this.world.seaLevel;
@@ -497,7 +500,7 @@ export class Game {
     this.mobRenderer = new MobRenderer(this.renderer.scene, this.texturePack);
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
     this.spawnWorld = { minY: this.world.minY, getBlock: (x, y, z) => {
-      if (this.generator === 'java26') {
+      if (isModernGenerator(this.generator)) {
         // Unknown columns cannot be spawn spaces. Avoid synchronous terrain generation in AI ticks.
         const chunk = this.world.peek(worldToChunk(x), worldToChunk(z));
         return chunk ? chunk.get(localCoord(x), y, localCoord(z)) : BEDROCK;
@@ -1028,7 +1031,7 @@ export class Game {
   }
 
   private findSpawn(seed: number): { x: number; y: number; z: number } {
-    if (this.generator === 'java26') {
+    if (isModernGenerator(this.generator)) {
       // Evaluate a bounded set of real generated columns. Never use the legacy 116 sea level
       // or scan tens of thousands of candidate columns synchronously.
       const bounds = worldBounds(this.generator);
@@ -2469,7 +2472,7 @@ export class Game {
       if (--d.t > 0) continue;
       this.decayQueue.splice(i, 1);
       const lv = this.world.getBlock(d.x, d.y, d.z);
-      if (lv !== OAK_LEAVES && lv !== SPRUCE_LEAVES) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
+      if (lv !== OAK_LEAVES && lv !== SPRUCE_LEAVES && lv !== BIRCH_LEAVES) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
       this.edit(d.x, d.y, d.z, AIR);
       this.particles.push(...spawnBurst(d.x + 0.5, d.y + 0.5, d.z + 0.5, particleColor(lv), 8));
       if (lv === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE)
@@ -2681,6 +2684,8 @@ export class Game {
     if (isPlantId(id)) {
       this.edit(x, y, z, AIR);
       gameAudio.blockBreak(id);
+      const loot = this.creative ? null : plantDrops(id);
+      if (loot) this.drops.push(spawnDrop(loot.id, x, y, z, Math.random, loot.count));
       this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 6));
       this.digProgress = 0;
       this.digTarget = null;
@@ -2698,7 +2703,10 @@ export class Game {
     const above = this.world.getBlock(x, y + 1, z);
     if (isPlantId(above) || above === TORCH) {
       this.edit(x, y + 1, z, AIR);
-      if (above === TORCH && !this.creative) this.drops.push(spawnDrop(TORCH, x, y + 1, z));
+      if (!this.creative) {
+        const loot = above === TORCH ? { id: TORCH, count: 1 } : plantDrops(above);
+        if (loot) this.drops.push(spawnDrop(loot.id, x, y + 1, z, Math.random, loot.count));
+      }
       this.particles.push(...spawnBurst(x + 0.5, y + 1.5, z + 0.5, particleColor(above), 6));
     }
     this.settleFallingAt(x, y, z); // 重力方块(沙/砾石)失去支撑整列下落(1.12)
@@ -2707,7 +2715,7 @@ export class Game {
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }
-    if (id === OAK_LOG || id === SPRUCE_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
+    if (id === OAK_LOG || id === SPRUCE_LOG || id === BIRCH_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
     if (id === FURNACE) this.destroyFurnaceState(x, y, z);
     addExhaustion(this.survival, BREAK_EXHAUSTION);
@@ -2873,8 +2881,8 @@ export class Game {
       let room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
       if (hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const rk = this.mobRng();
-        const modernBiome = this.generator === 'java26' ? modernBiomeAt(px, pz, this.worldSeed, this.player.pos.y) : '';
-        const biome = this.generator !== 'java26' ? biomeAt(px, pz, this.save.seed)
+        const modernBiome = isModernGenerator(this.generator) ? modernBiomeAt(px, pz, this.worldSeed, this.player.pos.y) : '';
+        const biome = !isModernGenerator(this.generator) ? biomeAt(px, pz, this.save.seed)
           : modernBiome === 'minecraft:desert' ? 'desert'
           : modernBiome.includes('badlands') ? 'badlands' : 'plains';
         const kind: MobKind = hostileKindFor(biome, rk);
@@ -3280,8 +3288,9 @@ export class Game {
     const pz = onReplaceable ? hit.z : hit.z + hit.nz;
     const target = this.world.getBlock(px, py, pz);
     if (!isReplaceableId(target)) return; // 仅可放进空气/水/草丛(草丛可被覆盖)
+    if (isCrossPlantId(stack.id) && (target === WATER || !canPlantSurvive(stack.id, this.world.getBlock(px, py - 1, pz)))) return;
     const replacedPortal = isNetherPortalId(target);
-    if (this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
+    if (isSolidId(stack.id) && this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
     // 创造：放置不消耗物品（无限建材）；生存：取走 1 个。
     const id = this.creative ? stack.id : takeOne(this.inv, sel);
     if (id === null) return;

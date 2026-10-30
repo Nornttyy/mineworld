@@ -12,7 +12,6 @@ import {
   blockLight,
   Face,
   TORCH,
-  TALL_GRASS,
   SNOW_LAYER,
   ICE,
   LAVA,
@@ -611,10 +610,10 @@ export function meshChunkData(
     const vT = vB + dv; // 顶边 V
     const sky = skyAt(lx, ly, lz) / 15;
     const blk = blkAt(lx, ly, lz) / 15;
-    const sh = 0.9; // 无 AO，轻微压暗
+    const sh = 1; // Java cross model shades upward, without ambient occlusion
     const cx = lx + 0.5;
     const cz = lz + 0.5;
-    const r = 0.5;
+    const r = 0.45; // cross.json: 0.8..15.2, rescaled 45-degree planes
     const quads: [number, number, number, number][] = [
       [cx - r, cz - r, cx + r, cz + r], // 对角片
       [cx - r, cz + r, cx + r, cz - r], // 反对角片
@@ -925,7 +924,7 @@ export function meshChunkData(
             emitSnowLayer(lx, ly, lz, blockFaceTile(id, Face.PosY));
           } else {
             // 1.12 的 tallgrass 仍占一格；旧值 1.45 会穿进上方格，像被纵向拉伸的方片。
-            emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), id === TALL_GRASS ? 1.0 : 0.78);
+            emitPlant(lx, ly, lz, blockFaceTile(id, Face.PosY), 1.0);
           }
         } else if (id === ICE) {
           // 冰独立成批，供渲染层使用透射/反射材质；邻居仍按 opaque 剔面，不改变原有接缝。

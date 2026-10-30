@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isCrossPlantId } from '../core/blocks/registry';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
 import { BOW } from '../core/items/items';
 import type { LightingQuality } from '../core/settings';
@@ -90,7 +91,7 @@ export function heldSpritePose(_id: number): HeldSpritePose {
 export function heldRenderKind(id: number | null): HeldKind {
   if (id === null || id <= 0) return 'none';
   // 火把不是立方体(世界里画成细十字),手持也用图标精灵——别走方块分支画成 3D 立方体(火把无图集面→采错纹理,"拿着的贴图不对")
-  if (id === TORCH) return iconUrl(id) ? 'sprite' : 'none';
+  if (id === TORCH || isCrossPlantId(id)) return iconUrl(id) ? 'sprite' : 'none';
   if (BLOCKS[id]) return 'block';
   if (iconUrl(id)) return 'sprite';
   return 'none';

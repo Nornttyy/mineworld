@@ -1,4 +1,4 @@
-import { isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
+import { isGeneratorVersion, isModernGenerator, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import {
   isMultiplayerHostWorldValid,
   normalizePlayerName,
@@ -502,8 +502,8 @@ export class PeerMultiplayerClient implements MultiplayerSession {
       if (
         typeof message.room.id !== 'string' ||
         !Number.isInteger(message.room.seed) ||
-        (message.room.generator !== undefined && message.room.generator !== 'legacy' && message.room.generator !== 'java26') ||
-        (message.room.generator === 'java26' && !isJavaSeed(message.room.seed64)) ||
+        (message.room.generator !== undefined && !isGeneratorVersion(message.room.generator)) ||
+        (isModernGenerator(message.room.generator) && !isJavaSeed(message.room.seed64)) ||
         (gameMode !== 'creative' && gameMode !== 'survival') ||
         !finite(message.room.worldTime)
       )

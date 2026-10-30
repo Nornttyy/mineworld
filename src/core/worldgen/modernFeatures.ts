@@ -9,6 +9,7 @@ import { XoroshiroRandom } from 'deepslate/math';
 import type { Random } from 'deepslate/math';
 import { Chunk } from '../world/chunk';
 import { BLOCKS, OAK_LOG, OAK_LEAVES, SPRUCE_LOG, SPRUCE_LEAVES, BIRCH_LOG, BIRCH_LEAVES } from '../blocks/registry';
+import { decorateVegetationV2 } from './modernVegetation';
 import oreData from './data/java26-ores.json';
 
 type ObjectValue = Record<string, unknown>;
@@ -189,7 +190,8 @@ function decorateTrees(chunk: Chunk, cx: number, cz: number, seed: bigint, sampl
     }
   }
 }
-export function decorateModernFeatures(chunk: Chunk, cx: number, cz: number, seed: bigint, sampler: ModernFeatureSampler): void {
+export function decorateModernFeatures(chunk: Chunk, cx: number, cz: number, seed: bigint, sampler: ModernFeatureSampler, revision: 1 | 2 = 1): void {
   decorateOres(chunk, cx, cz, seed, sampler);
-  decorateTrees(chunk, cx, cz, seed, sampler);
+  if (revision === 2) decorateVegetationV2(chunk, cx, cz, seed, sampler);
+  else decorateTrees(chunk, cx, cz, seed, sampler);
 }

@@ -10,7 +10,8 @@
     "Water frames tinted for current renderer",
     "Furnace atlas cells 46/47 hold official top/side; fallback atlas receives same furnace pixels",
     "Furnace icon projects one front and one side from official face textures",
-    "Modern terrain faces appended in atlas slots 48..87; both packs expanded to 4x22 without changing previous tile or block IDs."
+    "Modern terrain faces appended in atlas slots 48..87; both packs expanded to 4x22 without changing previous tile or block IDs.",
+    "Append 14 original cross-plant textures at atlas slots 88..101; matching inventory sprites; fern uses representative grass tint"
   ],
   "known_limits": [
     "Biome tint is not yet sampled per biome",
@@ -581,6 +582,138 @@
     {
       "source": "textures/block/deepslate_diamond_ore.png",
       "sha1": "8aa025b73906539726a96a2e6a0389fa3305206c"
+    },
+    {
+      "source": "textures/block/poppy.png",
+      "sha1": "cb489e07f65c94878d6bb757924326e8710ecf92"
+    },
+    {
+      "source": "textures/block/dandelion.png",
+      "sha1": "20be070fb807c9471a4d273d06b6a9f21b12d0af"
+    },
+    {
+      "source": "textures/block/blue_orchid.png",
+      "sha1": "61eebea31dcfbd0fd7eb25b4068c59bbf69fe538"
+    },
+    {
+      "source": "textures/block/allium.png",
+      "sha1": "9299e4793831282e018f3ffb1184ba14ff855434"
+    },
+    {
+      "source": "textures/block/azure_bluet.png",
+      "sha1": "f37660c84c13b4283eadc5c1d02bd3fb26fc11be"
+    },
+    {
+      "source": "textures/block/red_tulip.png",
+      "sha1": "5d77bec0dc86a991e0e079d03a9feb5acef1ae0d"
+    },
+    {
+      "source": "textures/block/orange_tulip.png",
+      "sha1": "f4c48694558dd45327409746b79f7095c2b9ae3d"
+    },
+    {
+      "source": "textures/block/white_tulip.png",
+      "sha1": "4d7afe17101a81cf4ee2335f3a3898674ffcf29d"
+    },
+    {
+      "source": "textures/block/pink_tulip.png",
+      "sha1": "d5e9e8c779e97cee203a039dd9be3c0b4a3d2253"
+    },
+    {
+      "source": "textures/block/oxeye_daisy.png",
+      "sha1": "20de39b387ffd58bc8416e6faac203fa8c3a6e2e"
+    },
+    {
+      "source": "textures/block/cornflower.png",
+      "sha1": "e8add1cd34b1c0271f2005f430cb9ce23456c09d"
+    },
+    {
+      "source": "textures/block/lily_of_the_valley.png",
+      "sha1": "73339e6c25e9f9650c3482f4bb071814650ba596"
+    },
+    {
+      "source": "textures/block/fern.png",
+      "sha1": "5b6d707e8fa9faff25e30ecf45d09826c0bd9a8e"
+    },
+    {
+      "source": "textures/block/dead_bush.png",
+      "sha1": "a1a682e5ea25e0cbdf5dbf1523337183fe283b24"
+    },
+    {
+      "source": "textures/item/diamond_boots.png",
+      "sha1": "162979512fa7e0a54a6b1036c714b7190755529c"
+    },
+    {
+      "source": "textures/item/diamond_chestplate.png",
+      "sha1": "90ddfed617b270ca80a650f728d3eff76f6772c1"
+    },
+    {
+      "source": "textures/item/diamond_helmet.png",
+      "sha1": "274bee46839a1e032f3e78c4cae34ce51463d054"
+    },
+    {
+      "source": "textures/item/diamond_leggings.png",
+      "sha1": "f9c655d2518f496e5fd997082702965a0169ca2b"
+    },
+    {
+      "source": "textures/item/gold_ingot.png",
+      "sha1": "b502f0626f117cccd738c19489c69645fd617dba"
+    },
+    {
+      "source": "textures/item/golden_boots.png",
+      "sha1": "2380f56698562c41d4cfc2dda8a413c99bfe53f2"
+    },
+    {
+      "source": "textures/item/golden_chestplate.png",
+      "sha1": "8348e6af374949b6bbd55c00441e0d4758b9f9ac"
+    },
+    {
+      "source": "textures/item/golden_helmet.png",
+      "sha1": "fc90fd80bb6996f2003342b6ea3604a09b77a348"
+    },
+    {
+      "source": "textures/item/golden_leggings.png",
+      "sha1": "2d881fe9ffef1a5d8e41376c7a3cd33f3ec4edb8"
+    },
+    {
+      "source": "textures/item/iron_boots.png",
+      "sha1": "04ab899a04e91017899268a24dbb2669f8922f6a"
+    },
+    {
+      "source": "textures/item/iron_chestplate.png",
+      "sha1": "eff52fe3dcf7792c48fbf501426b3fa22a22cc9b"
+    },
+    {
+      "source": "textures/item/iron_helmet.png",
+      "sha1": "5f767f5b0a9be095a2575b711445b8e5070f1a2c"
+    },
+    {
+      "source": "textures/item/iron_leggings.png",
+      "sha1": "0b09d5734db8f3335ca6d44e361c1d20bd1512e2"
+    },
+    {
+      "source": "textures/item/leather_boots.png",
+      "sha1": "23b0f60c9c6ec98c3fbd03325558d203f6d77662"
+    },
+    {
+      "source": "textures/item/leather_chestplate.png",
+      "sha1": "64ebf08b8c74b987bc2f89e6958e4293de5cd03e"
+    },
+    {
+      "source": "textures/item/leather_helmet.png",
+      "sha1": "806d93596bb94fa5694dd502d47be4a850257009"
+    },
+    {
+      "source": "textures/item/leather_leggings.png",
+      "sha1": "4eb656687efbd12dd38056f991596673eb882bfa"
+    },
+    {
+      "source": "textures/item/raw_gold.png",
+      "sha1": "d2dec7e0fc3628f925ddfda49417234f9f41e187"
+    },
+    {
+      "source": "textures/item/raw_iron.png",
+      "sha1": "3b0c0323f5e6629ddc01759b94a3935b32cf68b2"
     }
   ]
 }

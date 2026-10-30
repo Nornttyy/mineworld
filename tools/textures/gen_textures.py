@@ -1088,7 +1088,11 @@ def main():
                    'birch_log_top', 'birch_log_side', 'birch_leaves', 'furnace_top', 'furnace_side',
     'deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore'
 ]
-    ATLAS_COLS, ATLAS_ROWS = 4, 22  # 同步 mesher/DropRenderer/FirstPersonHand
+    vegetation = ['poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'fern', 'dead_bush']
+    ATLAS_ORDER += vegetation
+    for name in vegetation:
+        tex[name] = official_furnace_face(name)
+    ATLAS_COLS, ATLAS_ROWS = 4, (len(ATLAS_ORDER) + 3) // 4  # 同步 mesher/DropRenderer/FirstPersonHand
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:
@@ -1148,6 +1152,8 @@ def main():
     for nm, (top, side) in ICON_FACES.items():
         front = 'furnace_front' if nm == 'furnace' else side
         iso_icon(tex[top], tex[side], tex[front]).save(os.path.join(icons_dir, nm + '.png'))
+    for name in vegetation:
+        tex[name].save(os.path.join(icons_dir, name + ".png"))
     # 草丛是交叉竖片，不能画成实心立方体图标。长草保持同一叶型，在 UI 中稍向上拉长。
     sprite_icon(tex['grass_plant']).save(os.path.join(icons_dir, 'grass_plant.png'))
     tall = sprite_icon(tex['grass_plant'])

@@ -85,16 +85,18 @@ These measurements are not mobile guarantees.
   checks differ from Java's complete feature-step pipeline. Mineral locations
   therefore do not match vanilla seeds. Ores crossing chunks are regenerated
   from a fixed ordered 3x3 source-chunk set, independent of loading order.
-- Oak/birch/spruce wood supplies use explicitly approximate tree candidates
-  and canopy geometry with stable cross-chunk placement. Other biome tree
-  species, grass/flower decoration and exact Java feature positions are absent.
+- Saved `java26` worlds retain their original approximate tree candidates and
+  canopies. New `java26v2` worlds use configured small oak/birch/spruce/pine
+  foliage rules and selected biome vegetation patches. See
+  `docs/vegetation-26.3-audit.md`. Exact feature coordinates and unsupported
+  tree species remain absent.
 - Snow blocks currently lack snowball drops; powder snow is a visible full
   cube without sinking/freezing mechanics. These material IDs do not imply
   all related mechanics exist.
 
 ## Integration interface
 
-`generateModernChunk(cx, cz, seed: number|string): Chunk` returns
+`generateModernChunk(cx, cz, seed: number|string, revision: 1|2 = 1): Chunk` returns
 `new Chunk(-64, 384)`, with real world-Y `get/set` and fluid bytes.
 It also fills `surfaceHeights: Int16Array(256)`, indexed by `x + z*16`, so loaded
 terrain height can be transferred to the main thread without recomputation.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCKS } from '../core/blocks/registry';
+import { BLOCKS, isCrossPlantId, TORCH } from '../core/blocks/registry';
 import { isItem } from '../core/items/items';
 import { iconUrl } from '../ui/itemIcons';
 import { asset } from '../asset';
@@ -11,6 +11,7 @@ import {
   CLASSIC_ATLAS_TILE_PX,
 } from '../core/blocks/atlasLayout';
 
+const spriteDrop = (id: number): boolean => isItem(id) || isCrossPlantId(id) || id === TORCH;
 const [EPS_U, EPS_V] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
 
 // 给某方块 id 造一个用图集贴图的小立方体几何（6 面各取对应 tile 的 UV）。
@@ -61,7 +62,7 @@ export class DropRenderer {
     }
     this.itemMats.clear();
     for (const [d, mesh] of this.meshes) {
-      if (!isItem(d.id)) {
+      if (!spriteDrop(d.id)) {
         (mesh.material as THREE.MeshBasicMaterial).map = tex;
         (mesh.material as THREE.MeshBasicMaterial).needsUpdate = true;
       } else {
@@ -96,7 +97,7 @@ export class DropRenderer {
   private geo(id: number): THREE.BufferGeometry {
     let g = this.geoCache.get(id);
     if (!g) {
-      g = isItem(id) ? new THREE.PlaneGeometry(DROP_SIZE, DROP_SIZE) : dropGeometry(id);
+      g = spriteDrop(id) ? new THREE.PlaneGeometry(DROP_SIZE, DROP_SIZE) : dropGeometry(id);
       this.geoCache.set(id, g);
     }
     return g;
@@ -118,7 +119,7 @@ export class DropRenderer {
         // 材质克隆：让每个掉落物能独立按环境光变暗(共享材质会互相打架)
         mesh = new THREE.Mesh(
           this.geo(d.id),
-          (isItem(d.id) ? this.itemMat(d.id) : this.mat).clone(),
+          (spriteDrop(d.id) ? this.itemMat(d.id) : this.mat).clone(),
         );
         this.scene.add(mesh);
         this.meshes.set(d, mesh);

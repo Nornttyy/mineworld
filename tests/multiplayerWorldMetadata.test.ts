@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error -- Exercise the actual native Node server, which has no TS declaration.
 import { createRealtimeServer } from '../server/index.mjs';
-import { worldBounds } from '../src/core/world/worldBounds';
+import { isModernGenerator, worldBounds } from '../src/core/world/worldBounds';
 import {
   MultiplayerClient,
   multiplayerHostWorldFromSave,
@@ -19,6 +19,7 @@ afterEach(async () => {
 });
 
 const worlds = [
+  { label: 'vegetation revision 2', generator: 'java26v2' as const, seed64: '9223372036854775807' },
   { label: 'maximum signed long', generator: 'java26' as const, seed64: '9223372036854775807' },
   { label: 'minimum signed long', generator: 'java26' as const, seed64: '-9223372036854775808' },
   { label: 'old protocol with no generator fields', generator: undefined, seed64: undefined },
@@ -47,7 +48,7 @@ function expectWorld(client: MultiplayerSession, source: MultiplayerHostWorld): 
   expect(client.room.seed64).toBe(source.seed64);
   expect(client.initialEdits).toEqual(source.edits);
   // This is the same missing-tag default consumed by world construction, not an upgraded old save.
-  expect(worldBounds(client.room.generator).minY).toBe(source.generator === 'java26' ? -64 : 0);
+  expect(worldBounds(client.room.generator).minY).toBe(isModernGenerator(source.generator) ? -64 : 0);
 }
 
 /** Only the socket transport is replaced: actual connect/join/welcome/parser code runs unchanged. */

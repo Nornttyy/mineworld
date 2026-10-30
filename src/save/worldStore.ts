@@ -10,7 +10,7 @@ import type { Arrow } from '../core/entity/arrow';
 import { INV_SIZE } from '../core/inventory/inventory';
 import { isItem, itemMaxDurability, itemMaxStack } from '../core/items/items';
 import { MAX_FOOD, MAX_HEALTH, MAX_OXYGEN } from '../core/survival/survival';
-import { worldBounds, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
+import { isGeneratorVersion, isModernGenerator, worldBounds, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import { deserializeArmor, serializeArmor, type ArmorInventory } from '../core/equipment/armor';
 
 export type GameMode = 'survival' | 'creative';
@@ -438,9 +438,9 @@ function sanitizeWorld(value: unknown): WorldSave | null {
     return null;
 
   // Missing generator identifies legacy saves; never reinterpret their existing terrain.
-  if (value.generator !== undefined && value.generator !== 'legacy' && value.generator !== 'java26') return null;
-  if (value.generator === 'java26' && !isJavaSeed(value.seed64)) return null;
-  const generator = value.generator === 'java26' ? 'java26' : 'legacy';
+  if (value.generator !== undefined && !isGeneratorVersion(value.generator)) return null;
+  if (isModernGenerator(value.generator) && !isJavaSeed(value.seed64)) return null;
+  const generator = isModernGenerator(value.generator) ? value.generator : 'legacy';
   const world = { ...value, edits: sanitizeEdits(value.edits, generator) } as unknown as WorldSave;
   if (value.armor !== undefined) world.armor = serializeArmor(deserializeArmor(value.armor));
   if (value.gameMode !== 'survival' && value.gameMode !== 'creative') delete world.gameMode;
@@ -558,7 +558,7 @@ export function createWorld(
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name: name.trim() || '新的世界',
     seed: Number(BigInt(modernSeed) % 2_000_000_000n),
-    generator: 'java26',
+    generator: 'java26v2',
     seed64: modernSeed,
     gameMode,
     lastPlayed: Date.now(),

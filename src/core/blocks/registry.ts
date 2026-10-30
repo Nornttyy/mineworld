@@ -104,6 +104,20 @@ export const ATLAS_TILES = {
   deepslate_gold_ore: 86,
   deepslate_diamond_ore: 87,
 
+  poppy: 88,
+  dandelion: 89,
+  blue_orchid: 90,
+  allium: 91,
+  azure_bluet: 92,
+  red_tulip: 93,
+  orange_tulip: 94,
+  white_tulip: 95,
+  pink_tulip: 96,
+  oxeye_daisy: 97,
+  cornflower: 98,
+  lily_of_the_valley: 99,
+  fern: 100,
+  dead_bush: 101,
 } as const;
 const T = ATLAS_TILES;
 
@@ -423,8 +437,36 @@ export const BLOCKS: BlockDef[] = [
   { id: 78, name: 'deepslate_iron_ore', solid: true, transparent: false, faces: all(T.deepslate_iron_ore), hardness: 4.5, drop: RAW_IRON_ITEM, needsTool: true, tool: 'pickaxe', minTier: 2 },
   { id: 79, name: 'deepslate_gold_ore', solid: true, transparent: false, faces: all(T.deepslate_gold_ore), hardness: 4.5, drop: RAW_GOLD_ITEM, needsTool: true, tool: 'pickaxe', minTier: 3 },
   { id: 80, name: 'deepslate_diamond_ore', solid: true, transparent: false, faces: all(T.deepslate_diamond_ore), hardness: 4.5, drop: DIAMOND_ITEM, needsTool: true, tool: 'pickaxe', minTier: 3 },
+  { id: 81, name: 'poppy', solid: false, transparent: true, faces: all(T.poppy), hardness: 0, drop: 81, needsTool: false, tool: null },
+  { id: 82, name: 'dandelion', solid: false, transparent: true, faces: all(T.dandelion), hardness: 0, drop: 82, needsTool: false, tool: null },
+  { id: 83, name: 'blue_orchid', solid: false, transparent: true, faces: all(T.blue_orchid), hardness: 0, drop: 83, needsTool: false, tool: null },
+  { id: 84, name: 'allium', solid: false, transparent: true, faces: all(T.allium), hardness: 0, drop: 84, needsTool: false, tool: null },
+  { id: 85, name: 'azure_bluet', solid: false, transparent: true, faces: all(T.azure_bluet), hardness: 0, drop: 85, needsTool: false, tool: null },
+  { id: 86, name: 'red_tulip', solid: false, transparent: true, faces: all(T.red_tulip), hardness: 0, drop: 86, needsTool: false, tool: null },
+  { id: 87, name: 'orange_tulip', solid: false, transparent: true, faces: all(T.orange_tulip), hardness: 0, drop: 87, needsTool: false, tool: null },
+  { id: 88, name: 'white_tulip', solid: false, transparent: true, faces: all(T.white_tulip), hardness: 0, drop: 88, needsTool: false, tool: null },
+  { id: 89, name: 'pink_tulip', solid: false, transparent: true, faces: all(T.pink_tulip), hardness: 0, drop: 89, needsTool: false, tool: null },
+  { id: 90, name: 'oxeye_daisy', solid: false, transparent: true, faces: all(T.oxeye_daisy), hardness: 0, drop: 90, needsTool: false, tool: null },
+  { id: 91, name: 'cornflower', solid: false, transparent: true, faces: all(T.cornflower), hardness: 0, drop: 91, needsTool: false, tool: null },
+  { id: 92, name: 'lily_of_the_valley', solid: false, transparent: true, faces: all(T.lily_of_the_valley), hardness: 0, drop: 92, needsTool: false, tool: null },
+  { id: 93, name: 'fern', solid: false, transparent: true, faces: all(T.fern), hardness: 0, drop: null, needsTool: false, tool: null },
+  { id: 94, name: 'dead_bush', solid: false, transparent: true, faces: all(T.dead_bush), hardness: 0, drop: null, needsTool: false, tool: null },
 ];
 
+export const POPPY = 81;
+export const DANDELION = 82;
+export const BLUE_ORCHID = 83;
+export const ALLIUM = 84;
+export const AZURE_BLUET = 85;
+export const RED_TULIP = 86;
+export const ORANGE_TULIP = 87;
+export const WHITE_TULIP = 88;
+export const PINK_TULIP = 89;
+export const OXEYE_DAISY = 90;
+export const CORNFLOWER = 91;
+export const LILY_OF_THE_VALLEY = 92;
+export const FERN = 93;
+export const DEAD_BUSH = 94;
 export const DEEPSLATE = 45;
 export const COBBLED_DEEPSLATE = 46;
 export const TUFF = 47;
@@ -517,13 +559,15 @@ export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
 export const isCutoutId = (id: number): boolean =>
   id === OAK_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES; // 镂空(树叶)
-export const isPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || id === SNOW_LAYER; // cross/薄层 特判
+export const isFlowerId = (id: number): boolean => id >= POPPY && id <= LILY_OF_THE_VALLEY;
+export const isCrossPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || (id >= POPPY && id <= DEAD_BUSH);
+export const isPlantId = (id: number): boolean => isCrossPlantId(id) || id === SNOW_LAYER; // cross/薄层 特判
 // 可被挖掘射线选中/打掉：实心方块 + 植物 + 火把。草丛/火把虽非实心，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
 export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id) || id === TORCH;
 // 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
 export const isReplaceableId = (id: number): boolean =>
-  id === 0 || id === WATER || isPlantId(id) || id === NETHER_PORTAL;
+  id === 0 || id === WATER || id === GRASS_PLANT || id === TALL_GRASS || id === FERN || id === DEAD_BUSH || id === SNOW_LAYER || id === NETHER_PORTAL;
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
 export const isOpaque = (id: number): boolean => {
   const b = BLOCKS[id];
@@ -569,3 +613,15 @@ export const blockTool = (id: number): 'pickaxe' | 'axe' | 'shovel' | null => BL
 export const isCactus = (id: number): boolean => id === CACTUS;
 // 方块滑度（水平移动摩擦用）：冰滑(同 MC 0.98)，其余普通 0.6。
 export const blockSlipperiness = (id: number): number => (id === ICE || id === PACKED_ICE ? 0.98 : 0.6);
+
+/** Surface plants need soil, not an arbitrary solid cube or a water block. */
+export function canPlantSurvive(id: number, below: number): boolean {
+  if (!isCrossPlantId(id)) return true;
+  const soil = below === GRASS || below === 2 || below === COARSE_DIRT || below === PODZOL || below === MYCELIUM || below === MUD;
+  return soil || (id === DEAD_BUSH && (below === SAND || below === RED_SAND || (below >= TERRACOTTA && below <= BLACK_TERRACOTTA)));
+}
+export function plantDrops(id: number, random: () => number = Math.random): { id: number; count: number } | null {
+  if (isFlowerId(id)) return { id, count: 1 };
+  if (id === DEAD_BUSH) { const count = Math.floor(random() * 3); return count ? { id: 257, count } : null; }
+  return null;
+}

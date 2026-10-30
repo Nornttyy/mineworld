@@ -44,7 +44,7 @@ aliases = {
 }
 grass_tint = read_image('textures/colormap/grass.png').getpixel((51, 173))[:3]
 leaf_tint = read_image('textures/colormap/foliage.png').getpixel((51, 173))[:3]
-tints = {'grass_top': grass_tint, 'grass_plant': grass_tint, 'oak_leaves': leaf_tint,
+tints = {'grass_top': grass_tint, 'grass_plant': grass_tint, 'fern': grass_tint, 'oak_leaves': leaf_tint,
          'spruce_leaves': (97, 153, 97), 'birch_leaves': (128, 167, 85), 'water': (63, 118, 228)}
 tiles = {}
 for name in layout.ATLAS_ORDER:
@@ -63,10 +63,10 @@ layout.build_atlas(tiles).save(OUT / 'atlas_classic.png', optimize=True)
 fallback_path = OUT / 'atlas.png'
 if fallback_path.exists():
     fallback = Image.open(fallback_path).convert('RGBA')
-    expanded = Image.new('RGBA', (64, 352), (0,0,0,0))
+    expanded = Image.new('RGBA', (64, ((len(layout.ATLAS_ORDER) + 3) // 4) * 16), (0,0,0,0))
     expanded.paste(fallback, (0,0))
     fallback = expanded
-    for name in ['furnace_front', 'furnace_top', 'furnace_side'] + layout.MODERN_TILES:
+    for name in ['furnace_front', 'furnace_top', 'furnace_side'] + layout.MODERN_TILES + layout.VEGETATION_TILES:
         index = layout.ATLAS_ORDER.index(name)
         fallback.paste(tiles[name], ((index % 4) * 16, (index // 4) * 16))
     fallback.save(fallback_path, optimize=True)
@@ -74,22 +74,31 @@ if fallback_path.exists():
 icons = OUT / 'icons_classic'
 icons.mkdir(exist_ok=True)
 for name, (top, side) in layout.ICON_FACES.items():
+    if name == 'furnace' and (icons / 'furnace.png').exists(): continue
     front = 'furnace_front' if name == 'furnace' else side
     layout.source.iso_icon(tiles[top], tiles[side], tiles[front]).save(icons / f'{name}.png')
 legacy_icons = OUT / 'icons'
 legacy_icons.mkdir(exist_ok=True)
-layout.source.iso_icon(tiles['furnace_top'], tiles['furnace_side'], tiles['furnace_front']).save(legacy_icons / 'furnace.png')
+if not (legacy_icons / 'furnace.png').exists():
+    layout.source.iso_icon(tiles['furnace_top'], tiles['furnace_side'], tiles['furnace_front']).save(legacy_icons / 'furnace.png')
 for name in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol', 'mycelium', 'mud', 'red_sandstone', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']:
     top, side = layout.ICON_FACES[name]
     layout.source.iso_icon(tiles[top], tiles[side], tiles[side]).save(legacy_icons / f'{name}.png')
 for name, original in [('grass_plant', 'short_grass'), ('tall_grass', 'tall_grass_top')]:
     tint(block(original), grass_tint).save(icons / f'{name}.png')
 
+for name in layout.VEGETATION_TILES:
+    tiles[name].save(icons / f'{name}.png')
+    tiles[name].save(legacy_icons / f'{name}.png')
+
 item_aliases = {'raw_porkchop': 'porkchop', 'raw_beef': 'beef', 'raw_chicken': 'chicken',
                 'raw_mutton': 'mutton', 'nether_quartz': 'quartz'}
 item_count = 0
 for p in sorted(icons.glob('*.png')):
     name = item_aliases.get(p.stem, p.stem)
+    # Leather icons already include their default dye and overlay; the raw base
+    # texture alone is not a complete item sprite. Preserve those adapted icons.
+    if name.startswith('leather_'): continue
     entry = f'assets/minecraft/textures/item/{name}.png'
     if entry in z.namelist():
         p.write_bytes(z.read(entry))

@@ -65,7 +65,7 @@ export const CREATIVE_CATEGORIES: readonly CreativeCategoryDef[] = [
       ...Array.from({ length: 36 }, (_, i) => 45 + i),
     ],
   },
-  { id: 'decoration', label: '装饰方块', items: [14, 16, 17, 29] },
+  { id: 'decoration', label: '装饰方块', items: [14, 16, 17, 29, ...Array.from({ length: 14 }, (_, i) => 81 + i)] },
   {
     id: 'tools',
     label: '工具武器',

@@ -1,9 +1,11 @@
 /** Generator identity is persisted: never regenerate an existing save with a different algorithm. */
-export type GeneratorVersion = 'legacy' | 'java26';
+export type GeneratorVersion = 'legacy' | 'java26' | 'java26v2';
+export const isModernGenerator = (value: unknown): value is 'java26' | 'java26v2' => value === 'java26' || value === 'java26v2';
+export const isGeneratorVersion = (value: unknown): value is GeneratorVersion => value === 'legacy' || isModernGenerator(value);
 export interface WorldBounds { minY: number; height: number; maxY: number; seaLevel: number }
 
 export function worldBounds(generator: GeneratorVersion = 'legacy', dimension: 'overworld' | 'nether' = 'overworld'): WorldBounds {
-  if (generator === 'java26' && dimension === 'overworld') {
+  if (isModernGenerator(generator) && dimension === 'overworld') {
     return { minY: -64, height: 384, maxY: 320, seaLevel: 63 };
   }
   return { minY: 0, height: 192, maxY: 192, seaLevel: dimension === 'nether' ? 31 : 116 };
