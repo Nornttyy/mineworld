@@ -1,10 +1,19 @@
 import type { ItemDef, ItemId } from './types';
+import { ARMOR_ITEM_IDS, itemName } from '../items/items';
 
 function def(id: ItemId, name: string, maxStack = 64): ItemDef {
   return { id, name, maxStack };
 }
 
 const DEFS: ItemDef[] = [
+  def('leather', 'Leather'),
+  def('gold_ingot', 'Gold Ingot'),
+  def('raw_iron', 'Raw Iron'),
+  def('raw_gold', 'Raw Gold'),
+  ...ARMOR_ITEM_IDS.map((id) => {
+    const name = itemName(id)!;
+    return def(name, name.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' '), 1);
+  }),
   def('oak_log', 'Oak Log'),
   def('spruce_log', 'Spruce Log'),
   def('birch_log', 'Birch Log'),

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { asset } from '../asset';
+import { armorOf, emptyArmor, serializeArmor, type ArmorInventory } from '../core/equipment/armor';
 
 export const PLAYER_PREVIEW_SIZE = { width: 51, height: 72 } as const;
 
@@ -118,6 +119,73 @@ export function createPlayerPreviewModel(skin: THREE.Texture): PlayerPreviewMode
   };
 }
 
+/** Actual equipped pieces, using the official 64×32 humanoid/leggings textures.
+ * Cube layout follows Java's adult humanoid model; preview lighting is local. */
+export function createArmorPreviewModel(
+  player: PlayerPreviewModel,
+  armor: ArmorInventory,
+  texture: (path: string) => THREE.Texture,
+): { dispose(): void } {
+  const meshes: THREE.Mesh[] = [];
+  const materials: THREE.MeshBasicMaterial[] = [];
+  for (let index = 0; index < armor.length; index++) {
+    const stack = armor[index];
+    const def = stack && armorOf(stack.id);
+    if (!def) continue;
+    const layer = def.slot === 'legs' ? 'humanoid_leggings' : 'humanoid';
+    const layers = def.material === 'leather' ? ['leather', 'leather_overlay'] : [def.material];
+    for (const materialName of layers) {
+      const material = new THREE.MeshBasicMaterial({
+        map: texture(`${layer}/${materialName}.png`),
+        color: materialName === 'leather' ? 0xa06540 : 0xffffff,
+        vertexColors: true,
+        alphaTest: 0.5,
+      });
+      materials.push(material);
+      const inflate = def.slot === 'legs' ? 0.5 : 1;
+      const box = (
+        name: string,
+        size: [number, number, number],
+        center: [number, number, number],
+        uv: [number, number],
+        head = false,
+        mirror = false,
+      ): void => {
+        // HumanoidModel.createBaseArmorMesh reduces leg deformation by 0.1px.
+        const g = playerSkinBox(...size, ...uv, name.endsWith('-leg') ? inflate - 0.1 : inflate);
+        const coords = g.getAttribute('uv');
+        for (let i = 0; i < coords.count; i++) coords.setY(i, 1 - (1 - coords.getY(i)) * 2);
+        const mesh = new THREE.Mesh(g, material);
+        mesh.name = `armor-${name}-${materialName}`;
+        mesh.position.set(center[0] / 16, center[1] / 16, center[2] / 16);
+        if (mirror) mesh.scale.x = -1;
+        (head ? player.head : player.root).add(mesh);
+        meshes.push(mesh);
+      };
+      if (def.slot === 'head') box('head', [8, 8, 8], [0, 4, 0], [0, 0], true);
+      if (def.slot === 'chest' || def.slot === 'legs')
+        box(`${def.slot}-body`, [8, 12, 4], [0, 18, 0], [16, 16]);
+      if (def.slot === 'chest') {
+        box('right-arm', [4, 12, 4], [-6, 18, 0], [40, 16]);
+        box('left-arm', [4, 12, 4], [6, 18, 0], [40, 16], false, true);
+      }
+      if (def.slot === 'legs' || def.slot === 'feet') {
+        box(`${def.slot}-right-leg`, [4, 12, 4], [-1.9, 6, 0], [0, 16]);
+        box(`${def.slot}-left-leg`, [4, 12, 4], [1.9, 6, 0], [0, 16], false, true);
+      }
+    }
+  }
+  return {
+    dispose: () => {
+      for (const mesh of meshes) {
+        mesh.removeFromParent();
+        mesh.geometry.dispose();
+      }
+      for (const material of materials) material.dispose();
+    },
+  };
+}
+
 type PreviewRenderer = Pick<
   THREE.WebGLRenderer,
   | 'domElement'
@@ -133,6 +201,7 @@ type PreviewRenderer = Pick<
 export interface PlayerPreviewRuntime {
   createRenderer(): PreviewRenderer;
   loadSkin(onLoad: () => void): THREE.Texture;
+  loadArmor?(path: string, onLoad: () => void): THREE.Texture;
   requestFrame(callback: FrameRequestCallback): number;
   cancelFrame(id: number): void;
 }
@@ -145,6 +214,10 @@ export class PlayerPreview {
   private renderer: PreviewRenderer | null = null;
   private model: PlayerPreviewModel | null = null;
   private skin: THREE.Texture | null = null;
+  private armor: ArmorInventory = emptyArmor();
+  private armorKey = '';
+  private armorModel: { dispose(): void } | null = null;
+  private readonly armorTextures = new Map<string, THREE.Texture>();
   private visible = false;
   private disposed = false;
   private frame = 0;
@@ -170,6 +243,8 @@ export class PlayerPreview {
         new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' }),
       loadSkin: (ready) =>
         new THREE.TextureLoader().load(asset('textures/player/steve.png'), ready),
+      loadArmor: (path, ready) =>
+        new THREE.TextureLoader().load(asset(`textures/armor/${path}`), ready),
       requestFrame: (callback) => requestAnimationFrame(callback),
       cancelFrame: (id) => cancelAnimationFrame(id),
       ...runtime,
@@ -208,7 +283,38 @@ export class PlayerPreview {
     this.skin.generateMipmaps = false;
     this.model = createPlayerPreviewModel(this.skin);
     this.scene.add(this.model.root);
+    this.rebuildArmor();
     return true;
+  }
+
+  setArmor(armor: ArmorInventory): void {
+    if (this.disposed) return;
+    const key = armor.map((s) => s?.id ?? 0).join(',');
+    if (key === this.armorKey) return;
+    this.armorKey = key;
+    this.armor = serializeArmor(armor);
+    this.rebuildArmor();
+  }
+
+  private rebuildArmor(): void {
+    if (!this.model) return;
+    this.armorModel?.dispose();
+    this.armorModel = createArmorPreviewModel(this.model, this.armor, (path) => {
+      let texture = this.armorTextures.get(path);
+      if (!texture) {
+        texture = this.runtime.loadArmor!(path, () => {
+          if (this.disposed) this.armorTextures.get(path)?.dispose();
+          else this.invalidate();
+        });
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.generateMipmaps = false;
+        this.armorTextures.set(path, texture);
+      }
+      return texture;
+    });
+    this.invalidate();
   }
 
   setVisible(visible: boolean): void {
@@ -246,6 +352,8 @@ export class PlayerPreview {
     if (this.disposed) return;
     this.setVisible(false);
     this.disposed = true;
+    this.armorModel?.dispose();
+    for (const texture of this.armorTextures.values()) texture.dispose();
     this.model?.dispose();
     this.skin?.dispose();
     this.renderer?.dispose();

@@ -27,7 +27,7 @@ const MAX_GRAVITY_BATCHES_PER_SECOND = 24;
 const MAX_PORTAL_BATCHES_PER_SECOND = 1;
 const MAX_LOCAL_BATCH_EDITS = 21 * 21; // Java 1.12 合法传送门内部最大 21×21
 const MAX_EXPLOSION_BATCH_EDITS = 512; // 半径 3 球体最多 123 格；余量用于同批结算沙/砾石列
-const MAX_GRAVITY_BATCH_EDITS = 256; // 世界高度内一整列的最终 delta
+const MAX_GRAVITY_BATCH_EDITS = 384; // Modern overworld height: one complete column of final deltas.
 const MAX_PORTAL_BATCH_EDITS = 96; // 当前安全目的地门最终 delta 为 60 格
 const LOCAL_INTERACTION_DISTANCE = 7;
 // 苦力怕点燃后到 7 格才开始退引信；再留 1 格覆盖 15Hz 玩家位置同步延迟。
@@ -38,6 +38,10 @@ const PORTAL_TARGET_EDIT_DISTANCE = 6;
 // 完整门附近，或由同一个原子 batch 创建，不能借此任意跨维度传送。
 const PORTAL_MAPPING_DISTANCE = 128;
 const MAX_WORLD_COORD = 2_000_000;
+// Entity coordinates include falling below the build floor and creative flight above it.
+// Match the save validator instead of applying the old 0..255 block-height limit.
+const MIN_ENTITY_Y = -1024;
+const MAX_ENTITY_Y = 4096;
 const MAX_PLAYER_SPEED = 24; // 格/秒，覆盖创造飞行并留少量网络余量
 const ROOM_IDLE_MS = 30 * 60 * 1000;
 const HEARTBEAT_MS = 25_000;
@@ -101,7 +105,7 @@ function parsePlayerState(message) {
   if (!isRecord(player)) return null;
   if (
     !isFiniteNumber(player.x, -MAX_WORLD_COORD, MAX_WORLD_COORD) ||
-    !isFiniteNumber(player.y, 0, 255) ||
+    !isFiniteNumber(player.y, MIN_ENTITY_Y, MAX_ENTITY_Y) ||
     !isFiniteNumber(player.z, -MAX_WORLD_COORD, MAX_WORLD_COORD) ||
     !isFiniteNumber(player.yaw, -Math.PI * 8, Math.PI * 8) ||
     !isFiniteNumber(player.pitch, -Math.PI / 2, Math.PI / 2) ||
@@ -128,8 +132,8 @@ function parseBlock(message) {
     !Number.isInteger(message.z) ||
     !Number.isInteger(message.id) ||
     Math.abs(message.x) > MAX_WORLD_COORD ||
-    message.y < 0 ||
-    message.y > 255 ||
+    message.y < (message.dimension === 'overworld' ? -64 : 0) ||
+    message.y >= (message.dimension === 'overworld' ? 320 : 192) ||
     Math.abs(message.z) > MAX_WORLD_COORD ||
     message.id < 0 ||
     message.id > 255
@@ -143,7 +147,7 @@ function parsePoint(value) {
   if (
     !isRecord(value) ||
     !isFiniteNumber(value.x, -MAX_WORLD_COORD, MAX_WORLD_COORD) ||
-    !isFiniteNumber(value.y, 0, 255) ||
+    !isFiniteNumber(value.y, MIN_ENTITY_Y, MAX_ENTITY_Y) ||
     !isFiniteNumber(value.z, -MAX_WORLD_COORD, MAX_WORLD_COORD)
   ) {
     return null;
@@ -224,6 +228,8 @@ export function parseInitialWorld(value) {
     !Number.isInteger(value.seed) ||
     value.seed < -2_000_000_000 ||
     value.seed > 2_000_000_000 ||
+    (value.generator !== undefined && value.generator !== 'legacy' && value.generator !== 'java26') ||
+    (value.generator === 'java26' && !(typeof value.seed64 === 'string' && /^-?\d{1,20}$/.test(value.seed64) && BigInt(value.seed64) >= -(1n << 63n) && BigInt(value.seed64) < (1n << 63n))) ||
     !GAME_MODES.has(value.gameMode) ||
     !isFiniteNumber(value.worldTime, -2_000_000_000, 2_000_000_000) ||
     !Array.isArray(value.edits) ||
@@ -240,7 +246,7 @@ export function parseInitialWorld(value) {
     edits.set(editKey(edit), edit);
   }
   const worldTime = ((Math.floor(value.worldTime) % 24_000) + 24_000) % 24_000;
-  return { seed: value.seed, gameMode: value.gameMode, worldTime, edits };
+  return { seed: value.seed, gameMode: value.gameMode, worldTime, edits, ...(value.generator ? { generator: value.generator, seed64: value.seed64 } : {}) };
 }
 
 function editKey(edit) {
@@ -549,6 +555,8 @@ export function createRealtimeServer(options = {}) {
     return {
       id,
       seed: initialWorld?.seed ?? randomInt(1, 2_000_000_000),
+      generator: initialWorld?.generator,
+      seed64: initialWorld?.seed64,
       gameMode: initialWorld?.gameMode ?? gameMode,
       baseWorldTime: initialWorld?.worldTime ?? DEFAULT_WORLD_TIME,
       createdAt: Date.now(),
@@ -666,6 +674,8 @@ export function createRealtimeServer(options = {}) {
       room: {
         id: room.id,
         seed: room.seed,
+        generator: room.generator,
+        seed64: room.seed64,
         gameMode: room.gameMode,
         worldTime: roomWorldTime(room),
       },

@@ -7,6 +7,8 @@ function fixture() {
   const hearts = Array.from({ length: 10 }, icon);
   const foods = Array.from({ length: 10 }, icon);
   const bubbles = Array.from({ length: 10 }, icon);
+  const armorIcons = Array.from({ length: 10 }, icon);
+  const armorEl = { style: { display: '' } };
   const oxygenEl = { style: { display: '' } };
   const bar = Object.create(StatusBar.prototype) as StatusBar;
   Object.assign(bar, {
@@ -14,13 +16,25 @@ function fixture() {
     foods,
     bubbles,
     oxygenEl,
+    armorIcons,
+    armorEl,
     healthEl: { classList: { toggle: vi.fn() } },
     hungerEl: { classList: { toggle: vi.fn() } },
   });
-  return { bar, hearts, foods, bubbles, oxygenEl };
+  return { bar, hearts, foods, bubbles, oxygenEl, armorIcons, armorEl };
 }
 
 describe('现代生存状态显示', () => {
+  it('盔甲条使用真实盔甲点数，脱完时隐藏', () => {
+    const { bar, armorIcons, armorEl } = fixture();
+    bar.render(newSurvival(), false, 7);
+    expect(armorEl.style.display).toBe('flex');
+    expect(armorIcons[2].style.backgroundImage).toContain('armor_full.png');
+    expect(armorIcons[3].style.backgroundImage).toContain('armor_half.png');
+    expect(armorIcons[4].style.backgroundImage).toContain('armor_empty.png');
+    bar.render(newSurvival(), false, 0);
+    expect(armorEl.style.display).toBe('none');
+  });
   it('分数回血向上取半心，不能把刚恢复的生命画成空心', () => {
     const { bar, hearts } = fixture();
     const s = newSurvival();

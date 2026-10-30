@@ -3,8 +3,8 @@ import { RECIPES } from './recipes';
 import { hasItem } from '../item/registry';
 
 describe('recipe data', () => {
-  it('contains all 39 recipes', () => {
-    expect(RECIPES).toHaveLength(39);
+  it('contains 39 existing recipes and 16 armor recipes', () => {
+    expect(RECIPES).toHaveLength(55);
   });
 
   it('储存方块：沙石/石英(2×2)、煤块/铁块(3×3) + 可逆拆解', () => {

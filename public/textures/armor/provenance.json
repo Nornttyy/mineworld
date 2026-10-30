@@ -1,0 +1,293 @@
+{
+  "version": "26.3",
+  "sourceJarSHA1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "files": [
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_helmet.png",
+        "assets/minecraft/textures/item/leather_helmet_overlay.png"
+      ],
+      "output": "public/textures/icons/leather_helmet.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_helmet.json, then untinted overlay",
+      "sha256": "b7284945c2f316411db84ae5ffb595f2f895393b80da05e54aa3cc0c00566ffc"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_helmet.png",
+        "assets/minecraft/textures/item/leather_helmet_overlay.png"
+      ],
+      "output": "public/textures/icons_classic/leather_helmet.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_helmet.json, then untinted overlay",
+      "sha256": "b7284945c2f316411db84ae5ffb595f2f895393b80da05e54aa3cc0c00566ffc"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_chestplate.png",
+        "assets/minecraft/textures/item/leather_chestplate_overlay.png"
+      ],
+      "output": "public/textures/icons/leather_chestplate.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_chestplate.json, then untinted overlay",
+      "sha256": "8502bd3857366e5e22c0b3aa5b0c651d3f3283ae252b75dde847375afdfc7bfc"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_chestplate.png",
+        "assets/minecraft/textures/item/leather_chestplate_overlay.png"
+      ],
+      "output": "public/textures/icons_classic/leather_chestplate.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_chestplate.json, then untinted overlay",
+      "sha256": "8502bd3857366e5e22c0b3aa5b0c651d3f3283ae252b75dde847375afdfc7bfc"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_leggings.png",
+        "assets/minecraft/textures/item/leather_leggings_overlay.png"
+      ],
+      "output": "public/textures/icons/leather_leggings.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_leggings.json, then untinted overlay",
+      "sha256": "b90356dc4180a27f1387e99977bb775ba1f7b748c3e8f084d99ff6170109afbd"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_leggings.png",
+        "assets/minecraft/textures/item/leather_leggings_overlay.png"
+      ],
+      "output": "public/textures/icons_classic/leather_leggings.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_leggings.json, then untinted overlay",
+      "sha256": "b90356dc4180a27f1387e99977bb775ba1f7b748c3e8f084d99ff6170109afbd"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_boots.png",
+        "assets/minecraft/textures/item/leather_boots_overlay.png"
+      ],
+      "output": "public/textures/icons/leather_boots.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_boots.json, then untinted overlay",
+      "sha256": "f65f86fd49e2b1a85d28030cf8ca2016eeba2c664b64f476e5d5aa889263385f"
+    },
+    {
+      "source": [
+        "assets/minecraft/textures/item/leather_boots.png",
+        "assets/minecraft/textures/item/leather_boots_overlay.png"
+      ],
+      "output": "public/textures/icons_classic/leather_boots.png",
+      "transform": "base RGB multiplied by default dye #A06540 from official items/leather_boots.json, then untinted overlay",
+      "sha256": "f65f86fd49e2b1a85d28030cf8ca2016eeba2c664b64f476e5d5aa889263385f"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_helmet.png",
+      "output": "public/textures/icons/iron_helmet.png",
+      "sha256": "bc80d67ae51da4d0142461d42454f1bab174dbde235be46149e01b142f6a44e4"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_helmet.png",
+      "output": "public/textures/icons_classic/iron_helmet.png",
+      "sha256": "bc80d67ae51da4d0142461d42454f1bab174dbde235be46149e01b142f6a44e4"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_chestplate.png",
+      "output": "public/textures/icons/iron_chestplate.png",
+      "sha256": "b1b467d1c98efda1c2bd31c5a32fadc884b424b3d08f3b010d9053a1e0f0609a"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_chestplate.png",
+      "output": "public/textures/icons_classic/iron_chestplate.png",
+      "sha256": "b1b467d1c98efda1c2bd31c5a32fadc884b424b3d08f3b010d9053a1e0f0609a"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_leggings.png",
+      "output": "public/textures/icons/iron_leggings.png",
+      "sha256": "90704bcce246f0b5f552a218366e1c7fc22d5b99c0a75fc107af9b9a92bef806"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_leggings.png",
+      "output": "public/textures/icons_classic/iron_leggings.png",
+      "sha256": "90704bcce246f0b5f552a218366e1c7fc22d5b99c0a75fc107af9b9a92bef806"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_boots.png",
+      "output": "public/textures/icons/iron_boots.png",
+      "sha256": "95712e011d6ff507e261fdd6cfc350eaad4861c495c114aaa357dd055ba374e8"
+    },
+    {
+      "source": "assets/minecraft/textures/item/iron_boots.png",
+      "output": "public/textures/icons_classic/iron_boots.png",
+      "sha256": "95712e011d6ff507e261fdd6cfc350eaad4861c495c114aaa357dd055ba374e8"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_helmet.png",
+      "output": "public/textures/icons/golden_helmet.png",
+      "sha256": "8ae45e17781348267aa32b03e7e4f8c828d1f62b2b9a3f4216b04b6932f73868"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_helmet.png",
+      "output": "public/textures/icons_classic/golden_helmet.png",
+      "sha256": "8ae45e17781348267aa32b03e7e4f8c828d1f62b2b9a3f4216b04b6932f73868"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_chestplate.png",
+      "output": "public/textures/icons/golden_chestplate.png",
+      "sha256": "e4d749843d2a20d3c6b90023b84fbc222a80b069dd7675fc85642a2884f9f2a8"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_chestplate.png",
+      "output": "public/textures/icons_classic/golden_chestplate.png",
+      "sha256": "e4d749843d2a20d3c6b90023b84fbc222a80b069dd7675fc85642a2884f9f2a8"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_leggings.png",
+      "output": "public/textures/icons/golden_leggings.png",
+      "sha256": "158ea37cf5d31214ffc3a0c57f34451e08f97aedeea16d2f90dff7e666ec67e9"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_leggings.png",
+      "output": "public/textures/icons_classic/golden_leggings.png",
+      "sha256": "158ea37cf5d31214ffc3a0c57f34451e08f97aedeea16d2f90dff7e666ec67e9"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_boots.png",
+      "output": "public/textures/icons/golden_boots.png",
+      "sha256": "4b7571b2b480059c0b8845858258913468f57921a150d42f90774af077bf21ba"
+    },
+    {
+      "source": "assets/minecraft/textures/item/golden_boots.png",
+      "output": "public/textures/icons_classic/golden_boots.png",
+      "sha256": "4b7571b2b480059c0b8845858258913468f57921a150d42f90774af077bf21ba"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_helmet.png",
+      "output": "public/textures/icons/diamond_helmet.png",
+      "sha256": "d95286bd20f5f444dd98d0e13cd8f5e89d6af458819537e3ff408d64153c5f0a"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_helmet.png",
+      "output": "public/textures/icons_classic/diamond_helmet.png",
+      "sha256": "d95286bd20f5f444dd98d0e13cd8f5e89d6af458819537e3ff408d64153c5f0a"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_chestplate.png",
+      "output": "public/textures/icons/diamond_chestplate.png",
+      "sha256": "930e7f139508543a66fa9335de1dcf1df910b27a325799f2a420fb0d1cc28359"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_chestplate.png",
+      "output": "public/textures/icons_classic/diamond_chestplate.png",
+      "sha256": "930e7f139508543a66fa9335de1dcf1df910b27a325799f2a420fb0d1cc28359"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_leggings.png",
+      "output": "public/textures/icons/diamond_leggings.png",
+      "sha256": "08ba1f85219d7fa96dca3cc7024ec5edea25d484d5874e712a6faa4fe15eb757"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_leggings.png",
+      "output": "public/textures/icons_classic/diamond_leggings.png",
+      "sha256": "08ba1f85219d7fa96dca3cc7024ec5edea25d484d5874e712a6faa4fe15eb757"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_boots.png",
+      "output": "public/textures/icons/diamond_boots.png",
+      "sha256": "8714f58c2a03425c38118646f6ecaf7a97a1b3b4b72d4ac8171f09249e6dd465"
+    },
+    {
+      "source": "assets/minecraft/textures/item/diamond_boots.png",
+      "output": "public/textures/icons_classic/diamond_boots.png",
+      "sha256": "8714f58c2a03425c38118646f6ecaf7a97a1b3b4b72d4ac8171f09249e6dd465"
+    },
+    {
+      "source": "assets/minecraft/textures/item/gold_ingot.png",
+      "output": "public/textures/icons/gold_ingot.png",
+      "sha256": "e4c1e2ea6d1fa70299163ebff573b4bfda1ef09099bedc4b5789c598f0a65738"
+    },
+    {
+      "source": "assets/minecraft/textures/item/gold_ingot.png",
+      "output": "public/textures/icons_classic/gold_ingot.png",
+      "sha256": "e4c1e2ea6d1fa70299163ebff573b4bfda1ef09099bedc4b5789c598f0a65738"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid/leather.png",
+      "output": "public/textures/armor/humanoid/leather.png",
+      "sha256": "6c96099472fc44dc11b5823a81c57ec7c207203050cd088a15d2358b3df6b5e7"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid/leather_overlay.png",
+      "output": "public/textures/armor/humanoid/leather_overlay.png",
+      "sha256": "32004944be2ba0203c9bf67cffc65ff3afa08ac5a22fe1bc797d1a950905b258"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid/iron.png",
+      "output": "public/textures/armor/humanoid/iron.png",
+      "sha256": "4ab8a988d646e8a22a78fe71d0bc293579c65a663e3c1755cac698acbbdc2a66"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid/gold.png",
+      "output": "public/textures/armor/humanoid/gold.png",
+      "sha256": "787442eb093e6a6c4c839fe7f3e88f2ac62b14f10e7184eb0947fb255e98c790"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid/diamond.png",
+      "output": "public/textures/armor/humanoid/diamond.png",
+      "sha256": "3831697bd3f65cd10cc7725e338c4456d3cd30e0f1d3c07394010ebaec8d09f0"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid_leggings/leather.png",
+      "output": "public/textures/armor/humanoid_leggings/leather.png",
+      "sha256": "72e7df28fae9ee52cff987967f4a61996827271045d99bed3dd364a9ba41f839"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid_leggings/leather_overlay.png",
+      "output": "public/textures/armor/humanoid_leggings/leather_overlay.png",
+      "sha256": "965703d1efd6fa8245ae0d288383d41194813db8259b3a4c01ad215b9e44385a"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid_leggings/iron.png",
+      "output": "public/textures/armor/humanoid_leggings/iron.png",
+      "sha256": "bc36923b5c049b2730840b8529df127d6877891897a8c11db42a62c882f3d42e"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid_leggings/gold.png",
+      "output": "public/textures/armor/humanoid_leggings/gold.png",
+      "sha256": "8d16316662aa0d595ab420fea7aa2fec3723850713a8677b20d05a38c3f23506"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/equipment/humanoid_leggings/diamond.png",
+      "output": "public/textures/armor/humanoid_leggings/diamond.png",
+      "sha256": "a2a435fbf364ed2399de22770fbad2ecd383faebc75df32e20e2826af0ca8c01"
+    },
+    {
+      "source": "assets/minecraft/textures/gui/sprites/hud/armor_empty.png",
+      "output": "public/textures/ui/java/hud/armor_empty.png",
+      "sha256": "24a63ea307d0dcb46ecdce478d5ba3a168a440dbb8d51ed976e9bb0c4d2395d8"
+    },
+    {
+      "source": "assets/minecraft/textures/gui/sprites/hud/armor_half.png",
+      "output": "public/textures/ui/java/hud/armor_half.png",
+      "sha256": "719e07d5016fff676a6a9bf0f874b2aec0a0a81c0af3fedce82b059daa77cd64"
+    },
+    {
+      "source": "assets/minecraft/textures/gui/sprites/hud/armor_full.png",
+      "output": "public/textures/ui/java/hud/armor_full.png",
+      "sha256": "c597732ea51f36099214344e02d2a6621b85d98c526b42aa9a2ba9c1a137a8da"
+    },
+    {
+      "source": "assets/minecraft/textures/item/raw_iron.png",
+      "output": "public/textures/icons/raw_iron.png",
+      "sha256": "b30921d99f902d2b0d6e8e7a1a08bc7638daf9807157f04156cb01cf981c692c"
+    },
+    {
+      "source": "assets/minecraft/textures/item/raw_iron.png",
+      "output": "public/textures/icons_classic/raw_iron.png",
+      "sha256": "b30921d99f902d2b0d6e8e7a1a08bc7638daf9807157f04156cb01cf981c692c"
+    },
+    {
+      "source": "assets/minecraft/textures/item/raw_gold.png",
+      "output": "public/textures/icons/raw_gold.png",
+      "sha256": "e2204171fc4722b7b4d2d6fb190792da644310c8d56b38d16e240f8d3649e32c"
+    },
+    {
+      "source": "assets/minecraft/textures/item/raw_gold.png",
+      "output": "public/textures/icons_classic/raw_gold.png",
+      "sha256": "e2204171fc4722b7b4d2d6fb190792da644310c8d56b38d16e240f8d3649e32c"
+    }
+  ]
+}

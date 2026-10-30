@@ -18,6 +18,102 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 }
 
 export const RECIPES: Recipe[] = [
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X'],
+    key: { X: 'leather' },
+    result: { item: 'leather_helmet', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'XXX', 'XXX'],
+    key: { X: 'leather' },
+    result: { item: 'leather_chestplate', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X', 'X X'],
+    key: { X: 'leather' },
+    result: { item: 'leather_leggings', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'X X'],
+    key: { X: 'leather' },
+    result: { item: 'leather_boots', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X'],
+    key: { X: 'iron_ingot' },
+    result: { item: 'iron_helmet', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'XXX', 'XXX'],
+    key: { X: 'iron_ingot' },
+    result: { item: 'iron_chestplate', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X', 'X X'],
+    key: { X: 'iron_ingot' },
+    result: { item: 'iron_leggings', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'X X'],
+    key: { X: 'iron_ingot' },
+    result: { item: 'iron_boots', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X'],
+    key: { X: 'gold_ingot' },
+    result: { item: 'golden_helmet', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'XXX', 'XXX'],
+    key: { X: 'gold_ingot' },
+    result: { item: 'golden_chestplate', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X', 'X X'],
+    key: { X: 'gold_ingot' },
+    result: { item: 'golden_leggings', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'X X'],
+    key: { X: 'gold_ingot' },
+    result: { item: 'golden_boots', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X'],
+    key: { X: 'diamond' },
+    result: { item: 'diamond_helmet', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'XXX', 'XXX'],
+    key: { X: 'diamond' },
+    result: { item: 'diamond_chestplate', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['XXX', 'X X', 'X X'],
+    key: { X: 'diamond' },
+    result: { item: 'diamond_leggings', count: 1 },
+  },
+  {
+    type: 'shaped',
+    pattern: ['X X', 'X X'],
+    key: { X: 'diamond' },
+    result: { item: 'diamond_boots', count: 1 },
+  },
   { type: 'shapeless', ingredients: ['oak_log'], result: { item: 'oak_planks', count: 4 } },
   // 尚无独立云杉木板 ID；暂映射到项目统一木板，同时保留 1.12 的 1→4 数量规则。
   { type: 'shapeless', ingredients: ['spruce_log'], result: { item: 'oak_planks', count: 4 } },

@@ -11,7 +11,14 @@ import {
   type SlotRef,
 } from '../core/inventory/slots';
 import { gridResult, consumeGrid } from '../core/crafting/gridCraft';
-import { itemMaxStack } from '../core/items/items';
+import {
+  emptyArmor,
+  ARMOR_SLOTS,
+  acceptsArmor,
+  armorOf,
+  type ArmorInventory,
+} from '../core/equipment/armor';
+import { itemMaxStack, itemMaxDurability } from '../core/items/items';
 import {
   CREATIVE_CATEGORIES,
   CREATIVE_ITEM_IDS,
@@ -35,8 +42,9 @@ interface Cell {
   el: HTMLElement;
   icon: HTMLElement;
   cnt: HTMLElement;
+  dur?: HTMLElement;
 }
-type Region = 'main' | 'hotbar' | 'craft' | 'output' | 'catalog' | 'trash';
+type Region = 'armor' | 'main' | 'hotbar' | 'craft' | 'output' | 'catalog' | 'trash';
 
 interface DragState {
   region: Region;
@@ -59,6 +67,8 @@ export class InventoryUI {
   private readonly root: HTMLElement;
   private inv: Inventory | null = null;
   private gridN = 2;
+  private armor: ArmorInventory = emptyArmor();
+  private readonly armorCells: Cell[] = [];
   private craft: (ItemStack | null)[][] = [];
   private cursor: ItemStack | null = null;
   private open = false;
@@ -123,12 +133,7 @@ export class InventoryUI {
         </div>
         <div class="inv-standard">
           <div class="java-player-area">
-            <div class="java-equipment" aria-label="装备栏暂不可用">
-              <div class="java-equipment-slot" data-equipment="helmet" aria-disabled="true" title="头盔栏尚未实现"></div>
-              <div class="java-equipment-slot" data-equipment="chestplate" aria-disabled="true" title="胸甲栏尚未实现"></div>
-              <div class="java-equipment-slot" data-equipment="leggings" aria-disabled="true" title="护腿栏尚未实现"></div>
-              <div class="java-equipment-slot" data-equipment="boots" aria-disabled="true" title="靴子栏尚未实现"></div>
-            </div>
+            <div class="java-equipment" aria-label="盔甲装备栏"></div>
             <div class="java-player-preview" role="img" aria-label="Steve 角色预览"></div>
             <div class="java-equipment-slot java-offhand" aria-disabled="true" title="副手栏尚未实现"></div>
           </div>
@@ -163,6 +168,14 @@ export class InventoryUI {
     this.cgridEl = root.querySelector('.inv-cgrid') as HTMLElement;
     const mainEl = root.querySelector('.inv-main') as HTMLElement;
     const hotEl = root.querySelector('.inv-hotbar') as HTMLElement;
+    const equipmentEl = root.querySelector('.java-equipment') as HTMLElement;
+    for (const [i, name] of ['helmet', 'chestplate', 'leggings', 'boots'].entries()) {
+      const cell = this.makeSlot(equipmentEl, 'armor', i);
+      cell.el.classList.add('java-equipment-slot');
+      cell.el.dataset.equipment = name;
+      cell.el.setAttribute('aria-label', ['头盔', '胸甲', '护腿', '靴子'][i]);
+      this.armorCells.push(cell);
+    }
     for (let i = 0; i < MAIN; i++) this.mainCells.push(this.makeSlot(mainEl, 'main', i));
     for (let i = 0; i < HOTBAR; i++) this.hotbarCells.push(this.makeSlot(hotEl, 'hotbar', i));
     this.outCell = this.makeSlot(root.querySelector('.inv-out-wrap') as HTMLElement, 'output', 0);
@@ -276,7 +289,10 @@ export class InventoryUI {
     icon.className = 'slot-icon';
     const cnt = document.createElement('div');
     cnt.className = 'slot-count';
-    el.append(icon, cnt);
+    const dur = document.createElement('div');
+    dur.className = 'item-durability';
+    dur.hidden = true;
+    el.append(icon, cnt, dur);
     el.addEventListener('pointerdown', (e) => {
       if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2)) return;
       e.preventDefault();
@@ -284,7 +300,7 @@ export class InventoryUI {
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     parent.appendChild(el);
-    return { el, icon, cnt };
+    return { el, icon, cnt, dur };
   }
 
   isOpen(): boolean {
@@ -298,7 +314,14 @@ export class InventoryUI {
   }
 
   // gridN=2 个人背包合成 / 3 工作台
-  show(inv: Inventory, gridN: number): void {
+  setArmor(armor: ArmorInventory): void {
+    this.armor = armor;
+    this.playerPreview?.setArmor(armor);
+    if (this.open) this.render();
+  }
+
+  show(inv: Inventory, gridN: number, armor?: ArmorInventory): void {
+    if (armor) this.armor = armor;
     this.inv = inv;
     this.mode = 'survival';
     this.gridN = gridN;
@@ -500,7 +523,10 @@ export class InventoryUI {
         this.cursor = null;
       } else if (
         hit &&
-        (hit.region === 'main' || hit.region === 'hotbar' || hit.region === 'craft') &&
+        (hit.region === 'main' ||
+          hit.region === 'hotbar' ||
+          hit.region === 'craft' ||
+          hit.region === 'armor') &&
         !(hit.region === d.region && hit.i === d.i)
       ) {
         this.applyClick(hit.region, hit.i, false); // 放到松手所在格
@@ -538,6 +564,7 @@ export class InventoryUI {
 
   private addSwept(d: DragState, region: Region, i: number): void {
     if (region === 'output' || region === 'catalog' || region === 'trash') return;
+    if (region === 'armor' && (this.gridN !== 2 || !acceptsArmor(i, this.cursor))) return;
     const key = `${region}:${i}`;
     if (d.sweptKeys.has(key)) return;
     d.sweptKeys.add(key);
@@ -552,7 +579,12 @@ export class InventoryUI {
   // 在 region 第 i 格应用左右键（光标↔格子）——原 clickSlot 的核心，松手时调用。
   private applyClick(region: Region, i: number, right: boolean): void {
     if (!this.inv) return;
-    if (region === 'craft') {
+    if (region === 'armor') {
+      if (this.gridN !== 2 || !acceptsArmor(i, this.cursor)) return;
+      this.cursor = right
+        ? rightClick(this.armor, i, this.cursor, maxOf)
+        : leftClick(this.armor, i, this.cursor, maxOf);
+    } else if (region === 'craft') {
       const n = this.gridN;
       const row = this.craft[Math.floor(i / n)];
       const c = i % n;
@@ -569,6 +601,13 @@ export class InventoryUI {
 
   // region+i → 跨数组的格子引用（涂抹分发统一操作背包格与合成格）。
   private slotRef(region: Region, i: number): SlotRef {
+    if (region === 'armor')
+      return {
+        get: () => this.armor[i],
+        set: (s) => {
+          if (acceptsArmor(i, s)) this.armor[i] = s;
+        },
+      };
     if (region === 'craft') {
       const n = this.gridN;
       const row = this.craft[Math.floor(i / n)];
@@ -592,6 +631,7 @@ export class InventoryUI {
   }
 
   private cellOf(region: Region, i: number): Cell | null {
+    if (region === 'armor') return this.armorCells[i] ?? null;
     if (region === 'main') return this.mainCells[i] ?? null;
     if (region === 'hotbar') return this.hotbarCells[i] ?? null;
     if (region === 'craft') return this.craftCells[i] ?? null;
@@ -602,6 +642,21 @@ export class InventoryUI {
 
   private quickMoveFrom(region: Region, i: number): void {
     if (!this.inv) return;
+    if (region === 'armor') {
+      if (this.gridN === 2) quickMove(this.armor, i, this.inv, maxOf);
+      return;
+    }
+    if (this.gridN === 2 && (region === 'main' || region === 'hotbar')) {
+      const index = region === 'main' ? HOTBAR + i : i;
+      const stack = this.inv[index];
+      const def = stack && armorOf(stack.id);
+      const slot = def ? ARMOR_SLOTS.indexOf(def.slot) : -1;
+      if (slot >= 0 && !this.armor[slot] && acceptsArmor(slot, stack)) {
+        this.armor[slot] = stack;
+        this.inv[index] = null;
+        return;
+      }
+    }
     if (region === 'craft') {
       const n = this.gridN;
       quickMove(this.craft[Math.floor(i / n)], i % n, this.inv, maxOf);
@@ -651,6 +706,8 @@ export class InventoryUI {
     if (!this.inv) return;
     for (let i = 0; i < MAIN; i++) this.paint(this.mainCells[i], this.inv[HOTBAR + i]);
     for (let i = 0; i < HOTBAR; i++) this.paint(this.hotbarCells[i], this.inv[i]);
+    for (let i = 0; i < this.armorCells.length; i++) this.paint(this.armorCells[i], this.armor[i]);
+    this.playerPreview?.setArmor(this.armor);
     const n = this.gridN;
     for (let i = 0; i < this.craftCells.length; i++) {
       this.paint(this.craftCells[i], this.craft[Math.floor(i / n)][i % n]);
@@ -671,6 +728,17 @@ export class InventoryUI {
   private paint(cell: Cell, stack: ItemStack | null): void {
     this.fill(cell.icon, cell.cnt, stack);
     cell.el.title = stack ? itemLabel(stack.id) : '';
+    cell.el.classList.toggle('occupied', !!stack);
+    if (cell.dur) {
+      const max = stack ? itemMaxDurability(stack.id) : null;
+      const remaining = stack?.dur ?? max;
+      cell.dur.hidden = !max || remaining === null || remaining >= max;
+      if (max && remaining !== null) {
+        const ratio = Math.max(0, Math.min(1, remaining / max));
+        cell.dur.style.setProperty('--dur-width', `${Math.round(13 * ratio)}px`);
+        cell.dur.style.setProperty('--dur-color', `hsl(${120 * ratio} 100% 50%)`);
+      }
+    }
   }
 
   private fill(icon: HTMLElement, cnt: HTMLElement, stack: ItemStack | null): void {

@@ -1,3 +1,4 @@
+import { isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import {
   isMultiplayerHostWorldValid,
   normalizePlayerName,
@@ -176,8 +177,8 @@ function validEdit(value: unknown): value is BlockEdit {
     Number.isInteger(value.z) &&
     Number.isInteger(value.id) &&
     Math.abs(value.x as number) <= 30_000_000 &&
-    (value.y as number) >= 0 &&
-    (value.y as number) < 192 &&
+    (value.y as number) >= (value.dimension === 'overworld' ? -64 : 0) &&
+    (value.y as number) < (value.dimension === 'overworld' ? 320 : 192) &&
     Math.abs(value.z as number) <= 30_000_000 &&
     (value.id as number) >= 0 &&
     (value.id as number) <= 255
@@ -300,7 +301,7 @@ export class PeerMultiplayerClient implements MultiplayerSession {
       session,
       `host-${session}`,
       name,
-      { id: room, seed: options.world.seed, gameMode: options.world.gameMode, worldTime: options.world.worldTime },
+      { id: room, seed: options.world.seed, gameMode: options.world.gameMode, worldTime: options.world.worldTime, generator: options.world.generator, seed64: options.world.seed64 },
       options.world,
     );
     client.bindChannel(pc.createDataChannel('mineworld', { ordered: true }));
@@ -501,6 +502,8 @@ export class PeerMultiplayerClient implements MultiplayerSession {
       if (
         typeof message.room.id !== 'string' ||
         !Number.isInteger(message.room.seed) ||
+        (message.room.generator !== undefined && message.room.generator !== 'legacy' && message.room.generator !== 'java26') ||
+        (message.room.generator === 'java26' && !isJavaSeed(message.room.seed64)) ||
         (gameMode !== 'creative' && gameMode !== 'survival') ||
         !finite(message.room.worldTime)
       )
@@ -508,6 +511,8 @@ export class PeerMultiplayerClient implements MultiplayerSession {
       this.roomData = {
         id: normalizeRoomCode(message.room.id),
         seed: message.room.seed as number,
+        generator: message.room.generator as GeneratorVersion | undefined,
+        seed64: message.room.seed64 as string | undefined,
         gameMode,
         worldTime: message.room.worldTime,
       };

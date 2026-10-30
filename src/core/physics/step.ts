@@ -8,12 +8,20 @@ import {
   GRAVITY,
   VDRAG,
   JUMP,
-  WALK_PER_TICK,
-  SPRINT_PER_TICK,
+  INPUT_DAMPING,
+  MOVEMENT_SPEED,
+  SPRINT_MOVEMENT_SPEED,
+  HORIZONTAL_DRAG,
+  AIR_ACCELERATION,
+  SPRINT_AIR_ACCELERATION,
+  WATER_ACCELERATION,
+  WATER_DRAG,
+  WATER_SPRINT_DRAG,
+  LIQUID_JUMP_IMPULSE,
+  VELOCITY_EPSILON,
   CROUCH_HEIGHT,
   CROUCH_SPEED_MULT,
   SLOW_SPEED_MULT,
-  KB_DECAY,
   FLY_PER_TICK,
   FLY_SPRINT_PER_TICK,
   FLY_VERT_PER_TICK,
@@ -21,6 +29,7 @@ import {
 import { blockSlipperiness, SOUL_SAND } from '../blocks/registry';
 
 const HW = WIDTH / 2;
+const MOVEMENT_SUPPORT_OFFSET = Math.fround(0.500001);
 type Axis = 'x' | 'y' | 'z';
 
 // 玩家 AABB 是否与任一实心体素重叠（height 可传下蹲高度）
@@ -85,6 +94,55 @@ function wishDir(intent: MoveIntent): { x: number; z: number } {
   return { x, z };
 }
 
+/** LocalPlayer.modifyInput / modifyInputSpeedForSquareMovement, then Entity.moveRelative.
+ * Preserve analog strength; keyboard diagonals are normalized before this step. */
+function movementInput(intent: MoveIntent, crouch: boolean): { x: number; z: number } {
+  const f = Math.fround;
+  const initialLength = Math.max(1, Math.hypot(intent.forward, intent.right));
+  let forward = f(f(intent.forward / initialLength) * INPUT_DAMPING);
+  let right = f(f(intent.right / initialLength) * INPUT_DAMPING);
+  if (intent.slow) {
+    forward = f(forward * f(SLOW_SPEED_MULT));
+    right = f(right * f(SLOW_SPEED_MULT));
+  }
+  if (crouch) {
+    forward = f(forward * f(CROUCH_SPEED_MULT));
+    right = f(right * f(CROUCH_SPEED_MULT));
+  }
+  const length = f(Math.sqrt(f(f(forward * forward) + f(right * right))));
+  if (length === 0) return { x: 0, z: 0 };
+  const nf = f(forward * f(1 / length)),
+    nr = f(right * f(1 / length));
+  const ratio = Math.min(Math.abs(nf), Math.abs(nr)) / Math.max(Math.abs(nf), Math.abs(nr));
+  const squareDistance = f(Math.sqrt(f(1 + f(f(ratio) * f(ratio)))));
+  const magnitude = Math.min(f(length * squareDistance), 1);
+  forward = f(nf * magnitude);
+  right = f(nr * magnitude);
+  const l2 = forward * forward + right * right;
+  if (l2 < 1e-7) return { x: 0, z: 0 };
+  if (l2 > 1) {
+    const l = Math.sqrt(l2);
+    forward /= l;
+    right /= l;
+  }
+  const c = Math.cos(intent.yaw),
+    s = Math.sin(intent.yaw);
+  return { x: forward * c - right * s, z: forward * s + right * c };
+}
+
+/** The world currently exposes full water voxels, not per-cell fluid surface heights.
+ * Sample the player's whole AABB so touching a shoreline does not erase fluid contact. */
+function waterDepth(pos: Vec3, world: VoxelWorld, height: number): number {
+  if (!world.isWater) return 0;
+  const e = 1e-6;
+  let surface = pos.y;
+  for (let y = Math.floor(pos.y + e); y <= Math.ceil(pos.y + height - e) - 1; y++)
+    for (let x = Math.floor(pos.x - HW + e); x <= Math.ceil(pos.x + HW - e) - 1; x++)
+      for (let z = Math.floor(pos.z - HW + e); z <= Math.ceil(pos.z + HW - e) - 1; z++)
+        if (world.isWater(x, y, z)) surface = Math.max(surface, y + 1);
+  return Math.max(0, surface - pos.y);
+}
+
 // 脚下极薄一层是否实心（独立于速度的贴地检测，避免 vy≈0 时误判）
 function isOnGround(pos: Vec3, world: VoxelWorld, height = HEIGHT): boolean {
   if (overlaps(pos, world, height)) return false;
@@ -106,7 +164,16 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
     if (resolveAxis(pos, 'y', vel.y, world)) vel.y = 0;
     if (resolveAxis(pos, 'x', vel.x, world)) vel.x = 0;
     if (resolveAxis(pos, 'z', vel.z, world)) vel.z = 0;
-    return { pos, vel, onGround: isOnGround(pos, world), kbx: 0, kbz: 0, crouching: false };
+    return {
+      pos,
+      vel,
+      onGround: isOnGround(pos, world),
+      kbx: 0,
+      kbz: 0,
+      crouching: false,
+      jumpDelayTicks: 0,
+      didJumpFromGround: false,
+    };
   }
 
   // 松开潜行时先检查站立空间。头顶受限但矮姿态能容纳时保持低姿态，
@@ -117,103 +184,129 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   const h = crouch ? CROUCH_HEIGHT : HEIGHT; // 下蹲时碰撞箱变矮
 
   const grounded = isOnGround(pos, world, h);
-  // 脚部是否在水里（到水面即算出水，可正常起跳跃上岸）
-  const inWater =
-    world.isWater?.(Math.floor(pos.x), Math.floor(pos.y + 0.1), Math.floor(pos.z)) ?? false;
+  const depth = waterDepth(pos, world, h);
+  const inWater = depth > 0;
+  const sprint = intent.sprint === true && !crouch && !intent.slow;
+  const input = movementInput(intent, crouch);
+  const floorId =
+    world.getBlock?.(
+      Math.floor(pos.x),
+      Math.floor(pos.y - MOVEMENT_SUPPORT_OFFSET),
+      Math.floor(pos.z),
+    ) ?? 0;
+  const friction = grounded ? Math.fround(blockSlipperiness(floorId)) : 1;
 
-  let jumped = false;
-  if (intent.jump && (grounded || inWater)) {
-    vel.y = inWater ? 0.5 : JUMP; // 水里跳得更猛，克服水阻力跃出水面上岸
-    jumped = true;
-  }
+  // Game supplies pending impulses; consume once into inertia, rather than
+  // adding the same knockback again on every subsequent tick.
+  vel.x += player.kbx ?? 0;
+  vel.z += player.kbz ?? 0;
+  if (vel.x * vel.x + vel.z * vel.z < VELOCITY_EPSILON ** 2) vel.x = vel.z = 0;
+  if (Math.abs(vel.y) < VELOCITY_EPSILON) vel.y = 0;
 
-  const wish = wishDir(intent);
-  // 基础速度：水中略慢；下蹲时不疾跑。再按下蹲/用物品(吃)逐级减速。
-  let speed = inWater
-    ? WALK_PER_TICK * 0.7
-    : intent.sprint && !crouch
-      ? SPRINT_PER_TICK
-      : WALK_PER_TICK;
-  if (crouch) speed *= CROUCH_SPEED_MULT;
-  if (intent.slow) speed *= SLOW_SPEED_MULT;
-  // 击退速度叠加到移动意图上（被怪打中时由 Game 设置），逐刻衰减，碰墙归零靠下面的扫掠
-  const kbx = player.kbx ?? 0;
-  const kbz = player.kbz ?? 0;
-
-  // 冰面打滑：脚下方块的滑度决定水平速度保留系数（MC 1.12：冰 0.98，普通地面 0.6）。
-  // 有移动意图时直接设定目标速度（与原逻辑一致）；
-  // 无移动意图且贴地时，用滑度保留当前水平速度（冰上滑行，普通地面快速减速）。
-  const hasHorizIntent = Math.hypot(wish.x, wish.z) > 1e-9;
-  if (!grounded && !inWater) {
-    // 空中：动量模型(1.12)——保留惯性 ×0.91/刻,输入只小步修正(稳态=目标速度)。
-    // 曾是直接设定/松键瞬间归零 → 疾跑跳抛物线半途夭折、空中手感僵硬。
-    vel.x = vel.x * 0.91 + wish.x * speed * 0.09 + kbx;
-    vel.z = vel.z * 0.91 + wish.z * speed * 0.09 + kbz;
-  } else if (hasHorizIntent || inWater) {
-    // 地面有输入 / 在水中：直接设定速度（保持原行为）
-    // 灵魂沙减速：贴地且有输入时，脚下灵魂沙(id 20)→ 移动速度 ×0.4（1.12 实测≈×0.4;曾 0.5）
-    let activeSpeed = speed;
-    if (hasHorizIntent && grounded && !inWater) {
-      const floorBx = Math.floor(pos.x);
-      const floorBy = Math.floor(pos.y - 0.1);
-      const floorBz = Math.floor(pos.z);
-      const floorId = world.getBlock?.(floorBx, floorBy, floorBz) ?? 0;
-      if (floorId === SOUL_SAND) activeSpeed *= 0.4;
+  let jumpDelayTicks = Math.max(0, (player.jumpDelayTicks ?? 0) - 1);
+  let didJumpFromGround = false;
+  if (inWater && intent.crouch) vel.y -= LIQUID_JUMP_IMPULSE;
+  if (intent.jump || intent.jumpHeld || (inWater && intent.swimUp)) {
+    if (inWater && (!grounded || depth > 0.4)) {
+      vel.y += LIQUID_JUMP_IMPULSE;
+    } else if ((grounded || (inWater && depth <= 0.4)) && jumpDelayTicks === 0) {
+      vel.y = Math.max(vel.y, JUMP);
+      jumpDelayTicks = 10;
+      didJumpFromGround = true;
+      if (sprint) {
+        vel.x += Math.cos(intent.yaw) * 0.2;
+        vel.z += Math.sin(intent.yaw) * 0.2;
+      }
     }
-    vel.x = wish.x * activeSpeed + kbx;
-    vel.z = wish.z * activeSpeed + kbz;
-  } else {
-    // 无输入且贴地：按脚下方块滑度保留水平速度（冰面惯性滑行）
-    const floorBx = Math.floor(pos.x);
-    const floorBy = Math.floor(pos.y - 0.1);
-    const floorBz = Math.floor(pos.z);
-    const floorId = world.getBlock?.(floorBx, floorBy, floorBz) ?? 0;
-    const slip = blockSlipperiness(floorId);
-    vel.x = vel.x * slip + kbx;
-    vel.z = vel.z * slip + kbz;
-  }
+  } else jumpDelayTicks = 0;
+
+  let acceleration: number;
+  if (inWater) acceleration = WATER_ACCELERATION;
+  else if (grounded) {
+    const speed = sprint ? SPRINT_MOVEMENT_SPEED : MOVEMENT_SPEED;
+    // In 26.3 low-friction blocks no longer increase acceleration below 0.6.
+    acceleration =
+      friction > 0.6
+        ? Math.fround(
+            speed *
+              Math.fround(
+                Math.fround(0.21600002) / Math.fround(Math.fround(friction * friction) * friction),
+              ),
+          )
+        : speed;
+  } else acceleration = sprint ? SPRINT_AIR_ACCELERATION : AIR_ACCELERATION;
+  vel.x += input.x * acceleration;
+  vel.z += input.z * acceleration;
+  const fallingInWater = vel.y <= 0;
+  const oldY = pos.y;
 
   // 逐轴扫掠解算：先 Y，再 X、Z（撞到则该轴速度归零）
   if (resolveAxis(pos, 'y', vel.y, world, h)) vel.y = 0;
   // 下蹲且本帧贴地：水平移动若会把人挪出支撑(走到方块边缘外)→ 撤销该轴，停在边缘不掉落
   const sneakEdge = crouch && grounded && vel.y <= 0;
   const beforeX = pos.x;
-  if (resolveAxis(pos, 'x', vel.x, world, h)) vel.x = 0;
+  const hitX = resolveAxis(pos, 'x', vel.x, world, h);
+  if (hitX) vel.x = 0;
   if (sneakEdge && !isOnGround(pos, world, h)) {
     pos.x = beforeX;
     vel.x = 0;
   }
   const beforeZ = pos.z;
-  if (resolveAxis(pos, 'z', vel.z, world, h)) vel.z = 0;
+  const hitZ = resolveAxis(pos, 'z', vel.z, world, h);
+  if (hitZ) vel.z = 0;
   if (sneakEdge && !isOnGround(pos, world, h)) {
     pos.z = beforeZ;
     vel.z = 0;
   }
 
   const onGround = isOnGround(pos, world, h);
-  if (jumped) {
-    // 起跳/跃出水面：当作起跳处理，重力照常（不被水阻尼），跳够高上岸
-    vel.y = (vel.y - GRAVITY) * VDRAG;
-  } else if (inWater) {
-    // 水中：按住空格上浮；否则轻阻尼(保留上冲余速→能带出水面)+缓沉
-    if (intent.swimUp) vel.y = 0.16;
-    else vel.y = Math.max(vel.y * 0.8 - 0.02, -0.15);
-  } else if (onGround) {
-    vel.y = 0;
+  // Entity.move applies the block speed factor after displacement, before
+  // travel's drag. Soul sand is not a multiplier on the player's input speed.
+  const endFloor =
+    world.getBlock?.(
+      Math.floor(pos.x),
+      Math.floor(pos.y - MOVEMENT_SUPPORT_OFFSET),
+      Math.floor(pos.z),
+    ) ?? 0;
+  if (!inWater && endFloor === SOUL_SAND) {
+    vel.x *= Math.fround(0.4);
+    vel.z *= Math.fround(0.4);
+  }
+  if (inWater) {
+    const drag = sprint ? WATER_SPRINT_DRAG : WATER_DRAG;
+    vel.x *= drag;
+    vel.z *= drag;
+    vel.y *= WATER_DRAG;
+    if (!sprint) {
+      const fluidGravity = GRAVITY / 16;
+      vel.y =
+        fallingInWater && Math.abs(vel.y - 0.005) >= 0.003 && Math.abs(vel.y - fluidGravity) < 0.003
+          ? -0.003
+          : vel.y - fluidGravity;
+    }
+    // Only a collision next to a dry, empty raised AABB gives the official
+    // 0.3 exit assist. Deep-water jump presses never become a free land jump.
+    if (hitX || hitZ) {
+      const raised = { x: pos.x + vel.x, y: oldY + vel.y + Math.fround(0.6), z: pos.z + vel.z };
+      if (!overlaps(raised, world, h) && waterDepth(raised, world, h) === 0)
+        vel.y = Math.fround(0.3);
+    }
   } else {
-    // ⚠️ 重力放在移动之后：起跳第一帧升满 0.42 → 跳高 ≈1.25 格（同 MC）
+    const drag = Math.fround(friction * HORIZONTAL_DRAG);
+    vel.x *= drag;
+    vel.z *= drag;
+    // Gravity follows movement even on the floor. The next collision removes
+    // the downward component; grounded is a contact state, not vy === 0.
     vel.y = (vel.y - GRAVITY) * VDRAG;
   }
-
-  // 击退衰减；撞墙(vel 那一轴被归零)则击退也清掉，免得贴墙抖
-  const nkbx = vel.x === 0 ? 0 : kbx * KB_DECAY;
-  const nkbz = vel.z === 0 ? 0 : kbz * KB_DECAY;
   return {
     pos,
     vel,
     onGround,
     crouching: crouch,
-    kbx: Math.abs(nkbx) < 0.005 ? 0 : nkbx,
-    kbz: Math.abs(nkbz) < 0.005 ? 0 : nkbz,
+    kbx: 0,
+    kbz: 0,
+    jumpDelayTicks,
+    didJumpFromGround,
   };
 }

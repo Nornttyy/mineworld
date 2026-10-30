@@ -3,6 +3,7 @@ import { isSolidId, isWaterId } from '../blocks/registry';
 import { CHUNK_H } from '../world/chunk';
 
 export interface BlockReader {
+  maxY?: number;
   getBlock(x: number, y: number, z: number): number;
 }
 
@@ -18,7 +19,7 @@ export function isMobSunlit(mob: Mob, world: BlockReader, isNight: boolean): boo
   for (let y = Math.floor(mob.pos.y); y <= top; y++) {
     if (isWaterId(world.getBlock(x, y, z))) return false; // 身体泡在水里
   }
-  for (let y = top + 1; y < CHUNK_H; y++) {
+  for (let y = top + 1; y < (world.maxY ?? CHUNK_H); y++) {
     const b = world.getBlock(x, y, z);
     if (isSolidId(b) || isWaterId(b)) return false; // 头顶有遮挡（方块或水）
   }

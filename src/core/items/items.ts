@@ -51,6 +51,44 @@ export const DIAMOND_SHOVEL = 299;
 export const DIAMOND_SWORD = 300;
 export const DIAMOND_HOE = 301;
 
+export const LEATHER_HELMET = 302;
+export const LEATHER_CHESTPLATE = 303;
+export const LEATHER_LEGGINGS = 304;
+export const LEATHER_BOOTS = 305;
+export const IRON_HELMET = 306;
+export const IRON_CHESTPLATE = 307;
+export const IRON_LEGGINGS = 308;
+export const IRON_BOOTS = 309;
+export const GOLDEN_HELMET = 310;
+export const GOLDEN_CHESTPLATE = 311;
+export const GOLDEN_LEGGINGS = 312;
+export const GOLDEN_BOOTS = 313;
+export const DIAMOND_HELMET = 314;
+export const DIAMOND_CHESTPLATE = 315;
+export const DIAMOND_LEGGINGS = 316;
+export const DIAMOND_BOOTS = 317;
+export const GOLD_INGOT = 318;
+export const RAW_IRON = 319;
+export const RAW_GOLD = 320;
+export const ARMOR_ITEM_IDS = [
+  LEATHER_HELMET,
+  LEATHER_CHESTPLATE,
+  LEATHER_LEGGINGS,
+  LEATHER_BOOTS,
+  IRON_HELMET,
+  IRON_CHESTPLATE,
+  IRON_LEGGINGS,
+  IRON_BOOTS,
+  GOLDEN_HELMET,
+  GOLDEN_CHESTPLATE,
+  GOLDEN_LEGGINGS,
+  GOLDEN_BOOTS,
+  DIAMOND_HELMET,
+  DIAMOND_CHESTPLATE,
+  DIAMOND_LEGGINGS,
+  DIAMOND_BOOTS,
+] as const;
+
 export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
 export interface ToolDef {
   kind: ToolKind;
@@ -59,11 +97,21 @@ export interface ToolDef {
   maxDurability: number; // 最大耐久（用尽即损坏）。1:1 MC：木=59，石=131。
 }
 
+export type ArmorSlot = 'head' | 'chest' | 'legs' | 'feet';
+export interface ArmorDef {
+  slot: ArmorSlot;
+  armor: number;
+  toughness: number;
+  maxDurability: number;
+  material: 'leather' | 'iron' | 'gold' | 'diamond';
+}
+
 interface ItemDef {
   name: string; // 与 crafting 配方的字符串 id 对应，也用于图标/掉落渲染
   maxStack: number;
   food: FoodValue | null; // null = 不可吃
   tool: ToolDef | null;
+  armor?: ArmorDef;
 }
 
 // 工具：剑/锄不是挖矿工具，速度压低
@@ -75,6 +123,122 @@ function toolDef(name: string, kind: ToolKind, tier: number, baseSpeed: number):
 }
 
 export const ITEMS: Record<number, ItemDef> = {
+  // Official 26.3 default item components; see docs/armor-audit.md.
+  [LEATHER_HELMET]: {
+    name: 'leather_helmet',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'head', armor: 1.0, toughness: 0.0, maxDurability: 55, material: 'leather' },
+  },
+  [LEATHER_CHESTPLATE]: {
+    name: 'leather_chestplate',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'chest', armor: 3.0, toughness: 0.0, maxDurability: 80, material: 'leather' },
+  },
+  [LEATHER_LEGGINGS]: {
+    name: 'leather_leggings',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'legs', armor: 2.0, toughness: 0.0, maxDurability: 75, material: 'leather' },
+  },
+  [LEATHER_BOOTS]: {
+    name: 'leather_boots',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'feet', armor: 1.0, toughness: 0.0, maxDurability: 65, material: 'leather' },
+  },
+  [IRON_HELMET]: {
+    name: 'iron_helmet',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'head', armor: 2.0, toughness: 0.0, maxDurability: 165, material: 'iron' },
+  },
+  [IRON_CHESTPLATE]: {
+    name: 'iron_chestplate',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'chest', armor: 6.0, toughness: 0.0, maxDurability: 240, material: 'iron' },
+  },
+  [IRON_LEGGINGS]: {
+    name: 'iron_leggings',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'legs', armor: 5.0, toughness: 0.0, maxDurability: 225, material: 'iron' },
+  },
+  [IRON_BOOTS]: {
+    name: 'iron_boots',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'feet', armor: 2.0, toughness: 0.0, maxDurability: 195, material: 'iron' },
+  },
+  [GOLDEN_HELMET]: {
+    name: 'golden_helmet',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'head', armor: 2.0, toughness: 0.0, maxDurability: 77, material: 'gold' },
+  },
+  [GOLDEN_CHESTPLATE]: {
+    name: 'golden_chestplate',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'chest', armor: 5.0, toughness: 0.0, maxDurability: 112, material: 'gold' },
+  },
+  [GOLDEN_LEGGINGS]: {
+    name: 'golden_leggings',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'legs', armor: 3.0, toughness: 0.0, maxDurability: 105, material: 'gold' },
+  },
+  [GOLDEN_BOOTS]: {
+    name: 'golden_boots',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'feet', armor: 1.0, toughness: 0.0, maxDurability: 91, material: 'gold' },
+  },
+  [DIAMOND_HELMET]: {
+    name: 'diamond_helmet',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'head', armor: 3.0, toughness: 2.0, maxDurability: 363, material: 'diamond' },
+  },
+  [DIAMOND_CHESTPLATE]: {
+    name: 'diamond_chestplate',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'chest', armor: 8.0, toughness: 2.0, maxDurability: 528, material: 'diamond' },
+  },
+  [DIAMOND_LEGGINGS]: {
+    name: 'diamond_leggings',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'legs', armor: 6.0, toughness: 2.0, maxDurability: 495, material: 'diamond' },
+  },
+  [DIAMOND_BOOTS]: {
+    name: 'diamond_boots',
+    maxStack: 1,
+    food: null,
+    tool: null,
+    armor: { slot: 'feet', armor: 3.0, toughness: 2.0, maxDurability: 429, material: 'diamond' },
+  },
+  [RAW_IRON]: { name: 'raw_iron', maxStack: 64, food: null, tool: null },
+  [RAW_GOLD]: { name: 'raw_gold', maxStack: 64, food: null, tool: null },
+  [GOLD_INGOT]: { name: 'gold_ingot', maxStack: 64, food: null, tool: null },
   [APPLE]: {
     name: 'apple',
     maxStack: 64,
@@ -199,6 +363,8 @@ export function itemMaxStack(id: number): number {
 // 所有会磨损的物品统一从这里查询上限。弓与打火石不是挖掘工具，
 // 因而不能只依赖 ToolDef；数值对应 Java 1.12（弓 384、打火石 64）。
 export function itemMaxDurability(id: number): number | null {
+  const armorDurability = ITEMS[id]?.armor?.maxDurability;
+  if (armorDurability !== undefined) return armorDurability;
   const toolDurability = ITEMS[id]?.tool?.maxDurability;
   if (toolDurability !== undefined) return toolDurability;
   if (id === BOW) return 384;
@@ -209,4 +375,8 @@ export function itemMaxDurability(id: number): number | null {
 // 物品(非方块)的工具属性；非工具/方块返回 null
 export function toolOf(id: number): ToolDef | null {
   return ITEMS[id]?.tool ?? null;
+}
+
+export function armorOf(id: number): ArmorDef | null {
+  return ITEMS[id]?.armor ?? null;
 }

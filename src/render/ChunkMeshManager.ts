@@ -6,7 +6,6 @@ import MeshGenWorker from '../core/mesh/meshGen.worker?worker';
 import { loadWaterFrames, loadTorchTexture } from './atlas';
 import { chunkInView, chunkAhead } from './chunkCull';
 import { DAY_LENGTH } from '../core/world/dayNight';
-import { SEA_LEVEL } from '../core/worldgen/terrain';
 import type { LightingQuality, TexturePack } from '../core/settings';
 import { makeCloudShadowTexture, makeDirectionalWaveTexture } from './surfaceNoise';
 import { WATER_RENDER_LAYER } from './renderLayers';
@@ -24,7 +23,6 @@ const perfNow = (): number => (typeof performance !== 'undefined' ? performance.
 const WATER_FRAMES = 32; // Java 26.3 water_still.png，32帧（官方mcmeta每帧2tick）。
 const SHADOW_MAP_SIZE = 2048; // 标准档 2K；高档会在 setLightingQuality 中升级为 4K
 const SHADOW_HALF = 36; // 阴影正交相机半宽（格）——收紧覆盖区→同分辨率下更锐、深度pass更省（高档优化）
-const WATER_PLANAR_Y = SEA_LEVEL + 8 / 9;
 const DEFAULT_ATLAS_SIZE = atlasPixelSize(CLASSIC_ATLAS_TILE_PX);
 
 // 雾在 ~110 格就全糊了(见 Renderer 的 Fog 30..110)。某区块"最近点"超过此距离即被雾完全盖住，
@@ -66,6 +64,14 @@ interface MeshWorkerResult {
   cz: number;
   mesh?: ChunkMesh;
   error?: string;
+}
+
+interface MeshWorkerJob {
+  jobId: number;
+  cx: number;
+  cz: number;
+  since: number;
+  height: number;
 }
 
 // TS 版 MC 亮度曲线(与 shader 的 mcBright 一致)：实体环境光照用
@@ -134,6 +140,9 @@ export class ChunkMeshManager {
   private leafDepthMat: THREE.MeshDepthMaterial | null = null; // 树叶投影用：带 alphaTest 的深度材质 → 镂空叶影
   // 网格化 Worker 池：把 ~81ms/区块的 meshChunk(光照BFS+greedy)挪后台，主线程只剩 buildGeo 上传。
   private readonly meshWorkers: Worker[] = [];
+  // Exactly one real job per worker. Waiting chunks stay dirty; never queue
+  // their multi-megabyte neighbor copies inside a busy worker.
+  private readonly meshWorkerJobs = new Map<Worker, MeshWorkerJob>();
   private meshRr = 0; // round-robin 派发
   // 坐标 → 当前任务 id。不能只存坐标：切维度或超时重派后，旧 worker 可能晚到并与
   // 新世界同坐标任务撞 key；唯一任务 id 保证旧结果既不能上屏，也不能删掉新任务的 pending。
@@ -205,6 +214,14 @@ export class ChunkMeshManager {
     this.installLight(this.cutoutMat, true, false); // 树叶(cutout)随风轻摆
     this.installWaterShader(this.waterMat);
     this.installIceShader(this.iceMat);
+    for (const [kind, mat] of [
+      ['opaque', this.opaqueMat],
+      ['cutout', this.cutoutMat],
+      ['water', this.waterMat],
+      ['ice', this.iceMat],
+    ] as const) {
+      mat.customProgramCacheKey = () => `mineworld-${kind}-sea-${this.world.seaWaterY}`;
+    }
     // 火把：贴火把纹理的交叉 billboard，自发光(不参与天光,始终全亮)，alpha-test 抠出火把形、双面可见
     this.torchMat = new THREE.MeshBasicMaterial({
       map: loadTorchTexture(),
@@ -256,18 +273,7 @@ export class ChunkMeshManager {
     if (typeof Worker !== 'undefined') {
       const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
       const n = Math.max(1, Math.min(4, cores - 1));
-      for (let i = 0; i < n; i++) {
-        const w = new MeshGenWorker();
-        w.onmessage = (e: MessageEvent<MeshWorkerResult>): void =>
-          this.handleMeshWorkerResult(e.data);
-        w.onerror = (ev): void => {
-          console.error(
-            '[meshgen worker] 致命错误(整个 worker 挂了，区块会停止网格化):',
-            ev.message,
-          );
-        };
-        this.meshWorkers.push(w);
-      }
+      for (let i = 0; i < n; i++) this.meshWorkers.push(this.createMeshWorker());
     }
   }
 
@@ -699,7 +705,7 @@ float mwLevelGate = smoothstep(0.08, 0.42, mwBaseFrac);
 float mwSeaLevel = 1.0 - smoothstep(
   0.18,
   0.42,
-  abs(mwWp0.y - ${WATER_PLANAR_Y.toFixed(6)})
+  abs(mwWp0.y - ${(this.world.seaWaterY + 8 / 9).toFixed(6)})
 );
 float mwOcean = smoothstep(0.25, 0.82, clamp(aWaveOpen, 0.0, 1.0))
   * smoothstep(1.25, 2.50, abs(aTop)) * mwSeaLevel;
@@ -816,7 +822,7 @@ if (uShaders < 0.5) {
   float seaRefractionGate = 1.0 - smoothstep(
     0.16,
     0.36,
-    abs(vWaterBaseWPos.y - ${WATER_PLANAR_Y.toFixed(6)})
+    abs(vWaterBaseWPos.y - ${(this.world.seaWaterY + 8 / 9).toFixed(6)})
   );
   vec3 faceN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
   faceN *= sign(dot(faceN, V));
@@ -1017,7 +1023,7 @@ if (uShaders < 0.5) {
     float seaConfidence = 1.0 - smoothstep(
       0.18,
       0.42,
-      abs(vWaterBaseWPos.y - ${WATER_PLANAR_Y.toFixed(6)})
+      abs(vWaterBaseWPos.y - ${(this.world.seaWaterY + 8 / 9).toFixed(6)})
     );
     float reflectionConfidence = edgeConfidence * seaConfidence * cameraAbove;
     float blurPixels = 0.70 + surfaceRoughness * mix(3.5, 4.5, uHq);
@@ -1323,7 +1329,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       min(reflectionUv.y, 1.0 - reflectionUv.y)
     );
     float confidence = smoothstep(0.008, 0.040, edge)
-      * (1.0 - smoothstep(0.18, 0.42, abs(vWPos.y - ${WATER_PLANAR_Y.toFixed(6)})))
+      * (1.0 - smoothstep(0.18, 0.42, abs(vWPos.y - ${(this.world.seaWaterY + 8 / 9).toFixed(6)})))
       * step(vWPos.y, cameraPosition.y);
     vec2 rTexel = vec2(1.0) / max(uReflectionSize, vec2(1.0));
     vec2 safeUv = clamp(reflectionUv, vec2(0.005) + rTexel, vec2(0.995) - rTexel);
@@ -1539,22 +1545,66 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     return `${cx},${cz}`;
   }
 
-  private handleMeshWorkerResult({ jobId, cx, cz, mesh, error }: MeshWorkerResult): void {
+  private createMeshWorker(): Worker {
+    const worker = new MeshGenWorker();
+    worker.onmessage = (e: MessageEvent<MeshWorkerResult>): void =>
+      this.handleMeshWorkerResult(e.data, worker);
+    worker.onerror = (e): void => this.failMeshWorker(worker, e.message || 'worker error');
+    worker.onmessageerror = (): void => this.failMeshWorker(worker, 'worker message decode failed');
+    return worker;
+  }
+
+  private restartMeshWorker(worker: Worker): void {
+    const index = this.meshWorkers.indexOf(worker);
+    if (index < 0) return;
+    this.meshWorkerJobs.delete(worker);
+    worker.onmessage = worker.onerror = worker.onmessageerror = null;
+    worker.terminate();
+    try {
+      this.meshWorkers[index] = this.createMeshWorker();
+    } catch (error) {
+      this.meshWorkers.splice(index, 1);
+      console.warn('[meshgen] worker 重启失败:', error);
+    }
+    this.meshRr %= Math.max(1, this.meshWorkers.length);
+  }
+
+  private failMeshWorker(worker: Worker, error: string): void {
+    const job = this.meshWorkerJobs.get(worker);
+    if (job) this.handleMeshWorkerResult({ ...job, error }, worker);
+    else console.warn('[meshgen] 空闲 worker 失败:', error);
+    this.restartMeshWorker(worker);
+  }
+
+  private handleMeshWorkerResult(
+    { jobId, cx, cz, mesh, error }: MeshWorkerResult,
+    worker?: Worker,
+  ): void {
+    // Physical occupancy survives setWorld/rebuildSync invalidation. A stale
+    // result releases only its own worker/job, never a replacement's new job.
+    if (worker) {
+      if (this.meshWorkerJobs.get(worker)?.jobId !== jobId) return;
+      this.meshWorkerJobs.delete(worker);
+    }
     const k = this.key(cx, cz);
     // 该坐标已同步重建、超时重派或切到另一个世界时，旧 jobId 不再匹配。
     // 必须在删除 pending 之前拦截，否则旧维度结果会吃掉新维度同坐标任务。
     if (this.meshPending.get(k) !== jobId) return;
     this.meshPending.delete(k);
     this.meshPendingSince.delete(k);
-    if (error) {
+    if (error || !mesh) {
       // 网格化失败：meshPending 已清 → 未达上限时 update() 会再派重试；告警暴露真正触发原因。
       const n = (this.meshFails.get(k) ?? 0) + 1;
       this.meshFails.set(k, n);
-      console.warn(`[meshgen] 区块(${cx},${cz}) 网格化失败 #${n}: ${error.split('\n')[0]}`);
+      const chunk = this.world.peek(cx, cz);
+      if (chunk) chunk.dirty = true; // A failed edit must retry even if an older mesh is visible.
+      console.warn(
+        `[meshgen] 区块(${cx},${cz}) 网格化失败 #${n}: ${(error || 'empty mesh response').split('\n')[0]}`,
+      );
       return;
     }
     this.meshFails.delete(k);
-    if (!mesh || !this.world.peek(cx, cz)) return; // 区块已卸载/无数据 → 丢弃
+    if (!this.world.peek(cx, cz)) return; // 区块已卸载/无数据 → 丢弃
     if (this.editKeys.has(k)) {
       this.priorityQueue.push({ cx, cz, mesh }); // 编辑触发 → 优先上屏
       // 区块仍 dirty(派发后又被编辑)→留着优先标记，让下一个(最新)结果也插队；否则消标记
@@ -1575,6 +1625,10 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.meshFails.clear();
     this.editKeys.clear();
     this.world = world;
+    this.opaqueMat.needsUpdate = true;
+    this.waterMat.needsUpdate = true;
+    this.iceMat.needsUpdate = true;
+    this.cutoutMat.needsUpdate = true;
   }
 
   /**
@@ -1585,8 +1639,15 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   dispose(): void {
     for (const k of [...this.meshes.keys()]) this.unload(k); // 从场景移除 + dispose 所有 geometry
     this.lightGrids.clear();
-    for (const w of this.meshWorkers) w.terminate(); // 终止网格化 worker(否则线程/内存常驻)
+    for (const w of this.meshWorkers) {
+      w.onmessage = w.onerror = w.onmessageerror = null;
+      w.terminate();
+    }
     this.meshWorkers.length = 0;
+    this.meshWorkerJobs.clear();
+    this.meshPending.clear();
+    this.meshPendingSince.clear();
+    this.meshQueue.length = this.priorityQueue.length = 0;
     this.opaqueMat.dispose();
     this.iceMat.dispose();
     this.cutoutMat.dispose();
@@ -1642,7 +1703,10 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     if (!g) return [this.sunEnabled ? 15 : 0, 0];
     const lx = Math.min(3, Math.max(0, Math.floor((wx - cx * CHUNK_W) / 4)));
     const lz = Math.min(3, Math.max(0, Math.floor((wz - cz * CHUNK_W) / 4)));
-    const ly = Math.min(47, Math.max(0, Math.floor(wy / 4)));
+    const ly = Math.min(
+      Math.ceil(this.world.height / 4) - 1,
+      Math.max(0, Math.floor((wy - this.world.minY) / 4)),
+    );
     const v = g[lx + lz * 4 + ly * 16];
     return [v >> 4, v & 15];
   }
@@ -1698,7 +1762,12 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
 
   /** 还有 worker 网格化在途，或结果待上屏（供主菜单预加载等待铺满后再显示）。 */
   meshBusy(): boolean {
-    return this.meshQueue.length > 0 || this.priorityQueue.length > 0 || this.meshPending.size > 0;
+    return (
+      this.meshQueue.length > 0 ||
+      this.priorityQueue.length > 0 ||
+      this.meshWorkerJobs.size > 0 ||
+      this.meshPending.size > 0
+    );
   }
 
   /** 待上屏的网格数（供游戏层按【时间预算】逐个 flush，稳帧）。 */
@@ -1760,13 +1829,23 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     // 作废这个区块在途/待上屏的 worker 结果——下面同步上屏的才是最新；否则旧 worker 结果回来会把挖/放盖回去
     this.meshPending.delete(k);
     this.meshPendingSince.delete(k);
-    const qi = this.meshQueue.findIndex((m) => m.cx === cx && m.cz === cz);
-    if (qi >= 0) this.meshQueue.splice(qi, 1);
-    const pi = this.priorityQueue.findIndex((m) => m.cx === cx && m.cz === cz);
-    if (pi >= 0) this.priorityQueue.splice(pi, 1); // 同步上屏的才最新，作废优先队列里该块的旧结果
+    this.discardQueuedMesh(cx, cz);
     this.applyMesh(cx, cz, meshChunk(this.world, cx, cz));
     const c = this.world.peek(cx, cz);
     if (c) c.dirty = false; // 同步重建用的是当前数据，安全清脏（applyMesh 不再清）
+  }
+
+  private isMeshQueued(cx: number, cz: number): boolean {
+    return (
+      this.meshQueue.some((m) => m.cx === cx && m.cz === cz) ||
+      this.priorityQueue.some((m) => m.cx === cx && m.cz === cz)
+    );
+  }
+
+  private discardQueuedMesh(cx: number, cz: number): void {
+    for (const queue of [this.meshQueue, this.priorityQueue])
+      for (let i = queue.length - 1; i >= 0; i--)
+        if (queue[i].cx === cx && queue[i].cz === cz) queue.splice(i, 1);
   }
 
   // 收集本+8邻区的 blocks/fluid 副本(worker 网格化时采光晕/face/AO)。任一邻区还没生成→null(这次不派)。
@@ -1780,49 +1859,77 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       for (let dcz = -1; dcz <= 1; dcz++) {
         const c = this.world.peek(cx + dcx, cz + dcz);
         if (!c) return null;
-        blocks.push(c.blocks.slice()); // 副本：原 buffer 属于 chunk，不能 transfer 走
-        fluid.push(c.fluid.slice());
+        blocks.push(c.blocks);
+        fluid.push(c.fluid);
       }
     }
-    return { blocks, fluid };
+    // Check readiness first; an unfinished neighborhood must not allocate a
+    // partial set of large copies on every frame. Never transfer world buffers.
+    return { blocks: blocks.map((b) => b.slice()), fluid: fluid.map((f) => f.slice()) };
   }
 
-  // 异步网格化(派 worker，主线程不阻塞)；无 worker / 邻区没齐 → 同步回退。
-  private rebuild(cx: number, cz: number): void {
+  // 无 worker 才同步回退；满载或邻区未齐时保留 dirty，下次更新重新选任务。
+  private rebuild(cx: number, cz: number): boolean {
     if (this.meshWorkers.length === 0) {
       this.rebuildSync(cx, cz);
-      return;
+      return true;
     }
     const k = this.key(cx, cz);
-    if (this.meshPending.has(k)) return; // 已在排队；若期间又被编辑(dirty=true)，下帧 update() 会再派(自愈)
-    if ((this.meshFails.get(k) ?? 0) >= 3) return; // 连续 3 次网格化抛异常 → 放弃(已告警)，不再每帧死循环重试
+    if (this.meshPending.has(k)) return false;
+    if ((this.meshFails.get(k) ?? 0) >= 3) return false;
+    if (this.isMeshQueued(cx, cz) && !this.world.peek(cx, cz)?.dirty) return false;
+    let worker: Worker | undefined;
+    for (let i = 0; i < this.meshWorkers.length; i++) {
+      const index = (this.meshRr + i) % this.meshWorkers.length;
+      if (!this.meshWorkerJobs.has(this.meshWorkers[index])) {
+        worker = this.meshWorkers[index];
+        this.meshRr = (index + 1) % this.meshWorkers.length;
+        break;
+      }
+    }
+    if (!worker) return false; // Backpressure before allocating/copying any neighbor buffers.
     const nb = this.collectNeighbors(cx, cz);
-    if (!nb) return; // 邻区还没生成好 → 这次不网格化(留着下次 update 重试)，绝不同步 meshChunk 卡主线程
+    if (!nb) return false;
     const jobId = this.nextMeshJobId++;
+    const since = perfNow();
     this.meshPending.set(k, jobId);
-    this.meshPendingSince.set(k, perfNow());
+    this.meshPendingSince.set(k, since);
+    this.meshWorkerJobs.set(worker, { jobId, cx, cz, since, height: this.world.height });
+    this.discardQueuedMesh(cx, cz); // A newer edit must not later be overwritten by an older queued mesh.
     const transfer = [...nb.blocks.map((b) => b.buffer), ...nb.fluid.map((f) => f.buffer)];
-    this.meshWorkers[this.meshRr].postMessage(
-      { jobId, cx, cz, blocks: nb.blocks, fluid: nb.fluid },
-      transfer,
-    );
-    this.meshRr = (this.meshRr + 1) % this.meshWorkers.length;
+    try {
+      worker.postMessage(
+        {
+          jobId,
+          cx,
+          cz,
+          blocks: nb.blocks,
+          fluid: nb.fluid,
+          minY: this.world.minY,
+          height: this.world.height,
+        },
+        transfer,
+      );
+    } catch (error) {
+      this.failMeshWorker(worker, String(error));
+      return false;
+    }
     const built = this.world.peek(cx, cz);
     if (built) built.dirty = false; // 标记已派(清 dirty 防 update 反复派)；worker 回来才真正上屏
+    return true;
   }
 
-  /** 看门狗：网格 worker 偶发丢消息/卡死 → meshPending 永不回 → 区块永久不上屏成洞。
-   *  超时还没回的清掉 meshPending(下面 update 的 todo 会因 !meshes.has 再派，自愈)。每帧 update 开头调。 */
+  /** 只检查实际已派发任务。超时必须重启原 worker，不能只清 pending
+   *  再把重试缓冲排进仍阻塞的同一线程；失败恢复 dirty，最多连续重试三次。 */
   private retryStuckMeshes(timeoutMs = 8000): void {
     const t = perfNow();
-    for (const [k, since] of this.meshPendingSince) {
-      if (t - since > timeoutMs) {
-        this.meshPending.delete(k);
-        this.meshPendingSince.delete(k);
-        console.warn(
-          `[meshgen] 区块 ${k} 网格化 ${Math.round((t - since) / 1000)}s 未回(worker 丢消息?) → 重试`,
+    for (const [worker, job] of this.meshWorkerJobs) {
+      const deadline = job.height > 192 ? Math.max(timeoutMs, 30000) : timeoutMs;
+      if (t - job.since > deadline)
+        this.failMeshWorker(
+          worker,
+          `网格化 ${Math.round((t - job.since) / 1000)}s 未回 → 重启 worker 重试`,
         );
-      }
     }
   }
 
@@ -1839,11 +1946,18 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     }
     // 多请求生成「radius+1」一圈邻区：让最外圈要网格化的区块也能凑齐 8 邻区、走异步 worker 网格化，
     // 不必退回同步 meshChunk(~81ms/块，卡主线程→加载抖)。生成在 worker，多生成一圈不卡主线程。
-    for (let dz = -radius - 1; dz <= radius + 1; dz++) {
+    const requests: { cx: number; cz: number; d: number; towardView: number }[] = [];
+    for (let dz = -radius - 1; dz <= radius + 1; dz++)
       for (let dx = -radius - 1; dx <= radius + 1; dx++)
-        this.world.request(centerCx + dx, centerCz + dz);
-    }
-    const todo: { cx: number; cz: number; d: number; ahead: boolean }[] = [];
+        requests.push({
+          cx: centerCx + dx,
+          cz: centerCz + dz,
+          d: dx * dx + dz * dz,
+          towardView: dx * dirX + dz * dirZ,
+        });
+    requests.sort((a, b) => a.d - b.d || b.towardView - a.towardView);
+    for (const request of requests) this.world.request(request.cx, request.cz);
+    const todo: { cx: number; cz: number; d: number; ahead: boolean; edited: boolean }[] = [];
     for (let dz = -radius; dz <= radius; dz++) {
       for (let dx = -radius; dx <= radius; dx++) {
         if (chunkFogged(dx, dz, this.fogCullR2)) continue; // 完全在雾里的角块：不网格化(看不见)
@@ -1851,13 +1965,28 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
         const cz = centerCz + dz;
         const c = this.world.peek(cx, cz);
         if (!c) continue; // 还没生成好 → 跳过，下次 update 再看
-        if (!this.meshes.has(this.key(cx, cz)) || c.dirty)
-          todo.push({ cx, cz, d: dx * dx + dz * dz, ahead: chunkAhead(dx, dz, dirX, dirZ) });
+        const k = this.key(cx, cz);
+        if (this.meshPending.has(k) || (this.isMeshQueued(cx, cz) && !c.dirty)) continue;
+        if (!this.meshes.has(k) || c.dirty)
+          todo.push({
+            cx,
+            cz,
+            d: dx * dx + dz * dz,
+            ahead: chunkAhead(dx, dz, dirX, dirZ),
+            edited: this.editKeys.has(k),
+          });
       }
     }
     // 前方优先(ahead 先建)，同档内近的先建。dir=(0,0) 时 ahead 恒 true → 退回纯距离排序。
-    todo.sort((a, b) => (a.ahead === b.ahead ? a.d - b.d : a.ahead ? -1 : 1));
-    for (let i = 0; i < Math.min(budget, todo.length); i++) this.rebuild(todo[i].cx, todo[i].cz);
+    todo.sort(
+      (a, b) =>
+        Number(b.edited) - Number(a.edited) || (a.ahead === b.ahead ? a.d - b.d : a.ahead ? -1 : 1),
+    );
+    let dispatched = 0;
+    for (const item of todo) {
+      if (dispatched >= budget) break;
+      if (this.rebuild(item.cx, item.cz)) dispatched++;
+    }
     // 已加载但因移动落进雾区的区块：隐藏(不绘制)而非卸载——避免来回移动时反复重建网格、无闪烁
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);

@@ -106,6 +106,13 @@ describe('联机服务端初始世界', () => {
 });
 
 describe('联机服务端玩家维度权限', () => {
+  it.each([-63, -32, 300, 320])('accepts modern-world entity height %i in initial and subsequent states', (y) => {
+    const { client, player } = context();
+    client.hasState = false;
+    expect(applyPlayerState(client, { player: { ...player, y } }, 10_000).ok).toBe(true);
+    expect(applyPlayerState(client, { player: { ...player, y: y + 0.2 } }, 10_050).ok).toBe(true);
+    expect(player.y).toBe(y + 0.2);
+  });
   it('连接后第一个 state 可恢复房主的下界位置', () => {
     const { client, player } = context();
     client.hasState = false;
@@ -179,6 +186,25 @@ describe('联机服务端玩家维度权限', () => {
 });
 
 describe('联机服务端批量方块协议', () => {
+  it('accepts a complete modern-height falling column exceeding the old 256-cell cap', () => {
+    const { client, room, player } = context();
+    player.y = 128;
+    const edits: BlockEdit[] = [];
+    for (let i = 0; i < 130; i++) {
+      edits.push({ dimension: 'overworld', x: 0, y: 129 + i, z: 0, id: 0 });
+      edits.push({ dimension: 'overworld', x: 0, y: -64 + i, z: 0, id: 5 });
+    }
+    expect(applyAtomicBlockBatch(client, { type: 'blocks', kind: 'gravity', center: { x: 0.5, y: 128.5, z: 0.5 }, edits }).ok).toBe(true);
+    expect(room.edits.size).toBe(260);
+  });
+  it('accepts a below-zero explosion center and applies its block edits atomically', () => {
+    const { client, room, player } = context();
+    player.y = -40;
+    const edit: BlockEdit = { dimension: 'overworld', x: 1, y: -40, z: 0, id: 0 };
+    const result = applyAtomicBlockBatch(client, { type: 'blocks', kind: 'explosion', center: { x: 0.5, y: -39.5, z: 0.5 }, edits: [edit] });
+    expect(result.ok).toBe(true);
+    expect(room.edits.get(key(edit))).toEqual(edit);
+  });
   it('原子创建目的地门并切换玩家维度', () => {
     const sourcePortal: BlockEdit = {
       dimension: 'overworld',

@@ -8,6 +8,8 @@ import { WATER } from '../blocks/registry';
 
 interface MeshRequest {
   jobId: number;
+  minY?: number;
+  height?: number;
   cx: number;
   cz: number;
   blocks: Uint16Array[]; // 9 个，顺序 (dcx+1)*3+(dcz+1)，dcx/dcz ∈ -1..1
@@ -15,7 +17,7 @@ interface MeshRequest {
 }
 
 self.onmessage = (e: MessageEvent<MeshRequest>): void => {
-  const { jobId, cx, cz, blocks, fluid } = e.data;
+  const { jobId, cx, cz, blocks, fluid, minY = 0, height = CHUNK_H } = e.data;
   const slot = (bx: number, bz: number): number => {
     const dcx = bx - cx;
     const dcz = bz - cz;
@@ -23,9 +25,9 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     return (dcx + 1) * 3 + (dcz + 1);
   };
   const li = (wx: number, wy: number, wz: number): number =>
-    localCoord(wx) + localCoord(wz) * CHUNK_W + wy * CHUNK_W * CHUNK_W;
+    localCoord(wx) + localCoord(wz) * CHUNK_W + (wy - minY) * CHUNK_W * CHUNK_W;
   const getBlock = (wx: number, wy: number, wz: number): number => {
-    if (wy < 0 || wy >= CHUNK_H) return 0;
+    if (wy < minY || wy >= minY + height) return 0;
     const s = slot(worldToChunk(wx), worldToChunk(wz));
     return s < 0 ? 0 : blocks[s][li(wx, wy, wz)];
   };
@@ -36,7 +38,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
   };
 
   try {
-    const m = meshChunkData(cx, cz, getBlock, waterAmount);
+    const m = meshChunkData(cx, cz, getBlock, waterAmount, minY, height);
 
     const transfer: ArrayBuffer[] = [];
     const collect = (md: MeshData): void => {

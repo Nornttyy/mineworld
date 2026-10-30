@@ -8,7 +8,7 @@ const STONE = 1;
 
 /**
  * 构造一个 VoxelWorld：y < 0 是地板（实心），脚下方块 id 由 floorId 决定。
- * 脚部位置约 y=0，getBlock(x, -1, z) 返回 floorId（脚正下方 0.1 格处向下取整 = -1 → 返回 floorId）。
+ * 脚部位置约 y=0，getBlock(x, -1, z) 返回脚下支持方块。
  */
 function makeWorld(floorId: number): VoxelWorld {
   return {
@@ -27,7 +27,7 @@ function slidingPlayer(vx: number, vz: number): Player {
   };
 }
 
-describe('ice slipperiness (Task 4.2)', () => {
+describe('ice friction', () => {
   it('冰上比石头上更滑：同初速无输入下一刻保留更多水平速度', () => {
     const iceWorld = makeWorld(ICE);
     const stoneWorld = makeWorld(STONE);
@@ -45,17 +45,16 @@ describe('ice slipperiness (Task 4.2)', () => {
     expect(speedIce).toBeGreaterThan(speedStone);
   });
 
-  it('普通地面（石头）的行为与原实现一致：无输入速度应衰减', () => {
+  it('ordinary ground retains friction times .91 of incoming velocity', () => {
     const stoneWorld = makeWorld(STONE);
     const p0 = slidingPlayer(0.3, 0);
     const idle = { forward: 0, right: 0, yaw: 0, jump: false };
 
     const after = step(p0, idle, stoneWorld);
-    // 普通地面速度应减小（不是原样保留）
-    expect(Math.hypot(after.vel.x, after.vel.z)).toBeLessThan(0.3);
+    expect(after.vel.x).toBeCloseTo(0.3 * Math.fround(Math.fround(0.6) * Math.fround(0.91)), 10);
   });
 
-  it('冰上无输入速度应大幅保留（接近0.98×初速）', () => {
+  it('ice retains .98 × .91, not .98 alone', () => {
     const iceWorld = makeWorld(ICE);
     const p0 = slidingPlayer(0.3, 0);
     const idle = { forward: 0, right: 0, yaw: 0, jump: false };
@@ -63,8 +62,7 @@ describe('ice slipperiness (Task 4.2)', () => {
     const after = step(p0, idle, iceWorld);
     const speedAfter = Math.hypot(after.vel.x, after.vel.z);
 
-    // 冰上0.98滑度：保留速度应接近 0.3 * 0.98 ≈ 0.294
-    expect(speedAfter).toBeGreaterThan(0.25); // 明显保留
+    expect(speedAfter).toBeCloseTo(0.3 * Math.fround(Math.fround(0.98) * Math.fround(0.91)), 10);
   });
 
   it('空中时不受脚下方块影响（无接地）', () => {
@@ -82,7 +80,8 @@ describe('ice slipperiness (Task 4.2)', () => {
     const afterIce = step(airPlayer, idle, iceWorld);
     const afterStone = step(airPlayer, idle, stoneWorld);
 
-    // 空中水平速度不受地面影响（两者相同，都是 wish=0 所以 vel.x=0）
+    // 空中水平速度不受下方方块影响，并保留原惯性的 .91。
     expect(afterIce.vel.x).toBeCloseTo(afterStone.vel.x, 5);
+    expect(afterIce.vel.x).toBeCloseTo(0.3 * Math.fround(0.91), 10);
   });
 });

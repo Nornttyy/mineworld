@@ -10,7 +10,8 @@ import type { Arrow } from '../core/entity/arrow';
 import { INV_SIZE } from '../core/inventory/inventory';
 import { isItem, itemMaxDurability, itemMaxStack } from '../core/items/items';
 import { MAX_FOOD, MAX_HEALTH, MAX_OXYGEN } from '../core/survival/survival';
-import { CHUNK_H } from '../core/world/chunk';
+import { worldBounds, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
+import { deserializeArmor, serializeArmor, type ArmorInventory } from '../core/equipment/armor';
 
 export type GameMode = 'survival' | 'creative';
 export type Dimension = 'overworld' | 'nether';
@@ -19,6 +20,9 @@ export interface WorldSave {
   id: string;
   name: string;
   seed: number;
+  generator?: GeneratorVersion;
+  seed64?: string;
+  armor?: ArmorInventory;
   gameMode?: GameMode; // 不存=survival（老档迁移）
   lastPlayed: number;
   edits: Record<string, number>; // "x,y,z" -> blockId（0=被挖空）；维度前缀："nether:x,y,z" = 下界，无前缀 = 主世界
@@ -115,6 +119,7 @@ function sanitizePosition(value: unknown): NonNullable<WorldSave['player']> | un
 function blockCoordinates(
   key: string,
   allowOverworldPrefix: boolean,
+  generator: GeneratorVersion = 'legacy',
 ): [number, number, number] | null {
   let coordinates = key;
   if (key.startsWith('nether:')) coordinates = key.slice(7);
@@ -125,26 +130,26 @@ function blockCoordinates(
   const [x, y, z] = parts.map(Number);
   if (
     !integerInRange(x, -MAX_WORLD_COORD, MAX_WORLD_COORD) ||
-    !integerInRange(y, 0, CHUNK_H - 1) ||
+    !integerInRange(y, worldBounds(generator, key.startsWith('nether:') ? 'nether' : 'overworld').minY, worldBounds(generator, key.startsWith('nether:') ? 'nether' : 'overworld').maxY - 1) ||
     !integerInRange(z, -MAX_WORLD_COORD, MAX_WORLD_COORD)
   )
     return null;
   return [x, y, z];
 }
 
-function validEditKey(key: string): boolean {
-  return blockCoordinates(key, false) !== null;
+function validEditKey(key: string, generator: GeneratorVersion = 'legacy'): boolean {
+  return blockCoordinates(key, false, generator) !== null;
 }
 
-function validFurnaceKey(key: string): boolean {
-  return blockCoordinates(key, true) !== null;
+function validFurnaceKey(key: string, generator: GeneratorVersion = 'legacy'): boolean {
+  return blockCoordinates(key, true, generator) !== null;
 }
 
-function validPortalKey(key: string): boolean {
+function validPortalKey(key: string, generator: GeneratorVersion = 'legacy'): boolean {
   // 新档以整座门的维度/朝向/锚点为键；旧档则以某个门内方块为键，读档时仍需兼容迁移。
   const canonical = /^portal:(overworld|nether):(x|z):(.+)$/.exec(key);
-  if (canonical) return blockCoordinates(canonical[3], false) !== null;
-  return (key.startsWith('overworld:') || key.startsWith('nether:')) && validFurnaceKey(key);
+  if (canonical) return blockCoordinates(`${canonical[1]}:${canonical[3]}`, true, generator) !== null;
+  return (key.startsWith('overworld:') || key.startsWith('nether:')) && validFurnaceKey(key, generator);
 }
 
 function isRegisteredBlock(id: unknown): id is number {
@@ -184,11 +189,11 @@ function sanitizeStack(value: unknown): SavedStack | null {
   return stack;
 }
 
-function sanitizeEdits(value: unknown): Record<string, number> {
+function sanitizeEdits(value: unknown, generator: GeneratorVersion = 'legacy'): Record<string, number> {
   const edits: Record<string, number> = {};
   if (!isRecord(value)) return edits;
   for (const [key, id] of Object.entries(value)) {
-    if (validEditKey(key) && isRegisteredBlock(id)) edits[key] = id;
+    if (validEditKey(key, generator) && isRegisteredBlock(id)) edits[key] = id;
   }
   return edits;
 }
@@ -241,11 +246,11 @@ function sanitizeTimer(value: unknown, max: number): number {
   return Number.isSafeInteger(value) && (value as number) >= 0 ? Math.min(value as number, max) : 0;
 }
 
-function sanitizeFurnaces(value: unknown): WorldSave['furnaces'] | undefined {
+function sanitizeFurnaces(value: unknown, generator: GeneratorVersion = 'legacy'): WorldSave['furnaces'] | undefined {
   if (!isRecord(value)) return undefined;
   const furnaces: Record<string, FurnaceState> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (!validFurnaceKey(key) || !isRecord(entry)) continue;
+    if (!validFurnaceKey(key, generator) || !isRecord(entry)) continue;
     const [input, inputN] = sanitizeFurnaceSlot(entry.input, entry.inputN);
     let [fuel, fuelN] = sanitizeFurnaceSlot(entry.fuel, entry.fuelN);
     const [output, outputN] = sanitizeFurnaceSlot(entry.output, entry.outputN);
@@ -401,12 +406,12 @@ function sanitizeArrowsByDimension(value: unknown): WorldSave['arrowsByDimension
   return result;
 }
 
-function sanitizePortalLinks(value: unknown): WorldSave['portalLinks'] | undefined {
+function sanitizePortalLinks(value: unknown, generator: GeneratorVersion = 'legacy'): WorldSave['portalLinks'] | undefined {
   if (!isRecord(value)) return undefined;
   const result: NonNullable<WorldSave['portalLinks']> = {};
   for (const [key, destination] of Object.entries(value)) {
     if (
-      validPortalKey(key) &&
+      validPortalKey(key, generator) &&
       Array.isArray(destination) &&
       destination.length === 3 &&
       validEntityCoordinates(destination[0], destination[1], destination[2])
@@ -432,7 +437,12 @@ function sanitizeWorld(value: unknown): WorldSave | null {
   )
     return null;
 
-  const world = { ...value, edits: sanitizeEdits(value.edits) } as unknown as WorldSave;
+  // Missing generator identifies legacy saves; never reinterpret their existing terrain.
+  if (value.generator !== undefined && value.generator !== 'legacy' && value.generator !== 'java26') return null;
+  if (value.generator === 'java26' && !isJavaSeed(value.seed64)) return null;
+  const generator = value.generator === 'java26' ? 'java26' : 'legacy';
+  const world = { ...value, edits: sanitizeEdits(value.edits, generator) } as unknown as WorldSave;
+  if (value.armor !== undefined) world.armor = serializeArmor(deserializeArmor(value.armor));
   if (value.gameMode !== 'survival' && value.gameMode !== 'creative') delete world.gameMode;
   if (value.currentDimension !== 'overworld' && value.currentDimension !== 'nether')
     delete world.currentDimension;
@@ -452,7 +462,7 @@ function sanitizeWorld(value: unknown): WorldSave | null {
   const mobs = sanitizeMobs(value.mobs);
   if (mobs) world.mobs = mobs;
   else delete world.mobs;
-  const furnaces = sanitizeFurnaces(value.furnaces);
+  const furnaces = sanitizeFurnaces(value.furnaces, generator);
   if (furnaces) world.furnaces = furnaces;
   else delete world.furnaces;
   const players = sanitizePlayerByDimension(value.playerByDimension);
@@ -467,7 +477,7 @@ function sanitizeWorld(value: unknown): WorldSave | null {
   const arrowsByDimension = sanitizeArrowsByDimension(value.arrowsByDimension);
   if (arrowsByDimension) world.arrowsByDimension = arrowsByDimension;
   else delete world.arrowsByDimension;
-  const portalLinks = sanitizePortalLinks(value.portalLinks);
+  const portalLinks = sanitizePortalLinks(value.portalLinks, generator);
   if (portalLinks) world.portalLinks = portalLinks;
   else delete world.portalLinks;
   return world;
@@ -539,13 +549,17 @@ export function parseSeed(input: string): number | null {
 // 新建一个世界并存盘。seed 省略=随机；gameMode 默认生存。
 export function createWorld(
   name: string,
-  seed?: number,
+  seed?: number | string,
   gameMode: GameMode = 'survival',
 ): WorldSave {
+  const modernSeed = String(seed ?? Math.floor(Math.random() * 2_000_000_000));
+  if (!isJavaSeed(modernSeed)) throw new Error('种子必须是有符号64位整数。');
   const w: WorldSave = {
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name: name.trim() || '新的世界',
-    seed: seed ?? Math.floor(Math.random() * 2_000_000_000),
+    seed: Number(BigInt(modernSeed) % 2_000_000_000n),
+    generator: 'java26',
+    seed64: modernSeed,
     gameMode,
     lastPlayed: Date.now(),
     edits: {},

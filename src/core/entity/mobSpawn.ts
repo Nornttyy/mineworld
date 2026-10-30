@@ -19,6 +19,7 @@ export function hostileKindFor(biome: Biome, roll: number): MobKind {
 
 // 自然生成规则（纯逻辑，靠只读世界视图，可单测）。
 export interface SpawnWorld {
+  minY?: number;
   getBlock(x: number, y: number, z: number): number;
 }
 
@@ -143,7 +144,7 @@ export function spawnHostileCave(
     const bx = Math.floor(cx + Math.cos(ang) * d);
     const bz = Math.floor(cz + Math.sin(ang) * d);
     const yTop = Math.min(Math.floor(cy) + 8, surfaceY(bx, bz) - DEPTH); // 不高于地表下 DEPTH(保证暗)
-    const yBot = Math.max(2, Math.floor(cy) - 14);
+    const yBot = Math.max((world.minY ?? 0) + 2, Math.floor(cy) - 14);
     for (let y = yTop; y >= yBot; y--) {
       if (!canSpawnHostileAt(world, bx, y, bz)) continue; // 脚下实心 + 头两格空(洞室)
       if (lightAt ? !allowsNaturalMonsterSpawn(lightAt(bx, y, bz)) : !isDarkEnoughForSpawn(world, bx, y, bz)) continue; // 有方块光或天空过亮则不刷

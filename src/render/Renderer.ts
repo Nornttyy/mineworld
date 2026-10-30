@@ -123,6 +123,7 @@ export class Renderer {
 
   // God-ray 后处理
   private rt: THREE.WebGLRenderTarget | null = null; // 场景颜色+深度 RT（全分辨率）
+  private seaSurfaceY = 116 + 8 / 9;
   private planarRefraction: PlanarRefraction | null = null; // 独立相机：只捕获水面以下的真实场景
   private waterRefractionSink: WaterRefractionSink | null = null;
   private planarReflection: PlanarReflection | null = null;
@@ -282,6 +283,18 @@ export class Renderer {
   }
 
   /** Skip both auxiliary water scene passes in dimensions that contain no water. */
+  setSeaLevel(level: number): void {
+    const planeY = level + 8 / 9;
+    if (planeY === this.seaSurfaceY) return;
+    this.seaSurfaceY = planeY;
+    this.planarRefraction?.dispose();
+    this.planarReflection?.dispose();
+    this.planarRefraction = null;
+    this.planarReflection = null;
+    this.publishRefractionTarget();
+    this.publishReflectionTarget();
+  }
+
   setWaterCapturesEnabled(enabled: boolean): void {
     if (enabled === this.waterCapturesEnabled) return;
     this.waterCapturesEnabled = enabled;
@@ -521,10 +534,10 @@ export class Renderer {
     const width = Math.max(1, Math.round(this.viewportW * pr));
     const height = Math.max(1, Math.round(this.viewportH * pr));
     if (this.planarRefraction === null) {
-      this.planarRefraction = new PlanarRefraction(width, height);
+      this.planarRefraction = new PlanarRefraction(width, height, { planeY: this.seaSurfaceY });
     }
     if (this.planarReflection === null) {
-      this.planarReflection = new PlanarReflection(width, height);
+      this.planarReflection = new PlanarReflection(width, height, { planeY: this.seaSurfaceY });
     }
   }
 

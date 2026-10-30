@@ -73,9 +73,10 @@ function findBaseY(
   dim: 'overworld' | 'nether',
   ax: number,
   az: number,
+  bounds = { minY: 0, maxY: WORLD_TOP + 1 },
 ): number | null {
   if (dim === 'overworld') {
-    for (let y = WORLD_TOP; y > 1; y--) {
+    for (let y = bounds.maxY - 5; y > bounds.minY + 1; y--) {
       if (isSolidId(get(ax, y, az)) && !isSolidId(get(ax, y + 1, az))) return y + 1; // 站地表上
     }
     return null;
@@ -111,8 +112,9 @@ export function buildDestinationPortal(
   dim: 'overworld' | 'nether',
   ax: number,
   az: number,
+  bounds = { minY: 0, maxY: WORLD_TOP + 1 },
 ): { edits: Array<[number, number, number, number]>; spawn: { x: number; y: number; z: number } } {
-  let baseY = findBaseY(get, dim, ax, az);
+  let baseY = findBaseY(get, dim, ax, az, bounds);
   let platform = false;
   if (baseY === null) {
     baseY = dim === 'nether' ? NETHER_LAVA_Y + 10 : 64; // 保底高度：自铺平台站

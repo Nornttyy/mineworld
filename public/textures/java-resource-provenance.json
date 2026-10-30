@@ -9,7 +9,8 @@
     "Inventory cubes projected from face textures",
     "Water frames tinted for current renderer",
     "Furnace atlas cells 46/47 hold official top/side; fallback atlas receives same furnace pixels",
-    "Furnace icon projects one front and one side from official face textures"
+    "Furnace icon projects one front and one side from official face textures",
+    "Modern terrain faces appended in atlas slots 48..87; both packs expanded to 4x22 without changing previous tile or block IDs."
   ],
   "known_limits": [
     "Biome tint is not yet sampled per biome",
@@ -420,6 +421,166 @@
     {
       "source": "textures/block/furnace_side.png",
       "sha1": "80b3d6acc83b52b91c31919e64ffb093ce5437b7"
+    },
+    {
+      "source": "textures/block/deepslate.png",
+      "sha1": "83e9586e4586f752ff90b44a35fe289bb8978aac"
+    },
+    {
+      "source": "textures/block/deepslate_top.png",
+      "sha1": "7518c424a2e9ce1c23f83db65109308e3275604c"
+    },
+    {
+      "source": "textures/block/cobbled_deepslate.png",
+      "sha1": "66baceb5cfa84c95dd148f6d723eb9e4fb217c62"
+    },
+    {
+      "source": "textures/block/tuff.png",
+      "sha1": "db8ff9c20a71e2e899a5d82719e69f22fcdf9540"
+    },
+    {
+      "source": "textures/block/calcite.png",
+      "sha1": "e06c2157edc2c62c6355bc36f50f44d8e1366e31"
+    },
+    {
+      "source": "textures/block/packed_ice.png",
+      "sha1": "4678b81a498cba4412fac7533ca579c6f14e827a"
+    },
+    {
+      "source": "textures/block/terracotta.png",
+      "sha1": "c55456d098e2c35b70f30d94865e7d7540060d13"
+    },
+    {
+      "source": "textures/block/white_terracotta.png",
+      "sha1": "d6b6007dbb5b2b269aa8406f91b02bba2fdc0dad"
+    },
+    {
+      "source": "textures/block/orange_terracotta.png",
+      "sha1": "4b5c3608a7a089e72fdc75208fb662739c0335be"
+    },
+    {
+      "source": "textures/block/magenta_terracotta.png",
+      "sha1": "43b1c6e5b41f116c6317152b8c2d746d0f5645c5"
+    },
+    {
+      "source": "textures/block/light_blue_terracotta.png",
+      "sha1": "4b4d5c4eee124e0d2a258b230a0ee7a311a8d56a"
+    },
+    {
+      "source": "textures/block/yellow_terracotta.png",
+      "sha1": "d9afe67875812436d5302d842434bde235083df8"
+    },
+    {
+      "source": "textures/block/lime_terracotta.png",
+      "sha1": "f4e019b0b10b71e62fa5fb1dcb439ff9344c76e6"
+    },
+    {
+      "source": "textures/block/pink_terracotta.png",
+      "sha1": "d800da8a5cd67bcadeaac9b3583b358b48068aaf"
+    },
+    {
+      "source": "textures/block/gray_terracotta.png",
+      "sha1": "9a16aa42f5cb45f4475d7559920b9aa93cba16af"
+    },
+    {
+      "source": "textures/block/light_gray_terracotta.png",
+      "sha1": "7f6689a955aa7d89c636a5bdc1a5af0160849197"
+    },
+    {
+      "source": "textures/block/cyan_terracotta.png",
+      "sha1": "08ec8562ee33040df04560216a9c544fb4993e39"
+    },
+    {
+      "source": "textures/block/purple_terracotta.png",
+      "sha1": "5b4d2651119fa70a1744d1712f4e4da0cf11aabb"
+    },
+    {
+      "source": "textures/block/blue_terracotta.png",
+      "sha1": "54521479a15749d48f0e2d3ae1fd41996cc6ab1f"
+    },
+    {
+      "source": "textures/block/brown_terracotta.png",
+      "sha1": "aa0d84c6c86b894740f90ee86794d224d6471ba6"
+    },
+    {
+      "source": "textures/block/green_terracotta.png",
+      "sha1": "d6dee9c2c6a89d19cc171a0dd99c870686b8bdfb"
+    },
+    {
+      "source": "textures/block/red_terracotta.png",
+      "sha1": "64f6c645353ea04ea082023efebcf95a14f301d9"
+    },
+    {
+      "source": "textures/block/black_terracotta.png",
+      "sha1": "531c1292204ef25122c437eec3df479519ab436a"
+    },
+    {
+      "source": "textures/block/coarse_dirt.png",
+      "sha1": "7f4450102f3a4ba0a0d07f8c4c8f3e10cb610e0e"
+    },
+    {
+      "source": "textures/block/podzol_top.png",
+      "sha1": "673919976e0365c13c7cd73ee729531199ad76bd"
+    },
+    {
+      "source": "textures/block/podzol_side.png",
+      "sha1": "057df1e739247541727d17abb84eab5fac58a466"
+    },
+    {
+      "source": "textures/block/mycelium_top.png",
+      "sha1": "c01209f0c4d9b266bb7285ce50d524968b506b5f"
+    },
+    {
+      "source": "textures/block/mycelium_side.png",
+      "sha1": "20123b6d068d826c588a9db46ee36d3d1a0d4511"
+    },
+    {
+      "source": "textures/block/mud.png",
+      "sha1": "04e62c669294546d13823b3aa8b5cfd1e746d498"
+    },
+    {
+      "source": "textures/block/red_sandstone.png",
+      "sha1": "6ef5a1dbf5bf11293c2706980344d8a68ba07d09"
+    },
+    {
+      "source": "textures/block/red_sandstone_top.png",
+      "sha1": "8a9c4735bff49bbf0aedef7682af76c91457b71e"
+    },
+    {
+      "source": "textures/block/red_sandstone_bottom.png",
+      "sha1": "a41efa148d0255613d3ce0fbd21b1051eba7e6d1"
+    },
+    {
+      "source": "textures/block/powder_snow.png",
+      "sha1": "aa555c61c3a589636592f0265502be493bb16a56"
+    },
+    {
+      "source": "textures/block/cinnabar.png",
+      "sha1": "79805112dde384eecdfa4e5ba14622015587e8e0"
+    },
+    {
+      "source": "textures/block/sulfur.png",
+      "sha1": "62e2f2a77ade3bd0f755eb93c7669a94d43cca39"
+    },
+    {
+      "source": "textures/block/gold_ore.png",
+      "sha1": "eec7412eadff8b5eccd84b6337d5b50cd43177a9"
+    },
+    {
+      "source": "textures/block/deepslate_coal_ore.png",
+      "sha1": "2b3f31ff3ef3902f0b75295aa877defdc76b37b6"
+    },
+    {
+      "source": "textures/block/deepslate_iron_ore.png",
+      "sha1": "e41245aaba4a02a6fb1313aa396e5ec71721124f"
+    },
+    {
+      "source": "textures/block/deepslate_gold_ore.png",
+      "sha1": "46a20bea6fcae5b96884f6d657679a7c7b4ee1b9"
+    },
+    {
+      "source": "textures/block/deepslate_diamond_ore.png",
+      "sha1": "8aa025b73906539726a96a2e6a0389fa3305206c"
     }
   ]
 }

@@ -9,7 +9,7 @@ export enum Face {
 }
 
 // atlas.png 的格子索引（与 tools/textures/gen_textures.py 的 ATLAS_ORDER 一致）
-// 4×12=48 槽: 0-17 基础, 18-25 下界, 26-36 群系/储存/钻石, 37-44 扩展方块
+// Existing slots 0..47 stay fixed; modern terrain materials append from slot 48.
 export const ATLAS_TILES = {
   stone: 0,
   dirt: 1,
@@ -63,6 +63,47 @@ export const ATLAS_TILES = {
   birch_leaves: 45,
   furnace_top: 46,
   furnace_side: 47,
+  deepslate: 48,
+  deepslate_top: 49,
+  cobbled_deepslate: 50,
+  tuff: 51,
+  calcite: 52,
+  packed_ice: 53,
+  terracotta: 54,
+  white_terracotta: 55,
+  orange_terracotta: 56,
+  magenta_terracotta: 57,
+  light_blue_terracotta: 58,
+  yellow_terracotta: 59,
+  lime_terracotta: 60,
+  pink_terracotta: 61,
+  gray_terracotta: 62,
+  light_gray_terracotta: 63,
+  cyan_terracotta: 64,
+  purple_terracotta: 65,
+  blue_terracotta: 66,
+  brown_terracotta: 67,
+  green_terracotta: 68,
+  red_terracotta: 69,
+  black_terracotta: 70,
+  coarse_dirt: 71,
+  podzol_top: 72,
+  podzol_side: 73,
+  mycelium_top: 74,
+  mycelium_side: 75,
+  mud: 76,
+  red_sandstone: 77,
+  red_sandstone_top: 78,
+  red_sandstone_bottom: 79,
+  powder_snow: 80,
+  cinnabar: 81,
+  sulfur: 82,
+  gold_ore: 83,
+  deepslate_coal_ore: 84,
+  deepslate_iron_ore: 85,
+  deepslate_gold_ore: 86,
+  deepslate_diamond_ore: 87,
+
 } as const;
 const T = ATLAS_TILES;
 
@@ -101,6 +142,8 @@ const column = (side: number, top: number, bottom: number): BlockDef['faces'] =>
 // 硬度/掉落取自 MC Java 真实值。手挖耗时 = 硬度 ×(needsTool?5:1.5) 秒（见 breakTimeMs）。
 // needsTool(石/圆石/矿)：手挖 ×5 且不掉落（要镐）。草→土、草方块/树叶手挖不掉(需精准采集/剪刀)。
 const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
+const RAW_IRON_ITEM = 319;
+const RAW_GOLD_ITEM = 320;
 const DIAMOND_ITEM = 296; // items.ts 的 DIAMOND；避免 blocks/items 双向依赖
 export const BLOCKS: BlockDef[] = [
   { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
@@ -196,7 +239,7 @@ export const BLOCKS: BlockDef[] = [
     transparent: false,
     faces: all(T.iron_ore),
     hardness: 3.0,
-    drop: 12,
+    drop: RAW_IRON_ITEM,
     needsTool: true,
     tool: 'pickaxe',
     minTier: 2, // 木镐挖不出来（慢且不掉），需石镐(tier≥2)
@@ -343,8 +386,83 @@ export const BLOCKS: BlockDef[] = [
     tool: 'axe',
   },
   { id: 44, name: 'birch_leaves', solid: true, transparent: true, faces: all(T.birch_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  // Modern terrain IDs append only; IDs 0..44 remain save-compatible.
+  { id: 45, name: 'deepslate', solid: true, transparent: false, faces: column(T.deepslate, T.deepslate_top, T.deepslate_top), hardness: 3, drop: 46, needsTool: true, tool: 'pickaxe' },
+  { id: 46, name: 'cobbled_deepslate', solid: true, transparent: false, faces: all(T.cobbled_deepslate), hardness: 3.5, drop: 46, needsTool: true, tool: 'pickaxe' },
+  { id: 47, name: 'tuff', solid: true, transparent: false, faces: all(T.tuff), hardness: 1.5, drop: 47, needsTool: true, tool: 'pickaxe' },
+  { id: 48, name: 'calcite', solid: true, transparent: false, faces: all(T.calcite), hardness: 0.75, drop: 48, needsTool: true, tool: 'pickaxe' },
+  { id: 49, name: 'snow_block', solid: true, transparent: false, faces: all(T.snow), hardness: 0.2, drop: null, needsTool: false, tool: 'shovel' },
+  { id: 50, name: 'packed_ice', solid: true, transparent: false, faces: all(T.packed_ice), hardness: 0.5, drop: null, needsTool: false, tool: 'pickaxe' },
+  { id: 51, name: 'terracotta', solid: true, transparent: false, faces: all(T.terracotta), hardness: 1.25, drop: 51, needsTool: true, tool: 'pickaxe' },
+  { id: 52, name: 'white_terracotta', solid: true, transparent: false, faces: all(T.white_terracotta), hardness: 1.25, drop: 52, needsTool: true, tool: 'pickaxe' },
+  { id: 53, name: 'orange_terracotta', solid: true, transparent: false, faces: all(T.orange_terracotta), hardness: 1.25, drop: 53, needsTool: true, tool: 'pickaxe' },
+  { id: 54, name: 'magenta_terracotta', solid: true, transparent: false, faces: all(T.magenta_terracotta), hardness: 1.25, drop: 54, needsTool: true, tool: 'pickaxe' },
+  { id: 55, name: 'light_blue_terracotta', solid: true, transparent: false, faces: all(T.light_blue_terracotta), hardness: 1.25, drop: 55, needsTool: true, tool: 'pickaxe' },
+  { id: 56, name: 'yellow_terracotta', solid: true, transparent: false, faces: all(T.yellow_terracotta), hardness: 1.25, drop: 56, needsTool: true, tool: 'pickaxe' },
+  { id: 57, name: 'lime_terracotta', solid: true, transparent: false, faces: all(T.lime_terracotta), hardness: 1.25, drop: 57, needsTool: true, tool: 'pickaxe' },
+  { id: 58, name: 'pink_terracotta', solid: true, transparent: false, faces: all(T.pink_terracotta), hardness: 1.25, drop: 58, needsTool: true, tool: 'pickaxe' },
+  { id: 59, name: 'gray_terracotta', solid: true, transparent: false, faces: all(T.gray_terracotta), hardness: 1.25, drop: 59, needsTool: true, tool: 'pickaxe' },
+  { id: 60, name: 'light_gray_terracotta', solid: true, transparent: false, faces: all(T.light_gray_terracotta), hardness: 1.25, drop: 60, needsTool: true, tool: 'pickaxe' },
+  { id: 61, name: 'cyan_terracotta', solid: true, transparent: false, faces: all(T.cyan_terracotta), hardness: 1.25, drop: 61, needsTool: true, tool: 'pickaxe' },
+  { id: 62, name: 'purple_terracotta', solid: true, transparent: false, faces: all(T.purple_terracotta), hardness: 1.25, drop: 62, needsTool: true, tool: 'pickaxe' },
+  { id: 63, name: 'blue_terracotta', solid: true, transparent: false, faces: all(T.blue_terracotta), hardness: 1.25, drop: 63, needsTool: true, tool: 'pickaxe' },
+  { id: 64, name: 'brown_terracotta', solid: true, transparent: false, faces: all(T.brown_terracotta), hardness: 1.25, drop: 64, needsTool: true, tool: 'pickaxe' },
+  { id: 65, name: 'green_terracotta', solid: true, transparent: false, faces: all(T.green_terracotta), hardness: 1.25, drop: 65, needsTool: true, tool: 'pickaxe' },
+  { id: 66, name: 'red_terracotta', solid: true, transparent: false, faces: all(T.red_terracotta), hardness: 1.25, drop: 66, needsTool: true, tool: 'pickaxe' },
+  { id: 67, name: 'black_terracotta', solid: true, transparent: false, faces: all(T.black_terracotta), hardness: 1.25, drop: 67, needsTool: true, tool: 'pickaxe' },
+  { id: 68, name: 'coarse_dirt', solid: true, transparent: false, faces: all(T.coarse_dirt), hardness: 0.5, drop: 68, needsTool: false, tool: 'shovel' },
+  { id: 69, name: 'podzol', solid: true, transparent: false, faces: column(T.podzol_side, T.podzol_top, T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
+  { id: 70, name: 'mycelium', solid: true, transparent: false, faces: column(T.mycelium_side, T.mycelium_top, T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
+  { id: 71, name: 'mud', solid: true, transparent: false, faces: all(T.mud), hardness: 0.5, drop: 71, needsTool: false, tool: 'shovel' },
+  { id: 72, name: 'red_sandstone', solid: true, transparent: false, faces: column(T.red_sandstone,T.red_sandstone_top,T.red_sandstone_bottom), hardness: 0.8, drop: 72, needsTool: true, tool: 'pickaxe' },
+  { id: 73, name: 'powder_snow', solid: true, transparent: false, faces: all(T.powder_snow), hardness: 0.25, drop: null, needsTool: false, tool: 'shovel' },
+  { id: 74, name: 'cinnabar', solid: true, transparent: false, faces: all(T.cinnabar), hardness: 1.5, drop: 74, needsTool: true, tool: 'pickaxe' },
+  { id: 75, name: 'sulfur', solid: true, transparent: false, faces: all(T.sulfur), hardness: 1.5, drop: 75, needsTool: true, tool: 'pickaxe' },
+  { id: 76, name: 'gold_ore', solid: true, transparent: false, faces: all(T.gold_ore), hardness: 3, drop: RAW_GOLD_ITEM, needsTool: true, tool: 'pickaxe', minTier: 3 },
+  { id: 77, name: 'deepslate_coal_ore', solid: true, transparent: false, faces: all(T.deepslate_coal_ore), hardness: 4.5, drop: COAL_ITEM, needsTool: true, tool: 'pickaxe', minTier: 1 },
+  { id: 78, name: 'deepslate_iron_ore', solid: true, transparent: false, faces: all(T.deepslate_iron_ore), hardness: 4.5, drop: RAW_IRON_ITEM, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 79, name: 'deepslate_gold_ore', solid: true, transparent: false, faces: all(T.deepslate_gold_ore), hardness: 4.5, drop: RAW_GOLD_ITEM, needsTool: true, tool: 'pickaxe', minTier: 3 },
+  { id: 80, name: 'deepslate_diamond_ore', solid: true, transparent: false, faces: all(T.deepslate_diamond_ore), hardness: 4.5, drop: DIAMOND_ITEM, needsTool: true, tool: 'pickaxe', minTier: 3 },
 ];
 
+export const DEEPSLATE = 45;
+export const COBBLED_DEEPSLATE = 46;
+export const TUFF = 47;
+export const CALCITE = 48;
+export const SNOW_BLOCK = 49;
+export const PACKED_ICE = 50;
+export const TERRACOTTA = 51;
+export const WHITE_TERRACOTTA = 52;
+export const ORANGE_TERRACOTTA = 53;
+export const MAGENTA_TERRACOTTA = 54;
+export const LIGHT_BLUE_TERRACOTTA = 55;
+export const YELLOW_TERRACOTTA = 56;
+export const LIME_TERRACOTTA = 57;
+export const PINK_TERRACOTTA = 58;
+export const GRAY_TERRACOTTA = 59;
+export const LIGHT_GRAY_TERRACOTTA = 60;
+export const CYAN_TERRACOTTA = 61;
+export const PURPLE_TERRACOTTA = 62;
+export const BLUE_TERRACOTTA = 63;
+export const BROWN_TERRACOTTA = 64;
+export const GREEN_TERRACOTTA = 65;
+export const RED_TERRACOTTA = 66;
+export const BLACK_TERRACOTTA = 67;
+export const COARSE_DIRT = 68;
+export const PODZOL = 69;
+export const MYCELIUM = 70;
+export const MUD = 71;
+export const RED_SANDSTONE = 72;
+export const POWDER_SNOW = 73;
+export const CINNABAR = 74;
+export const SULFUR = 75;
+export const GOLD_ORE = 76;
+export const DEEPSLATE_COAL_ORE = 77;
+export const DEEPSLATE_IRON_ORE = 78;
+export const DEEPSLATE_GOLD_ORE = 79;
+export const DEEPSLATE_DIAMOND_ORE = 80;
+
+export const STONE = 1;
 export const GRASS = 3;
 export const WATER = 9;
 export const OAK_LEAVES = 10;
@@ -450,4 +568,4 @@ export const blockDrop = (id: number): number | null => BLOCKS[id]?.drop ?? null
 export const blockTool = (id: number): 'pickaxe' | 'axe' | 'shovel' | null => BLOCKS[id]?.tool ?? null;
 export const isCactus = (id: number): boolean => id === CACTUS;
 // 方块滑度（水平移动摩擦用）：冰滑(同 MC 0.98)，其余普通 0.6。
-export const blockSlipperiness = (id: number): number => (id === ICE ? 0.98 : 0.6);
+export const blockSlipperiness = (id: number): number => (id === ICE || id === PACKED_ICE ? 0.98 : 0.6);

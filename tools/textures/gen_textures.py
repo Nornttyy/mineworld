@@ -310,7 +310,7 @@ def diamond_ore(rng):
 
 
 def official_furnace_face(name):
-    """Reuse committed official Java PNGs; never draw replacement furnace art."""
+    """Reuse committed official Java PNGs; never synthesize replacement block art."""
     with Image.open(os.path.join(OUT, name + ".png")) as image:
         return image.convert("RGBA")
 
@@ -1070,9 +1070,12 @@ def main():
         tex[name] = im
         print(f"wrote {name}.png")
 
-    # Pack block tiles into one atlas (4 cols × 12 rows, 16px each) for single-material rendering.
+    for nm in ['deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']:
+        tex[nm] = official_furnace_face(nm)
+
+    # Pack block tiles into one atlas (4 cols × 22 rows, 16px each) for single-material rendering.
     # 顺序必须与 src/core/blocks/registry.ts 的 tile 索引一致。
-    # 4×12=48 槽: 0-36 基础内容, 37-45 扩展建材/白桦林, 46/47 原版熔炉顶/侧
+    # 4×22=88 槽: 0..47 原有内容不改，48..87 现代地表材质
     # 改行数时务必同步 mesher.ts / DropRenderer.ts / FirstPersonHand.ts 的 ATLAS_ROWS，否则全方块 UV 错位。
     ATLAS_ORDER = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobblestone',
                    'sand', 'oak_log_top', 'oak_log_side', 'oak_planks', 'coal_ore', 'water',
@@ -1082,8 +1085,10 @@ def main():
                    'sandstone', 'cactus', 'ice', 'snow', 'spruce_log', 'spruce_leaves',
                    'coal_block', 'iron_block', 'quartz_block', 'diamond_ore', 'diamond_block',
                    'granite', 'diorite', 'andesite', 'bricks', 'mossy_cobblestone', 'red_sand',
-                   'birch_log_top', 'birch_log_side', 'birch_leaves', 'furnace_top', 'furnace_side']
-    ATLAS_COLS, ATLAS_ROWS = 4, 12  # 同步 mesher/DropRenderer/FirstPersonHand
+                   'birch_log_top', 'birch_log_side', 'birch_leaves', 'furnace_top', 'furnace_side',
+    'deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore'
+]
+    ATLAS_COLS, ATLAS_ROWS = 4, 22  # 同步 mesher/DropRenderer/FirstPersonHand
     atlas = Image.new('RGBA', (S * ATLAS_COLS, S * ATLAS_ROWS), (0, 0, 0, 0))
     for i, nm in enumerate(ATLAS_ORDER):
         if nm in tex:
@@ -1134,6 +1139,10 @@ def main():
         'bedrock': ('bedrock', 'bedrock'),
         'snow_layer': ('snow', 'snow'),
     }
+    for nm in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol', 'mycelium', 'mud', 'red_sandstone', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']:
+        top = {"deepslate":"deepslate_top", "snow_block":"snow", "podzol":"podzol_top", "mycelium":"mycelium_top", "red_sandstone":"red_sandstone_top"}.get(nm,nm)
+        side = {"snow_block":"snow", "podzol":"podzol_side", "mycelium":"mycelium_side"}.get(nm,nm)
+        ICON_FACES[nm] = (top,side)
     icons_dir = os.path.join(OUT, '..', 'icons')
     os.makedirs(icons_dir, exist_ok=True)
     for nm, (top, side) in ICON_FACES.items():

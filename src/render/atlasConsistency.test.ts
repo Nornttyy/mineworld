@@ -28,8 +28,8 @@ describe('atlas pack consistency', () => {
     expect(classic).toContain('grass_plant');
   });
 
-  it('all packs include extended 1.12 tiles and fit the 4×12 atlas', () => {
-    expect(cartoon.slice(37)).toEqual([
+  it('all packs include extended 1.12 tiles and keep their original slots', () => {
+    expect(cartoon.slice(37, 48)).toEqual([
       'granite',
       'diorite',
       'andesite',
@@ -50,7 +50,7 @@ describe('atlas pack consistency', () => {
     expect(ATLAS_TILES.furnace_side).toBe(47);
     expect(classic[ATLAS_TILES.furnace_top]).toBe('furnace_top');
     expect(cartoon[ATLAS_TILES.furnace_side]).toBe('furnace_side');
-    expect(classic.length).toBe(48);
+    expect(classic.length).toBe(88);
   });
 
   it('classic pack explicitly overrides every leaf species instead of borrowing vivid leaves', () => {
@@ -59,7 +59,7 @@ describe('atlas pack consistency', () => {
     }
   });
 
-  it('shader classifies the current 12-row atlas so cactus and snow cannot alias lava/portal', () => {
+  it('shader classifies the current atlas so cactus and snow cannot alias lava/portal', () => {
     const centerUv = (tile: number): [number, number] => {
       const column = tile % ATLAS_COLUMNS;
       const row = Math.floor(tile / ATLAS_COLUMNS);

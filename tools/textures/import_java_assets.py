@@ -59,12 +59,14 @@ layout.build_atlas(tiles).save(OUT / 'atlas_classic.png', optimize=True)
 
 # Both texture packs share block-face indices. Fill the last two formerly empty
 # slots (46/47) in the legacy fallback too; otherwise switching packs hides the
-# furnace's top/sides. Preserve every other fallback pixel and the 4x12 layout.
+# furnace's top/sides. Preserve existing tiles and append modern terrain faces.
 fallback_path = OUT / 'atlas.png'
 if fallback_path.exists():
     fallback = Image.open(fallback_path).convert('RGBA')
-    assert fallback.size == (64, 192)
-    for name in ['furnace_front', 'furnace_top', 'furnace_side']:
+    expanded = Image.new('RGBA', (64, 352), (0,0,0,0))
+    expanded.paste(fallback, (0,0))
+    fallback = expanded
+    for name in ['furnace_front', 'furnace_top', 'furnace_side'] + layout.MODERN_TILES:
         index = layout.ATLAS_ORDER.index(name)
         fallback.paste(tiles[name], ((index % 4) * 16, (index // 4) * 16))
     fallback.save(fallback_path, optimize=True)
@@ -77,6 +79,9 @@ for name, (top, side) in layout.ICON_FACES.items():
 legacy_icons = OUT / 'icons'
 legacy_icons.mkdir(exist_ok=True)
 layout.source.iso_icon(tiles['furnace_top'], tiles['furnace_side'], tiles['furnace_front']).save(legacy_icons / 'furnace.png')
+for name in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol', 'mycelium', 'mud', 'red_sandstone', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']:
+    top, side = layout.ICON_FACES[name]
+    layout.source.iso_icon(tiles[top], tiles[side], tiles[side]).save(legacy_icons / f'{name}.png')
 for name, original in [('grass_plant', 'short_grass'), ('tall_grass', 'tall_grass_top')]:
     tint(block(original), grass_tint).save(icons / f'{name}.png')
 

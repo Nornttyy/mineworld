@@ -8,7 +8,7 @@ import {
   type Inventory, type ItemStack,
 } from '../inventory/inventory';
 import {
-  COAL, IRON_INGOT, IRON_PICKAXE, STICK, STONE_PICKAXE, WOODEN_PICKAXE,
+  COAL, RAW_IRON, IRON_INGOT, IRON_PICKAXE, STICK, STONE_PICKAXE, WOODEN_PICKAXE,
   itemMaxStack, toolOf,
 } from '../items/items';
 import { availableRecipes } from './craft';
@@ -41,7 +41,7 @@ function mine(inv: Inventory, block: number, toolId?: number): void {
 }
 
 // The core progression uses only blocks/items already present in the world.
-// Java 1.12 iron ore drops its block, which is then smelted, not modern raw iron.
+// Java 26.3 iron ore drops raw iron, which is then smelted.
 // Official crafting/fuel references:
 // https://www.minecraft.net/en-us/article/how-craft
 // https://www.minecraft.net/pt-br/article/block-week-oak-wood (16 June 2017)
@@ -67,10 +67,10 @@ describe('survival startup progression', () => {
     mine(inv, COAL_ORE, STONE_PICKAXE);
     craft(inv, [[COAL, 0], [STICK, 0]], { id: TORCH, count: 4 });
     for (let i = 0; i < 3; i++) mine(inv, IRON_ORE, STONE_PICKAXE);
-    expect(removeItems(inv, IRON_ORE, 3)).toBe(3);
+    expect(removeItems(inv, RAW_IRON, 3)).toBe(3);
     expect(removeItems(inv, log, 2)).toBe(2);
     expect(fuelTicks(log)).toBe(300);
-    const furnace = { ...newFurnace(), input: IRON_ORE, inputN: 3, fuel: log, fuelN: 2 };
+    const furnace = { ...newFurnace(), input: RAW_IRON, inputN: 3, fuel: log, fuelN: 2 };
     for (let tick = 0; tick < COOK_TICKS * 3; tick++) tickFurnace(furnace);
     expect(furnace.output).toBe(IRON_INGOT);
     expect(furnace.outputN).toBe(3);

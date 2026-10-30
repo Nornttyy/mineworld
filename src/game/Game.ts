@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
-import { CHUNK_H, CHUNK_W, flByte } from '../core/world/chunk';
-import { columnHeight, SEA_LEVEL, generateChunk } from '../core/worldgen/terrain';
+import { CHUNK_W, flByte } from '../core/world/chunk';
+import { generateChunkForWorld, surfaceHeightForWorld } from '../core/worldgen/generator';
+import { modernBiomeAt } from '../core/worldgen/modernOverworld';
+import { worldBounds } from '../core/world/worldBounds';
+import { deserializeArmor, serializeArmor, armorStats, damageAfterArmor, wearArmor, bypassesArmor, type ArmorInventory, type ArmorDamageKind } from '../core/equipment/armor';
 import { worldToChunk, localCoord } from '../core/world/coords';
 import {
   isSolidId,
@@ -30,6 +33,8 @@ import {
   BEDROCK,
   SPRUCE_LOG,
   SPRUCE_LEAVES,
+  BIRCH_LOG,
+  BIRCH_LEAVES,
   WATER,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -156,7 +161,6 @@ import {
   isPointInWater,
   MAX_SEA_WAVE_DISPLACEMENT,
   probeSeaWave,
-  SEA_WATER_BASE_Y,
   type SeaSurfaceWorld,
   type SeaWaveProbe,
 } from './waterSurface';
@@ -206,7 +210,7 @@ const BOW_MIN_SPEED = 0.6; // 最弱射速（格/tick）
 const BOW_MAX_SPEED = 2.4; // 满蓄力射速（格/tick）
 const BOW_DAMAGE = 9; // 满蓄力伤害(1.12 满蓄力 9,暴击可到 10)
 // 骷髅箭速从 hostileAi 导入（与那边的下坠瞄准补偿同一值）
-const PLAYER_KNOCK_H = 0.42; // 玩家被攻击时的水平击退初速（格/tick，经 KB_DECAY 衰减约退 1 格）
+const PLAYER_KNOCK_H = 0.42; // 待下一刻合入惯性的水平冲量（格/tick），随后由地面/空中阻力衰减。
 const PLAYER_KNOCK_UP = 0.36; // 玩家被攻击时的上抛速度（格/tick，同怪物被击退手感）
 
 // 射线 vs 轴对齐盒（slab 法）：返回最近正向命中距离 t，未命中返回 null。
@@ -256,6 +260,9 @@ type LeafDecayEntry = { x: number; y: number; z: number; t: number };
 /** 装配各层 + 固定步长模拟 + 跟随玩家动态加载区块 + 挖掘/放置 + 生命/饥饿。从存档启动。 */
 export class Game {
   private readonly save: WorldSave;
+  private readonly armor: ArmorInventory;
+  private get generator() { return this.save.generator ?? 'legacy'; }
+  private get worldSeed(): number | string { return this.save.seed64 ?? this.save.seed; }
   private readonly renderer: Renderer;
   /** 在线房间只同步玩家位置和方块；空值代表普通单人世界。单人世界可在暂停时直接开放为房间。 */
   private multiplayer: MultiplayerSession | null;
@@ -321,7 +328,14 @@ export class Game {
   private readonly mobRenderer: MobRenderer;
   private readonly mobRng: () => number;
   private readonly spawnWorld: SpawnWorld; // 给生物生成用的只读世界视图
-  private readonly surfaceY = (x: number, z: number): number => columnHeight(x, z, this.save.seed);
+  private readonly surfaceY = (x: number, z: number): number => {
+    if (this.generator === 'java26' && this.dimension === 'overworld') {
+      const cx = worldToChunk(Math.floor(x)), cz = worldToChunk(Math.floor(z));
+      const heights = this.world.peek(cx, cz)?.surfaceHeights;
+      return heights ? heights[localCoord(Math.floor(x)) + localCoord(Math.floor(z)) * 16] : this.world.seaLevel;
+    }
+    return surfaceHeightForWorld(x, z, this.worldSeed, this.generator);
+  };
   private mobSpawnTick = 0; // 补刷计时
   private digging = false; // 是否按住左键挖掘
   private meleeTicks = 1000; // 按模拟刻恢复；暂停不蓄力，挥空和换物品也重置。
@@ -335,7 +349,7 @@ export class Game {
     overworld: new Set<string>(),
     nether: new Set<string>(),
   };
-  private wateredChunks = this.wateredChunksByDimension.overworld; // 已增量激活过「能流动的水」的区块，避免重复扫描
+  private wateredChunks = this.wateredChunksByDimension.overworld; // 旧世界用 cx,cz；现代深世界用 cx,cz,sectionY，避免地下被地表扫描误标为完成。
   private worldTime: number; // 昼夜更替：世界时间(刻)，每模拟刻 +1；24000 刻=20 分一整天
   // 与 ChunkMeshManager.animateWater 使用相同 dt，CPU 水线和 GPU 几何浪不会漂移。
   private waterWaveTime = 0;
@@ -393,12 +407,15 @@ export class Game {
     gameAudio.setVolume(settings.volume);
     setIconTexturePack(settings.texturePack);
     this.save = save;
+    this.armor = deserializeArmor(save.armor);
     this.waterSurfaceWorld = {
+      seaLevel: () => this.world.seaWaterY,
+      minY: () => this.world.minY,
       // world 会在切维度时替换；闭包必须始终读取当前实例。
       getBlock: (x, y, z) => this.world.getBlock(x, y, z),
       waterAmount: (x, y, z) => this.world.waterAmount(x, y, z),
       isWaterSource: (x, y, z) => this.world.isWaterSource(x, y, z),
-      generatedSurfaceY: (x, z) => columnHeight(x, z, this.save.seed),
+      generatedSurfaceY: (x, z) => this.surfaceY(x, z),
     };
     this.creative = save.gameMode === 'creative';
     this.renderer = new Renderer(canvas);
@@ -428,13 +445,13 @@ export class Game {
       document.getElementById('health') as HTMLElement,
       document.getElementById('hunger') as HTMLElement,
     );
-    this.statusBar.render(this.survival);
+    this.statusBar.render(this.survival, false, armorStats(this.armor).armor);
     this.worldTime = save.worldTime ?? DAY_START; // 昼夜：续存档时刻，新世界从清晨开始
 
     this.fluidGrid = {
       // 世界顶/底之外视作固体：水不会灌进虚空(否则到 y=0 会无限提议下落、永不收敛)
       // 注意：读 this.world（非捕获局部），切维度替换 world 后这些闭包自动指向新世界。
-      isSolid: (x, y, z) => y < 0 || y >= CHUNK_H || isSolidId(this.world.getBlock(x, y, z)),
+      isSolid: (x, y, z) => y < this.world.minY || y >= this.world.maxY || isSolidId(this.world.getBlock(x, y, z)),
       amount: (x, y, z) => this.world.waterAmount(x, y, z),
       isSource: (x, y, z) => this.world.isWaterSource(x, y, z),
       isFalling: (x, y, z) => this.world.isWaterFalling(x, y, z),
@@ -446,6 +463,7 @@ export class Game {
     this.dimension = resumeAfterDeath ? 'overworld' : save.currentDimension ?? 'overworld';
     this.save.currentDimension = this.dimension;
     this.buildDimension(this.dimension);
+    this.renderer.setSeaLevel(this.world.seaWaterY);
     for (const dim of ['overworld', 'nether'] as const) {
       for (const drop of save.dropsByDimension?.[dim] ?? [])
         this.dropsByDimension[dim].push({ ...drop });
@@ -478,7 +496,14 @@ export class Game {
     this.arrowRenderer = new ArrowRenderer(this.renderer.scene);
     this.mobRenderer = new MobRenderer(this.renderer.scene, this.texturePack);
     this.mobRng = makeRng((save.seed ^ 0x9e3779b9) >>> 0);
-    this.spawnWorld = { getBlock: (x, y, z) => this.world.getBlock(x, y, z) };
+    this.spawnWorld = { minY: this.world.minY, getBlock: (x, y, z) => {
+      if (this.generator === 'java26') {
+        // Unknown columns cannot be spawn spaces. Avoid synchronous terrain generation in AI ticks.
+        const chunk = this.world.peek(worldToChunk(x), worldToChunk(z));
+        return chunk ? chunk.get(localCoord(x), y, localCoord(z)) : BEDROCK;
+      }
+      return this.world.getBlock(x, y, z);
+    } };
     this.hand = new FirstPersonHand(atlas);
     this.hand.setLightingQuality(settings.lightingQuality);
     this.particleFx = new ParticleRenderer(this.renderer.scene);
@@ -486,6 +511,7 @@ export class Game {
     this.skyObjects.setLightingQuality(settings.lightingQuality); // 光影初值：开=柔和真实云、关=MC立体云
     this.skyObjects.setDimension(this.dimension); // 初始维度同步（默认 overworld，Task 9 接真实切换）
     this.invUI = new InventoryUI(document.getElementById('inventory') as HTMLElement);
+    this.invUI.setArmor(this.armor);
     this.furnaceUI = new FurnaceUI(document.getElementById('furnace') as HTMLElement);
     this.coordEl = document.createElement('div');
     this.coordEl.style.cssText =
@@ -867,13 +893,14 @@ export class Game {
    *   读写两侧都按 parseEditKey(key).dim === dim 过滤，确保下界改的块只在下界生效/恢复、不污染主世界。
    */
   private buildDimension(dim: 'overworld' | 'nether'): void {
+    const bounds = worldBounds(this.generator, dim);
     const editsByChunk = new Map<
       string,
       Map<string, { x: number; y: number; z: number; id: number }>
     >();
     for (const [key, id] of Object.entries(this.save.edits)) {
       const e = parseEditKey(key);
-      if (e.dim !== dim || e.y < 0 || e.y >= CHUNK_H || !BLOCKS[id]) continue;
+      if (e.dim !== dim || e.y < bounds.minY || e.y >= bounds.maxY || !BLOCKS[id]) continue;
       const chunkKey = `${worldToChunk(e.x)},${worldToChunk(e.z)}`;
       let chunkEdits = editsByChunk.get(chunkKey);
       if (!chunkEdits) {
@@ -889,7 +916,7 @@ export class Game {
     }
     this.activeEditsByChunk = editsByChunk;
     this.worldEpoch++;
-    this.world = new ChunkWorld(this.save.seed, dim);
+    this.world = new ChunkWorld(this.save.seed, dim, this.generator, this.save.seed64);
     // 驱逐后重生成时只遍历该区块的 delta，不再 O(全存档 edits) 扫描。
     this.world.editHook = (cx, cz, c): void => {
       for (const e of editsByChunk.get(`${cx},${cz}`)?.values() ?? []) {
@@ -935,6 +962,8 @@ export class Game {
     this.decayQueue = this.decayQueueByDimension[target];
     this.fluidSim.clear(); // 来源维度排队中的水更新绝不能落到目标维度同坐标。
     this.buildDimension(target);
+    this.renderer.setSeaLevel(this.world.seaWaterY);
+    this.spawnWorld.minY = this.world.minY;
     this.chunks.setWorld(this.world);
     this.chunks.setSunEnabled(target === 'overworld');
     this.renderer.setWaterCapturesEnabled(target === 'overworld');
@@ -968,6 +997,7 @@ export class Game {
       pitch: this.look.pitch,
     };
     this.save.inv = serializeInventory(this.inv);
+    this.save.armor = serializeArmor(this.armor);
     const sv = this.survival;
     this.save.survival = {
       health: sv.health,
@@ -998,7 +1028,30 @@ export class Game {
   }
 
   private findSpawn(seed: number): { x: number; y: number; z: number } {
-    const chunkCache = new Map<string, ReturnType<typeof generateChunk>>();
+    if (this.generator === 'java26') {
+      // Evaluate a bounded set of real generated columns. Never use the legacy 116 sea level
+      // or scan tens of thousands of candidate columns synchronously.
+      const bounds = worldBounds(this.generator);
+      let fallback = { x: 0.5, y: bounds.seaLevel + 2, z: 0.5 };
+      for (const [cx, cz] of [[0, 0], [-1, 0], [0, -1], [1, 0], [0, 1], [-2, 0], [0, -2], [2, 0], [0, 2]]) {
+        const chunk = this.world.dimension === 'overworld'
+          ? this.world.getChunk(cx, cz)
+          : generateChunkForWorld(cx, cz, this.worldSeed, 'overworld', this.generator);
+        for (let lx = 1; lx < 15; lx += 2) for (let lz = 1; lz < 15; lz += 2) {
+          for (let y = bounds.maxY - 3; y >= bounds.minY; y--) {
+            const ground = chunk.get(lx, y, lz);
+            if (!isSolidId(ground) || [OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES, OAK_LOG, SPRUCE_LOG, BIRCH_LOG].includes(ground)) continue;
+            if (chunk.get(lx, y + 1, lz) !== AIR || chunk.get(lx, y + 2, lz) !== AIR) break;
+            const pos = { x: cx * 16 + lx + 0.5, y: y + 1, z: cz * 16 + lz + 0.5 };
+            fallback = pos;
+            if (y >= bounds.seaLevel && ground !== ICE && ground !== BEDROCK) return pos;
+            break;
+          }
+        }
+      }
+      return fallback;
+    }
+    const chunkCache = new Map<string, ReturnType<typeof generateChunkForWorld>>();
     const blockAt = (x: number, y: number, z: number): number =>
       this.worldAt('overworld', x, y, z, chunkCache);
     for (let r = 1; r < 160; r++) {
@@ -1009,7 +1062,7 @@ export class Game {
           [-r, i],
           [r, i],
         ] as [number, number][]) {
-          const h = columnHeight(x, z, seed);
+          const h = surfaceHeightForWorld(x, z, seed, this.generator);
           // 该列须是海岸平地；玩家占的 2 格 + 周围 4 邻格头顶都得空(不被树干/邻树夹住)，否则出生卡树里看不到天
           const clear = (xx: number, zz: number): boolean =>
             blockAt(xx, h + 1, zz) === AIR && blockAt(xx, h + 2, zz) === AIR;
@@ -1019,8 +1072,8 @@ export class Game {
             blockAt(x, h - 1, z) !== AIR &&
             blockAt(x, h - 2, z) !== AIR;
           if (
-            h > SEA_LEVEL &&
-            h <= SEA_LEVEL + 4 &&
+            h > this.world.seaLevel &&
+            h <= this.world.seaLevel + 4 &&
             solidGround &&
             clear(x, z) &&
             clear(x + 1, z) &&
@@ -1032,11 +1085,11 @@ export class Game {
         }
       }
     }
-    return { x: 0.5, y: SEA_LEVEL + 3, z: 0.5 };
+    return { x: 0.5, y: this.world.seaLevel + 3, z: 0.5 };
   }
 
   // 加载阶段：请求出生周围区块(后台并行生成)并等全部就绪 + 网格化，避免进游戏后远处渐显。
-  async preloadSpawn(radius = 3, signal?: AbortSignal): Promise<void> {
+  async preloadSpawn(radius = 3, signal?: AbortSignal, onProgress?: (loaded: number, total: number) => void): Promise<void> {
     const epoch = this.worldEpoch;
     const world = this.world;
     const chunks = this.chunks;
@@ -1081,11 +1134,13 @@ export class Game {
           finish(false);
           return;
         }
-        let ready = true;
-        for (let dz = -radius; dz <= radius && ready; dz++)
-          for (let dx = -radius; dx <= radius && ready; dx++)
-            if (!world.peek(cx + dx, cz + dz)) ready = false;
-        if (ready) finish(true);
+        let loaded = 0;
+        const total = (radius * 2 + 1) ** 2;
+        for (let dz = -radius; dz <= radius; dz++)
+          for (let dx = -radius; dx <= radius; dx++)
+            if (world.peek(cx + dx, cz + dz)) loaded++;
+        onProgress?.(loaded, total);
+        if (loaded === total) finish(true);
         else timer = setTimeout(check, 30);
       };
       signal?.addEventListener('abort', onAbort, { once: true });
@@ -1103,7 +1158,16 @@ export class Game {
     const maxZ = (cz + radius + 1) * CHUNK_W - 1;
     const inPreloadArea = (x: number, z: number): boolean =>
       x >= minX && x <= maxX && z >= minZ && z <= maxZ;
-    activateFlowableWater(
+    if (world.minY < 0) {
+      // 现代世界只扫描玩家附近的三个 16 格 section；每帧最多九个 section，
+      // 与旧版三列×51层的预算接近，不在加载时同步遍历整列384层。
+      while (active()) {
+        const scanned = this.activateWaterSections(radius, 9, true);
+        if (scanned < 9) break;
+        if (!(await nextFrame())) return;
+      }
+      if (!active()) return;
+    } else activateFlowableWater(
       this.fluidSim,
       {
         isWater: (x, y, z) => inPreloadArea(x, z) && isWaterId(world.getBlock(x, y, z)),
@@ -1114,14 +1178,14 @@ export class Game {
         maxX,
         minZ,
         maxZ,
-        minY: Math.max(1, SEA_LEVEL - 48),
-        maxY: Math.min(CHUNK_H - 1, SEA_LEVEL + 2),
+        minY: Math.max(this.world.minY + 1, this.world.seaLevel - 48),
+        maxY: Math.min(this.world.maxY - 1, this.world.seaLevel + 2),
       },
     );
     // 预流动也只能访问已加载区域；把边界当实心，等相邻区块实际加载后探索期扫描会继续水流。
     const preloadGrid: FluidGrid = {
       isSolid: (x, y, z) =>
-        !inPreloadArea(x, z) || y < 0 || y >= CHUNK_H || isSolidId(world.getBlock(x, y, z)),
+        !inPreloadArea(x, z) || y < world.minY || y >= world.maxY || isSolidId(world.getBlock(x, y, z)),
       amount: (x, y, z) => (inPreloadArea(x, z) ? world.waterAmount(x, y, z) : 0),
       isSource: (x, y, z) => inPreloadArea(x, z) && world.isWaterSource(x, y, z),
       isFalling: (x, y, z) => inPreloadArea(x, z) && world.isWaterFalling(x, y, z),
@@ -1145,8 +1209,10 @@ export class Game {
     }
     if (!active()) return;
     // 出生区(±radius 区块)已激活+presettle，标记为已灌水，免得探索期增量灌水重复扫描这片
-    for (let dz = -radius; dz <= radius; dz++)
-      for (let dx = -radius; dx <= radius; dx++) wateredChunks.add(`${cx + dx},${cz + dz}`);
+    // 现代 section 已逐个标记；不能再标整列，否则下潜后不会激活新遇到的地下水。
+    if (world.minY >= 0)
+      for (let dz = -radius; dz <= radius; dz++)
+        for (let dx = -radius; dx <= radius; dx++) wateredChunks.add(`${cx + dx},${cz + dz}`);
     // 分摊网格化:loading 期间逐帧派发(后台 worker 算)+ 上屏(flushMesh)。等出生区基本铺完再进，
     // 否则进游戏后还在大面积上屏 → 头几秒卡。网格化全在 worker(不再同步出版)，这里只是等它铺完。
     const rounds = Math.ceil((radius * 2 + 1) ** 2 / 4) + 1;
@@ -1162,14 +1228,18 @@ export class Game {
 
   // 探索期增量灌水：玩家走到哪，就把附近新载入区块里「能流动的水」(海/湖边、洞穴破口的 front)激活，
   //   交给常驻水模拟流进相连的洞/坑——否则远离出生点的连通水永远是静止源头、不破方块就不流。
-  //   每区块只激活一次(wateredChunks 去重)；未载入的区块跳过且不标记，待其载入后下次再试。
+  //   旧世界按整列、现代深世界按 section 去重；未载入的区块跳过且不标记，待载入后再试。
   private activateNearbyWater(): void {
     const ACTIVATE_RADIUS = 4; // 区块；约 64 格，覆盖玩家近场
     const PER_TICK_CAP = 3; // 每次最多处理几个新区块，摊平移动跨界时的扫描开销
+    if (this.world.minY < 0) {
+      this.activateWaterSections(ACTIVATE_RADIUS, PER_TICK_CAP);
+      return;
+    }
     const pcx = worldToChunk(Math.floor(this.player.pos.x));
     const pcz = worldToChunk(Math.floor(this.player.pos.z));
-    const minY = Math.max(1, SEA_LEVEL - 48);
-    const maxY = Math.min(CHUNK_H - 1, SEA_LEVEL + 2);
+    const minY = Math.max(this.world.minY + 1, this.world.seaLevel - 48);
+    const maxY = Math.min(this.world.maxY - 1, this.world.seaLevel + 2);
     let done = 0;
     for (const key of chunksNeedingWater(pcx, pcz, ACTIVATE_RADIUS, this.wateredChunks)) {
       if (done >= PER_TICK_CAP) break;
@@ -1197,6 +1267,57 @@ export class Game {
       this.wateredChunks.add(key);
       done++;
     }
+  }
+
+  /** Activate only nearby vertical sections; returned count is the actual scan budget consumed. */
+  private activateWaterSections(radius: number, budget: number, preload = false): number {
+    const world = this.world;
+    const pcx = worldToChunk(Math.floor(this.player.pos.x));
+    const pcz = worldToChunk(Math.floor(this.player.pos.z));
+    const firstSection = Math.floor(world.minY / 16);
+    const lastSection = Math.floor((world.maxY - 1) / 16);
+    const playerSection = Math.max(firstSection, Math.min(lastSection, Math.floor(this.player.pos.y / 16)));
+    // 优先脚边，其次脚下、头顶；向下进入新 section 后会出现新的去重键。
+    const sections = [playerSection, playerSection - 1, playerSection + 1]
+      .filter((sy) => sy >= firstSection && sy <= lastSection);
+    const loadedAt = (x: number, z: number): boolean => {
+      const cx = worldToChunk(x), cz = worldToChunk(z);
+      if (preload && (Math.abs(cx - pcx) > radius || Math.abs(cz - pcz) > radius)) return false;
+      return world.peek(cx, cz) !== undefined;
+    };
+    let scanned = 0;
+    for (const key of chunksNeedingWater(pcx, pcz, radius, new Set<string>())) {
+      const [cx, cz] = key.split(',').map(Number);
+      if (!world.peek(cx, cz)) continue;
+      for (const sy of sections) {
+        const sectionKey = `${key},${sy}`;
+        if (this.wateredChunks.has(sectionKey)) continue;
+        if (scanned >= budget) return scanned;
+        // 探索时扫描一格邻边，使新邻区加载能重新激活旧区块边缘；预加载整片已就绪，无需重复邻边。
+        const halo = preload ? 0 : 1;
+        activateFlowableWater(this.fluidSim, {
+          isWater: (x, y, z) => loadedAt(x, z) && isWaterId(world.getBlock(x, y, z)),
+          isAir: (x, y, z) => loadedAt(x, z) && world.getBlock(x, y, z) === AIR,
+        }, {
+          minX: cx * CHUNK_W - halo,
+          maxX: (cx + 1) * CHUNK_W - 1 + halo,
+          minZ: cz * CHUNK_W - halo,
+          maxZ: (cz + 1) * CHUNK_W - 1 + halo,
+          minY: Math.max(world.minY, sy * 16),
+          maxY: Math.min(world.maxY - 1, sy * 16 + 15),
+        });
+        this.wateredChunks.add(sectionKey);
+        scanned++;
+      }
+    }
+    return scanned;
+  }
+
+  private forgetWaterActivation(chunkKey: string): void {
+    this.wateredChunks.delete(chunkKey);
+    if (this.world.minY < 0)
+      for (let sy = Math.floor(this.world.minY / 16); sy <= Math.floor((this.world.maxY - 1) / 16); sy++)
+        this.wateredChunks.delete(`${chunkKey},${sy}`);
   }
 
   start(): void {
@@ -1230,16 +1351,11 @@ export class Game {
           if (this.flyTapWindow > 0) this.flyTapWindow--;
           if (!this.creative) this.flying = false;
           // Java 1.12 生存模式食物值至少 7 才能疾跑；创造模式不受饥饿限制。
-          this.actualSprinting = m.sprint && (this.creative || canSprint(this.survival));
-          const jumpedFromGround =
-            jumped &&
-            this.player.onGround &&
-            !this.flying &&
-            !this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z);
-          const jumpGroundBlock = jumpedFromGround
+          this.actualSprinting = m.sprint && !this.eating && (this.creative || canSprint(this.survival));
+          const jumpGroundBlock = this.player.onGround
             ? this.world.getBlock(
                 Math.floor(this.player.pos.x),
-                Math.max(0, Math.floor(this.player.pos.y - 0.08)),
+                Math.floor(this.player.pos.y - 0.08),
                 Math.floor(this.player.pos.z),
               )
             : AIR;
@@ -1250,6 +1366,7 @@ export class Game {
               right: m.right,
               yaw: this.look.yaw,
               jump: jumped,
+              jumpHeld: m.jumpHeld,
               swimUp: m.jumpHeld,
               sprint: this.actualSprinting,
               crouch: this.flying ? false : m.crouch, // 下蹲：减速 + 不走下边缘 + 矮碰撞
@@ -1261,9 +1378,9 @@ export class Game {
             this.playerPhysWorld,
           );
           this.actualSprinting = this.actualSprinting && !this.player.crouching;
-          if (jumpedFromGround) gameAudio.jump(jumpGroundBlock);
+          if (this.player.didJumpFromGround) gameAudio.jump(jumpGroundBlock);
           this.publishMultiplayerState();
-          this.stepSurvival(this.actualSprinting, jumped);
+          this.stepSurvival(this.actualSprinting, !!this.player.didJumpFromGround);
         } else {
           // 容器界面只冻结按键：玩家仍会下落/受击退，创造飞行则继续悬停。
           this.player = step(
@@ -1273,6 +1390,7 @@ export class Game {
               right: 0,
               yaw: this.look.yaw,
               jump: false,
+              jumpHeld: false,
               swimUp: false,
               sprint: false,
               crouch: false,
@@ -1339,7 +1457,7 @@ export class Game {
         const playerChunkX = worldToChunk(Math.floor(this.player.pos.x));
         const playerChunkZ = worldToChunk(Math.floor(this.player.pos.z));
         for (const key of this.world.evictBeyond(playerChunkX, playerChunkZ, evictR))
-          this.wateredChunks.delete(key); // 走回后区块会重生，需重新激活其流水前沿。
+          this.forgetWaterActivation(key); // 走回后区块会重生，整列所有已扫描 section 都需重新激活。
       }
       // 水平视锥剔除：隐藏身后/两侧看不见的区块（整列网格包围球太大、three.js 内建剔除剔不掉）
       this.chunks.cullToView(
@@ -1365,7 +1483,7 @@ export class Game {
       }
       this.statusBar.render(this.survival, this.pointInWater(
         this.player.pos.x, this.player.pos.y + playerEyeHeight(this.player), this.player.pos.z,
-      )); // 水下即显示气泡；出水后继续显示到空气恢复满。
+      ), armorStats(this.armor).armor); // 水下即显示气泡；出水后继续显示到空气恢复满。
       this.updateAttackIndicator(playing);
       this.waterWaveTime += dt;
       this.chunks.animateWater(dt); // 水面流动动画
@@ -1407,7 +1525,14 @@ export class Game {
       // 第一人称手臂：手持当前选中方块、按移动速度晃动；吃东西时送嘴边抖动
       const held = this.inv[this.hotbar.index];
       this.hand.setHeld(held ? held.id : null);
-      this.hand.setEating(playing && this.eating);
+      this.hand.setEating(playing && this.eating, this.eatProgress, EAT_TIME);
+      this.hand.setMotionState({
+        x: this.renderer.camera.position.x, z: this.renderer.camera.position.z,
+        horizontalSpeed: playing ? Math.hypot(this.player.vel.x, this.player.vel.z) * 20 : 0,
+        onGround: playing && this.player.onGround,
+        swimming: this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z),
+        viewYaw: this.look.yaw, viewPitch: -this.look.pitch,
+      });
       this.hand.setBowCharge(playing && this.drawingBow ? this.bowCharge / BOW_MAX_CHARGE : null);
       const walk = Math.min(1, Math.hypot(this.player.vel.x, this.player.vel.z) / 0.22);
       this.hand.update(dt, playing ? walk : 0);
@@ -1430,7 +1555,7 @@ export class Game {
         underwater,
         groundBlock: this.world.getBlock(
           Math.floor(this.player.pos.x),
-          Math.max(0, Math.floor(this.player.pos.y - 0.08)),
+          Math.floor(this.player.pos.y - 0.08),
           Math.floor(this.player.pos.z),
         ),
         dimension: this.dimension,
@@ -1492,9 +1617,9 @@ export class Game {
     const by = Math.floor(y);
     if (
       wavesEnabled &&
-      (by === SEA_LEVEL || by === SEA_LEVEL + 1) &&
-      y >= SEA_WATER_BASE_Y - MAX_SEA_WAVE_DISPLACEMENT &&
-      y <= SEA_WATER_BASE_Y + MAX_SEA_WAVE_DISPLACEMENT
+      (by === this.world.seaWaterY || by === this.world.seaWaterY + 1) &&
+      y >= this.world.seaWaterY + 8 / 9 - MAX_SEA_WAVE_DISPLACEMENT &&
+      y <= this.world.seaWaterY + 8 / 9 + MAX_SEA_WAVE_DISPLACEMENT
     ) {
       const bx = Math.floor(x);
       const bz = Math.floor(z);
@@ -1565,7 +1690,7 @@ export class Game {
     const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
     this.fallDistance = fall.fallDistance;
     if (fall.damage > 0) {
-      this.hurtPlayer(fall.damage, 0, 0, true); // 走统一伤害管线(无敌帧/补差),环境伤害无击退
+      this.hurtPlayer(fall.damage, 0, 0, true, 'fall'); // 走统一伤害管线(无敌帧/补差),环境伤害无击退
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
     }
     // 仙人掌接触伤害(MC 1.12：贴住每 0.5s 掉 1 血，复用 hurtCd 无敌帧防多刻叠加)
@@ -1574,12 +1699,12 @@ export class Game {
         (x, y, z) => this.world.getBlock(x, y, z), playerHeight(this.player),
       )
     ) {
-      this.hurtPlayer(1, 0, 0, true);
+      this.hurtPlayer(1, 0, 0, true, 'cactus');
     }
     // 岩浆接触伤害(MC 1.12：4HP/0.5s，复用 hurtCd 无敌帧——每刻都调 hurtPlayer，被 hurtCd 自然节流为 0.5s 一次)
     const feetLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y), pz));
     const bodyLava = isLavaId(this.world.getBlock(px, Math.floor(this.player.pos.y + 0.9), pz));
-    if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0, true); // MC 1.12 岩浆 4HP/0.5s(无击退;窗口内会对仙人掌1点补差,不再被抢无敌帧)
+    if (feetLava || bodyLava) this.hurtPlayer(4, 0, 0, true, 'lava'); // MC 1.12 岩浆 4HP/0.5s(无击退;窗口内会对仙人掌1点补差,不再被抢无敌帧)
     // 氧气：头(眼睛)所在格是水才憋气；淹溺掉血也闪红
     const headInWater = this.pointInWater(
       this.player.pos.x,
@@ -1607,12 +1732,12 @@ export class Game {
   private hurtWindowMax = 0; // 本无敌帧窗口内已受的最高伤害(1.12:窗口内更高伤害要补差值)
   // 玩家被攻击：扣血 + 红屏/手抖 + 沿来源→玩家方向被击退（近战传攻击者坐标，箭传飞行方向）。
   // noKnock=环境伤害(仙人掌/岩浆/摔落/溺水,1.12 无击退——曾经的上抛反而帮玩家逃出岩浆)。
-  private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number, noKnock = false): void {
+  private hurtPlayer(damage: number, knockDirX: number, knockDirZ: number, noKnock = false, kind: ArmorDamageKind = 'melee'): void {
     if (this.creative) return; // 创造：免疫一切伤害（怪/箭/爆炸/仙人掌）
     if (this.hurtCd > 0) {
       // 1.12 hurtResistantTime 规则:窗口内新伤害更高 → 补打差额(修"仙人掌1点抢无敌帧,岩浆4点永不生效")
       if (damage > this.hurtWindowMax) {
-        applyDamage(this.survival, damage - this.hurtWindowMax);
+        this.applyArmoredDamage(damage - this.hurtWindowMax, kind);
         this.hurtWindowMax = damage;
         this.flashHurt();
         if (survivalIsDead(this.survival) && !this.dead) this.die();
@@ -1621,7 +1746,7 @@ export class Game {
     }
     this.hurtCd = 10; // 0.5s 无敌
     this.hurtWindowMax = damage;
-    applyDamage(this.survival, damage);
+    this.applyArmoredDamage(damage, kind);
     this.flashHurt();
     if (!noKnock) {
       const d = Math.hypot(knockDirX, knockDirZ) || 1;
@@ -1630,6 +1755,13 @@ export class Game {
       this.player.vel.y = PLAYER_KNOCK_UP; // 上抛（step 保留 vel.y）
     }
     if (survivalIsDead(this.survival) && !this.dead) this.die();
+  }
+
+  private applyArmoredDamage(raw: number, kind: ArmorDamageKind): void {
+    wearArmor(this.armor, raw, kind);
+    const damage = bypassesArmor(kind) ? raw : damageAfterArmor(raw, this.armor);
+    applyDamage(this.survival, damage);
+    this.invUI?.render();
   }
 
   private die(): void {
@@ -1648,6 +1780,11 @@ export class Game {
       if (s && s.count > 0)
         this.drops.push(spawnDrop(s.id, bx, by, bz, Math.random, s.count, s.dur));
       this.inv[i] = null;
+    }
+    for (let i = 0; i < this.armor.length; i++) {
+      const stack = this.armor[i];
+      if (stack) this.drops.push(spawnDrop(stack.id, bx, by, bz, Math.random, 1, stack.dur));
+      this.armor[i] = null;
     }
     this.hotbar.render(this.inv);
     this.dropRenderer.sync(this.drops, this.entityLight);
@@ -1712,7 +1849,7 @@ export class Game {
       // 原版死亡后回主世界出生点；不能只把坐标改掉却仍留在下界世界。
       this.switchDimension('overworld', s);
     }
-    this.statusBar.render(this.survival);
+    this.statusBar.render(this.survival, false, armorStats(this.armor).armor);
   }
 
   /** 短点/右键先操作明确瞄准到的可交互方块，避免拿食物时无法打开工作台。 */
@@ -1844,12 +1981,12 @@ export class Game {
   private openPlayerInventory(): void {
     this.craftingGrid = 2; // 复用容器打开状态；创造界面本身不生成 2×2 合成格。
     if (this.creative) this.invUI.showCreative(this.inv);
-    else this.invUI.show(this.inv, 2);
+    else this.invUI.show(this.inv, 2, this.armor);
     this.pausePlayControl();
   }
   private openCrafting(gridSize: number): void {
     this.craftingGrid = gridSize;
-    this.invUI.show(this.inv, gridSize);
+    this.invUI.show(this.inv, gridSize, this.armor);
     this.pausePlayControl();
   }
   private dropOverflow(stacks: readonly ItemStack[]): void {
@@ -2040,8 +2177,8 @@ export class Game {
       !Number.isInteger(edit.z) ||
       !Number.isInteger(edit.id) ||
       !BLOCKS[edit.id] ||
-      edit.y < 0 ||
-      edit.y >= CHUNK_H
+      edit.y < worldBounds(this.generator, edit.dimension).minY ||
+      edit.y >= worldBounds(this.generator, edit.dimension).maxY
     )
       return;
     this.recordEdit(edit.dimension, edit.x, edit.y, edit.z, edit.id);
@@ -2066,8 +2203,8 @@ export class Game {
         !Number.isInteger(edit.z) ||
         !Number.isInteger(edit.id) ||
         !BLOCKS[edit.id] ||
-        edit.y < 0 ||
-        edit.y >= CHUNK_H
+        edit.y < worldBounds(this.generator, edit.dimension).minY ||
+        edit.y >= worldBounds(this.generator, edit.dimension).maxY
       )
         continue;
       this.recordEdit(edit.dimension, edit.x, edit.y, edit.z, edit.id);
@@ -2103,18 +2240,19 @@ export class Game {
     x: number,
     y: number,
     z: number,
-    buildChunkCache?: Map<string, ReturnType<typeof generateChunk>>,
+    buildChunkCache?: Map<string, ReturnType<typeof generateChunkForWorld>>,
   ): number {
     if (dim === this.dimension) return this.world.getBlock(x, y, z);
     const e = this.save.edits[dimEditKey(dim, x, y, z)];
     if (e !== undefined) return e;
-    if (y < 0 || y >= CHUNK_H) return 0;
+    const bounds = worldBounds(this.generator, dim);
+    if (y < bounds.minY || y >= bounds.maxY) return 0;
     const cx = worldToChunk(x);
     const cz = worldToChunk(z);
     const cacheKey = `${dim}:${cx},${cz}`;
     let chunk = buildChunkCache?.get(cacheKey);
     if (!chunk) {
-      chunk = generateChunk(cx, cz, this.save.seed, dim);
+      chunk = generateChunkForWorld(cx, cz, this.worldSeed, dim, this.generator);
       buildChunkCache?.set(cacheKey, chunk);
     }
     return chunk.get(localCoord(x), y, localCoord(z));
@@ -2126,7 +2264,7 @@ export class Game {
     x: number,
     y: number,
     z: number,
-    buildChunkCache?: Map<string, ReturnType<typeof generateChunk>>,
+    buildChunkCache?: Map<string, ReturnType<typeof generateChunkForWorld>>,
   ): PortalFrame | null {
     const get = (bx: number, by: number, bz: number): number =>
       this.worldAt(dim, bx, by, bz, buildChunkCache);
@@ -2189,7 +2327,7 @@ export class Game {
       candidates.push({ ...edit, distance2 });
     }
     candidates.sort((a, b) => a.distance2 - b.distance2 || a.y - b.y);
-    const cache = new Map<string, ReturnType<typeof generateChunk>>();
+    const cache = new Map<string, ReturnType<typeof generateChunkForWorld>>();
     const checkedFrames = new Set<string>();
     for (const candidate of candidates) {
       const frame = this.activePortalFrameAt(dim, candidate.x, candidate.y, candidate.z, cache);
@@ -2243,7 +2381,7 @@ export class Game {
         candidates.push([key, links[key]]);
 
     let dest: [number, number, number] | undefined;
-    const validateCache = new Map<string, ReturnType<typeof generateChunk>>();
+    const validateCache = new Map<string, ReturnType<typeof generateChunkForWorld>>();
     for (const [key, candidate] of candidates) {
       if (Math.hypot(candidate[0] - tx, candidate[2] - tz) > 128) {
         // 同一座门可能曾在另一个遥远映射点被使用；超出原版搜索半径的旧链接不能优先于本次映射。
@@ -2275,12 +2413,13 @@ export class Game {
     let destinationEdits: Array<[number, number, number, number]> = [];
     if (!dest) {
       // Fix1: 每次 buildDestinationPortal 前创建本次专用缓存，确保同列 chunk 只 generateChunk 一次，用完即弃。
-      const buildChunkCache = new Map<string, ReturnType<typeof generateChunk>>();
+      const buildChunkCache = new Map<string, ReturnType<typeof generateChunkForWorld>>();
       const built = buildDestinationPortal(
         (x, y, z) => this.worldAt(target, x, y, z, buildChunkCache),
         target,
         tx,
         tz,
+        worldBounds(this.generator, target),
       );
       buildChunkCache.clear(); // 释放临时缓存，不跨次传送保留
       destinationEdits = built.edits;
@@ -2415,7 +2554,7 @@ export class Game {
     const ownsBatch = batchedEdits === undefined;
     const changes = batchedEdits ?? new Map<string, [number, number, number, number]>();
     let land = y;
-    while (land > 1 && !isSolidId(this.world.getBlock(x, land - 1, z))) land--;
+    while (land > (this.world.minY ?? 0) + 1 && !isSolidId(this.world.getBlock(x, land - 1, z))) land--;
     if (land === y) return false;
     const set = (bx: number, by: number, bz: number, id: number): void => {
       this.applyLocalEdit(bx, by, bz, id);
@@ -2734,7 +2873,10 @@ export class Game {
       let room = Math.min(HOSTILE_CAP - hostileTotal, MOB_CAP - this.mobs.length);
       if (hostileNear < HOSTILE_NEAR_TARGET && room > 0) {
         const rk = this.mobRng();
-        const biome = biomeAt(px, pz, this.save.seed);
+        const modernBiome = this.generator === 'java26' ? modernBiomeAt(px, pz, this.worldSeed, this.player.pos.y) : '';
+        const biome = this.generator !== 'java26' ? biomeAt(px, pz, this.save.seed)
+          : modernBiome === 'minecraft:desert' ? 'desert'
+          : modernBiome.includes('badlands') ? 'badlands' : 'plains';
         const kind: MobKind = hostileKindFor(biome, rk);
         // Modern Java separates block light (must be 0) from darkened sky light.
         const spawnLight = (x: number, y: number, z: number): { sky: number; block: number } => {
@@ -2849,7 +2991,7 @@ export class Game {
     this.particles.push(...spawnBurst(center.x, center.y + 0.4, center.z, [0.33, 0.33, 0.33], 30)); // 爆炸烟尘(灰)
     // 使用上方预先缓存的爆炸前暴露度结算伤害与击退。
     if (playerImpact.damage > 0)
-      this.hurtPlayer(playerImpact.damage, playerImpact.dx, playerImpact.dz);
+      this.hurtPlayer(playerImpact.damage, playerImpact.dx, playerImpact.dz, false, 'explosion');
     // 1.12 爆炸波及所有实体(曾只伤玩家：苦力怕炸不死旁边的僵尸/牛)
     for (const { mob, damage, dx, dz } of mobImpacts) {
       if (damage <= 0) continue;
@@ -2972,7 +3114,7 @@ export class Game {
         ) {
           // 中箭：扣血 + 闪红/抖手 + 沿箭飞行方向被击退
           gameAudio.arrowHit();
-          this.hurtPlayer(a.damage, a.vx, a.vz);
+          this.hurtPlayer(a.damage, a.vx, a.vz, false, 'projectile');
           consumed = true;
         }
       }

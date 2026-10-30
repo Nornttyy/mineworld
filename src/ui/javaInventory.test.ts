@@ -60,6 +60,8 @@ describe('Java container presentation keeps existing inventory state safe', () =
       cursorEl: element(),
       cursor: null,
       outCell: cell(),
+      armorCells: [],
+      armor: [null, null, null, null],
       mainCells: Array.from({ length: 27 }, cell),
       hotbarCells: Array.from({ length: 9 }, cell),
       creativeCells: [],

@@ -341,6 +341,7 @@ describe('Game high-risk regressions', () => {
     globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
     try {
       const world = {
+        minY: 0, maxY: 192, height: 192, seaLevel: 116,
         request: (cx: number, cz: number) => requested.push([cx, cz]),
         peek: () => ({}),
         getBlock: (x: number, _y: number, z: number) => {

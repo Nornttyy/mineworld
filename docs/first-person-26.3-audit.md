@@ -1,61 +1,63 @@
-# 第一人称手持与渲染核对：Java 26.3
+# 第一人称动作核对：Java 26.3
 
-目标为用户指定的当前正式 Java 版 **26.3**，不采用 26.4 快照。本记录的核对日期为 2026-10-30；历史 1.12 参考不再作为当前版本完成度的依据。
+目标为用户指定的正式 Java **26.3**，不采用 26.4 快照。核对日期 2026-10-30。本轮直接读取正式客户端资源与具名 class 方法指令，已不再用历史 1.12 源码证明最新版动作。
 
-## 官方资源证据
+## 来源与核对范围
 
-已读取 [Mojang 版本索引](https://piston-meta.mojang.com/mc/game/version_manifest_v2.json) 和 [26.3 版本元数据](https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json)，从元数据给出的官方地址下载客户端到临时目录，并核对 SHA-1 为 `e877b6a07acd633fb3bb475002175cec036e7b87`。客户端本身不进入本项目，也没有运行或发布客户端。
+[Mojang 版本索引](https://piston-meta.mojang.com/mc/game/version_manifest_v2.json) 与 [26.3 元数据](https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json) 给出的正式客户端 SHA-1 为 `e877b6a07acd633fb3bb475002175cec036e7b87`，本地文件再次核对一致。`first-person-26.3-evidence.json` 记录已核对 class/资源的 SHA-256 和方法名。临时 class 指令输出不随游戏发布；项目独立编写 Three.js 矩阵与几何实现。
 
-直接读取该客户端的资源 JSON，得到以下 `display.firstperson_righthand`：
+| 官方方法/资源 | 核实内容 |
+|---|---|
+| `FirstPersonHandsAndItemsRenderer.applyItemArmTransform` | 持物锚点 `[0.56,-0.52,-0.72]`，下放量 `-0.6 × unequipped` |
+| 同类 `swingArm` / `applyItemArmAttackTransform` | 持物平移 `-0.4sin(√tπ), 0.2sin(2√tπ), -0.2sin(tπ)`，Y→Z→X→Y 旋转，主劈砍最大 80° |
+| 同类 `renderPlayerArm` | 空手独立平移系数 `-0.3,0.4,-0.4` 和 70° 扫臂，不复用持物劈砍；完整固定变换链 |
+| `AvatarRenderer.renderHand`、`HumanoidModel.createMesh` | 宽右臂 pivot `[-5,2,0]/16`，局部 `zRot=0.1` 弧度；4×12×4 模型及纹理坐标 |
+| `applyEatTransform`、`ItemUseAnimation` | 剩余时间比的 27 次方靠近，剩余低于 80% 后 `abs(cos(remaining/4×π)×0.1)` 啃咬；吃东西旋转先于持物锚点 |
+| `submitArmWithItem` 的 BOW 分支 | 固定角度 `[-13.935°,35.3°,-9.785°]`；`min(1,(t²+2t)/3)` 拉力；Z 向推进 0.04、伸展 0.2；拉力超过 0.1 即有小幅张力运动 |
+| `assets/minecraft/items/bow.json` | `use_duration` 比例 0.05，换帧阈值 **0.65 / 0.9**，不是旧实现的 0.34 / 0.68 |
+| `FirstPersonHandsAndItems.tick`、`Player.getItemSwapScale` | 每刻最多改变 0.4，低于 0.1 才换可见物品；同物品恢复目标为 swap scale 的三次方 |
+| `Player.tick` / `onAttack` | 26.3 分开保存 `itemSwapTicker` 和 `attackStrengthTicker`；普通攻击只重置后者，不能让每次挥击都重新下放 |
+| `SwingAnimation.DEFAULT` | 默认 WHACK 为 6 刻，即 0.3 秒；不是凭旧版经验保留该数值 |
+| `LocalPlayer.move`、`AbstractClientPlayer.updateBob`、`ClientAvatarState.updateBob` | 步行距离增量为实际水平位移 ×0.6；贴地非游泳时 bob 目标 `min(0.1,水平格/刻)`，每刻向目标靠近 0.4 |
+| `GameRenderer.bobView` / `LocalPlayer.applyInput` / `submitHandsWithItems` | 行走位移及 Z→X 旋转；转向平滑每刻 0.5，手部追加当前视角与平滑值差的 0.1 |
+| `GameRenderer.bobHurt`、`LivingEntity.animateHurt` | 默认受击 10 刻，方向旋转后的单次 `-14° sin(remainingRatio⁴ π)` 倾斜，不是高频随机抖动 |
 
-| 资源路径（相对 `assets/minecraft/models/`） | rotation（度） | translation（模型像素） | scale |
+## 资源显示变换与皮肤
+
+直接读取 `assets/minecraft/models/` 下的 `display.firstperson_righthand`：
+
+| 模型 | rotation（度） | translation（模型像素） | scale |
 |---|---|---|---|
-| `item/generated.json` | `[0, -90, 25]` | `[1.13, 3.2, 1.13]` | `[0.68, 0.68, 0.68]` |
-| `item/handheld.json` | `[0, -90, 25]` | `[1.13, 3.2, 1.13]` | `[0.68, 0.68, 0.68]` |
-| `item/bow.json` | `[0, -90, 25]` | `[1.13, 3.2, 1.13]` | `[0.68, 0.68, 0.68]` |
-| `block/block.json` | `[0, 45, 0]` | `[0, 0, 0]` | `[0.4, 0.4, 0.4]` |
+| `item/generated.json` / `item/handheld.json` / `item/bow.json` | `[0,-90,25]` | `[1.13,3.2,1.13]` | `[0.68,0.68,0.68]` |
+| `block/block.json` | `[0,45,0]` | `[0,0,0]` | `[0.4,0.4,0.4]` |
 
-本项目物品几何中心已位于原点，资源模型平移按 `/16` 转成世界单位。普通物品、工具和弓不再按“食物小、剑大”任意缩放；实际纹理的不透明轮廓决定可见大小。模型显示变换与玩家手部根变换是两层关系，不能将原版 JSON 再叠到旧的斜手臂姿态上。
+物品几何中心在原点，平移按 `/16` 换算。显示变换是手部根变换的子层；不再额外套旧空手斜姿。`heldItemGeometry.ts` 保留原版图标透明轮廓、正反面和暴露像素侧壁（包含孔洞），完整图标厚度为宽度的 1/16。异步加载只更新仍在显示的对应物品。
 
-空手贴图 `public/textures/player/steve.png` 与官方客户端的 `assets/minecraft/textures/entity/player/wide/steve.png` 字节一致：64×64，SHA-256 为 `06628f9cef88520da742ab280a01677ce17c99717f964ed89ed791673121094c`。模型用标准右臂 4×12×4 像素，UV 原点 `(40,16)`；外层袖子 UV 原点 `(40,32)`，每侧扩张 0.25 模型像素。贴图版权归原权利人，公开下载不改变版权；项目整体素材说明由资源清单另行记录。
+`public/textures/player/steve.png` 与官方 `assets/minecraft/textures/entity/player/wide/steve.png` 字节相同，64×64，SHA-256 `06628f9cef88520da742ab280a01677ce17c99717f964ed89ed791673121094c`。右臂 UV 原点 `(40,16)`、外袖 `(40,32)`，外袖每侧扩张 0.25 模型像素。本轮把侧面 UV 和完整右臂姿态一起从 Java Y-down/Z-back 坐标转换；移除此前仅为翻正肩腕的临时 180° 斜姿。相机射线确认画面前端可见的是肤色腕侧，肩袖退到画面右下方。纹理版权与来源保留在项目资源声明中。
 
-## 本轮实际修正
+## 实际接入
 
-- `FirstPersonHand.ts` 将原有挥击姿态中的四段旋转全部用于实际模型，顺序为 **Y→Z→X→Y**。旧实现丢弃两段 Y 旋转，并把 Z 数值施加到 Y 轴，现已修正；用独立矩阵乘积验证三个坐标轴结果。
-- 持物使用独立的相机局部根位置和资源显示变换，去除旧空手斜姿的重复旋转；方块采用 0.4 比例和 45° 偏航，物品采用上述官方 0.68 比例和显示姿态。正常持物不额外显示肤色代理手臂；空手显示实际 Steve 右臂和袖子。
-- 空手右臂单独翻正局部朝向：皮肤的 `-Y` 拳端伸向画面内的左上端，`+Y` 肩部和袖子退向画面右下方，修复肩部朝前、肤色手落在屏幕外的问题。持物根与挥击旋转链保持不变；投影和相机射线检查实际可见拳端，而非只检查贴图 UV 范围。
-- `heldItemGeometry.ts` 根据当前纹理透明度制作正反面及每条暴露像素边的侧壁，包括图标内部孔洞；相邻不透明像素之间不生成内部侧壁。厚度为完整图标宽度的 1/16，侧壁采样不透明像素中心，保留最近邻硬边。几何生成器为本项目编写，不是原作生成器源码。
-- 纹理异步加载完成后补齐轮廓侧壁；旧物品迟到的加载回调不能改写当前模型。弓变换贴图帧时也重建当前轮廓。
-- 换持物时保留旧模型下放，到低位才替换为最新选择，再抬起；逐帧重复 `setHeld` 不重启动作，快速滚轮只切到最后的目标。换材质包或光照档不丢失等待切换的物品。
-- 持续挥击保留跨帧余量，避免高低帧率下每次挥击都丢掉末尾时间。
+- `firstPersonMotion.ts` 集中实现已核实的持物、空手、进食、拉弓、行走、转向与受击变换。
+- `FirstPersonHand` 根据当前动作选择独立分支：使用食物或拉弓时不再叠加普通攻击。弓的非均匀缩放与后续旋转保留完整矩阵，避免分解重组 TRS 丢失剪切。
+- `setEating(active, elapsedSeconds?, durationSeconds=1.6)` 接受游戏真实进度，连续吃下一份时可以归零，不再无限延续旧抖动计时。
+- `setMotionState({x,z,horizontalSpeed,onGround,swimming?,viewYaw,viewPitch})` 接受已插值位置、格/秒速度和弧度视角；本项目 `look.pitch` 向上为正，接入时取负号。`Game` 负责实际状态与暂停判断。
+- 装备恢复按物品攻速推进独立换物计时；快速滚轮以最新选择为准，普通挥击不重置它。当前 API 只识别物品 ID，未覆盖同 ID 不同组件的原版替换策略。
+- `hurtShake(direction=0,durationSeconds=0.5)` 使用核实的受击曲线；现有无参调用使用默认方向。
 
-## 尚未核实的边界
+## 验证与边界
 
-资源显示角度、比例与纹理是本轮直接核实的项目；**不是整个第一人称渲染已经一比一完成**。相机局部持物根 `[0.56,-0.52,-0.72]`、空手根与腕部姿态仍需与 26.3 相同 FOV 的实际画面校准。手臂虽使用标准像素比例和皮肤，但没有导入原版完整玩家模型或动画。
+`npm test -- src/render/firstPersonHand.test.ts src/render/firstPersonMotion.test.ts`：**33 项通过**。包含完整空手矩阵检查点、可见肤色区域射线、实际持物四元数、弓阈值/拉力/伸展矩阵与松手复位、进食与攻击互斥、连续进食重启、按武器攻速恢复、步行/转向每刻系数及 30/60/120 FPS 一致性、像素侧壁和异步纹理保护。
 
-现有挥击曲线、0.3 秒周期、走路晃动、吃东西和拉弓身体变换没有进行 26.3 连续帧测量。装备进度速度采用历史 Java 的每刻最大 0.4、切换阈值 0.1，改为渲染时间插值；该历史数值可见 [Forge 官方 1.12 ItemRenderer 补丁上下文](https://github.com/MinecraftForge/MinecraftForge/blob/1.12.x/patches/minecraft/net/minecraft/client/renderer/ItemRenderer.java.patch)，**不能据此声称已经核实 26.3 运行时装备算法**。本轮只验证了资源模型，没有把历史实现冒充最新版实测。
+**这不是整个第一人称系统已一比一完成。** 原版逻辑按 20 Hz 状态和 partial tick 插值，当前手部桥接层按渲染时间执行：bob 用分数刻指数平滑，步行相位采用已插值位置，装备上下放按渲染时间限速。它们在整刻常量上吻合，但没有声称复现原版 `getBackwardsInterpolatedWalkDistance` 的外推时序。持续挖掘/挥击事件仍沿现有游戏调用方式，未完整移植 `SwingState.startIfAble` 重启规则、急迫/挖掘疲劳和特殊 STAB 动作。
 
-一张贴图不能提供攻击接触帧、握持根变换或相机摆动的证据。后续应以正式 26.3、固定 FOV、同一纹理包、静止/走路/挖掘/切槽的连续画面，对齐根坐标和帧时序。
+未覆盖左手/双持、地图、盾牌、弩、三叉戟、望远镜、刷子、矛、奔游、爬行、鞘翅、死亡倾斜或全部状态优先级。受击目前只作用手部覆盖层，尚未把方向和同一矩阵同步到世界相机；转向/步行输入是否完整以 `Game` 接线为准。模型灯光和相机 FOV 状态也尚未逐帧比对原版。
 
-## 自动验证与人工验证边界
-
-`npm test -- src/render/firstPersonHand.test.ts`：24 项通过，包含官方资源显示参数、实际四元数链、30/60/120 FPS 挥击余量、低位切换及快速改选、像素侧壁/孔洞/法线/UV、异步加载保护、右臂和袖子 UV、空手拳端的投影位置与相机射线命中、材质与水下染色一致性。新增空间测试在修复前失败、修复后通过。`npm run typecheck` 通过。
-
-这些测试证明几何、状态和坐标实现约束。此子任务没有操作用户正在玩的浏览器，也没有完成同视角的原版实机截图比较；最终浏览器视觉验收由主任务执行。
+本子任务没有控制浏览器、没有 build 或部署；最终视觉验收需要相同 FOV、纹理包、动作阶段的正式 26.3 实机对照。类型检查结果随并行任务收尾单独报告，不能把其他模块仍在编辑时的错误当成动作通过凭据。
 
 ## 个人背包角色预览
 
-`ui/PlayerPreview.ts` 用同一张官方 Steve 皮肤替换个人生存背包的空黑窗。完整宽臂玩家模型包含头、身体、左右手腿，以及帽层、外套、袖子和裤层；尺寸、左右肢体各自的 UV 区域与 26.3 `HumanoidModel.createMesh` / `PlayerModel.createMesh` 的宽臂分支常量核对。模型为本项目重建，预览光照、正交相机和鼠标跟随角度属于适配，未声称与原版界面的每一帧一致。
+此前接入的 `ui/PlayerPreview.ts` 使用同一张官方 Steve 皮肤，宽臂模型包含六个基础部位和六个外层；尺寸及各自 UV 已与 `HumanoidModel` / `PlayerModel` 核对。51×72 逻辑像素随背包 GUI 比例显示，鼠标可轻转身与头。首次打开才分配 WebGL context，关闭停止事件与绘制，重复打开复用；`disposePlayerPreview()` 释放资源。预览光照、相机和鼠标角度仍是本项目适配，后续护甲接入由装备模块单独审计。
 
-预览为 51×72 逻辑像素，随背包 GUI 比例绘制，不增加边框；只在个人生存背包显示，工作台、创造目录和关闭状态不绘制。第一次打开才建立一个 WebGL context，之后复用；加载贴图、鼠标移动和窗口缩放触发合并的单次绘制，没有常驻 RAF 循环。`disposePlayerPreview()` 可在应用销毁时释放几何、贴图、材质与 context；现有退出流程是整页重新加载。
+## 世界渲染边界
 
-`PlayerPreview.test.ts` 的 5 项测试检查 12 个模型部件、各部位相机射线命中的 UV、脸部方向、GUI 缩放、鼠标转头、关闭后不再调度、重复打开只建立一个 context 以及显式销毁。背包/合成关闭测试一并通过；装备槽继续保持尚未实现的状态，预览不产生虚构的装备属性。
-
-## 世界渲染审查：供主任务执行
-
-以下为当前源代码可以直接确认的差距与改动入口，不在本子任务内修改：
-
-1. **先建立原版默认渲染基线。** `core/settings.ts` 仍默认 `lightingQuality: 'standard'`；`SkyObjects.ts#setLightingQuality` 在该档主动把方块日/月与体素云切成解析天体和体积云，`Renderer.ts` 同时启用 Bloom、God rays、SSAO。应将原版基线与这些自制光影明确分开；已有 `off` 路径可关闭这些替代效果，保留光影档作为可选项。
-2. **默认水面需要单独对齐原版素材/动画。** `ChunkMeshManager.ts` 的光影档使用自制波动、反射/折射、Beer–Lambert 吸收和 GGX 高光，无法因使用原版方块贴图就宣称是原版水。先用现有关闭光影路径核对原版逐帧水纹、透明度、着色和岸线，再独立验收可选光影。
-3. **关光影仍不代表天空完全一致。** `Renderer.ts` 始终存在自编大气穹顶、天空色和雾；应按官方太阳/月亮/云资源建立同时间、同方向截图基准。官方 26.3 `shaders/core/clouds.fsh` 使用顶点颜色与距离雾，本项目的体积云密度积分不应被当作同一实现。
-4. **人物/物品接入原版资源后保持一致的色彩路径。** HUD 为 sRGB 图片，手持原版纹理使用最近邻+sRGB；世界照明会再染色。应在关闭自制光影的基线下比较同种石头/草/木材的世界、手持、物品栏三者，避免一端已经替换资源、另一端仍留自制调色而产生明显断层。
+默认设置已为 `lightingQuality: 'off'`，建立原版风格基线。可选光影档仍包含项目自制 Bloom、SSAO、God rays、体积云和水面反射/折射；使用原版材质不等于这些算法与原版一致。关闭光影后的天空色、距离雾、世界与手部亮度关系仍需要同时间、同视角对照。

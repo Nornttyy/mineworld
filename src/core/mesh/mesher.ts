@@ -363,7 +363,10 @@ export function meshChunkData(
   cz: number,
   getBlock: (wx: number, wy: number, wz: number) => number,
   waterAmount: (wx: number, wy: number, wz: number) => number,
+  minY = 0,
+  height = CHUNK_H,
 ): ChunkMesh {
+  const maxY = minY + height;
   const ox = cx * CHUNK_W;
   const oz = cz * CHUNK_W;
   const op = emptyArrays();
@@ -387,36 +390,36 @@ export function meshChunkData(
   const LW = CHUNK_W + 2 * HALO;
   // 半透明衰减(同 MC opacity)：水/树叶 = 1（光穿过它们每格额外 −1 → 水下越深越暗）。
   const opac = (hx: number, hy: number, hz: number): number => {
-    const id = getBlock(ox + hx - HALO, hy, oz + hz - HALO);
+    const id = getBlock(ox + hx - HALO, hy + minY, oz + hz - HALO);
     return isWaterId(id) || isCutoutId(id) ? 1 : 0;
   };
   const skyLight = computeSkyLight(
     LW,
-    CHUNK_H,
-    (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO),
+    height,
+    (hx, hy, hz) => occ(ox + hx - HALO, hy + minY, oz + hz - HALO),
     opac,
   );
   const blkLight = computeBlockLight(
     LW,
-    CHUNK_H,
-    (hx, hy, hz) => blockLight(getBlock(ox + hx - HALO, hy, oz + hz - HALO)),
-    (hx, hy, hz) => occ(ox + hx - HALO, hy, oz + hz - HALO),
+    height,
+    (hx, hy, hz) => blockLight(getBlock(ox + hx - HALO, hy + minY, oz + hz - HALO)),
+    (hx, hy, hz) => occ(ox + hx - HALO, hy + minY, oz + hz - HALO),
     opac,
   );
   const skyAt = (lx: number, ly: number, lz: number): number => {
-    if (ly >= CHUNK_H) return 15; // 世界顶之上=露天
-    if (ly < 0) return 0; // 世界底之下=黑
-    return skyLight[lx + HALO + (lz + HALO) * LW + ly * LW * LW];
+    if (ly >= maxY) return 15; // 世界顶之上=露天
+    if (ly < minY) return 0; // 世界底之下=黑
+    return skyLight[lx + HALO + (lz + HALO) * LW + (ly - minY) * LW * LW];
   };
   const blkAt = (lx: number, ly: number, lz: number): number => {
-    if (ly >= CHUNK_H || ly < 0) return 0;
-    return blkLight[lx + HALO + (lz + HALO) * LW + ly * LW * LW];
+    if (ly >= maxY || ly < minY) return 0;
+    return blkLight[lx + HALO + (lz + HALO) * LW + (ly - minY) * LW * LW];
   };
   // 从面外那个水格往上数到水面，让底部/侧壁顶点知道自己上方有多深的水。
   // 封顶 8 格：足够做焦散强度和水下吸收渐变，也避免深海每个面无界扫描。
   const underwaterDepthAt = (wx: number, wy: number, wz: number): number => {
     let depth = 0;
-    for (let yy = wy; yy < CHUNK_H && depth < 8 && waterAmount(wx, yy, wz) > 0; yy++) depth++;
+    for (let yy = wy; yy < maxY && depth < 8 && waterAmount(wx, yy, wz) > 0; yy++) depth++;
     return depth;
   };
   // 岸边湿润度按世界顶点采样，而不是按方块整面硬切。直接浸水为 1；离同高度水面约
@@ -663,8 +666,8 @@ export function meshChunkData(
     // 在冰边突然掉到 0，形成一圈浅色硬缝。
     if (waterAmount(wx, wy, wz) === 0 && !isFrozenWater(wx, wy, wz)) return 0;
     let wd = 1;
-    for (let yy = wy + 1; wd < 7 && yy < CHUNK_H && waterAmount(wx, yy, wz) > 0; yy++) wd++;
-    for (let yy = wy - 1; wd < 7 && yy >= 0 && waterAmount(wx, yy, wz) > 0; yy--) wd++;
+    for (let yy = wy + 1; wd < 7 && yy < maxY && waterAmount(wx, yy, wz) > 0; yy++) wd++;
+    for (let yy = wy - 1; wd < 7 && yy >= minY && waterAmount(wx, yy, wz) > 0; yy--) wd++;
     return wd;
   };
   // 逐【角】水深＝该角相邻 4 列水深平均(无水列计 0)。
@@ -845,7 +848,7 @@ export function meshChunkData(
     return count > 0 ? total / count : 0.5;
   };
 
-  for (let ly = 0; ly < CHUNK_H; ly++) {
+  for (let ly = minY; ly < maxY; ly++) {
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const id = getBlock(ox + lx, ly, oz + lz);
@@ -948,8 +951,9 @@ export function meshChunkData(
   }
 
   // 粗光照网格：核心 16×192×16 按 4³ cell 取 max(实体在空气格,取 max 防贴边偏暗)。
-  const light3d = new Uint8Array(4 * 48 * 4);
-  for (let cy = 0; cy < 48; cy++) {
+  const lightCellsY = Math.ceil(height / 4);
+  const light3d = new Uint8Array(4 * lightCellsY * 4);
+  for (let cy = 0; cy < lightCellsY; cy++) {
     for (let cz4 = 0; cz4 < 4; cz4++) {
       for (let cx4 = 0; cx4 < 4; cx4++) {
         let ms = 0;
@@ -989,5 +993,7 @@ export function meshChunk(w: ChunkWorld, cx: number, cz: number): ChunkMesh {
     cz,
     (wx, wy, wz) => w.getBlock(wx, wy, wz),
     (wx, wy, wz) => w.waterAmount(wx, wy, wz),
+    w.minY,
+    w.height,
   );
 }

@@ -96,18 +96,45 @@
       ],
       "sha256": "80340dc8559bbeaa994728c23ea7df655d8f8e6b462257c7570dd5a8cf57b36b",
       "modified": false
+    },
+    {
+      "file": "rabbit.png",
+      "jar_entry": "assets/minecraft/textures/entity/rabbit/rabbit_brown.png",
+      "size": [
+        64,
+        64
+      ],
+      "sha256": "878a5da2f1ebad4216896f0609a92b49f1f18eeb82aae2cde7fa22c61a9ff4a6",
+      "modified": false
+    },
+    {
+      "file": "spider.png",
+      "jar_entry": "assets/minecraft/textures/entity/spider/spider.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "12771d3524ad137812b2a94d52b6943401c5e0a942baa6946e783e822c46c554",
+      "modified": false
+    },
+    {
+      "file": "spider_eyes.png",
+      "jar_entry": "assets/minecraft/textures/entity/spider/spider_eyes.png",
+      "size": [
+        64,
+        32
+      ],
+      "sha256": "45bc67083660ea8257b65c849dc1bb457be7ec56ad8fe8951adc9cb221f52ecd",
+      "modified": false
     }
   ],
-  "retained_procedural": [
-    "spider.png",
-    "rabbit.png"
-  ],
+  "retained_procedural": [],
   "model_basis": "Cube sizes, UV origins, pivots and inflation values checked against the corresponding adult model definitions in the official 26.3 client. Render geometry and coordinate adaptation are authored in this project.",
   "limits": [
     "Only adult temperate pig/cow/chicken variants are represented. No cold/warm variants or babies.",
-    "Spider and rabbit retain prior procedural skins and substitute models.",
     "Locomotion, head tracking, skeleton bow geometry and creeper swelling are still project animation/reconstruction.",
-    "Entity lighting uses the project baked face shades and sampled world brightness; it is not the full vanilla entity shader."
+    "Entity lighting uses the project baked face shades and sampled world brightness; it is not the full vanilla entity shader.",
+    "Rabbit uses the brown adult skin and official 26.3 hop/idle keyframes. Clip triggering is adapted to this project AI, without Java AnimationState packets. Spider gait constants match the official model; walk phase is advanced from this project simulation velocity."
   ],
   "model_definitions_checked": [
     "HumanoidModel.createMesh",
@@ -118,7 +145,18 @@
     "CowModel.createBaseCowModel",
     "SheepModel.createBodyLayer",
     "SheepFurModel.createFurLayer",
-    "AdultChickenModel.createBaseChickenModel"
+    "AdultChickenModel.createBaseChickenModel",
+    "AdultRabbitModel.createBodyLayer",
+    "RabbitAnimation.HOP",
+    "RabbitAnimation.IDLE_HEAD_TILT",
+    "SpiderModel.createSpiderBodyLayer",
+    "SpiderModel.setupAnim"
   ],
-  "model_units": "1 model pixel = 1/16 world unit; model frame +Y down / -Z forward converted once to world +Y up / +X forward."
+  "model_units": "1 model pixel = 1/16 world unit; model frame +Y down / -Z forward converted once to world +Y up / +X forward.",
+  "animation_data": {
+    "file": "src/render/data/rabbit26Animations.json",
+    "source": "net/minecraft/client/animation/definitions/RabbitAnimation.class static HOP and IDLE_HEAD_TILT definitions",
+    "sha256": "6378325771beb7859948281ec994bd2cdb59028f27b77098e14298946f421f58",
+    "coordinates": "Rotation values stored in degrees; position vectors stored before KeyframeAnimations.posVec Y inversion; scale values stored before scaleVec subtraction."
+  }
 }

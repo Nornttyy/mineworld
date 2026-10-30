@@ -1,3 +1,4 @@
+import { isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import { parseEditKey, type WorldSave } from '../save/worldStore';
 
 /**
@@ -64,6 +65,8 @@ export interface BlockBatch {
  */
 export interface MultiplayerHostWorld {
   seed: number;
+  generator?: GeneratorVersion;
+  seed64?: string;
   gameMode: OnlineGameMode;
   worldTime: number;
   edits: readonly BlockEdit[];
@@ -72,6 +75,8 @@ export interface MultiplayerHostWorld {
 export interface OnlineRoom {
   id: string;
   seed: number;
+  generator?: GeneratorVersion;
+  seed64?: string;
   gameMode: OnlineGameMode;
   worldTime: number;
 }
@@ -265,6 +270,7 @@ export function isMultiplayerHostWorldValid(world: MultiplayerHostWorld): boolea
     Number.isInteger(world.seed) &&
     world.seed >= -2_000_000_000 &&
     world.seed <= 2_000_000_000 &&
+    (world.generator === undefined || world.generator === 'legacy' || (world.generator === 'java26' && isJavaSeed(world.seed64))) &&
     asGameMode(world.gameMode) !== null &&
     finite(world.worldTime) &&
     Math.abs(world.worldTime) <= 2_000_000_000 &&
@@ -294,6 +300,7 @@ export function multiplayerHostWorldFromSave(world: WorldSave): MultiplayerHostW
   }
   return {
     seed: Math.floor(world.seed),
+    ...(world.generator ? { generator: world.generator, seed64: world.seed64 } : {}),
     gameMode: world.gameMode ?? 'survival',
     worldTime: world.worldTime ?? 1000,
     edits,
@@ -312,6 +319,8 @@ function parseWelcome(value: unknown): WelcomeMessage | null {
   if (
     typeof value.room.id !== 'string' ||
     !integer(value.room.seed) ||
+    (value.room.generator !== undefined && value.room.generator !== 'legacy' && value.room.generator !== 'java26') ||
+    (value.room.generator === 'java26' && !isJavaSeed(value.room.seed64)) ||
     gameMode === null ||
     !finite(value.room.worldTime) ||
     !Array.isArray(value.players) ||
@@ -324,7 +333,8 @@ function parseWelcome(value: unknown): WelcomeMessage | null {
   return {
     type: 'welcome',
     id: value.id,
-    room: { id: value.room.id, seed: value.room.seed, gameMode, worldTime: value.room.worldTime },
+    room: { id: value.room.id, seed: value.room.seed, gameMode, worldTime: value.room.worldTime,
+      ...(value.room.generator ? { generator: value.room.generator as GeneratorVersion, seed64: value.room.seed64 as string | undefined } : {}) },
     players: players as RemotePlayerState[],
     edits: edits as BlockEdit[],
   };

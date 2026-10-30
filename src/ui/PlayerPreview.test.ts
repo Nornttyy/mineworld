@@ -2,13 +2,57 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPlayerPreviewModel,
+  createArmorPreviewModel,
   PlayerPreview,
   type PlayerPreviewRuntime,
 } from './PlayerPreview';
 import { InventoryUI } from './inventoryUI';
 import { emptyInventory } from '../core/inventory/inventory';
+import { emptyArmor, type ArmorInventory } from '../core/equipment/armor';
 
 describe('Steve inventory model', () => {
+  it('adds only the worn parts with official armor UV scale and removes them without losing the skin', () => {
+    const player = createPlayerPreviewModel(new THREE.Texture());
+    const textures = new Map<string, THREE.Texture>();
+    const texture = (path: string) => {
+      if (!textures.has(path)) textures.set(path, new THREE.Texture());
+      return textures.get(path)!;
+    };
+    const armor: ArmorInventory = [
+      { id: 314, count: 1 },
+      { id: 307, count: 1 },
+      { id: 304, count: 1 },
+      null,
+    ];
+    const preview = createArmorPreviewModel(player, armor, texture);
+    expect([...textures.keys()]).toEqual([
+      'humanoid/diamond.png',
+      'humanoid/iron.png',
+      'humanoid_leggings/leather.png',
+      'humanoid_leggings/leather_overlay.png',
+    ]);
+    const helmet = player.head.getObjectByName('armor-head-diamond') as THREE.Mesh;
+    expect(helmet.parent).toBe(player.head);
+    expect(player.root.getObjectByName('armor-feet-right-leg-diamond')).toBeUndefined();
+    player.root.updateMatrixWorld(true);
+    const leg = player.root.getObjectByName('armor-legs-right-leg-leather') as THREE.Mesh;
+    expect(new THREE.Box3().setFromObject(leg).getSize(new THREE.Vector3()).x).toBeCloseTo(
+      4.8 / 16,
+    );
+    expect((leg.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xa06540);
+    const front = new THREE.Raycaster(
+      new THREE.Vector3(0, 28 / 16, 2),
+      new THREE.Vector3(0, 0, -1),
+    ).intersectObject(helmet)[0];
+    expect(front.uv!.x * 64).toBeCloseTo(12);
+    expect((1 - front.uv!.y) * 32).toBeCloseTo(12);
+    const dispose = vi.spyOn(helmet.geometry, 'dispose');
+    preview.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(player.head.getObjectByName('armor-head-diamond')).toBeUndefined();
+    expect(player.head.getObjectByName('head')).toBeDefined();
+    player.dispose();
+  });
   it('uses standard wide limbs, separate left-side UVs and six clothing overlays', () => {
     const skin = new THREE.Texture();
     const model = createPlayerPreviewModel(skin);
@@ -125,6 +169,7 @@ function harness() {
       loaded = ready;
       return skin;
     },
+    loadArmor: vi.fn(() => new THREE.Texture()),
     requestFrame: vi.fn((callback) => {
       pending.set(++sequence, callback);
       return sequence;
@@ -154,6 +199,29 @@ function harness() {
 }
 
 describe('PlayerPreview rendering lifecycle', () => {
+  it('updates equipped meshes on slot changes, reuses textures and does not rebuild for durability alone', () => {
+    const h = harness();
+    const armor: ArmorInventory = [{ id: 306, count: 1 }, null, null, null];
+    h.preview.setArmor(armor);
+    expect(h.runtime.loadArmor).not.toHaveBeenCalled();
+    h.preview.setVisible(true);
+    h.flush();
+    const scene = h.renderer.render.mock.calls[0][0] as THREE.Scene;
+    const first = scene.getObjectByName('armor-head-iron') as THREE.Mesh;
+    expect(first).toBeDefined();
+    armor[0]!.dur = 12;
+    h.preview.setArmor(armor);
+    expect(scene.getObjectByName('armor-head-iron')).toBe(first);
+    h.preview.setArmor(emptyArmor());
+    expect(scene.getObjectByName('armor-head-iron')).toBeUndefined();
+    h.preview.setArmor(armor);
+    expect(h.runtime.loadArmor).toHaveBeenCalledTimes(1);
+    const texture = (scene.getObjectByName('armor-head-iron') as THREE.Mesh)
+      .material as THREE.MeshBasicMaterial;
+    const dispose = vi.spyOn(texture.map!, 'dispose');
+    h.preview.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
   it('allocates only on opening, follows GUI scale, stops on close and reuses one context', () => {
     const h = harness();
     expect(h.runtime.createRenderer).not.toHaveBeenCalled();

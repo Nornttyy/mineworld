@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { breakTimeMs, canHarvest, dropFor, type HeldTool } from './registry';
-import { COAL, DIAMOND } from '../items/items';
+import { COAL, DIAMOND, RAW_IRON } from '../items/items';
 
 const STONE = 1;
 const COBBLE = 4;
@@ -46,7 +46,7 @@ describe('工具采集 1:1 MC', () => {
     expect(canHarvest(IRON, woodPick)).toBe(false); // 木镐 tier1 < 铁矿要求 2
     expect(dropFor(IRON, woodPick)).toBeNull();
     expect(canHarvest(IRON, stonePick)).toBe(true); // 石镐 tier2 ✓
-    expect(dropFor(IRON, stonePick)).toBe(IRON);
+    expect(dropFor(IRON, stonePick)).toBe(RAW_IRON); // 现代 Java 无精准采集时掉粗铁。
     expect(breakTimeMs(IRON, stonePick)).toBeLessThan(breakTimeMs(IRON, woodPick)); // 石镐更快
   });
 

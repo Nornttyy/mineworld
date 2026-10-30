@@ -16,7 +16,8 @@ describe('physics step', () => {
     for (let i = 0; i < 120; i++) p = step(p, idle, floor);
     expect(p.onGround).toBe(true);
     expect(p.pos.y).toBeCloseTo(0, 2);
-    expect(p.vel.y).toBeCloseTo(0, 5);
+    // travelInAir applies gravity after the collision, including while grounded.
+    expect(p.vel.y).toBeCloseTo(-0.0784000015258789, 10);
   });
 
   it('jump gives upward velocity when on ground', () => {
@@ -49,7 +50,11 @@ describe('physics step', () => {
       onGround: true,
     });
     const walk = step(start(), { forward: 1, right: 0, yaw: 0, jump: false }, floor);
-    const sprint = step(start(), { forward: 1, right: 0, yaw: 0, jump: false, sprint: true }, floor);
+    const sprint = step(
+      start(),
+      { forward: 1, right: 0, yaw: 0, jump: false, sprint: true },
+      floor,
+    );
     expect(sprint.pos.x).toBeGreaterThan(walk.pos.x);
   });
 
@@ -63,15 +68,15 @@ describe('physics step', () => {
     expect(p.pos.y).toBeGreaterThan(before); // 持续上浮
   });
 
-  it('can jump while in water (leap out onto land)', () => {
+  it('a deep-water jump adds the liquid impulse rather than a full land jump', () => {
     const watery: VoxelWorld = { isSolid: (_x, y) => y < 0, isWater: () => true };
     let p: Player = { pos: { x: 0, y: 5, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     p = step(p, { forward: 0, right: 0, yaw: 0, jump: true }, watery);
-    expect(p.vel.y).toBeGreaterThan(0.3); // 跃出水面的起跳速度
+    expect(p.pos.y - 5).toBeCloseTo(0.03999999910593033, 10);
+    expect(p.vel.y).toBeCloseTo(0.02699999976158141, 10);
   });
 
-  it('a water jump carries the player up over 1 block (climb out)', () => {
-    // 水位 y<5；玩家在水里起跳，上冲余速应带其升过 1 格(够上岸)
+  it('one press in open water does not provide a one-block leap', () => {
     const watery: VoxelWorld = { isSolid: (_x, y) => y < 0, isWater: (_x, y) => y < 5 };
     let p: Player = { pos: { x: 0, y: 4, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
     const start = p.pos.y;
@@ -81,7 +86,8 @@ describe('physics step', () => {
       p = step(p, { forward: 0, right: 0, yaw: 0, jump: false }, watery);
       maxY = Math.max(maxY, p.pos.y);
     }
-    expect(maxY - start).toBeGreaterThan(1.0);
+    expect(maxY - start).toBeGreaterThan(0.08);
+    expect(maxY - start).toBeLessThan(0.1);
   });
 
   it('walking into a wall does not tunnel through it', () => {
@@ -101,12 +107,17 @@ describe('physics step', () => {
 
 describe('creative flight', () => {
   const sky: VoxelWorld = { isSolid: (_x, y) => y < 0 }; // 只有 y<0 是地面，高空全空
-  const air = (): Player => ({ pos: { x: 0.5, y: 20, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: false });
+  const air = (): Player => ({
+    pos: { x: 0.5, y: 20, z: 0.5 },
+    vel: { x: 0, y: 0, z: 0 },
+    onGround: false,
+  });
 
   it('飞行无重力：不按上下键时悬停在原高度', () => {
     let p = air();
     const y0 = p.pos.y;
-    for (let i = 0; i < 40; i++) p = step(p, { forward: 0, right: 0, yaw: 0, jump: false, fly: true }, sky);
+    for (let i = 0; i < 40; i++)
+      p = step(p, { forward: 0, right: 0, yaw: 0, jump: false, fly: true }, sky);
     expect(p.pos.y).toBeCloseTo(y0, 5); // 不下坠
   });
 
@@ -125,7 +136,8 @@ describe('creative flight', () => {
   it('飞行也不能穿墙', () => {
     const wall: VoxelWorld = { isSolid: (x, y) => y < 0 || x >= 3 };
     let p: Player = { pos: { x: 0.5, y: 20, z: 0.5 }, vel: { x: 0, y: 0, z: 0 }, onGround: false };
-    for (let i = 0; i < 40; i++) p = step(p, { forward: 1, right: 0, yaw: 0, jump: false, fly: true }, wall);
+    for (let i = 0; i < 40; i++)
+      p = step(p, { forward: 1, right: 0, yaw: 0, jump: false, fly: true }, wall);
     expect(p.pos.x).toBeLessThan(3); // 撞墙停住，没飞穿
     expect(p.pos.x).toBeGreaterThan(0.5); // 但确实飞过去了
   });

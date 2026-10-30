@@ -3,18 +3,26 @@ export const CHUNK_W = 16;
 export const CHUNK_H = 192; // 世界高度：地表~100-180，地下~100-180格深(深度与流畅/mesh成本的折中)
 
 export class Chunk {
-  readonly blocks = new Uint16Array(CHUNK_W * CHUNK_H * CHUNK_W);
+  readonly blocks: Uint16Array;
   // 流体层：每格一字节，低 4 位=水量(0..8)，0x10=源头，0x20=下落。与 blocks 平行，
   // 供网格化按水量画水面、流动模拟读写。0=无水。
-  readonly fluid = new Uint8Array(CHUNK_W * CHUNK_H * CHUNK_W);
+  readonly fluid: Uint8Array;
+  surfaceHeights?: Int16Array; // Generated terrain top per column, excluding later decorations/edits.
   dirty = true; // 需要(重新)网格化
 
+  constructor(readonly minY = 0, readonly height = CHUNK_H) {
+    this.blocks = new Uint16Array(CHUNK_W * height * CHUNK_W);
+    this.fluid = new Uint8Array(CHUNK_W * height * CHUNK_W);
+  }
+
+  get maxY(): number { return this.minY + this.height; }
+
   private idx(lx: number, ly: number, lz: number): number {
-    return lx + lz * CHUNK_W + ly * CHUNK_W * CHUNK_W;
+    return lx + lz * CHUNK_W + (ly - this.minY) * CHUNK_W * CHUNK_W;
   }
 
   private inBounds(lx: number, ly: number, lz: number): boolean {
-    return lx >= 0 && lx < CHUNK_W && ly >= 0 && ly < CHUNK_H && lz >= 0 && lz < CHUNK_W;
+    return lx >= 0 && lx < CHUNK_W && ly >= this.minY && ly < this.maxY && lz >= 0 && lz < CHUNK_W;
   }
 
   get(lx: number, ly: number, lz: number): number {
@@ -38,8 +46,8 @@ export class Chunk {
   }
 
   // 从 Worker 传回的 buffer 重建区块（区块在后台线程生成、零拷贝传回主线程后用）。
-  static fromBuffers(blocks: ArrayBuffer, fluid: ArrayBuffer): Chunk {
-    const c = new Chunk();
+  static fromBuffers(blocks: ArrayBuffer, fluid: ArrayBuffer, minY = 0, height = CHUNK_H): Chunk {
+    const c = new Chunk(minY, height);
     c.blocks.set(new Uint16Array(blocks));
     c.fluid.set(new Uint8Array(fluid));
     return c;

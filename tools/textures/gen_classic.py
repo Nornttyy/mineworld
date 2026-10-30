@@ -346,7 +346,7 @@ BLOCKS.update({
 })
 
 # Order must stay aligned with src/core/blocks/registry.ts and the renderer's
-# 4x12 atlas constants. Slots 46/47 are the official furnace top and side.
+# 4x22 atlas constants. Slots 0..47 remain fixed; modern tiles append at 48.
 ATLAS_ORDER = [
     "stone", "dirt", "grass_top", "grass_side",
     "cobblestone", "sand", "oak_log_top", "oak_log_side",
@@ -360,7 +360,12 @@ ATLAS_ORDER = [
     "diamond_block", "granite", "diorite", "andesite",
     "bricks", "mossy_cobblestone", "red_sand", "birch_log_top",
     "birch_log_side", "birch_leaves", "furnace_top", "furnace_side",
+    'deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore'
 ]
+
+MODERN_TILES = ['deepslate', 'deepslate_top', 'cobbled_deepslate', 'tuff', 'calcite', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol_top', 'podzol_side', 'mycelium_top', 'mycelium_side', 'mud', 'red_sandstone', 'red_sandstone_top', 'red_sandstone_bottom', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']
+for _name in MODERN_TILES:
+    BLOCKS[_name] = lambda _rng, n=_name: source.official_furnace_face(n)
 
 ICON_FACES = {
     "stone": ("stone", "stone"),
@@ -414,8 +419,14 @@ def build_tiles():
     return tiles
 
 
+for _name in ['deepslate', 'cobbled_deepslate', 'tuff', 'calcite', 'snow_block', 'packed_ice', 'terracotta', 'white_terracotta', 'orange_terracotta', 'magenta_terracotta', 'light_blue_terracotta', 'yellow_terracotta', 'lime_terracotta', 'pink_terracotta', 'gray_terracotta', 'light_gray_terracotta', 'cyan_terracotta', 'purple_terracotta', 'blue_terracotta', 'brown_terracotta', 'green_terracotta', 'red_terracotta', 'black_terracotta', 'coarse_dirt', 'podzol', 'mycelium', 'mud', 'red_sandstone', 'powder_snow', 'cinnabar', 'sulfur', 'gold_ore', 'deepslate_coal_ore', 'deepslate_iron_ore', 'deepslate_gold_ore', 'deepslate_diamond_ore']:
+    _top = {"deepslate":"deepslate_top", "snow_block":"snow", "podzol":"podzol_top", "mycelium":"mycelium_top", "red_sandstone":"red_sandstone_top"}.get(_name,_name)
+    _side = {"snow_block":"snow", "podzol":"podzol_side", "mycelium":"mycelium_side"}.get(_name,_name)
+    ICON_FACES[_name] = (_top,_side)
+
+
 def build_atlas(tiles):
-    atlas = Image.new("RGBA", (S * 4, S * 12), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (S * 4, S * 22), (0, 0, 0, 0))
     for index, name in enumerate(ATLAS_ORDER):
         atlas.paste(tiles[name].convert("RGBA"), ((index % 4) * S, (index // 4) * S))
     return atlas

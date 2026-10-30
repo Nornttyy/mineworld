@@ -13,6 +13,7 @@ import {
   type MobTextureKind,
 } from './mobTextures';
 import { creeperFuseVisual } from './creeperVisual';
+import rabbitAnimations from './data/rabbit26Animations.json';
 
 // 把生物渲染成 MC 风的盒状模型。每只一套自己的材质(便于受击红闪 + 个体染色)，颜色 + 假面光烤进顶点
 // (与体素世界同为 unlit)。走路摆腿 + 头点动 + 尾巴甩 + 鸡啄地 + 呼吸起伏；朝移动方向；受击 0.5s 红闪。
@@ -130,6 +131,7 @@ interface Model {
   tail?: THREE.Mesh;
   headY: number; // 头的原始 y(动画基准)
   nativeRig?: boolean;
+  emissiveMats?: THREE.MeshBasicMaterial[];
 }
 
 // Authored boxes use dimensions/UV islands verified from the official 26.3 adult
@@ -165,6 +167,7 @@ function buildOfficialModel(
     alphaTest: 0.5,
   });
   const mats = [skinMat];
+  const emissiveMats: THREE.MeshBasicMaterial[] = [];
   const dimensions = OFFICIAL_MOB_TEXTURE_SIZE[kind as keyof typeof OFFICIAL_MOB_TEXTURE_SIZE];
   function cubes(
     parent: THREE.Group,
@@ -212,6 +215,8 @@ function buildOfficialModel(
     g.name = name;
     g.position.set(...(pivot.map((v) => v / 16) as [number, number, number]));
     g.rotation.x = rx;
+    g.userData.nativePosition = g.position.toArray();
+    g.userData.nativeRotation = [rx, 0, 0];
     parent.add(g);
     cubes(g, data, mat, texSize);
     return g;
@@ -337,6 +342,64 @@ function buildOfficialModel(
       );
       for (const leg of legs) cubes(leg, [[0, 16, -2, 0, -2, 4, 6, 4, 0.5]], wool, [64, 32]);
     }
+  } else if (kind === 'spider') {
+    head = node('head', [0, 15, -3], [[32, 4, -4, -4, -8, 8, 8, 8]]);
+    node('body0', [0, 15, 0], [[0, 0, -3, -3, -3, 6, 6, 6]]);
+    node('body1', [0, 15, 9], [[0, 12, -5, -4, -6, 10, 8, 12]]);
+    const eyes = new THREE.MeshBasicMaterial({
+      map: textures?.spider_eyes ?? mobTexture('spider_eyes', pack),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    emissiveMats.push(eyes);
+    cubes(head, [[32, 4, -4, -4, -8, 8, 8, 8]], eyes, [64, 32]);
+    for (const [index, name] of ['hind', 'middle_hind', 'middle_front', 'front'].entries()) {
+      for (const side of [-1, 1] as const) {
+        const leg = node(
+          `${side < 0 ? 'right' : 'left'}_${name}_leg`,
+          [side * 4, 15, 2 - index],
+          [[18, 0, side < 0 ? -15 : -1, -1, -1, 16, 2, 2, 0, side > 0]],
+        );
+        legs.push(leg);
+      }
+    }
+    applySpiderPose(legs, 0, 0);
+  } else if (kind === 'rabbit') {
+    // 26.3 AdultRabbitModel: nested body/head/ear and front/back leg pivots.
+    const body = node('body', [0, 23, 4], [[0, 0, -4, -6, -9, 8, 6, 10]], -0.3927);
+    node('tail', [0, -4.9916, 0.0125], [[20, 16, -2, -3.0084, -1.0125, 4, 4, 4]], 0, body);
+    head = node('head', [0, -5.2929, -8.1213], [[0, 16, -2.5, -3, -4, 5, 5, 5]], 0.3927, body);
+    node('left_ear', [1.5, -3.7071, -0.8787], [[32, 0, -1, -4.2929, -0.1213, 2, 5, 1]], 0, head);
+    node('right_ear', [-1.5, -3.7071, -0.8787], [[26, 0, -1, -4.2929, -0.1213, 2, 5, 1]], 0, head);
+    const front = node('frontlegs', [0, -1.5349, -6.3108], [], 0, body);
+    legs.push(
+      node(
+        'right_front_leg',
+        [-2, 1.9239, 0.3827],
+        [[36, 18, -0.9, -1, -0.9, 2, 4, 2]],
+        0.3927,
+        front,
+      ),
+    );
+    legs.push(
+      node('left_front_leg', [2, 1.9239, 0.4827], [[44, 18, -1, -1, -1, 2, 4, 2]], 0.3927, front),
+    );
+    const back = node('backlegs', [0, 23, 4], []);
+    for (const side of [-1, 1] as const) {
+      const name = side < 0 ? 'right' : 'left';
+      const leg = node(`${name}_hind_leg`, [side * 3, 0.5, 0], [], 0, back);
+      const haunch = node(
+        `${name}_haunch`,
+        [0, -0.5, 0],
+        [[side < 0 ? 20 : 36, 24, -1, 0, -5, 2, 1, 6]],
+        0,
+        leg,
+      );
+      haunch.rotation.y = -side * 0.3927;
+      haunch.userData.nativeRotation = [0, haunch.rotation.y, 0];
+      legs.push(leg);
+    }
   } else {
     head = node(
       'head',
@@ -381,7 +444,86 @@ function buildOfficialModel(
     head,
     headY: head.position.y,
     nativeRig: true,
+    emissiveMats,
   };
+}
+
+/** SpiderModel.setupAnim: four opposite pairs, with separate sweep and lift waves. */
+export function applySpiderPose(
+  legs: readonly THREE.Group[],
+  walkPosition: number,
+  walkSpeed: number,
+): void {
+  const phase = walkPosition * 0.6662;
+  const yBase = [Math.PI / 4, Math.PI / 8, -Math.PI / 8, -Math.PI / 4];
+  const zBase = [-Math.PI / 4, -0.58119464, -0.58119464, -Math.PI / 4];
+  const offsets = [0, Math.PI, Math.PI / 2, Math.PI * 1.5];
+  for (let i = 0; i < 4; i++) {
+    const sweep = -Math.cos(phase * 2 + offsets[i]) * 0.4 * walkSpeed;
+    const lift = Math.abs(Math.sin(phase + offsets[i]) * 0.4) * walkSpeed;
+    const right = legs[i * 2],
+      left = legs[i * 2 + 1];
+    if (!right || !left) continue;
+    right.rotation.set(0, yBase[i] + sweep, zBase[i] + lift, 'ZYX');
+    left.rotation.set(0, -yBase[i] - sweep, -zBase[i] - lift, 'ZYX');
+  }
+}
+
+type RabbitFrame = { time: number; value: number[]; interpolation: string };
+function sampleRabbitFrames(frames: RabbitFrame[], time: number): number[] {
+  let i = 0;
+  while (i + 1 < frames.length && frames[i + 1].time <= time) i++;
+  const j = Math.min(i + 1, frames.length - 1),
+    a = frames[i],
+    b = frames[j];
+  const t = i === j ? 0 : Math.max(0, Math.min(1, (time - a.time) / (b.time - a.time)));
+  return a.value.map((v, axis) => {
+    if (b.interpolation !== 'catmullrom') return v + (b.value[axis] - v) * t;
+    const p = frames[Math.max(0, i - 1)].value[axis],
+      q = b.value[axis],
+      r = frames[Math.min(frames.length - 1, j + 1)].value[axis];
+    return (
+      0.5 *
+      (2 * v +
+        (q - p) * t +
+        (2 * p - 5 * v + 4 * q - r) * t * t +
+        (3 * v - p - 3 * q + r) * t * t * t)
+    );
+  });
+}
+
+/** Official 26.3 keyframes; this project's AI decides when the clip starts. */
+export function applyRabbitAnimation(
+  group: THREE.Group,
+  seconds: number,
+  name: 'HOP' | 'IDLE_HEAD_TILT' | null,
+): void {
+  group.traverse((bone) => {
+    if (!bone.userData.nativePosition) return;
+    bone.position.fromArray(bone.userData.nativePosition);
+    const [x, y, z] = bone.userData.nativeRotation;
+    bone.rotation.set(x, y, z, 'ZYX');
+    bone.scale.set(1, 1, 1);
+  });
+  if (!name) return;
+  const clip = rabbitAnimations[name];
+  const time = clip.looping
+    ? ((seconds % clip.length) + clip.length) % clip.length
+    : Math.max(0, Math.min(seconds, clip.length));
+  for (const channel of clip.channels) {
+    const bone = group.getObjectByName(channel.bone);
+    if (!bone) continue;
+    const v = sampleRabbitFrames(channel.frames, time);
+    if (channel.target === 'rotation') {
+      bone.rotation.x += (v[0] * Math.PI) / 180;
+      bone.rotation.y += (v[1] * Math.PI) / 180;
+      bone.rotation.z += (v[2] * Math.PI) / 180;
+    } else if (channel.target === 'position') {
+      bone.position.x += v[0] / 16;
+      bone.position.y -= v[1] / 16;
+      bone.position.z += v[2] / 16;
+    } else if (channel.target === 'scale') bone.scale.set(v[0], v[1], v[2]);
+  }
 }
 
 function addLeg(
@@ -622,6 +764,7 @@ function disposeModel(model: Model): void {
     if (object instanceof THREE.Mesh) object.geometry.dispose();
   });
   for (const material of model.mats) material.dispose();
+  for (const material of model.emissiveMats ?? []) material.dispose();
 }
 
 export class MobRenderer {
@@ -634,6 +777,10 @@ export class MobRenderer {
       bright: number;
       dispYaw: number;
       swingAmt: number;
+      nativeWalkPosition: number;
+      nativeWalkSpeed: number;
+      rabbitClipTime: number;
+      wasMoving: boolean;
     }
   >();
   constructor(
@@ -677,6 +824,10 @@ export class MobRenderer {
           bright: 1,
           dispYaw: -mob.yaw,
           swingAmt: 0,
+          nativeWalkPosition: 0,
+          nativeWalkSpeed: 0,
+          rabbitClipTime: 0,
+          wasMoving: false,
         }; // t 错开 → 不同步呼吸
         this.models.set(mob, m);
       }
@@ -687,7 +838,10 @@ export class MobRenderer {
       m.dispYaw += dy * Math.min(1, dt * 10);
       m.group.rotation.y = m.dispYaw;
       // 落体/跳跃前后倾(按竖直速度,轻微)
-      m.group.rotation.z = Math.max(-0.18, Math.min(0.22, -mob.vel.y * 2.2));
+      m.group.rotation.z =
+        mob.kind === 'rabbit' || mob.kind === 'spider'
+          ? 0
+          : Math.max(-0.18, Math.min(0.22, -mob.vel.y * 2.2));
       // 环境光：采样生物半身高处的亮度,帧间平滑(跨 4 格光照 cell 不跳变)
       const wantB = lightAt ? lightAt(mob.pos.x, mob.pos.y + 0.6, mob.pos.z) : 1;
       m.bright += (wantB - m.bright) * Math.min(1, dt * 10);
@@ -705,13 +859,16 @@ export class MobRenderer {
       const speed = Math.hypot(mob.vel.x, mob.vel.z); // 格/tick
       const moving = speed > 0.002;
       if (moving) m.phase += speed * 20 * dt * SWING_RATE;
+      m.nativeWalkSpeed +=
+        (Math.min(1, speed * 4) - m.nativeWalkSpeed) * (1 - Math.pow(0.6, dt * 20));
+      m.nativeWalkPosition += m.nativeWalkSpeed * dt * 20;
 
       // 摆腿：幅度渐入渐出(原来起步/停步瞬间从 0 跳满幅 → 僵硬)；走路时身体随步伐轻微起伏
       m.swingAmt += ((moving ? 1 : 0) - m.swingAmt) * Math.min(1, dt * 8);
       const swing = Math.sin(m.phase) * 0.6 * m.swingAmt;
       if (mob.kind === 'spider') {
-        m.legs.forEach((leg, i) => (leg.rotation.y = (i % 2 === 0 ? swing : -swing) * 0.45));
-      } else {
+        applySpiderPose(m.legs, m.nativeWalkPosition, m.nativeWalkSpeed);
+      } else if (mob.kind !== 'rabbit') {
         m.legs.forEach(
           (leg, i) => (leg.rotation[m.nativeRig ? 'x' : 'z'] = i % 2 === 0 ? swing : -swing),
         );
@@ -733,12 +890,15 @@ export class MobRenderer {
       }
       m.group.position.set(
         mob.pos.x,
-        mob.pos.y + Math.abs(Math.sin(m.phase)) * 0.035 * m.swingAmt,
+        mob.pos.y +
+          (mob.kind === 'rabbit' || mob.kind === 'spider'
+            ? 0
+            : Math.abs(Math.sin(m.phase)) * 0.035 * m.swingAmt),
         mob.pos.z,
       );
 
       // 头：走路点头 / 站着呼吸或鸡啄地
-      if (m.head) {
+      if (m.head && mob.kind !== 'rabbit' && mob.kind !== 'spider') {
         if (moving) {
           m.head.position.y = m.headY + Math.sin(m.phase * 2) * 0.015;
           m.head.rotation[m.nativeRig ? 'x' : 'z'] = Math.sin(m.phase) * 0.05;
@@ -754,6 +914,19 @@ export class MobRenderer {
       }
       // 尾巴甩
       if (m.tail) m.tail.rotation.z = Math.sin(m.t * 4 + m.phase) * 0.3;
+      if (mob.kind === 'rabbit') {
+        if (moving !== m.wasMoving) m.rabbitClipTime = 0;
+        m.rabbitClipTime += dt;
+        // Movement-driven hop; idle tilt is scheduled here because the simplified
+        // mob simulation does not expose Java's AnimationState packets.
+        const idleTime = m.rabbitClipTime % 10;
+        applyRabbitAnimation(
+          m.group,
+          moving ? m.rabbitClipTime : idleTime - 6,
+          moving ? 'HOP' : idleTime >= 6 ? 'IDLE_HEAD_TILT' : null,
+        );
+      }
+      m.wasMoving = moving;
     }
   }
 

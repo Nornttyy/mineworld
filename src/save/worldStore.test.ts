@@ -577,3 +577,26 @@ describe('写入失败会可靠上报', () => {
     warning.mockRestore();
   });
 });
+
+
+describe('modern generator persistence', () => {
+  it('preserves signed 64-bit seeds and negative/upper world edits on reload', () => {
+    const w = createWorld('modern', '-9223372036854775808');
+    w.edits = { '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE, '0,-65,0': COBBLESTONE, '0,320,0': COBBLESTONE, 'nether:0,-1,0': COBBLESTONE };
+    expect(saveWorld(w)).toBe(true);
+    const loaded = getWorld(w.id)!;
+    expect(loaded.generator).toBe('java26');
+    expect(loaded.seed64).toBe('-9223372036854775808');
+    expect(loaded.edits).toEqual({ '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE });
+  });
+
+  it('never silently upgrades a legacy world or accepts an unknown generator', () => {
+    const legacy = { id: 'old', name: 'old', seed: 42, lastPlayed: 1, edits: { '0,191,0': COBBLESTONE, '0,-64,0': COBBLESTONE } };
+    localStorage.setItem('mineworld.saves', JSON.stringify([legacy, { ...legacy, id: 'future', generator: 'future' }]));
+    expect(listWorlds()).toHaveLength(1);
+    expect(getWorld('old')?.generator).toBeUndefined();
+    expect(getWorld('old')?.edits).toEqual({ '0,191,0': COBBLESTONE });
+    expect(saveWorld(getWorld('old')!)).toBe(true);
+    expect(JSON.parse(localStorage.getItem('mineworld.saves')!).find((w: {id: string}) => w.id === 'future').generator).toBe('future');
+  });
+});

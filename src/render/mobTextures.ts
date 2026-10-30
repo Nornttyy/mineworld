@@ -3,8 +3,8 @@ import type { MobKind } from '../core/entity/mob';
 import type { TexturePack } from '../core/settings';
 import { asset } from '../asset';
 
-// Legacy procedural atlas layout is retained only for spider/rabbit. Adapted
-// official Java 26.3 skins use their own 64×32 or 64×64 layouts below.
+// Procedural layouts remain a fallback reference. All ten current species use
+// official Java 26.3 skins with their own 64×32 or 64×64 layouts below.
 export const MOB_SKIN_SIZE = 64;
 
 export interface SkinPart {
@@ -73,8 +73,11 @@ export const OFFICIAL_MOB_TEXTURE_SIZE = {
   sheep: [64, 32],
   sheep_wool: [64, 32],
   chicken: [64, 32],
+  rabbit: [64, 64],
+  spider: [64, 32],
+  spider_eyes: [64, 32],
 } as const;
-export type MobTextureKind = MobKind | 'sheep_wool';
+export type MobTextureKind = MobKind | 'sheep_wool' | 'spider_eyes';
 export const isOfficialMobSkin = (kind: MobTextureKind): boolean =>
   kind in OFFICIAL_MOB_TEXTURE_SIZE;
 

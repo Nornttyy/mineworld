@@ -1,0 +1,79 @@
+{
+  "target": "Minecraft Java 26.3",
+  "checked_at": "2026-10-30",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "metadata_url": "https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json",
+  "method": "Read named official class-file instructions with JDK25 javap -p -c; independently implement the verified baseline equations in TypeScript. Runtime classes are not packaged.",
+  "fixtures": "physics26.fixtures.json is independent Java arithmetic evaluation using docs/Physics26Reference.java, not a trace captured from a running official client.",
+  "records": [
+    {
+      "entry": "net/minecraft/world/entity/LivingEntity.class",
+      "sha256": "6eaecd529ba26174652f3bb71e7c86262e54ac6f5e1e70944fb0e629b3b9948a",
+      "checked_methods": [
+        "aiStep",
+        "travelInAir",
+        "getFrictionInfluencedSpeed",
+        "computeModifiedFriction",
+        "handleRelativeFrictionAndCalculateMovement",
+        "jumpFromGround",
+        "jumpInLiquid",
+        "goDownInWater",
+        "getWaterSlowDown",
+        "travelInWater",
+        "getFluidFallingAdjustedMovement",
+        "jumpOutOfFluid"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/entity/player/Player.class",
+      "sha256": "28ad0c7756a5cbdfde6c22772f585da9177d6f9eb418ea5ff2dd85657d81dfb2",
+      "checked_methods": [
+        "createAttributes",
+        "getFlyingSpeed"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/player/LocalPlayer.class",
+      "sha256": "d5390f22219039f78f5f59a9961685c11d3cf36f12a645866008135862b59435",
+      "checked_methods": [
+        "modifyInput",
+        "modifyInputSpeedForSquareMovement",
+        "distanceToUnitSquare"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/player/KeyboardInput.class",
+      "sha256": "69b159758e3b678bae48d19999f00d1dbc7f37a6cdc490e17e4533f102ae696c",
+      "checked_methods": [
+        "tick"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/entity/Entity.class",
+      "sha256": "7ac5f6a929abbf4fa00f0a87ad530669f7d96c8ee2bb86a5076ab1fab352fb3c",
+      "checked_methods": [
+        "moveRelative",
+        "getInputVector",
+        "move",
+        "getBlockSpeedFactor",
+        "getBlockPosBelowThatAffectsMyMovement",
+        "getOnPos",
+        "isFree"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/entity/ai/attributes/Attributes.class",
+      "sha256": "be2df0501e26e0416d5248f64f3cda081ab12839e7091ae3321d15f6cb380678",
+      "checked_methods": [
+        "static initializer: GRAVITY, JUMP_STRENGTH, AIR_DRAG_MODIFIER, FRICTION_MODIFIER, SNEAKING_SPEED"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/level/block/Blocks.class",
+      "sha256": "2208668d8b07b2de44870cd557bb0e01625d451f55cac20c6b299f54f20638b7",
+      "checked_methods": [
+        "static initializer: ICE, PACKED_ICE, SOUL_SAND"
+      ]
+    }
+  ]
+}

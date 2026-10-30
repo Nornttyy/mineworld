@@ -8,24 +8,25 @@ export function isNewBuild(current: string, response: BuildVersion): boolean {
 
 /**
  * GitHub Pages 会把入口页缓存最多 10 分钟。这里轮询构建号：新部署出现时立即
- * 重新加载。main.ts 的 beforeunload/pagehide 会先存盘，不会丢单人存档。
+ * 在允许刷新时重新加载。游戏进行中延后，保存退出本身会重载最新构建。
  */
 export function startUpdateWatcher(
   current = __ASSET_VER__,
   reload: () => void = () => location.reload(),
+  canReload: () => boolean = () => true,
 ): () => void {
   if (import.meta.env.DEV) return () => undefined;
   let checking = false;
   let stopped = false;
   const check = async (): Promise<void> => {
-    if (checking || stopped) return;
+    if (checking || stopped || !canReload()) return;
     checking = true;
     try {
       const url = `${import.meta.env.BASE_URL}build-version.json?t=${Date.now().toString(36)}`;
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) return;
       const version = (await response.json()) as BuildVersion;
-      if (isNewBuild(current, version)) {
+      if (isNewBuild(current, version) && canReload()) {
         stopped = true;
         reload();
       }

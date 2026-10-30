@@ -62,18 +62,19 @@ describe('Java 26.3官方成人生物皮肤与模型', () => {
   const texture = new THREE.Texture();
   const textures = Object.fromEntries([...kinds, 'sheep_wool'].map((kind) => [kind, texture]));
 
-  it('来源清单保留9张原版皮肤与尺寸，明确两种未适配的旧生物', () => {
+  it('来源清单保留12张原版皮肤与尺寸，十种现有生物均已适配', () => {
     const manifest = JSON.parse(sourcesText);
     expect(manifest.version).toBe('Java 26.3');
-    expect(manifest.assets).toHaveLength(9);
+    expect(manifest.assets).toHaveLength(12);
     for (const entry of manifest.assets) {
       const key = entry.file.replace('.png', '') as keyof typeof OFFICIAL_MOB_TEXTURE_SIZE;
       expect(OFFICIAL_MOB_TEXTURE_SIZE[key]).toEqual(entry.size);
       expect(entry.sha256).toMatch(/^[a-f0-9]{64}$/);
       expect(entry.modified).toBe(false);
     }
-    expect(isOfficialMobSkin('spider')).toBe(false);
-    expect(isOfficialMobSkin('rabbit')).toBe(false);
+    expect(isOfficialMobSkin('spider')).toBe(true);
+    expect(isOfficialMobSkin('rabbit')).toBe(true);
+    expect(manifest.retained_procedural).toEqual([]);
   });
 
   it('八种生物有稳定成人比例、落地脚底和朝+X的头部，不随机缩放/染色', () => {

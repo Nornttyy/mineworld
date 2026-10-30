@@ -1,8 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { describe, it, expect } from 'vitest';
 import { step } from './step';
+import type { Player, VoxelWorld } from './player';
+import { SOUL_SAND, STONE } from '../blocks/registry';
 
-function flatWorld(floorId: number): any {
+function flatWorld(floorId: number): VoxelWorld {
   return {
     getBlock: (_x: number, y: number, _z: number) => (y < 1 ? floorId : 0),
     isSolid: (_x: number, y: number, _z: number) => y < 1,
@@ -10,20 +11,24 @@ function flatWorld(floorId: number): any {
   };
 }
 
-function steadySpeed(floorId: number): number {
-  let p: any = { pos: { x: 0, y: 1, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };
+function steadyDistance(floorId: number): number {
+  let p: Player = { pos: { x: 0, y: 1, z: 0 }, vel: { x: 0, y: 0, z: 0 }, onGround: true };
   const w = flatWorld(floorId);
+  let distance = 0;
   for (let i = 0; i < 40; i++) {
-    p = step(p, { forward: 1, right: 0, yaw: 0, jump: false, sprint: false } as any, w);
+    const previousX = p.pos.x;
+    p = step(p, { forward: 1, right: 0, yaw: 0, jump: false, sprint: false }, w);
+    distance = p.pos.x - previousX;
   }
-  return Math.hypot(p.vel.x, p.vel.z);
+  return distance;
 }
 
 describe('soul sand slowdown', () => {
-  it('灵魂沙上稳定速度约为石头上的一半', () => {
-    const stone = steadySpeed(3);
-    const soul = steadySpeed(20);
-    expect(soul).toBeLessThan(stone * 0.65);
-    expect(soul).toBeGreaterThan(stone * 0.35);
+  it('applies the .4 block speed factor after movement, before ordinary ground drag', () => {
+    // Compare actual distance per tick, not the smaller post-drag stored velocity.
+    const stone = steadyDistance(STONE);
+    const soul = steadyDistance(SOUL_SAND);
+    expect(stone).toBeCloseTo(0.2158591, 6);
+    expect(soul).toBeCloseTo(0.1253838, 6);
   });
 });

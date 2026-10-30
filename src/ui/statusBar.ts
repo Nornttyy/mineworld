@@ -13,11 +13,19 @@ export class StatusBar {
   private readonly healthEl: HTMLElement;
   private readonly hungerEl: HTMLElement;
   private readonly oxygenEl: HTMLElement | null;
+  private readonly armorEl: HTMLElement;
+  private readonly armorIcons: HTMLElement[];
 
   constructor(healthEl: HTMLElement, hungerEl: HTMLElement, icons = 10) {
     this.healthEl = healthEl;
     this.hungerEl = hungerEl;
     this.oxygenEl = document.getElementById('oxygen');
+    this.armorEl = document.createElement('div');
+    this.armorEl.id = 'armor';
+    this.armorEl.setAttribute('aria-label', '盔甲值');
+    this.armorEl.style.display = 'none';
+    healthEl.parentElement?.appendChild(this.armorEl);
+    this.armorIcons = this.build(this.armorEl, icons);
     this.hearts = this.build(healthEl, icons);
     this.foods = this.build(hungerEl, icons);
     if (this.oxygenEl) this.bubbles = this.build(this.oxygenEl, icons);
@@ -35,9 +43,17 @@ export class StatusBar {
     return cells;
   }
 
-  render(s: Survival, underwater = false): void {
+  render(s: Survival, underwater = false, armorPoints = 0): void {
     this.fill(this.hearts, s.health, 'heart');
     this.fill(this.foods, s.food, 'food');
+    const armor = Math.max(0, Math.min(20, Math.ceil(armorPoints)));
+    this.armorEl.style.display = armor > 0 ? 'flex' : 'none';
+    for (let i = 0; i < this.armorIcons.length; i++) {
+      const value = armor - 2 * i;
+      this.armorIcons[i].style.backgroundImage = url(
+        `armor_${value >= 2 ? 'full' : value === 1 ? 'half' : 'empty'}`,
+      );
+    }
     // 保留低值状态类，避免把通用整行 CSS 动画冒充原版逐图标状态动画。
     this.healthEl.classList.toggle('low', s.health <= 4);
     this.hungerEl.classList.toggle('low', s.food <= 4);
@@ -47,8 +63,8 @@ export class StatusBar {
       this.oxygenEl.style.display = show ? 'flex' : 'none';
       if (show) {
         const air = oxygenAirTicks(s);
-        const full = Math.max(0, Math.ceil((air - 2) * this.bubbles.length / OXYGEN_AIR_TICKS));
-        const bursting = Math.ceil(air * this.bubbles.length / OXYGEN_AIR_TICKS) - full;
+        const full = Math.max(0, Math.ceil(((air - 2) * this.bubbles.length) / OXYGEN_AIR_TICKS));
+        const bursting = Math.ceil((air * this.bubbles.length) / OXYGEN_AIR_TICKS) - full;
         for (let i = 0; i < this.bubbles.length; i++) {
           const sprite = i < full ? 'air' : i < full + bursting ? 'air_bursting' : 'air_empty';
           this.bubbles[i].style.backgroundImage = url(sprite);
@@ -66,7 +82,9 @@ export class StatusBar {
       // and the visible empty half instead of showing the world through it.
       const container = url(kind === 'heart' ? 'heart/container' : 'food_empty');
       const variant = pts >= 2 ? 'full' : pts === 1 ? 'half' : null;
-      const foreground = variant ? url(kind === 'heart' ? `heart/${variant}` : `food_${variant}`) : null;
+      const foreground = variant
+        ? url(kind === 'heart' ? `heart/${variant}` : `food_${variant}`)
+        : null;
       cells[i].style.backgroundImage = foreground ? `${foreground}, ${container}` : container;
     }
   }

@@ -1,11 +1,11 @@
 import { Game } from './game/Game';
+import { parseJavaSeed } from './core/world/worldBounds';
 import { JavaPanorama as MenuBackground } from './render/JavaPanorama';
 import {
   listWorlds,
   createWorld,
   saveWorld,
   deleteWorld,
-  parseSeed,
   dimEditKey,
   type WorldSave,
   type GameMode,
@@ -29,7 +29,6 @@ import './ui/javaHud.css';
 installGuiScale();
 
 // 页面已打开时也会自动跟上新部署，避免 GitHub Pages 的 10 分钟缓存让玩家一直看到旧画面。
-startUpdateWatcher();
 
 // 在创建主菜单、快捷栏或游戏对象之前就应用材质设置，确保首屏与游戏使用同一套资源。
 const initialSettings = loadSettings();
@@ -60,6 +59,8 @@ const onlineHud = $('online-hud');
 
 let game: Game | null = null;
 let gameStarting = false;
+// 新部署不能在玩家试玩或加载世界时强制刷新；保存退出会拉取最新版。
+startUpdateWatcher(undefined, undefined, () => !game && !gameStarting);
 let multiplayer: MultiplayerSession | null = null;
 let onlineErrorTimer: number | null = null;
 let onlineErrorMessage = '';
@@ -412,6 +413,8 @@ function onlineWorld(client: MultiplayerSession): WorldSave {
     id: `online:${room.id}:${room.seed}`,
     name: `联机 · ${room.id.toUpperCase()}`,
     seed: room.seed,
+    generator: room.generator,
+    seed64: room.seed64,
     gameMode: room.gameMode,
     lastPlayed: Date.now(),
     edits,
@@ -591,7 +594,7 @@ function renderWorldList(): void {
     name.textContent = w.name;
     const meta = document.createElement('span');
     meta.className = 'wmeta';
-    meta.textContent = `种子 ${w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
+    meta.textContent = `${w.generator === 'java26' ? 'Java 26.3 地形' : '旧版世界'} · 种子 ${w.seed64 ?? w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
     const del = document.createElement('span');
     del.className = 'wdel';
     del.textContent = '删除';
@@ -626,7 +629,7 @@ function setNwMode(m: GameMode): void {
 }
 function submitNewWorld(): void {
   try {
-    const world = createWorld(nwName.value, parseSeed(nwSeed.value) ?? undefined, nwMode);
+    const world = createWorld(nwName.value, parseJavaSeed(nwSeed.value), nwMode);
     newworld.classList.add('hidden');
     startGame(world);
   } catch (error) {
@@ -683,7 +686,12 @@ function startGame(world: WorldSave, online: MultiplayerSession | null = null): 
         showLoading(true, '进入中…②生成出生区块');
         const preloadAbort = new AbortController();
         try {
-          await Promise.race([nextGame.preloadSpawn(3, preloadAbort.signal), timeout(12000)]); // 出生预载封顶 12s，超时也进游戏
+          await Promise.race([
+            nextGame.preloadSpawn(world.generator === 'java26' ? 2 : 3, preloadAbort.signal, (loaded, total) => {
+              showLoading(true, `生成世界… ${Math.floor(loaded / total * 100)}%`);
+            }),
+            timeout(world.generator === 'java26' ? 30000 : 12000),
+          ]);
         } finally {
           // race 超时不会自动取消输掉的预加载；显式停掉轮询，避免后续与切维度争用旧世界。
           preloadAbort.abort();

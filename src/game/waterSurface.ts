@@ -22,6 +22,8 @@ export const MAX_SEA_WAVE_DISPLACEMENT =
   Math.abs(wave.oceanQuadratic) * (MAX_Q * MAX_Q + Math.abs(wave.quadraticBias));
 
 export interface SeaSurfaceWorld {
+  seaLevel?(): number;
+  minY?(): number;
   getBlock(x: number, y: number, z: number): number;
   waterAmount(x: number, y: number, z: number): number;
   isWaterSource(x: number, y: number, z: number): boolean;
@@ -54,14 +56,15 @@ function bilerp(a00: number, a01: number, a11: number, a10: number, u: number, v
  * corner estimates, so a probe is bounded rather than doing four radius scans.
  */
 export function probeSeaWave(x: number, z: number, world: SeaSurfaceWorld): SeaWaveProbe | null {
+  const seaLevel = world.seaLevel?.() ?? SEA_LEVEL;
   const bx = Math.floor(x);
   const bz = Math.floor(z);
-  if (world.generatedSurfaceY(bx, bz) >= SEA_LEVEL) return null;
+  if (world.generatedSurfaceY(bx, bz) >= seaLevel) return null;
 
   const safeSurface = (wx: number, wz: number): boolean =>
-    world.waterAmount(wx, SEA_LEVEL, wz) === 8 &&
-    world.isWaterSource(wx, SEA_LEVEL, wz) &&
-    world.getBlock(wx, SEA_LEVEL + 1, wz) === 0;
+    world.waterAmount(wx, seaLevel, wz) === 8 &&
+    world.isWaterSource(wx, seaLevel, wz) &&
+    world.getBlock(wx, seaLevel + 1, wz) === 0;
 
   if (!safeSurface(bx, bz)) return null;
 
@@ -111,9 +114,9 @@ export function probeSeaWave(x: number, z: number, world: SeaSurfaceWorld): SeaW
   if (open < MIN_OPEN_WATER) return null;
 
   const columnDepth = (wx: number, wz: number): number => {
-    if (world.waterAmount(wx, SEA_LEVEL, wz) <= 0) return 0;
+    if (world.waterAmount(wx, seaLevel, wz) <= 0) return 0;
     let depth = 1;
-    for (let y = SEA_LEVEL - 1; y >= 0 && depth < 7; y--) {
+    for (let y = seaLevel - 1; y >= (world.minY?.() ?? 0) && depth < 7; y--) {
       if (world.waterAmount(wx, y, wz) <= 0) break;
       depth++;
     }
@@ -142,8 +145,8 @@ export function probeSeaWave(x: number, z: number, world: SeaSurfaceWorld): SeaW
   };
 }
 
-export function seaWaveSurfaceY(x: number, z: number, time: number, probe: SeaWaveProbe): number {
-  return SEA_WATER_BASE_Y + sampleWaterWave(x, z, time, probe.ocean).height;
+export function seaWaveSurfaceY(x: number, z: number, time: number, probe: SeaWaveProbe, seaLevel = SEA_LEVEL): number {
+  return seaLevel + 8 / 9 + sampleWaterWave(x, z, time, probe.ocean).height;
 }
 
 /**
@@ -159,22 +162,24 @@ export function isPointInWater(
   wavesEnabled: boolean,
   cachedProbe?: SeaWaveProbe | null,
 ): boolean {
+  const seaLevel = world.seaLevel?.() ?? SEA_LEVEL;
+  const waterBaseY = seaLevel + 8 / 9;
   const bx = Math.floor(x);
   const by = Math.floor(y);
   const bz = Math.floor(z);
   const voxelWater = isWaterId(world.getBlock(bx, by, bz));
-  if (!wavesEnabled || (by !== SEA_LEVEL && by !== SEA_LEVEL + 1)) return voxelWater;
+  if (!wavesEnabled || (by !== seaLevel && by !== seaLevel + 1)) return voxelWater;
 
   // Avoid the radius probe for points that no possible value of the shared
   // ocean curve can reach. This is especially useful for physics queries.
   if (
-    y < SEA_WATER_BASE_Y - MAX_SEA_WAVE_DISPLACEMENT ||
-    y > SEA_WATER_BASE_Y + MAX_SEA_WAVE_DISPLACEMENT
+    y < waterBaseY - MAX_SEA_WAVE_DISPLACEMENT ||
+    y > waterBaseY + MAX_SEA_WAVE_DISPLACEMENT
   ) {
     return voxelWater;
   }
 
   const probe = cachedProbe === undefined ? probeSeaWave(x, z, world) : cachedProbe;
   if (!probe) return voxelWater;
-  return y < seaWaveSurfaceY(x, z, time, probe);
+  return y < seaWaveSurfaceY(x, z, time, probe, seaLevel);
 }

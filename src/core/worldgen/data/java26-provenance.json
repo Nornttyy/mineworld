@@ -1,0 +1,802 @@
+{
+  "version": "26.3",
+  "clientSha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "source": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+  "copyright": "Minecraft game data \u00a9 Mojang AB / Microsoft. Selected JSON data only; no game executable code.",
+  "library": {
+    "name": "deepslate",
+    "version": "0.27.2",
+    "license": "MIT",
+    "source": "https://github.com/misode/deepslate"
+  },
+  "files": [
+    {
+      "path": "data/minecraft/worldgen/noise/aquifer_barrier.json",
+      "sha1": "ab6785b5878b36db7bfc8e96afc1c53a94ee7e34"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/aquifer_fluid_level_floodedness.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/aquifer_fluid_level_spread.json",
+      "sha1": "3f9c4037788a60f3f0b0e09de3b2eb74fd35c2e4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/aquifer_lava.json",
+      "sha1": "5e70231a3d7aa10687ecc4acfc65141f3207237e"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/badlands_pillar.json",
+      "sha1": "45d9f1d133ce5a5931cb06141ab719de941da1e7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/badlands_pillar_roof.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/badlands_surface.json",
+      "sha1": "502350a231291f3bc1f2b2987f4f73885f45b2ee"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/calcite.json",
+      "sha1": "f18e4f36cc003c6f022672900d2fc81ad3e011f4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/cave_cheese.json",
+      "sha1": "2a8f3cb7d698d7d4043fa65ea3bfe0cb318170c4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/cave_entrance.json",
+      "sha1": "75dcd7e516178b529e5652637905feb20856268d"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/cave_layer.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/clay_bands_offset.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/continentalness.json",
+      "sha1": "16c7732d3fae131e3131cb83f85be18e4d766eec"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/continentalness_large.json",
+      "sha1": "f62f365bab784e9baf556acb9207f78916e7ecba"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/erosion.json",
+      "sha1": "85bdfd5b980642798810ed6cc1b735d95bca5ea2"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/erosion_large.json",
+      "sha1": "e09c9d23ff82f4ca7f50629f184fedac53b398c5"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/gravel.json",
+      "sha1": "1d66d3ca5ab3b444478859aa2f90df1ff275baae"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/gravel_layer.json",
+      "sha1": "6540fd9383b74e22f5e99d63066b76b84a2ad18e"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ice.json",
+      "sha1": "076ba557bcf6e67e51046d9fc9793800b986cd44"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/iceberg_pillar.json",
+      "sha1": "3fc7ee8f353062d934bfdb6eadc88f89c853301c"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/iceberg_pillar_roof.json",
+      "sha1": "ab6785b5878b36db7bfc8e96afc1c53a94ee7e34"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/iceberg_surface.json",
+      "sha1": "502350a231291f3bc1f2b2987f4f73885f45b2ee"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/jagged.json",
+      "sha1": "f790734b68678feefba959df651f399b1e9b3bb4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/nether/temperature.json",
+      "sha1": "89cca27995c17c11ad97cc01e0c472b0d2cd233c"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/nether/vegetation.json",
+      "sha1": "89cca27995c17c11ad97cc01e0c472b0d2cd233c"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/nether_state_selector.json",
+      "sha1": "f815d995ccc2977cc3c73ae9d964d36187afbd54"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/nether_wart.json",
+      "sha1": "45df3fdecb627af72c1b06db5d9e302c682a76fd"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/netherrack.json",
+      "sha1": "23586c265f8b5d503d97d48e8ba6e2070d56fbb1"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/noodle.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/noodle_ridge_a.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/noodle_ridge_b.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/noodle_thickness.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/offset.json",
+      "sha1": "1280c59f8f65b61c7ea2de1f359316591602e774"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ore_gap.json",
+      "sha1": "3f9c4037788a60f3f0b0e09de3b2eb74fd35c2e4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ore_vein_a.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ore_vein_b.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ore_veininess.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/packed_ice.json",
+      "sha1": "99ac5c7e4b2f94ab1c25d9fbab336f662e7d358b"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/patch.json",
+      "sha1": "6f26c9349447f92d56c21c52675ca9cc46b3e547"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/pillar.json",
+      "sha1": "89cca27995c17c11ad97cc01e0c472b0d2cd233c"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/pillar_rareness.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/pillar_thickness.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/powder_snow.json",
+      "sha1": "3fc7ee8f353062d934bfdb6eadc88f89c853301c"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/ridge.json",
+      "sha1": "951c95da62251ce42adacc838cc14a8aaa0511b1"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/small_patch.json",
+      "sha1": "abf0228cc1a60ad08d78a8f50e488062c5ab8344"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/soul_sand_layer.json",
+      "sha1": "6540fd9383b74e22f5e99d63066b76b84a2ad18e"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_2d.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_2d_elevation.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_2d_modulator.json",
+      "sha1": "31c75fe8e8bc5fc4bd8898003dd2f81d5bbf8285"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_2d_thickness.json",
+      "sha1": "31c75fe8e8bc5fc4bd8898003dd2f81d5bbf8285"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_3d_1.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_3d_2.json",
+      "sha1": "ee14d2c3bac6ebd8a19388271903faccc7e78d29"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_3d_rarity.json",
+      "sha1": "31c75fe8e8bc5fc4bd8898003dd2f81d5bbf8285"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_3d_thickness.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_roughness.json",
+      "sha1": "3f9c4037788a60f3f0b0e09de3b2eb74fd35c2e4"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/spaghetti_roughness_modulator.json",
+      "sha1": "0eb9e7c1a442fb9df4de7cfa7149a498585204f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/sulfur_cave_gradient.json",
+      "sha1": "d71e1a330068388281858539964bf6a3101e2b66"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/surface.json",
+      "sha1": "502350a231291f3bc1f2b2987f4f73885f45b2ee"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/surface_secondary.json",
+      "sha1": "7bcf8e11bcff4d4ab857447383254a7af2bab2f1"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/surface_swamp.json",
+      "sha1": "2426de0db9193a24b29cc0e3f4e3383a76bab0c6"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/temperature.json",
+      "sha1": "08dec54fe360f64d1f0f3ec0071b0705ff42d0a9"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/temperature_large.json",
+      "sha1": "32508ac1ae1633ac752df0f2926dff4e1875d6e3"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/vegetation.json",
+      "sha1": "da51345ba7fd78e68a25e85e11e1b5c217c85fd3"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise/vegetation_large.json",
+      "sha1": "f702055a8e2ef9d3f7145791b3363888dfc40e23"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/end/base_3d_noise.json",
+      "sha1": "304478bcb3a2b87ae2cf7593520ad219c69d011d"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/end/islands.json",
+      "sha1": "5a41d3833de1814ff9f4cd3d90dcacd9fb196c92"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/end/sloped_cheese.json",
+      "sha1": "aa0ed7e3c9d8ad6e63ba83608f7a05aa26ce76be"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/nether/base_3d_noise.json",
+      "sha1": "0914e7d6c7998e5c03d3b8fb056f42bea6251f74"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/base_3d_noise.json",
+      "sha1": "6d83dbfe28633c664e0cefdb2a88a4f2e7136b13"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/entrances.json",
+      "sha1": "867bd77d8e15509d43434be5ae6d85f85995c535"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/noodle.json",
+      "sha1": "6c2c0d594b564ca6e2a57cb19f182cad57037e1f"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/pillars.json",
+      "sha1": "249109e6309e38df01cd2fc7f04e71c5a25b0fba"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/spaghetti_2d.json",
+      "sha1": "2e09f1a7639783bee7875d5d8485d071eb6b37fc"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/spaghetti_2d_thickness_modulator.json",
+      "sha1": "bd0938c242ef9b608087e7885b758f81acb1f055"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/caves/spaghetti_roughness_function.json",
+      "sha1": "e612923b7149167e09683a1c553d61003d430f05"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/chunk_surface_level.json",
+      "sha1": "c8936fe964547da9359cdbcfa6ee290dcbacad2c"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/continents.json",
+      "sha1": "cda10224b649bb6da08818942c915bf22d2df940"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/depth.json",
+      "sha1": "df8c8faa96f822dc0d73dd22d6a959a95022fd06"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/erosion.json",
+      "sha1": "10d5f814de8913ffca3fd0185e1edea89af3e930"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/factor.json",
+      "sha1": "a0972eb22c7e453d88ae9cec78a110fcce6ceb4b"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/final_density.json",
+      "sha1": "c1f34789b0565103b73c6ac0ade04dd91aef61c2"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/jaggedness.json",
+      "sha1": "a4be402f27fdfa1765642008f4e99baed9bfdf8f"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/offset.json",
+      "sha1": "3e98632c377364ed11b5679512e2fd943ca07ef8"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/copper_density.json",
+      "sha1": "13c72125f4ef1d82cbe163bc23d1bd3f82668935"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/gap.json",
+      "sha1": "944c218826911059a1b71b9246e0ce0b11a05e01"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/iron_density.json",
+      "sha1": "ec1b6525b8814b20f488180b31badf35daff1fbb"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/mask.json",
+      "sha1": "3407b75a06e60925fb73858cfaf218a2d5780b5a"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/richness.json",
+      "sha1": "793b0b45b896d06d1a2badac2f39c3ed0d25fbea"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ore_vein/toggle.json",
+      "sha1": "24df74764d5cc48ccc82b8fce9d395cd92d6b332"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/preliminary_surface_level.json",
+      "sha1": "227902c1dec864692a6057ae0c35b765e1d5a4d4"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ridges.json",
+      "sha1": "6519dbfe84decdbbd93f76b14d1bd190d0f3b181"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/ridges_folded.json",
+      "sha1": "8e4e6a436c9d26eb633cf678beacfe82c1a376d2"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/sloped_cheese.json",
+      "sha1": "ca80365c82ba57ac693ac465fa3abf2536430e9d"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/temperature.json",
+      "sha1": "3f2ef3f242e6967be75bbef55c8ddb50038955b2"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld/vegetation.json",
+      "sha1": "3105dfd660edc2323e415150d957123c652372fe"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/chunk_surface_level.json",
+      "sha1": "138f5870a3a84f55f515bc1ed19051fd65396c7a"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/depth.json",
+      "sha1": "7a0a74499864fdeae1469f6b13803e62983802aa"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/factor.json",
+      "sha1": "702641e03a51e566cfffe2ec84f731162941af86"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/final_density.json",
+      "sha1": "ae9a0c885c3b6507b6afb0a4a34a5a0991a86dee"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/jaggedness.json",
+      "sha1": "1cfcc1f68fca4198f0f5adf0a169d541398e6780"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/offset.json",
+      "sha1": "4a4e99180cac5520626f44989737570e08d2d21d"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/preliminary_surface_level.json",
+      "sha1": "551a27a9d8214e01b45e4ab18d710a2553ee1c5f"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_amplified/sloped_cheese.json",
+      "sha1": "6b481b32ae57f2696f07ad4f7eac0fc2992153c1"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/chunk_surface_level.json",
+      "sha1": "2d6de4f638b6601c6c1d5298ad0f63f07f1469f4"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/continents.json",
+      "sha1": "1f2538103963a16eebfa2b396e35dcdb9c4d35e2"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/depth.json",
+      "sha1": "e9af5114dde8774d23f2f003ddc841959aabf5d5"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/erosion.json",
+      "sha1": "688caf0c8112aa0645cbcfdb48772beeb08f57cb"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/factor.json",
+      "sha1": "672b6faf8f582b63e8ca4c3190bc10351c2c3d59"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/final_density.json",
+      "sha1": "35d91f66c639b5d804767102dd4239e0c42537d5"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/jaggedness.json",
+      "sha1": "9c0fceebaf77c480b2c00a45a1c7673810f11c5e"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/offset.json",
+      "sha1": "6054805844c3f74245da71b3ca1d69a8ff174166"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/preliminary_surface_level.json",
+      "sha1": "af64e170e3be3b028ffd65276b32905f39aef69b"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/sloped_cheese.json",
+      "sha1": "78a57766c4440d149be11db7451e9b79048a98a9"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/temperature.json",
+      "sha1": "f94040228f579e3bf2d9c766589d65029253f75a"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/overworld_large_biomes/vegetation.json",
+      "sha1": "ae0527cc81808de426c24785301815ec22b25bac"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/shift_x.json",
+      "sha1": "e177784b113ce1b95315324943816078084f9ee9"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/shift_z.json",
+      "sha1": "502800839d9b1dbd36c10140d8d6092f6d150cc6"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/y.json",
+      "sha1": "2fd8d6dbeb1b81727cba9a16eb56af3d3f5bcd5b"
+    },
+    {
+      "path": "data/minecraft/worldgen/density_function/zero.json",
+      "sha1": "38f6d7875e3195bdaee448d2cb6917f3ae4994af"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/bedrock_floor.json",
+      "sha1": "e76b9a6b549ad657059c3cbe49b4618fa6f7ecd4"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/bedrock_roof.json",
+      "sha1": "15fd2ef6b8380f9f46b05b93ae3b12bff4db8bb1"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/end.json",
+      "sha1": "3460fd8cd3bad9b30b43b92269f62a8e0ee39564"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/nether.json",
+      "sha1": "f9614f10cacb8b27979f29122111a8837cb4c3cb"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld.json",
+      "sha1": "a55b6569ccf82140790e2384fb9dc16598668eb5"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface.json",
+      "sha1": "63b0af914ac80c2c1a97a316757817a629129f4e"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/dappled_forest.json",
+      "sha1": "a6e547a9732e91f54f8764e7736c4912823deabe"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/default.json",
+      "sha1": "f1cafbdcca9847be70a53f08a800ae24bbf4febf"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/dripstone_caves.json",
+      "sha1": "2f975470a939e159f9c22aef638524596cf4a511"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/frozen_peaks.json",
+      "sha1": "82f996daf70101b7bd87d6b5ee39b5d859fe7abb"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/grove.json",
+      "sha1": "1de4ce9d4487b6809cacfe240123fb24a8080cbd"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/ice_spikes.json",
+      "sha1": "3eb77d7304db1082e03d365fdbba69ff589acf4c"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/jagged_peaks.json",
+      "sha1": "eaaa9d08bf2ae400903f92178446e251d42dedea"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/mangrove_swamp.json",
+      "sha1": "3ef0f668af8f40ee48363421aaba3d612408c699"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/mushroom_fields.json",
+      "sha1": "f1aadfb7a610ad6b98e3850b6638e6fde7eb8320"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/old_growth_pine_taiga.json",
+      "sha1": "b36d9f17591430b9d46374d8353f76721067513f"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/snowy_slopes.json",
+      "sha1": "771c825e459c996a60d6286f7654376a98847b9d"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/stony_peaks.json",
+      "sha1": "9ce40c8afa2f0f04e4c6071dbb697c6809138894"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/stony_shore.json",
+      "sha1": "a259bbeb0721d5153ba20a8b0e6e63e07b0d7487"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/sulfur_caves.json",
+      "sha1": "e142195274734ff42968e63cb5746a8354cad4be"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/windswept_gravelly_hills.json",
+      "sha1": "7118711c43d9e60fb322ab0ff678bf011e9f3271"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/windswept_hills.json",
+      "sha1": "dbb7842556b4e61d95c0ab5fd49cf476d3c7de23"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/biome_surface/windswept_savanna.json",
+      "sha1": "8745cfa462f6159a368cb2d935e986cb553adae7"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/copper_ore_vein.json",
+      "sha1": "821f97c310aadff6ce031e66697877b6cd465ddb"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/gravel_or_stone_if_ceiling.json",
+      "sha1": "cc22324d752527fd66e550840065988dbede9eb2"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/iron_ore_vein.json",
+      "sha1": "f9538ac1a34b12139a37417e723a9f56cfad47f9"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/powder_snow_surface.json",
+      "sha1": "248be99e3b5bf945e00611de8ada19b73d777ac9"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/powder_snow_under_surface.json",
+      "sha1": "eac61e5a746fae9774bb1ad31e475ce6be43432e"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/sand_or_sandstone_if_ceiling.json",
+      "sha1": "9339b98de386065d1bf404deb73f38642d74e8e2"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/sulfur_cave_bands.json",
+      "sha1": "ff4419890df400d60072df37b75daf4e98463b6d"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/surface.json",
+      "sha1": "55503eca95c188c6e1efe8c6b97432820e896e03"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface.json",
+      "sha1": "d6d4eb4ab5f3f4acf646b96b43f05015d47e474f"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/default.json",
+      "sha1": "e314bfc30c01055bbc57b7ed3830244dd9f29366"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/frozen_peaks.json",
+      "sha1": "137ced3ce9a63dc94d326049e3f83655687b7be6"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/grove.json",
+      "sha1": "d8dfbdd28a554a42f82006b18d847ee825a5287c"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/jagged_peaks.json",
+      "sha1": "2f975470a939e159f9c22aef638524596cf4a511"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/snowy_slopes.json",
+      "sha1": "9e7aad21ab95e93aa8a227724cf7e2cb920050d7"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/windswept_gravelly_hills.json",
+      "sha1": "e4f6c38649ea32d5a827a021af1ef5ffb9e80c27"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/under_biome_surface/windswept_savanna.json",
+      "sha1": "0f147f6194a648455b17c7f8b30c092d9276d5af"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld/underground.json",
+      "sha1": "337c6b1254063aa65a041a105c162e664d0aa421"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld_caves.json",
+      "sha1": "05bea3b340fdb4e6e52b93a2d2ec3efce943b48e"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_rule/overworld_floating_islands.json",
+      "sha1": "96840f3a5206dc82020f19c5d6f1f23c957ccd0e"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/deep_under_floor.json",
+      "sha1": "0151d606d1ea55c1cbb7e3b8161f26be3fa33f26"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/not_under_deep_water.json",
+      "sha1": "62de6f7f894c61c60dfdc27cb8262b5adcfa60c7"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/not_underwater.json",
+      "sha1": "bb3ca998eea45c8f29ba5fd22d026886066e9bea"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/on_ceiling.json",
+      "sha1": "56287ccdc2dc72c55eff068013a3f8df22358fc8"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/on_floor.json",
+      "sha1": "14bec0ec4092e6dfc6bd316db2241539c6dfc4d5"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/under_ceiling.json",
+      "sha1": "097840f94d94fec03db18968cc6093c337b2b3e3"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/under_floor.json",
+      "sha1": "baf9f6f2bf4269999184d0b7e2cd91b03a083f87"
+    },
+    {
+      "path": "data/minecraft/worldgen/material_condition/very_deep_under_floor.json",
+      "sha1": "fdfbdfcf1b003e353bacde7d56028565034cb56a"
+    },
+    {
+      "path": "data/minecraft/worldgen/noise_settings/overworld.json",
+      "sha1": "399c7ee6a559ed133e6825591097097b8416de1e"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_coal_upper.json",
+      "sha1": "96e68f483d6ee9d018e0b577d646b913764c5d5b"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_coal.json",
+      "sha1": "30192ac8e9f11b1d61fb3995efa1b0c35965e324"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_coal_lower.json",
+      "sha1": "5b5c9ee5bc4e0f580b1a01542caa45278dc0409c"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_coal_buried.json",
+      "sha1": "a7d31b3ddcd1925102587ea59b522fad53e38545"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_iron_upper.json",
+      "sha1": "c3c8a39c993319119cc28e863d724c84691d31f7"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_iron.json",
+      "sha1": "a3ba62e351ce89abe3cce5aecee72297bb870b10"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_iron_middle.json",
+      "sha1": "dfd5d166e6f2787dc9f25d1c825c6e31dfa5fcd4"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_iron.json",
+      "sha1": "a3ba62e351ce89abe3cce5aecee72297bb870b10"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_iron_small.json",
+      "sha1": "f533de355971654d873ff7ef2c89a609434ff029"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_iron_small.json",
+      "sha1": "d67aa778c5c86b7254485b1ddd244021d5a02a4f"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_gold.json",
+      "sha1": "c85f4a624d7ea74ee15ca28483cde6af57306f13"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_gold_buried.json",
+      "sha1": "d412c4837b8383170dbe1d6bd08acb37b8c5820b"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_gold_lower.json",
+      "sha1": "15fcbcd3eadd34e4589c1fa20ae43cf9de231884"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_gold_buried.json",
+      "sha1": "d412c4837b8383170dbe1d6bd08acb37b8c5820b"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_diamond.json",
+      "sha1": "25146ff73b3bb2f909e365b43fec45daf0c24a41"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_diamond_small.json",
+      "sha1": "104d74f31344e822f045ce0c032a59435329a2bc"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_diamond_large.json",
+      "sha1": "470b496462cbecccf454d8b33400cca0d8a83705"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_diamond_large.json",
+      "sha1": "26e2ca756d69cfa5479e968306815da6d2a2a6b0"
+    },
+    {
+      "path": "data/minecraft/worldgen/placed_feature/ore_diamond_buried.json",
+      "sha1": "0e6ebe321fda7f8ad3e91c2a36e9220fa1fd133e"
+    },
+    {
+      "path": "data/minecraft/worldgen/feature/ore_diamond_buried.json",
+      "sha1": "39c27c359eee3369bd62bee935845c9f70e68c1f"
+    },
+    {
+      "path": "data/minecraft/tags/block/height_specific_ore_replaceables.json",
+      "sha1": "a9d9ea4becab53f2ae18b53a28175f1dae5fcaf4"
+    },
+    {
+      "path": "data/minecraft/tags/block/stone_ore_replaceables.json",
+      "sha1": "84150f9be2fa26f9202962b031c722718dd23ca0"
+    },
+    {
+      "path": "data/minecraft/tags/block/deepslate_ore_replaceables.json",
+      "sha1": "965b6a5353209b6388e04a00dcbd69ab309d1ab9"
+    }
+  ],
+  "biomeParameters": {
+    "source": "Official 26.3 server data generator",
+    "serverSha1": "33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c",
+    "command": "java -DbundlerMainClass=net.minecraft.data.Main -jar 26.3-server.jar --reports",
+    "report": "reports/biome_parameters/minecraft/overworld.json",
+    "sha1": "ed8590a657f04acb51074c2082d2b97c81a56f70"
+  },
+  "referenceSamples": {
+    "source": "Official 26.3 server runtime RandomState.sampleBlockValueUncached and MultiNoiseBiomeSourceParameterList",
+    "serverSha1": "33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c",
+    "sampler": "../reference/MineworldNoiseProbe.java",
+    "samples": 50,
+    "sha1": "e33210a87503d9e5c79dccfc815e5faaab42f00b",
+    "observedMaxDensityError": 2.79942668479638e-06,
+    "observedBiomeMismatches": 0
+  }
+}

@@ -224,16 +224,16 @@
   cursor: not-allowed;
 }
 
-.java-container [data-equipment='helmet'] {
+.java-container .java-equipment [data-equipment='helmet']:not(.occupied) {
   background-image: var(--empty-helmet);
 }
-.java-container [data-equipment='chestplate'] {
+.java-container .java-equipment [data-equipment='chestplate']:not(.occupied) {
   background-image: var(--empty-chestplate);
 }
-.java-container [data-equipment='leggings'] {
+.java-container .java-equipment [data-equipment='leggings']:not(.occupied) {
   background-image: var(--empty-leggings);
 }
-.java-container [data-equipment='boots'] {
+.java-container .java-equipment [data-equipment='boots']:not(.occupied) {
   background-image: var(--empty-boots);
 }
 
@@ -488,4 +488,33 @@
   .java-container .inv-close {
     display: block;
   }
+}
+
+/* Equipment is backed by the player armor tuple, separate from the 36 inventory slots. */
+.java-container .java-equipment .inv-slot {
+  cursor: default;
+}
+.java-container .java-equipment .inv-slot.occupied {
+  background-image: none;
+}
+.java-container .item-durability {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  width: 13px;
+  height: 2px;
+  background: #000;
+  pointer-events: none;
+}
+.java-container .item-durability[hidden] {
+  display: none;
+}
+.java-container .item-durability::before {
+  content: '';
+  position: absolute;
+  width: var(--dur-width);
+  height: 1px;
+  background: var(--dur-color);
+  left: 0;
+  top: 0;
 }

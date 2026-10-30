@@ -1,0 +1,108 @@
+{
+  "target": "Minecraft Java 26.3",
+  "checked_at": "2026-10-30",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "metadata_url": "https://piston-meta.mojang.com/v1/packages/5df1795e16eea19d75b923d66ecca9ce183353c5/26.3.json",
+  "method": "Read named official class-file instructions and constants; project code independently composes the verified transforms. Runtime classes are not packaged.",
+  "records": [
+    {
+      "entry": "net/minecraft/client/renderer/FirstPersonHandsAndItemsRenderer.class",
+      "sha256": "998eb2f49842fd7b3444381c88a19e102e70fd25947a4ab710ea365890a7eccc",
+      "checked_methods": [
+        "applyItemArmAttackTransform",
+        "applyItemArmTransform",
+        "renderPlayerArm",
+        "applyEatTransform",
+        "submitArmWithItem (BOW branch)",
+        "submitHandsWithItems"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/player/FirstPersonHandsAndItems.class",
+      "sha256": "eefcd4b95373619529da048b309155e6db2deb813892ea14c273e7bc69b2cfaf",
+      "checked_methods": [
+        "tick",
+        "itemUsed"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/renderer/GameRenderer.class",
+      "sha256": "9cfd02db5c651d3fdd5838c634b21d6ac60f012f9daad453589e21655f929a24",
+      "checked_methods": [
+        "bobView",
+        "bobHurt"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/renderer/entity/player/AvatarRenderer.class",
+      "sha256": "f1d785b3c8fa7a016a0c8c2fc01192153312b3e1f9d7a94b3b080ab717ba56c8",
+      "checked_methods": [
+        "renderHand"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/model/HumanoidModel.class",
+      "sha256": "d86498297d0837e473898a1d0c801b9c0b50182058982e8e257fd0d45bf896db",
+      "checked_methods": [
+        "createMesh"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/player/LocalPlayer.class",
+      "sha256": "d5390f22219039f78f5f59a9961685c11d3cf36f12a645866008135862b59435",
+      "checked_methods": [
+        "move",
+        "applyInput"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/player/AbstractClientPlayer.class",
+      "sha256": "328cdd5884df5b2e9697d88f304d8fc2a457e9edc33bcb75f0a3751eb6665771",
+      "checked_methods": [
+        "updateBob"
+      ]
+    },
+    {
+      "entry": "net/minecraft/client/entity/ClientAvatarState.class",
+      "sha256": "c76db6d9e767698e349932faf954db22a4a9c979a91d741db02ec81d04e254b3",
+      "checked_methods": [
+        "updateBob",
+        "getBackwardsInterpolatedWalkDistance"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/entity/player/Player.class",
+      "sha256": "28ad0c7756a5cbdfde6c22772f585da9177d6f9eb418ea5ff2dd85657d81dfb2",
+      "checked_methods": [
+        "tick",
+        "getItemSwapScale",
+        "onAttack"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/item/component/SwingAnimation.class",
+      "sha256": "6354234b2c1ffb9647f556ec323b2105e321df47dda7b85374ed77f69fab112f",
+      "checked_methods": [
+        "<clinit>"
+      ]
+    },
+    {
+      "entry": "net/minecraft/world/entity/LivingEntity$SwingState.class",
+      "sha256": "42d75b98a2166f3e6eb3a0b9a21973a88935bcae1c4fa8d0c03fc671038bacd2",
+      "checked_methods": [
+        "startIfAble",
+        "tick",
+        "getAnimation"
+      ]
+    },
+    {
+      "entry": "assets/minecraft/items/bow.json",
+      "sha256": "65ccad786a7bc1cb9b781b2cc134663903e8c266b37d8e4d75fba020ef47ac37",
+      "model_thresholds": [
+        0.65,
+        0.9
+      ],
+      "use_duration_scale": 0.05
+    }
+  ]
+}

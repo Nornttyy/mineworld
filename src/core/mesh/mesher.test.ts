@@ -3,7 +3,7 @@ import { Section } from '../world/section';
 import { ChunkWorld } from '../world/chunkWorld';
 import { meshSection, meshChunk, meshChunkData, aoLevel } from './mesher';
 import { ATLAS_TILES, GRASS, OAK_LEAVES, SNOW_LAYER } from '../blocks/registry';
-import { atlasTileAtUv } from '../blocks/atlasLayout';
+import { ATLAS_COLUMNS, ATLAS_ROWS, CLASSIC_ATLAS_TILE_PX, atlasTileAtUv } from '../blocks/atlasLayout';
 
 describe('mesher (face culling)', () => {
   it('empty section -> no geometry', () => {
@@ -53,11 +53,13 @@ describe('mesher (face culling)', () => {
       us.push(m.uvs[i]);
       vs.push(m.uvs[i + 1]);
     }
-    // stone 是左上第一格；经典图集 64×192，边界应分别内缩半个图集纹素。
-    expect(Math.min(...us)).toBeCloseTo(0.5 / 64);
-    expect(Math.max(...us)).toBeCloseTo(1 / 4 - 0.5 / 64);
-    expect(Math.min(...vs)).toBeCloseTo(11 / 12 + 0.5 / 192);
-    expect(Math.max(...vs)).toBeCloseTo(1 - 0.5 / 192);
+    // stone 是左上第一格；图集新增行后仍须内缩半个实际纹素。
+    const width = ATLAS_COLUMNS * CLASSIC_ATLAS_TILE_PX;
+    const height = ATLAS_ROWS * CLASSIC_ATLAS_TILE_PX;
+    expect(Math.min(...us)).toBeCloseTo(0.5 / width, 7);
+    expect(Math.max(...us)).toBeCloseTo(1 / ATLAS_COLUMNS - 0.5 / width, 7);
+    expect(Math.min(...vs)).toBeCloseTo(1 - 1 / ATLAS_ROWS + 0.5 / height, 7);
+    expect(Math.max(...vs)).toBeCloseTo(1 - 0.5 / height, 7);
   });
 
   it('AO level：标准体素环境光遮蔽', () => {
