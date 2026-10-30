@@ -1409,6 +1409,14 @@ export class Game {
           // 饥饿、氧气、环境伤害与受伤无敌帧仍按 20 TPS 推进。
           this.stepSurvival(false, false);
         }
+        gameAudio.movement({
+          distance: Math.hypot(this.player.pos.x - this.prev.pos.x, this.player.pos.z - this.prev.pos.z),
+          onGround: this.player.onGround,
+          inWater: this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z),
+          crouching: !!this.player.crouching, flying: this.flying,
+          groundBlock: this.world.getBlock(Math.floor(this.player.pos.x), Math.floor(this.player.pos.y - 0.2), Math.floor(this.player.pos.z)),
+          velocity: this.player.vel,
+        });
         if (++this.worldTime >= DAY_LENGTH) this.worldTime = 0; // 昼夜推进：每模拟刻 +1（暂停即冻结）
         // 流动水：每 5 刻更新一次（同 MC），变动后重建脏区块网格
         if (++this.fluidTick >= 5) {
@@ -1551,7 +1559,9 @@ export class Game {
         this.player.pos.z,
       );
       gameAudio.update(dt, {
-        playing,
+        playing: simulating,
+        position: { x: this.player.pos.x, y: this.player.pos.y + playerEyeHeight(this.player), z: this.player.pos.z },
+        yaw: this.look.yaw, pitch: this.look.pitch,
         moving: walk > 0.12,
         sprinting: this.actualSprinting,
         onGround: this.player.onGround,
@@ -1694,6 +1704,7 @@ export class Game {
     const fall = trackFall(this.fallDistance, dy, this.player.onGround, inWater);
     this.fallDistance = fall.fallDistance;
     if (fall.damage > 0) {
+      gameAudio.fall(fall.damage, this.world.getBlock(px, Math.floor(this.player.pos.y - 0.2), pz));
       this.hurtPlayer(fall.damage, 0, 0, true, 'fall'); // 走统一伤害管线(无敌帧/补差),环境伤害无击退
       addExhaustion(this.survival, DAMAGE_EXHAUSTION);
     }
@@ -1717,14 +1728,14 @@ export class Game {
     );
     const hpBefore = this.survival.health;
     tickOxygen(this.survival, headInWater);
-    if (this.survival.health < hpBefore) this.flashHurt();
+    if (this.survival.health < hpBefore) this.flashHurt('drown');
     tickSurvival(this.survival);
     if (survivalIsDead(this.survival) && !this.dead) this.die();
   }
 
   // 受伤红屏反馈：触发一次 CSS 闪动（先移除再加 class 以重启动画）+ 手快速抖一下。
-  private flashHurt(): void {
-    gameAudio.hurt();
+  private flashHurt(kind: ArmorDamageKind = 'melee'): void {
+    if (!survivalIsDead(this.survival)) gameAudio.hurt(kind);
     this.hand.hurtShake();
     const el = document.getElementById('hurt');
     if (!el) return;
@@ -1743,7 +1754,7 @@ export class Game {
       if (damage > this.hurtWindowMax) {
         this.applyArmoredDamage(damage - this.hurtWindowMax, kind);
         this.hurtWindowMax = damage;
-        this.flashHurt();
+        this.flashHurt(kind);
         if (survivalIsDead(this.survival) && !this.dead) this.die();
       }
       return;
@@ -1751,7 +1762,7 @@ export class Game {
     this.hurtCd = 10; // 0.5s 无敌
     this.hurtWindowMax = damage;
     this.applyArmoredDamage(damage, kind);
-    this.flashHurt();
+    this.flashHurt(kind);
     if (!noKnock) {
       const d = Math.hypot(knockDirX, knockDirZ) || 1;
       this.player.kbx = (knockDirX / d) * PLAYER_KNOCK_H;
@@ -2067,7 +2078,9 @@ export class Game {
       this.stopEating(); // 曾只清进度不清 eating 标志 → 吃饱后按住右键一直 20% 减速+假啃食动画(bug)
       return;
     }
+    const previousEatProgress = this.eatProgress;
     this.eatProgress += dt;
+    gameAudio.eating(previousEatProgress, this.eatProgress);
     // 吃东西喷食物渣：在嘴前方按节流喷出食物色碎屑（同 MC 啃食粒子）
     this.eatFxT += dt;
     if (this.eatFxT >= 0.09) {
@@ -2086,7 +2099,7 @@ export class Game {
       const id = takeOne(this.inv, sel);
       if (food && id !== null) {
         eat(this.survival, food);
-        gameAudio.eat();
+        gameAudio.burp();
         this.hotbar.render(this.inv);
       }
       this.eatProgress = 0;
@@ -2511,6 +2524,7 @@ export class Game {
     ) {
       this.digTarget = { x: hit.x, y: hit.y, z: hit.z }; // 换了目标 → 进度归零
       this.digProgress = 0;
+      gameAudio.resetDig();
     }
     if (!this.creative && blockHardness(id) < 0) {
       this.crack.hide();
@@ -2528,7 +2542,7 @@ export class Game {
       if (this.touchDigging) this.stopDigging();
     } else {
       this.crack.show(hit.x, hit.y, hit.z, this.digProgress / need);
-      gameAudio.blockHit(id);
+      if (!this.creative) gameAudio.blockHit(id, { x: hit.x + 0.5, y: hit.y + 0.5, z: hit.z + 0.5 });
       // 挖掘中持续喷碎屑（节流，免得每帧爆量）
       this.digFxT += dt;
       if (this.digFxT >= 0.07) {
@@ -2684,7 +2698,7 @@ export class Game {
     // 草丛/长草：瞬破、无掉落、不耗工具耐久/疲劳。直接清掉即可。
     if (isPlantId(id)) {
       this.edit(x, y, z, AIR);
-      gameAudio.blockBreak(id);
+      gameAudio.blockBreak(id, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       const loot = this.creative ? null : plantDrops(id);
       if (loot) this.drops.push(spawnDrop(loot.id, x, y, z, Math.random, loot.count));
       this.particles.push(...spawnBurst(x + 0.5, y + 0.5, z + 0.5, particleColor(id), 6));
@@ -2697,7 +2711,7 @@ export class Game {
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     const meltsToWater = id === ICE && !this.creative && this.world.getBlock(x, y - 1, z) !== AIR;
     this.edit(x, y, z, meltsToWater ? WATER : AIR);
-    gameAudio.blockBreak(id);
+    gameAudio.blockBreak(id, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
     if (id === OBSIDIAN) this.collapseInvalidPortalsAround(x, y, z);
     // 冰(1.12)：破坏后若下方非空气 → 该格变水源(创造不变)。edit(WATER) 同时写入存档，重进仍是水。
     // 失去支撑的草丛/火把随之破坏(同 MC：都需下方方块支撑；火把弹出掉落自身)。
@@ -2799,13 +2813,19 @@ export class Game {
         if (hostile) hostileNear++;
       }
       // 敌对走追击 AI（追玩家+接触攻击+日晒受损），被动走原游荡 AI
+      const previousSoundPosition = { ...mob.pos }, previousFuse = mob.fuse;
       const res = hostile
         ? updateHostile(mob, this.physWorld, this.mobRng, target, this.isSunlit(mob))
         : updateMob(mob, this.physWorld, this.mobRng);
-      Object.assign(mob, res.mob); // 原地更新，保持对象身份（渲染按身份缓存模型）
+      Object.assign(mob, res.mob);
+      if (mob.health > 0) gameAudio.tickMob(mob, previousSoundPosition, previousFuse);
+      if (res.events.some(ev => ev.kind === 'hurt'))
+        gameAudio.mobHurt(res.events.some(ev => ev.kind === 'death'), mob.kind, mob.pos);
+      // 原地更新，保持对象身份（渲染按身份缓存模型）
       let died = false;
       for (const ev of res.events) {
         if (ev.kind === 'layEgg') {
+          gameAudio.egg(ev.pos);
           this.drops.push(
             spawnDrop(EGG, Math.floor(ev.pos.x), Math.floor(ev.pos.y), Math.floor(ev.pos.z)),
           );
@@ -2816,7 +2836,7 @@ export class Game {
           if (mob.kind === 'husk') addExhaustion(this.survival, 3);
         } else if (ev.kind === 'shootArrow') {
           // 骷髅射箭：从其眼高朝玩家方向生成一支敌对箭
-          if (d2 < 24 * 24) gameAudio.bow(0.72);
+          if (d2 < 24 * 24) gameAudio.bow(0.72, ev.from);
           this.arrows.push(
             spawnArrow(
               ev.from.x,
@@ -2933,7 +2953,7 @@ export class Game {
     maxDamage: number,
     source?: Mob,
   ): void {
-    gameAudio.explosion();
+    gameAudio.explosion(center);
     const cx = Math.floor(center.x);
     const cy = Math.floor(center.y);
     const cz = Math.floor(center.z);
@@ -3103,7 +3123,7 @@ export class Game {
           for (const mob of this.mobs) {
             const def = MOB_DEFS[mob.kind];
             if (inAabb(x, y, z, mob.pos.x, mob.pos.z, mob.pos.y, def.width / 2, def.height)) {
-              gameAudio.arrowHit();
+              gameAudio.arrowHit({ x: a.x, y: a.y, z: a.z });
               this.damageMobWithArrow(mob, a);
               consumed = true;
               break;
@@ -3122,12 +3142,12 @@ export class Game {
           )
         ) {
           // 中箭：扣血 + 闪红/抖手 + 沿箭飞行方向被击退
-          gameAudio.arrowHit();
+          gameAudio.arrowHit({ x: a.x, y: a.y, z: a.z });
           this.hurtPlayer(a.damage, a.vx, a.vz, false, 'projectile');
           consumed = true;
         }
       }
-      if (a.stuck && !consumed) gameAudio.arrowHit();
+      if (a.stuck && !consumed) gameAudio.arrowHit({ x: a.x, y: a.y, z: a.z });
       if (consumed) this.arrows.splice(i, 1);
     }
   }
@@ -3136,7 +3156,7 @@ export class Game {
   private damageMobWithArrow(mob: Mob, a: Arrow): void {
     const res = hurtMob(mob, a.damage, { x: a.vx, z: a.vz }, this.mobRng);
     if (res.events.some((event) => event.kind === 'hurt'))
-      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'));
+      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'), mob.kind, mob.pos);
     Object.assign(mob, res.mob);
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
@@ -3228,12 +3248,12 @@ export class Game {
   }
 
   private attackMob(mob: Mob, aim?: InteractionRay): void {
-    gameAudio.attack();
     this.hand.swing();
     const held = this.inv[this.hotbar.index];
     const id = this.syncMeleeItem();
     const falling = this.player.vel.y < 0 && !this.player.onGround && !this.actualSprinting &&
       !this.pointInWater(this.player.pos.x, this.player.pos.y + 0.1, this.player.pos.z);
+    const strength = attackStrength(id, this.meleeTicks);
     const dmg = chargedMeleeDamage(id, this.meleeTicks, falling);
     this.meleeTicks = 0;
     // MC：攻击生物消耗耐久——剑每击 −1，其它工具当武器用每击 −2（非工具/空手不掉）
@@ -3252,9 +3272,11 @@ export class Game {
     const knockX = dir && horizontal > 1e-6 ? dir.x / horizontal : Math.cos(this.look.yaw);
     const knockZ = dir && horizontal > 1e-6 ? dir.z / horizontal : Math.sin(this.look.yaw);
     const res = hurtMob(mob, dmg, { x: knockX, z: knockZ }, this.mobRng);
+    const accepted = res.events.some(event => event.kind === 'hurt');
+    gameAudio.attack(!accepted ? 'nodamage' : strength <= 0.9 ? 'weak' : falling ? 'crit' : this.actualSprinting ? 'knockback' : 'strong');
     if (!this.creative && res.events.some((event) => event.kind === 'hurt')) addExhaustion(this.survival, 0.1);
     if (res.events.some((event) => event.kind === 'hurt'))
-      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'));
+      gameAudio.mobHurt(res.events.some((event) => event.kind === 'death'), mob.kind, mob.pos);
     Object.assign(mob, res.mob);
     for (const ev of res.events) {
       if (ev.kind === 'drops') {
@@ -3296,7 +3318,7 @@ export class Game {
     const id = this.creative ? stack.id : takeOne(this.inv, sel);
     if (id === null) return;
     this.edit(px, py, pz, id);
-    gameAudio.blockPlace(id);
+    gameAudio.blockPlace(id, { x: px + 0.5, y: py + 0.5, z: pz + 0.5 });
     if (replacedPortal) this.collapseInvalidPortalsAround(px, py, pz);
     if (id === SAND || id === GRAVEL) this.settleFallingBlock(px, py, pz);
     this.hotbar.render(this.inv);

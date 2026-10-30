@@ -6,6 +6,7 @@ export default defineConfig(({ command, isPreview }) => {
   const buildVersion = Date.now().toString(36);
   return {
     base: command === 'build' || isPreview ? '/mineworld/' : '/',
+    build: { rollupOptions: { input: { main: 'index.html', soundCheck: 'sound-check.html' } } },
     // 资源版本号(cache-busting)：每次构建变化 → 纹理 URL 变 → 浏览器自动拉新资源，免手动强刷
     define: {
       __ASSET_VER__: JSON.stringify(buildVersion),

@@ -33,6 +33,7 @@ installGuiScale();
 // 在创建主菜单、快捷栏或游戏对象之前就应用材质设置，确保首屏与游戏使用同一套资源。
 const initialSettings = loadSettings();
 setIconTexturePack(initialSettings.texturePack);
+gameAudio.setVolume(initialSettings.volume);
 
 const canvas = document.getElementById('app') as HTMLCanvasElement;
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -40,7 +41,7 @@ const touchMode = supportsTouchControls();
 document.documentElement.classList.toggle('touch-device', touchMode);
 if (touchMode) installTouchZoomGuards();
 
-// 菜单按钮使用轻柔的短促反馈；pointerdown 已先解锁 AudioContext，所以首次点击也能正常播放。
+// 原版按钮采样；pointerdown 先解锁 AudioContext，已保存的静音设置也适用于菜单。
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (target instanceof Element && target.closest('button')) gameAudio.uiClick();

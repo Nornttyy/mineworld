@@ -1,0 +1,4739 @@
+{
+  "block.calcite.break": [
+    {
+      "name": "block/calcite/break1",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/break2",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/break3",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/break4",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.calcite.fall": [
+    {
+      "name": "block/calcite/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.calcite.hit": [
+    {
+      "name": "block/calcite/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.calcite.place": [
+    {
+      "name": "block/calcite/place1",
+      "volume": 0.94,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/place2",
+      "volume": 0.94,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/place3",
+      "volume": 0.94,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/place4",
+      "volume": 0.94,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.calcite.step": [
+    {
+      "name": "block/calcite/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/calcite/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cinnabar.break": [
+    {
+      "name": "block/cinnabar/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cinnabar.fall": [
+    {
+      "name": "block/cinnabar/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cinnabar.hit": [
+    {
+      "name": "block/cinnabar/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/hit7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cinnabar.place": [
+    {
+      "name": "block/cinnabar/place1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/place7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cinnabar.step": [
+    {
+      "name": "block/cinnabar/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cinnabar/step7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.deepslate.break": [
+    {
+      "name": "block/deepslate/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.deepslate.fall": [
+    {
+      "name": "block/deepslate/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.deepslate.hit": [
+    {
+      "name": "block/deepslate/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.deepslate.place": [
+    {
+      "name": "block/deepslate/place1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/place2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/place3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/place4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/place5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/place6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.deepslate.step": [
+    {
+      "name": "block/deepslate/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/deepslate/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.glass.break": [
+    {
+      "name": "random/glass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/glass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/glass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.glass.fall": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.glass.hit": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.glass.place": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.glass.step": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.grass.break": [
+    {
+      "name": "dig/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.grass.fall": [
+    {
+      "name": "step/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.grass.hit": [
+    {
+      "name": "step/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.grass.place": [
+    {
+      "name": "dig/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.grass.step": [
+    {
+      "name": "step/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.gravel.break": [
+    {
+      "name": "dig/gravel1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.gravel.fall": [
+    {
+      "name": "step/gravel1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.gravel.hit": [
+    {
+      "name": "step/gravel1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.gravel.place": [
+    {
+      "name": "dig/gravel1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/gravel4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.gravel.step": [
+    {
+      "name": "step/gravel1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/gravel4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.iron.break": [
+    {
+      "name": "block/iron/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.iron.fall": [
+    {
+      "name": "block/iron/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.iron.hit": [
+    {
+      "name": "block/iron/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.iron.place": [
+    {
+      "name": "block/iron/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/break8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.iron.step": [
+    {
+      "name": "block/iron/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/iron/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.metal.break": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.metal.fall": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.metal.hit": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.metal.place": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.metal.step": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.mud.break": [
+    {
+      "name": "block/mud/break1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break5",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break6",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.mud.fall": [
+    {
+      "name": "block/mud/step1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step5",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step6",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.mud.hit": [
+    {
+      "name": "block/mud/step1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step5",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step6",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.mud.place": [
+    {
+      "name": "block/mud/break1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break5",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/break6",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.mud.step": [
+    {
+      "name": "block/mud/step1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step5",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/mud/step6",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.nether_ore.break": [
+    {
+      "name": "block/nether_ore/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.nether_ore.fall": [
+    {
+      "name": "block/nether_ore/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.nether_ore.hit": [
+    {
+      "name": "block/nether_ore/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.nether_ore.place": [
+    {
+      "name": "block/nether_ore/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.nether_ore.step": [
+    {
+      "name": "block/nether_ore/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/nether_ore/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.netherrack.break": [
+    {
+      "name": "block/netherrack/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.netherrack.fall": [
+    {
+      "name": "block/netherrack/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.netherrack.hit": [
+    {
+      "name": "block/netherrack/step1",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step2",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step3",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step4",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step5",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step6",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.netherrack.place": [
+    {
+      "name": "block/netherrack/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.netherrack.step": [
+    {
+      "name": "block/netherrack/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/netherrack/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.portal.travel": [
+    {
+      "name": "portal/travel",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.powder_snow.break": [
+    {
+      "name": "block/powder_snow/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.powder_snow.fall": [
+    {
+      "name": "block/powder_snow/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step9",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step10",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.powder_snow.hit": [
+    {
+      "name": "block/powder_snow/step1",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step2",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step3",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step4",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step5",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step6",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step7",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step8",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step9",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step10",
+      "volume": 0.83,
+      "pitch": 1.3,
+      "weight": 1
+    }
+  ],
+  "block.powder_snow.place": [
+    {
+      "name": "block/powder_snow/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.powder_snow.step": [
+    {
+      "name": "block/powder_snow/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step9",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/powder_snow/step10",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sand.break": [
+    {
+      "name": "dig/sand1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sand.fall": [
+    {
+      "name": "step/sand1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sand.hit": [
+    {
+      "name": "step/sand1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sand.place": [
+    {
+      "name": "dig/sand1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/sand4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sand.step": [
+    {
+      "name": "step/sand1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/sand5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.snow.break": [
+    {
+      "name": "dig/snow1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.snow.fall": [
+    {
+      "name": "step/snow1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.snow.hit": [
+    {
+      "name": "step/snow1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.snow.place": [
+    {
+      "name": "dig/snow1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/snow4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.snow.step": [
+    {
+      "name": "step/snow1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/snow4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.soul_sand.break": [
+    {
+      "name": "block/soul_sand/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break9",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.soul_sand.fall": [
+    {
+      "name": "block/soul_sand/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.soul_sand.hit": [
+    {
+      "name": "block/soul_sand/step1",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step2",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step3",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step4",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step5",
+      "volume": 0.55,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.soul_sand.place": [
+    {
+      "name": "block/soul_sand/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/break9",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.soul_sand.step": [
+    {
+      "name": "block/soul_sand/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/soul_sand/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.stone.break": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.stone.fall": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.stone.hit": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.stone.place": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.stone.step": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sulfur.break": [
+    {
+      "name": "block/sulfur/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/break7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sulfur.fall": [
+    {
+      "name": "block/sulfur/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sulfur.hit": [
+    {
+      "name": "block/sulfur/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/hit7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sulfur.place": [
+    {
+      "name": "block/sulfur/place1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/place8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.sulfur.step": [
+    {
+      "name": "block/sulfur/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/sulfur/step7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.tuff.break": [
+    {
+      "name": "block/tuff/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.tuff.fall": [
+    {
+      "name": "block/tuff/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.tuff.hit": [
+    {
+      "name": "block/tuff/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.tuff.place": [
+    {
+      "name": "block/tuff/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.tuff.step": [
+    {
+      "name": "block/tuff/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/tuff/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wood.break": [
+    {
+      "name": "dig/wood1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wood.fall": [
+    {
+      "name": "step/wood1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wood.hit": [
+    {
+      "name": "step/wood1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wood.place": [
+    {
+      "name": "dig/wood1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/wood4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wood.step": [
+    {
+      "name": "step/wood1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/wood6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wool.break": [
+    {
+      "name": "dig/cloth1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wool.fall": [
+    {
+      "name": "step/cloth1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wool.hit": [
+    {
+      "name": "step/cloth1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wool.place": [
+    {
+      "name": "dig/cloth1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/cloth4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.wool.step": [
+    {
+      "name": "step/cloth1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/cloth4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.arrow.hit": [
+    {
+      "name": "random/bowhit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/bowhit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/bowhit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/bowhit4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.arrow.hit_player": [
+    {
+      "name": "random/successful_hit",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.arrow.shoot": [
+    {
+      "name": "random/bow",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.chicken.ambient": [
+    {
+      "name": "mob/chicken/say1",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/chicken/say2",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/chicken/say3",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.chicken.death": [
+    {
+      "name": "mob/chicken/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/chicken/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.chicken.egg": [
+    {
+      "name": "mob/chicken/plop",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.chicken.hurt": [
+    {
+      "name": "mob/chicken/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/chicken/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.chicken.step": [
+    {
+      "name": "mob/chicken/step1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/chicken/step2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.cow.ambient": [
+    {
+      "name": "mob/cow/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/say4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.cow.death": [
+    {
+      "name": "mob/cow/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/hurt3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.cow.hurt": [
+    {
+      "name": "mob/cow/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/hurt3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.cow.step": [
+    {
+      "name": "mob/cow/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/cow/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.creeper.death": [
+    {
+      "name": "mob/creeper/death",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.creeper.hurt": [
+    {
+      "name": "mob/creeper/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/creeper/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/creeper/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/creeper/say4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.creeper.primed": [
+    {
+      "name": "random/fuse",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.generic.eat": [
+    {
+      "name": "random/eat1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/eat2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/eat3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.generic.explode": [
+    {
+      "name": "random/explode1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/explode2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/explode3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "random/explode4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.husk.ambient": [
+    {
+      "name": "mob/husk/idle1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/idle2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/idle3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.husk.death": [
+    {
+      "name": "mob/husk/death1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/death2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.husk.hurt": [
+    {
+      "name": "mob/husk/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.husk.step": [
+    {
+      "name": "mob/husk/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/husk/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.item.break": [
+    {
+      "name": "random/break",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.item.pickup": [
+    {
+      "name": "random/pop",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.pig.ambient": [
+    {
+      "name": "mob/pig/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.pig.death": [
+    {
+      "name": "mob/pig/death",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.pig.hurt": [
+    {
+      "name": "mob/pig/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.pig.step": [
+    {
+      "name": "mob/pig/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/pig/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.attack.crit": [
+    {
+      "name": "entity/player/attack/crit1",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/crit2",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/crit3",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.attack.knockback": [
+    {
+      "name": "entity/player/attack/knockback1",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/knockback2",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/knockback3",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/knockback4",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.attack.nodamage": [
+    {
+      "name": "entity/player/attack/weak1",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak2",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak3",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak4",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.attack.strong": [
+    {
+      "name": "entity/player/attack/strong1",
+      "volume": 0.6,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/strong2",
+      "volume": 0.6,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/strong3",
+      "volume": 0.6,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/strong4",
+      "volume": 0.6,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/strong5",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/strong6",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.attack.weak": [
+    {
+      "name": "entity/player/attack/weak1",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak2",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak3",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/attack/weak4",
+      "volume": 0.7,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.big_fall": [
+    {
+      "name": "damage/fallbig",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.burp": [
+    {
+      "name": "random/burp",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.death": [
+    {
+      "name": "damage/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "damage/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "damage/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.hurt": [
+    {
+      "name": "damage/hit1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "damage/hit2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "damage/hit3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.hurt_drown": [
+    {
+      "name": "entity/player/hurt/drown1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/hurt/drown2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/hurt/drown3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/hurt/drown4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.hurt_on_fire": [
+    {
+      "name": "entity/player/hurt/fire_hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/hurt/fire_hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "entity/player/hurt/fire_hurt3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.small_fall": [
+    {
+      "name": "damage/fallsmall",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.splash": [
+    {
+      "name": "liquid/splash",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/splash2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.splash.high_speed": [
+    {
+      "name": "liquid/heavy_splash",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.player.swim": [
+    {
+      "name": "liquid/swim5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim7",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim8",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim9",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim10",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim11",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim12",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim13",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim14",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim15",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim16",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim17",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "liquid/swim18",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.rabbit.ambient": [
+    {
+      "name": "mob/rabbit/idle1",
+      "volume": 0.25,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/idle2",
+      "volume": 0.25,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/idle3",
+      "volume": 0.25,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/idle4",
+      "volume": 0.25,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.rabbit.death": [
+    {
+      "name": "mob/rabbit/bunnymurder",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.rabbit.hurt": [
+    {
+      "name": "mob/rabbit/hurt1",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/hurt2",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/hurt3",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/rabbit/hurt4",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.sheep.ambient": [
+    {
+      "name": "mob/sheep/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.sheep.death": [
+    {
+      "name": "mob/sheep/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.sheep.hurt": [
+    {
+      "name": "mob/sheep/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.sheep.step": [
+    {
+      "name": "mob/sheep/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/sheep/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.skeleton.ambient": [
+    {
+      "name": "mob/skeleton/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.skeleton.death": [
+    {
+      "name": "mob/skeleton/death",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.skeleton.hurt": [
+    {
+      "name": "mob/skeleton/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/hurt3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/hurt4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.skeleton.step": [
+    {
+      "name": "mob/skeleton/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/skeleton/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.spider.ambient": [
+    {
+      "name": "mob/spider/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.spider.death": [
+    {
+      "name": "mob/spider/death",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.spider.hurt": [
+    {
+      "name": "mob/spider/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/say4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.spider.step": [
+    {
+      "name": "mob/spider/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/spider/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.zombie.ambient": [
+    {
+      "name": "mob/zombie/say1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/say2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/say3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.zombie.death": [
+    {
+      "name": "mob/zombie/death",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.zombie.hurt": [
+    {
+      "name": "mob/zombie/hurt1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/hurt2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "entity.zombie.step": [
+    {
+      "name": "mob/zombie/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "mob/zombie/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "intentionally_empty": [],
+  "ui.button.click": [
+    {
+      "name": "random/click_stereo",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ]
+}

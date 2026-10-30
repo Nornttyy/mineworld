@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mineworld · 音效试听</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#151a17;color:#e9efe8}*{box-sizing:border-box}body{max-width:1040px;margin:0 auto;padding:46px 28px}header{display:flex;justify-content:space-between;align-items:center}a{color:#b8df9e}small{letter-spacing:.12em;color:#aac298}h1{font-size:38px;margin:12px 0}p{color:#b4c0b4;line-height:1.8}.cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:28px 0}.card{background:#222a23;border:1px solid #3c4a3b;padding:22px;border-radius:8px}h2{margin:0 0 18px;font-size:19px}button,select{font:inherit;color:inherit;background:#344130;border:1px solid #65785b;border-radius:3px;padding:11px 15px;cursor:pointer}button:hover{background:#43563d}button:disabled{opacity:.5;cursor:wait}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}select{width:100%;background:#192019}output{display:block;margin-top:20px;font:14px/1.7 ui-monospace,monospace;overflow-wrap:anywhere;color:#c8dfa9}label{display:flex;gap:14px;align-items:center}input{accent-color:#add18e;width:180px}.bottom{border-top:1px solid #3c4a3b;padding-top:22px;display:flex;align-items:center;justify-content:space-between;gap:18px}#validation{margin-top:10px}footer{margin-top:28px;font-size:12px;color:#869482}@media(max-width:680px){.cards{grid-template-columns:1fr}body{padding:24px 18px}.bottom{display:block}h1{font-size:30px}}</style></head>
+<body><header><small>MINEWORLD / JAVA 26.3</small><a href="./">进入游戏 →</a></header>
+<h1>音效试听</h1><p>听听不同方块、动作和生物的声音。每次点击会从对应的原版采样中选择一个变体。</p>
+<label>音量 <input id="volume" aria-label="音量" type="range" min="0" max="100" value="70"><span id="volume-value">70%</span></label>
+<div class="cards">
+<section class="card"><h2>方块与脚步</h2><select id="material" aria-label="方块材质"></select><div class="actions" id="blocks"></div></section>
+<section class="card"><h2>生存与战斗</h2><div class="actions" id="actions"></div></section>
+<section class="card"><h2>动物与怪物</h2><select id="mob" aria-label="生物"></select><div class="actions" id="mobs"></div></section>
+<section class="card"><h2>水与环境</h2><div class="actions" id="environment"></div></section>
+</div><output id="playback" aria-live="polite">点击任意按钮试听。</output>
+<div class="bottom"><div><button id="validate">检查全部音效</button><output id="validation" aria-live="polite">检查下载与浏览器解码，不会同时播放所有声音。</output></div><button id="stop">停止播放</button></div>
+<footer>本页使用游戏内同一套采样播放器。音频素材 © Mojang / Microsoft 及其各自作者；这里只展示已接入的音效，不包含原版背景音乐。</footer>
+<script type="module" src="/src/audio/soundCheck.ts"></script></body></html>

@@ -1,8 +1,8 @@
-import { BLOCKS } from '../core/blocks/registry';
+import { type Mob, type MobKind } from '../core/entity/mob';
+import { blockCue, crossedEatTicks, StepDistance, SOUND_EVENTS } from './JavaSounds';
+import { SampleAudio, type AudioPosition } from './SampleAudio';
 
-export type BlockSound = 'stone' | 'dirt' | 'grass' | 'sand' | 'wood' | 'glass' | 'metal';
 export type AudioDimension = 'overworld' | 'nether';
-
 export interface GameAudioFrame {
   playing: boolean;
   moving: boolean;
@@ -12,473 +12,139 @@ export interface GameAudioFrame {
   underwater: boolean;
   groundBlock: number;
   dimension: AudioDimension;
+  position?: AudioPosition;
+  yaw?: number;
+  pitch?: number;
 }
-
-/** 地面脚步的唯一门控：游泳/涉水时不借用脚下方块的走路声。 */
-export function shouldPlayFootstep(frame: GameAudioFrame): boolean {
-  return frame.playing && frame.moving && frame.onGround && !frame.inWater;
+export interface MovementSoundFrame {
+  distance: number;
+  onGround: boolean;
+  inWater: boolean;
+  crouching: boolean;
+  flying: boolean;
+  groundBlock: number;
+  velocity: AudioPosition;
 }
+export const shouldPlayFootstep = (frame: GameAudioFrame): boolean => frame.playing && frame.moving && frame.onGround && !frame.inWater;
+const triangle = (center: number, spread: number): number => center + (Math.random() - Math.random()) * spread;
 
-/** 按方块材质归类；音高与噪声包络会据此变化。 */
-export function blockSoundFor(id: number): BlockSound {
-  const name = BLOCKS[id]?.name ?? 'stone';
-  if (name.includes('leaves') || name.includes('grass') || name.includes('cactus')) return 'grass';
-  if (name.includes('sand') || name === 'gravel') return 'sand';
-  if (name.includes('log') || name.includes('planks') || name === 'crafting_table') return 'wood';
-  if (name === 'ice' || name.includes('glass')) return 'glass';
-  if (name.includes('iron') || name.includes('diamond')) return 'metal';
-  if (name === 'dirt' || name === 'soul_sand') return 'dirt';
-  return 'stone';
-}
-
-const OVERWORLD_CHORDS = [
-  [48, 55, 60, 64],
-  [45, 52, 57, 60],
-  [41, 48, 53, 57],
-  [43, 50, 55, 59],
-] as const;
-const NETHER_CHORDS = [
-  [38, 45, 50, 53],
-  [36, 43, 48, 51],
-  [34, 41, 46, 50],
-  [31, 38, 43, 46],
-] as const;
-
-/** 原创环境配器的和弦表，导出方便做确定性回归测试。 */
-export function ambientChord(index: number, dimension: AudioDimension): readonly number[] {
-  const chords = dimension === 'nether' ? NETHER_CHORDS : OVERWORLD_CHORDS;
-  return chords[((Math.floor(index) % chords.length) + chords.length) % chords.length];
-}
-
-const midiHz = (note: number): number => 440 * 2 ** ((note - 69) / 12);
-
-const MATERIAL: Record<BlockSound, { frequency: number; rate: number; gain: number }> = {
-  stone: { frequency: 660, rate: 0.7, gain: 0.1 },
-  dirt: { frequency: 330, rate: 0.58, gain: 0.095 },
-  grass: { frequency: 1180, rate: 1.05, gain: 0.075 },
-  sand: { frequency: 1750, rate: 0.82, gain: 0.07 },
-  wood: { frequency: 510, rate: 0.84, gain: 0.09 },
-  glass: { frequency: 2350, rate: 1.28, gain: 0.07 },
-  metal: { frequency: 1450, rate: 0.96, gain: 0.075 },
-};
-
-type NoiseLayer = Readonly<{
-  duration: number;
-  frequency: number;
-  q: number;
-  gain: number;
-  rate: number;
-  delay: number;
-  filter: BiquadFilterType;
-}>;
-
-/** 每类方块独立的碎裂层；低增益、错开瞬态，避免旧版四连高噪声的“电流喷气感”。 */
-const BREAK_LAYERS: Record<BlockSound, readonly NoiseLayer[]> = {
-  stone: [
-    { duration: 0.1, frequency: 820, q: 0.45, gain: 0.07, rate: 0.55, delay: 0, filter: 'lowpass' },
-    { duration: 0.055, frequency: 510, q: 0.8, gain: 0.045, rate: 0.72, delay: 0.035, filter: 'bandpass' },
-    { duration: 0.045, frequency: 1120, q: 1.0, gain: 0.026, rate: 0.92, delay: 0.083, filter: 'bandpass' },
-  ],
-  dirt: [
-    { duration: 0.13, frequency: 690, q: 0.35, gain: 0.075, rate: 0.46, delay: 0, filter: 'lowpass' },
-    { duration: 0.075, frequency: 390, q: 0.55, gain: 0.042, rate: 0.61, delay: 0.052, filter: 'bandpass' },
-  ],
-  grass: [
-    { duration: 0.11, frequency: 760, q: 0.4, gain: 0.052, rate: 0.55, delay: 0, filter: 'lowpass' },
-    { duration: 0.08, frequency: 1550, q: 0.55, gain: 0.033, rate: 1.08, delay: 0.025, filter: 'highpass' },
-    { duration: 0.05, frequency: 980, q: 0.8, gain: 0.025, rate: 0.9, delay: 0.075, filter: 'bandpass' },
-  ],
-  sand: [
-    { duration: 0.15, frequency: 920, q: 0.45, gain: 0.045, rate: 0.66, delay: 0, filter: 'highpass' },
-    { duration: 0.09, frequency: 2250, q: 0.7, gain: 0.027, rate: 0.9, delay: 0.045, filter: 'bandpass' },
-  ],
-  wood: [
-    { duration: 0.09, frequency: 720, q: 0.7, gain: 0.06, rate: 0.67, delay: 0, filter: 'lowpass' },
-    { duration: 0.05, frequency: 470, q: 1.1, gain: 0.043, rate: 0.88, delay: 0.045, filter: 'bandpass' },
-    { duration: 0.045, frequency: 1050, q: 0.8, gain: 0.023, rate: 1.05, delay: 0.092, filter: 'bandpass' },
-  ],
-  glass: [
-    { duration: 0.11, frequency: 1750, q: 0.6, gain: 0.038, rate: 1.12, delay: 0, filter: 'highpass' },
-    { duration: 0.055, frequency: 2850, q: 1.5, gain: 0.025, rate: 1.38, delay: 0.04, filter: 'bandpass' },
-  ],
-  metal: [
-    { duration: 0.085, frequency: 980, q: 0.9, gain: 0.045, rate: 0.82, delay: 0, filter: 'bandpass' },
-    { duration: 0.07, frequency: 2150, q: 1.1, gain: 0.025, rate: 1.05, delay: 0.052, filter: 'highpass' },
-  ],
-};
-
-/**
- * 全部声音由 Web Audio 即时合成，不下载或复制其它游戏的音频。
- * 稀疏钟琴/柔和合成垫负责 BGM，短噪声与共振器负责方块、脚步和战斗反馈。
- */
+/** Java 26.3 samples and event routing. Audio random choices never consume world/entity RNG. */
 export class GameAudio {
-  private context: AudioContext | null = null;
-  private master: GainNode | null = null;
-  private sfxBus: GainNode | null = null;
-  private musicBus: GainNode | null = null;
-  private environmentFilter: BiquadFilterNode | null = null;
-  private noise: AudioBuffer | null = null;
-  private volume = 0.7;
-  private started = false;
-  private phrase = 0;
-  private musicTimer: number | null = null;
-  private stepTimer = 0;
+  readonly samples = new SampleAudio();
+  private steps = new StepDistance();
   private hitTimer = 0;
-  private groundStateKnown = false;
-  private wasOnGround = false;
-  private dimension: AudioDimension = 'overworld';
-  private underwater = false;
+  private playing = false;
+  private wasInWater: boolean | null = null;
+  private mobSounds = new WeakMap<Mob, { timer: number; steps: StepDistance }>();
+  private warmed = false;
 
   constructor() {
     if (typeof window === 'undefined') return;
-    const unlock = (): void => void this.unlock();
+    const unlock = (): void => { void this.unlock(); };
     window.addEventListener('pointerdown', unlock, { capture: true, passive: true });
     window.addEventListener('touchend', unlock, { capture: true, passive: true });
     window.addEventListener('keydown', unlock, { capture: true });
     document.addEventListener('visibilitychange', () => {
-      if (!this.context) return;
-      if (document.visibilityState === 'hidden') void this.context.suspend();
-      else if (this.started) void this.context.resume();
+      if (document.visibilityState === 'hidden') this.samples.suspend();
+      else void this.unlock();
     });
   }
 
-  setVolume(percent: number): void {
-    this.volume = Math.max(0, Math.min(1, percent / 100));
-    if (this.master && this.context) {
-      const audible = this.volume ** 1.35;
-      this.master.gain.setTargetAtTime(audible, this.context.currentTime, 0.025);
-    }
-  }
-
+  setVolume(percent: number): void { this.samples.setVolume(percent); }
   async unlock(): Promise<void> {
-    const context = this.ensureContext();
-    if (!context) return;
-    if (context.state !== 'running') {
-      try {
-        await context.resume();
-      } catch {
-        // 浏览器仍在等待用户手势；下一次 pointerdown/keydown 会再次尝试。
-      }
+    await this.samples.unlock();
+    if (!this.warmed) {
+      this.warmed = true;
+      void this.samples.preload(['ui.button.click', 'block.grass.step', 'block.grass.break', 'block.stone.step',
+        'block.stone.break', 'block.gravel.step', 'block.gravel.break', 'block.wood.step', 'block.wood.break',
+        'entity.player.hurt', 'entity.generic.eat', 'entity.item.pickup']);
     }
   }
-
-  start(): void {
-    this.started = true;
-    const context = this.ensureContext();
-    if (context?.state === 'suspended') void context.resume();
-    if (this.musicTimer === null) this.scheduleNextPhrase(1.5);
-  }
-
+  start(): void { this.steps.reset(); this.wasInWater = null; this.hitTimer = 0; this.playing = true; void this.unlock(); }
   update(dt: number, frame: GameAudioFrame): void {
-    this.dimension = frame.dimension;
-    this.underwater = frame.underwater;
-    if (this.environmentFilter && this.context) {
-      this.environmentFilter.frequency.setTargetAtTime(
-        frame.underwater ? 820 : frame.dimension === 'nether' ? 5400 : 18000,
-        this.context.currentTime,
-        frame.underwater ? 0.08 : 0.35,
-      );
+    this.hitTimer = Math.max(0, this.hitTimer - dt);
+    if (frame.position) this.samples.setListener(frame.position, frame.yaw ?? 0, frame.pitch ?? 0);
+    if (!frame.playing && this.playing) this.samples.stopWorld();
+    this.playing = frame.playing;
+  }
+
+  /** Called once per physics tick using actual displacement (blocked movement is silent). */
+  movement(frame: MovementSoundFrame): void {
+    if (this.wasInWater === false && frame.inWater) {
+      const v = frame.velocity;
+      const volume = Math.min(1, Math.sqrt((v.x*v.x + v.z*v.z)*0.2 + v.y*v.y)*0.2);
+      if (volume > 0.01) void this.samples.play(volume < 0.25 ? 'entity.player.splash' : 'entity.player.splash.high_speed', { volume, pitch: triangle(1,0.4) });
     }
-    this.stepTimer -= dt;
-    this.hitTimer -= dt;
-    if (this.groundStateKnown && frame.playing && !this.wasOnGround && frame.onGround && !frame.inWater)
-      this.land(frame.groundBlock);
-    this.wasOnGround = frame.onGround;
-    this.groundStateKnown = true;
-    // 水里只保留水体环境处理，绝不继续按脚下方块播放“走路声”。
-    if (!shouldPlayFootstep(frame)) return;
-    if (this.stepTimer > 0) return;
-    this.step(frame.groundBlock);
-    this.stepTimer = frame.sprinting ? 0.29 : 0.42;
+    this.wasInWater = frame.inWater;
+    if (frame.flying || frame.crouching) return;
+    if (!this.steps.advance(frame.distance, frame.inWater || frame.onGround && frame.groundBlock !== 0)) return;
+    if (frame.inWater) {
+      const v = frame.velocity;
+      const volume = Math.min(1, Math.sqrt((v.x*v.x + v.z*v.z)*0.2 + v.y*v.y)*0.35);
+      void this.samples.play('entity.player.swim', { volume, pitch: triangle(1,0.4) });
+    } else this.step(frame.groundBlock);
   }
-
-  step(blockId: number): void {
-    const material = MATERIAL[blockSoundFor(blockId)];
-    this.noiseBurst(0.065, material.frequency, 0.8, material.gain * 0.38, material.rate);
+  private block(id: number, action: Parameters<typeof blockCue>[1], position?: AudioPosition): void {
+    const cue = blockCue(id, action);
+    void this.samples.play(cue.event, { volume: cue.volume, pitch: cue.pitch, position });
   }
-
-  jump(blockId: number): void {
-    const material = MATERIAL[blockSoundFor(blockId)];
-    this.noiseBurst(0.07, material.frequency * 0.78, 0.65, material.gain * 0.28, material.rate * 0.82);
-  }
-
-  land(blockId: number): void {
-    const material = MATERIAL[blockSoundFor(blockId)];
-    this.noiseBurst(0.1, material.frequency * 0.72, 0.55, material.gain * 0.48, material.rate * 0.72);
-  }
-
-  blockHit(blockId: number): void {
+  step(id: number): void { this.block(id, 'step'); }
+  // Vanilla has no additional synthesized take-off whoosh.
+  jump(_id: number): void {}
+  land(id: number): void { this.block(id, 'fall'); }
+  blockHit(id: number, position?: AudioPosition): void {
     if (this.hitTimer > 0) return;
-    this.hitTimer = 0.145;
-    const sound = blockSoundFor(blockId);
-    const material = MATERIAL[sound];
-    const filter: BiquadFilterType = sound === 'sand' || sound === 'grass' ? 'highpass' : 'bandpass';
-    this.noiseBurst(0.045, material.frequency, 0.65, material.gain * 0.34, material.rate, 0, filter);
+    this.hitTimer = 0.2;
+    this.block(id, 'hit', position);
   }
-
-  blockBreak(blockId: number): void {
-    const sound = blockSoundFor(blockId);
-    for (const layer of BREAK_LAYERS[sound])
-      this.noiseBurst(
-        layer.duration,
-        layer.frequency,
-        layer.q,
-        layer.gain,
-        layer.rate,
-        layer.delay,
-        layer.filter,
-      );
-    if (sound === 'wood') this.resonance(176, 0.08, 0.018, 'triangle', 132, 0.025);
-    if (sound === 'glass') {
-      this.resonance(1680, 0.13, 0.022, 'sine', 2180, 0.025);
-      this.resonance(2350, 0.1, 0.014, 'sine', 1820, 0.075);
+  resetDig(): void { this.hitTimer = 0; }
+  blockBreak(id: number, position?: AudioPosition): void { this.block(id, 'break', position); }
+  blockPlace(id: number, position?: AudioPosition): void { this.block(id, 'place', position); }
+  attack(kind: 'strong' | 'weak' | 'crit' | 'knockback' | 'nodamage' = 'strong'): void {
+    void this.samples.play(`entity.player.attack.${kind}`);
+  }
+  hurt(kind = 'melee'): void {
+    if (kind === 'fall') return;
+    const event = kind === 'drown' ? 'entity.player.hurt_drown' : kind === 'lava' || kind === 'on_fire' ? 'entity.player.hurt_on_fire' : 'entity.player.hurt';
+    void this.samples.play(event);
+  }
+  fall(damage: number, groundBlock: number): void {
+    void this.samples.play(damage > 4 ? 'entity.player.big_fall' : 'entity.player.small_fall');
+    this.land(groundBlock);
+  }
+  bow(power: number, position?: AudioPosition): void {
+    void this.samples.play('entity.arrow.shoot', { volume: 1, pitch: 1/(Math.random()*0.4+1.2)+Math.max(0,Math.min(1,power))*0.5, position });
+  }
+  eating(before: number, after: number): void {
+    for (let n = crossedEatTicks(before,after); n > 0; n--) this.eat();
+  }
+  eat(): void { void this.samples.play('entity.generic.eat', { volume: Math.random() < 0.5 ? 0.5 : 1, pitch: triangle(1,0.2) }); }
+  burp(): void { this.eat(); void this.samples.play('entity.player.burp', { volume:0.5, pitch:0.9+Math.random()*0.1 }); }
+  pickup(): void { void this.samples.play('entity.item.pickup', { volume:0.2, pitch:triangle(2,1.4) }); }
+  arrowHit(position?: AudioPosition): void { void this.samples.play('entity.arrow.hit', { pitch:1.2/(Math.random()*0.2+0.9), position }); }
+  mobHurt(dead = false, kind: MobKind = 'zombie', position?: AudioPosition): void {
+    void this.samples.play(`entity.${kind}.${dead ? 'death' : 'hurt'}`, { pitch:triangle(1,0.2), volume:kind === 'rabbit' ? 0.4 : 1, position });
+  }
+  tickMob(mob: Mob, previous: AudioPosition, previousFuse: number): void {
+    let state = this.mobSounds.get(mob);
+    if (!state) { state = {timer:0, steps:new StepDistance()}; this.mobSounds.set(mob,state); }
+    const event = `entity.${mob.kind}.ambient`;
+    // Java Mob: random.nextInt(1000) < ambientSoundTime++; reset to -interval.
+    if (SOUND_EVENTS[event] && Math.floor(Math.random()*1000) < state.timer++) {
+      state.timer = -(mob.kind === 'zombie' || mob.kind === 'husk' ? 100 : 80);
+      void this.samples.play(event, { position:mob.pos, pitch:triangle(1,0.2), volume:mob.kind === 'rabbit' ? 0.4 : 1 });
     }
-    if (sound === 'metal') this.resonance(510, 0.16, 0.02, 'sine', 430, 0.02);
+    const distance = Math.hypot(mob.pos.x-previous.x, mob.pos.z-previous.z);
+    if (state.steps.advance(distance, mob.onGround) && SOUND_EVENTS[`entity.${mob.kind}.step`])
+      void this.samples.play(`entity.${mob.kind}.step`, { position:mob.pos, volume:0.15 });
+    if (mob.kind === 'creeper' && previousFuse === 0 && mob.fuse > 0)
+      void this.samples.play('entity.creeper.primed', { position:mob.pos, volume:1, pitch:0.5 });
   }
-
-  blockPlace(blockId: number): void {
-    const material = MATERIAL[blockSoundFor(blockId)];
-    this.noiseBurst(0.075, material.frequency * 0.72, 0.9, material.gain * 0.68, material.rate * 0.8);
-    this.noiseBurst(0.045, material.frequency, 1.25, material.gain * 0.3, material.rate, 0.035);
-  }
-
-  attack(): void {
-    this.noiseBurst(0.085, 1380, 0.65, 0.15, 1.35);
-    this.resonance(118, 0.09, 0.07, 'square');
-  }
-
-  hurt(): void {
-    this.resonance(145, 0.16, 0.12, 'sawtooth', 72);
-    this.noiseBurst(0.1, 520, 0.7, 0.09, 0.62);
-  }
-
-  bow(power: number): void {
-    const p = Math.max(0, Math.min(1, power));
-    this.resonance(290 + p * 180, 0.16, 0.065, 'triangle', 125 + p * 70);
-    this.noiseBurst(0.12, 2200, 0.6, 0.08 + p * 0.035, 1.7);
-  }
-
-  eat(): void {
-    this.noiseBurst(0.1, 780, 1.1, 0.1, 0.78);
-    this.noiseBurst(0.08, 1180, 1.3, 0.07, 0.94, 0.07);
-  }
-
-  pickup(): void {
-    this.resonance(740, 0.07, 0.055, 'sine', 1060);
-    this.resonance(990, 0.09, 0.04, 'sine', 1320, 0.045);
-  }
-
-  arrowHit(): void {
-    this.noiseBurst(0.055, 1180, 0.8, 0.038, 1.08, 0, 'bandpass');
-    this.resonance(245, 0.08, 0.022, 'triangle', 170);
-  }
-
-  mobHurt(dead = false): void {
-    this.resonance(dead ? 135 : 205, dead ? 0.28 : 0.13, dead ? 0.045 : 0.03, 'triangle', dead ? 72 : 150);
-    this.noiseBurst(dead ? 0.16 : 0.075, 680, 0.6, dead ? 0.038 : 0.026, 0.72);
-  }
-
-  toolBreak(): void {
-    this.noiseBurst(0.13, 1350, 0.7, 0.055, 1.08, 0, 'highpass');
-    this.resonance(620, 0.12, 0.025, 'triangle', 210, 0.025);
-  }
-
-  uiClick(): void {
-    this.resonance(520, 0.035, 0.012, 'sine', 440);
-  }
-
-  portal(): void {
-    this.resonance(82, 1.1, 0.08, 'sine', 164);
-    this.resonance(123, 1.25, 0.045, 'triangle', 246, 0.08);
-  }
-
-  death(): void {
-    this.resonance(180, 0.65, 0.13, 'sawtooth', 48);
-    this.noiseBurst(0.4, 360, 0.5, 0.1, 0.52);
-  }
-
-  explosion(): void {
-    this.noiseBurst(0.52, 135, 0.55, 0.38, 0.38);
-    this.noiseBurst(0.32, 620, 0.7, 0.2, 0.62, 0.025);
-    this.resonance(72, 0.7, 0.13, 'sine', 28);
-  }
-
-  private ensureContext(): AudioContext | null {
-    if (this.context) return this.context;
-    if (typeof window === 'undefined') return null;
-    const Context =
-      window.AudioContext ??
-      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Context) return null;
-    const context = new Context();
-    const master = context.createGain();
-    const environmentFilter = context.createBiquadFilter();
-    const compressor = context.createDynamicsCompressor();
-    const sfxBus = context.createGain();
-    const musicBus = context.createGain();
-    const delay = context.createDelay(2);
-    const delayFeedback = context.createGain();
-    master.gain.value = this.volume ** 1.35;
-    environmentFilter.type = 'lowpass';
-    environmentFilter.frequency.value = 18000;
-    compressor.threshold.value = -12;
-    compressor.knee.value = 16;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.004;
-    compressor.release.value = 0.22;
-    sfxBus.gain.value = 0.58;
-    musicBus.gain.value = 0.23;
-    delay.delayTime.value = 0.42;
-    delayFeedback.gain.value = 0.2;
-    sfxBus.connect(master);
-    musicBus.connect(master);
-    musicBus.connect(delay);
-    delay.connect(delayFeedback);
-    delayFeedback.connect(delay);
-    delay.connect(master);
-    master.connect(environmentFilter);
-    environmentFilter.connect(compressor);
-    compressor.connect(context.destination);
-    this.context = context;
-    this.master = master;
-    this.sfxBus = sfxBus;
-    this.musicBus = musicBus;
-    this.environmentFilter = environmentFilter;
-    this.noise = this.makeNoise(context);
-    return context;
-  }
-
-  private makeNoise(context: AudioContext): AudioBuffer {
-    const buffer = context.createBuffer(1, Math.floor(context.sampleRate * 0.55), context.sampleRate);
-    const data = buffer.getChannelData(0);
-    let previous = 0;
-    for (let i = 0; i < data.length; i++) {
-      const white = Math.random() * 2 - 1;
-      previous = previous * 0.28 + white * 0.72;
-      data[i] = previous;
-    }
-    return buffer;
-  }
-
-  private noiseBurst(
-    duration: number,
-    frequency: number,
-    q: number,
-    gain: number,
-    rate: number,
-    delay = 0,
-    filterType: BiquadFilterType = 'bandpass',
-  ): void {
-    const context = this.ensureContext();
-    if (!context || !this.sfxBus || !this.noise || this.volume <= 0) return;
-    const now = context.currentTime + delay;
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const envelope = context.createGain();
-    source.buffer = this.noise;
-    source.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
-    filter.type = filterType;
-    filter.frequency.value = frequency * (0.94 + Math.random() * 0.12);
-    filter.Q.value = q;
-    const attack = Math.min(0.006, duration * 0.18);
-    envelope.gain.setValueAtTime(0.0001, now);
-    envelope.gain.linearRampToValueAtTime(Math.max(0.0001, gain), now + attack);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    source.connect(filter);
-    filter.connect(envelope);
-    envelope.connect(this.sfxBus);
-    source.start(now, Math.random() * 0.12, duration);
-    source.stop(now + duration + 0.01);
-  }
-
-  private resonance(
-    fromHz: number,
-    duration: number,
-    gain: number,
-    type: OscillatorType = 'sine',
-    toHz = fromHz,
-    delay = 0,
-  ): void {
-    const context = this.ensureContext();
-    if (!context || !this.sfxBus || this.volume <= 0) return;
-    const now = context.currentTime + delay;
-    const oscillator = context.createOscillator();
-    const envelope = context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(fromHz, now);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, toHz), now + duration);
-    const attack = Math.min(0.004, duration * 0.18);
-    envelope.gain.setValueAtTime(0.0001, now);
-    envelope.gain.linearRampToValueAtTime(Math.max(0.0001, gain), now + attack);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(envelope);
-    envelope.connect(this.sfxBus);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.02);
-  }
-
-  private scheduleNextPhrase(delaySeconds: number): void {
-    if (typeof window === 'undefined') return;
-    this.musicTimer = window.setTimeout(() => {
-      this.musicTimer = null;
-      if (!this.started) return;
-      this.playPhrase();
-      // 和原版方块生存游戏相似的“留白感”，但旋律与音色均为本项目原创。
-      this.scheduleNextPhrase(13 + Math.random() * 11);
-    }, delaySeconds * 1000);
-  }
-
-  private playPhrase(): void {
-    const context = this.ensureContext();
-    if (!context || !this.musicBus || this.volume <= 0 || context.state !== 'running') return;
-    const chord = ambientChord(this.phrase++, this.dimension);
-    const now = context.currentTime + 0.08;
-    const count = this.dimension === 'nether' ? 5 : 7;
-    for (let i = 0; i < count; i++) {
-      const octave = i >= 4 && this.dimension === 'overworld' ? 12 : 0;
-      const note = chord[(i * 3 + this.phrase) % chord.length] + octave;
-      const when = now + i * (this.dimension === 'nether' ? 1.7 : 1.28);
-      this.musicTone(midiHz(note), when, this.dimension === 'nether' ? 5.8 : 4.4, i === 0 ? 0.055 : 0.038);
-    }
-    this.musicTone(midiHz(chord[0] - 12), now, 9.5, 0.032, 'sine');
-  }
-
-  private musicTone(
-    frequency: number,
-    when: number,
-    duration: number,
-    peak: number,
-    type: OscillatorType = 'sine',
-  ): void {
-    const context = this.context;
-    if (!context || !this.musicBus) return;
-    const oscillator = context.createOscillator();
-    const overtone = context.createOscillator();
-    const overtoneGain = context.createGain();
-    const filter = context.createBiquadFilter();
-    const envelope = context.createGain();
-    oscillator.type = type;
-    overtone.type = 'sine';
-    oscillator.frequency.value = frequency;
-    overtone.frequency.value = frequency * 2.003;
-    overtoneGain.gain.value = 0.12;
-    filter.type = 'lowpass';
-    filter.frequency.value = this.underwater ? 700 : this.dimension === 'nether' ? 1250 : 2600;
-    filter.Q.value = 0.7;
-    envelope.gain.setValueAtTime(0.0001, when);
-    envelope.gain.exponentialRampToValueAtTime(peak, when + Math.min(0.45, duration * 0.16));
-    envelope.gain.exponentialRampToValueAtTime(peak * 0.26, when + duration * 0.4);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-    oscillator.connect(filter);
-    overtone.connect(overtoneGain);
-    overtoneGain.connect(filter);
-    filter.connect(envelope);
-    envelope.connect(this.musicBus);
-    oscillator.start(when);
-    overtone.start(when);
-    oscillator.stop(when + duration + 0.05);
-    overtone.stop(when + duration + 0.05);
-  }
+  egg(position: AudioPosition): void { void this.samples.play('entity.chicken.egg', {position,volume:1,pitch:triangle(1,0.2)}); }
+  toolBreak(): void { void this.samples.play('entity.item.break', { volume:0.8, pitch:0.8+Math.random()*0.4 }); }
+  uiClick(): void { void this.samples.play('ui.button.click', { volume:0.25, ui:true }); }
+  portal(): void { this.steps.reset(); this.wasInWater = null; void this.samples.play('block.portal.travel', { volume:0.25, pitch:0.8+Math.random()*0.4 }); }
+  death(): void { void this.samples.play('entity.player.death'); }
+  explosion(position?: AudioPosition): void { void this.samples.play('entity.generic.explode', { volume:4, pitch:triangle(0.7,0.28), position }); }
 }
-
 export const gameAudio = new GameAudio();
