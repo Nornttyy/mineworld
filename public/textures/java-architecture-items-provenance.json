@@ -1,0 +1,17 @@
+{
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "files": [
+    {
+      "source": "assets/minecraft/textures/item/oak_door.png",
+      "sha1": "c62265d5420c3d98ec0e97f504bd79e13232073f"
+    },
+    {
+      "source": "assets/minecraft/textures/item/spruce_door.png",
+      "sha1": "28747472ca4021f498d7a5f2d6e8e180799642f6"
+    },
+    {
+      "source": "assets/minecraft/textures/item/acacia_door.png",
+      "sha1": "1026920c243092f1571b4de117013345c9bbd43d"
+    }
+  ]
+}

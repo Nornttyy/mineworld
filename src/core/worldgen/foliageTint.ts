@@ -1,5 +1,7 @@
+import { baseBlockId } from '../blocks/architecture';
+import grassColors from './data/java26-grass-colors.json';
 import colors from './data/java26-foliage-colors.json';
-import { BIRCH_LEAVES, SPRUCE_LEAVES, CHERRY_LEAVES, LEAF_IDS } from '../blocks/registry';
+import { BLOCKS, BIRCH_LEAVES, SPRUCE_LEAVES, CHERRY_LEAVES, LEAF_IDS } from '../blocks/registry';
 import { biomeAt } from './biome';
 import { modernBiomeAt, modernSeed } from './modernOverworld';
 import { createBiomeZoom } from './biomeZoom';
@@ -13,8 +15,9 @@ export const colorToLinear = (color: number): FoliageTint => [
   linearChannel(((color >> 8) & 255) / 255),
   linearChannel((color & 255) / 255),
 ];
+export const isGrassTint = (id:number):boolean => /^(grass|grass_block|grass_plant|short_grass|large_fern|fern)$/.test(BLOCKS[baseBlockId(id)]?.name??'');
 export const defaultLeafTint = (id: number): FoliageTint =>
-  colorToLinear(!LEAF_IDS.has(id) || id === CHERRY_LEAVES ? 0xffffff : id === SPRUCE_LEAVES ? 0x619961 : id === BIRCH_LEAVES ? 0x80a755 : 0x77ab2f);
+  id>=113 && isGrassTint(id) ? colorToLinear(0x91bd59) : BLOCKS[baseBlockId(id)]?.name==='vine' ? colorToLinear(0x77ab2f) : colorToLinear(!LEAF_IDS.has(baseBlockId(id)) || baseBlockId(id) === CHERRY_LEAVES ? 0xffffff : baseBlockId(id) === SPRUCE_LEAVES ? 0x619961 : baseBlockId(id) === BIRCH_LEAVES ? 0x80a755 : 0x77ab2f);
 export type FoliageSampler = (id: number, x: number, y: number, z: number) => FoliageTint;
 interface Source {
   seed: number;
@@ -31,8 +34,8 @@ export function createFoliageSampler(source: Source): FoliageSampler {
     : null;
   const sampled = new Map<string, number>();
   const blended = new Map<string, FoliageTint>();
-  const at = (x: number, y: number, z: number): number => {
-    const key = `${x},${y},${z}`;
+  const at = (x: number, y: number, z: number, grass=false): number => {
+    const key = `${grass}:${x},${y},${z}`;
     let v = sampled.get(key);
     if (v !== undefined) return v;
     const legacy = () => {
@@ -40,14 +43,16 @@ export function createFoliageSampler(source: Source): FoliageSampler {
       return b === 'snow' ? 'taiga' : b;
     };
     const biome = zoom ? zoom(x, y, z) : `minecraft:${legacy()}`;
-    v = (colors as Record<string, number>)[biome] ?? 0x77ab2f;
+    v = ((grass?grassColors:colors) as Record<string, number>)[biome] ?? 0x77ab2f;
     sampled.set(key, v);
     return v;
   };
   return (id, x, y, z) => {
-    if (!LEAF_IDS.has(id) || id === CHERRY_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES)
+    const grass=id>=113 && isGrassTint(id);
+    id = baseBlockId(id);
+    if ((!grass && !LEAF_IDS.has(id) && BLOCKS[id]?.name !== 'vine') || id === CHERRY_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES)
       return id === SPRUCE_LEAVES || id === BIRCH_LEAVES ? defaultLeafTint(id) : [1, 1, 1];
-    const key = `${x},${y},${z}`;
+    const key = `${grass}:${x},${y},${z}`;
     const cached = blended.get(key);
     if (cached) return cached;
     let r = 0,
@@ -55,7 +60,7 @@ export function createFoliageSampler(source: Source): FoliageSampler {
       b = 0;
     for (let dx = -2; dx <= 2; dx++)
       for (let dz = -2; dz <= 2; dz++) {
-        const c = at(x + dx, y, z + dz);
+        const c = at(x + dx, y, z + dz,grass);
         r += (c >> 16) & 255;
         g += (c >> 8) & 255;
         b += c & 255;

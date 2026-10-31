@@ -1,3 +1,4 @@
+import { architectureModel, baseBlockId } from '../blocks/architecture';
 import { createFoliageSampler, defaultLeafTint, type FoliageSampler } from '../worldgen/foliageTint';
 import { Section } from '../world/section';
 import { World } from '../world/world';
@@ -198,7 +199,7 @@ export interface MeshData {
   normals?: Float32Array; // 只有旧 meshGrid 路径产出；区块走 MeshBasicMaterial 不打灯，不需法线(省 ~23% 顶点带宽)
   uvs: Float32Array;
   colors: Float32Array;
-  tiles?: Uint8Array; // 每顶点精确图集格编号；shader 不再由浮点 UV 反推，避免草地误认成莹石
+  tiles?: Uint16Array; // 每顶点精确图集格编号；shader 不再由浮点 UV 反推，避免草地误认成莹石
   indices: Uint16Array | Uint32Array; // 顶点 ≤65535 用 Uint16，索引带宽/显存减半
   light?: Float32Array; // 每顶点 (天光01, 方块光01)，itemSize 2；交给 shader 按昼夜合成亮度。火把网格不带。
   underwater?: Float32Array; // 仅不透明网格：面外水格到水面的连续水柱深度 0..8，供水底焦散 shader 用
@@ -332,7 +333,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
     positions: new Float32Array(a.P),
     uvs: new Float32Array(a.U),
     colors: new Float32Array(a.C),
-    tiles: a.TI.length ? new Uint8Array(a.TI) : undefined,
+    tiles: a.TI.length ? new Uint16Array(a.TI) : undefined,
     // 顶点数没超 Uint16 上限就用 Uint16(绝大多数区块如此)，否则退回 Uint32
     indices: verts <= 65535 ? new Uint16Array(a.I) : new Uint32Array(a.I),
     light: new Float32Array(a.L),
@@ -349,6 +350,7 @@ const toMeshData = (a: FaceArrays): MeshData => {
 
 export interface ChunkMesh {
   opaque: MeshData;
+  glass?: MeshData;
   ice: MeshData; // 冰：独立材质批次（网格阶段仍按 opaque 邻居剔面）
   cutout: MeshData; // 镂空(树叶等，alpha-test)
   water: MeshData;
@@ -376,6 +378,7 @@ export function meshChunkData(
   const oz = cz * CHUNK_W;
   const op = emptyArrays();
   const ice = emptyArrays();
+  const glass = emptyArrays();
   const cut = emptyArrays();
   const wa = emptyArrays();
   const po = emptyArrays(); // 下界传送门独立透明批次
@@ -857,10 +860,47 @@ export function meshChunkData(
     return count > 0 ? total / count : 0.5;
   };
 
+  const emitModel = (lx: number, ly: number, lz: number, id: number): boolean => {
+    const model = architectureModel(id); if (!model || !model.quads.length) return false;
+    for (const q of model.quads) {
+      const a = q.forceTranslucent ? glass : isOpaque(id) ? op : cut;
+      if (q.cullFace !== undefined) {
+        const d = DIRS[q.cullFace];
+        const neighbor = getBlock(ox+lx+d.o[0],ly+d.o[1],oz+lz+d.o[2]);
+        if (isOpaque(neighbor) || (model.name.includes('glass') && baseBlockId(neighbor)===baseBlockId(id))) continue;
+      }
+      const f=q.direction ?? q.cullFace ?? 2, d=DIRS[f];
+      const shade=q.shade ? FACE_SHADE[f] : 1;
+      const sky=Math.max(skyAt(lx,ly,lz),skyAt(lx+d.o[0],ly+d.o[1],lz+d.o[2]))/15;
+      const light=Math.max(blkAt(lx,ly,lz),blkAt(lx+d.o[0],ly+d.o[1],lz+d.o[2]))/15;
+      const tint=q.tint!==undefined ? foliageAt(id,ox+lx,ly,oz+lz) : [1,1,1];
+      const start=a.P.length/3, u0=(q.tile%ATLAS_COLUMNS)/ATLAS_COLUMNS+epsU;
+      const v0=1-(Math.floor(q.tile/ATLAS_COLUMNS)+1)/ATLAS_ROWS+epsV;
+      for(let k=0;k<4;k++) {
+        const v=q.vertices[k],uv=q.uv[k];a.P.push(lx+v[0],ly+v[1],lz+v[2]);
+        let shadeVertex=shade,skyVertex=sky,lightVertex=light;
+        if(q.ao && q.shade && !blockLight(id)){
+          const ax=AO_AXES[f];let ao=0,sl=0,bl=0;
+          for(let c=0;c<4;c++){
+            const cv=d.c[c],weight=(cv[ax.ui]===1?v[ax.ui]:1-v[ax.ui])*(cv[ax.vi]===1?v[ax.vi]:1-v[ax.vi]);
+            ao+=cornerAO(occ,ox+lx,ly,oz+lz,f,c)*weight;
+            const l=cornerLight(lx+d.o[0],ly+d.o[1],lz+d.o[2],f,c);sl+=l[0]*weight;bl+=l[1]*weight;
+          }
+          shadeVertex*=ao;skyVertex=Math.max(sky*.5,sl);lightVertex=Math.max(light*.5,bl);
+        }
+        a.U.push(u0+uv[0]*du,v0+(1-uv[1])*dv);a.C.push(...(a===cut?[shadeVertex,shadeVertex,shadeVertex]:tint.map(t=>t*shadeVertex)));a.TI.push(q.tile);a.L.push(skyVertex,lightVertex);
+        if(a===cut){a.FT.push(...tint);a.SW.push(0);} else {a.UW.push(0);a.WT.push(0);}
+      }
+      a.I.push(start,start+1,start+2,start,start+2,start+3);
+    }
+    return true;
+  };
+
   for (let ly = minY; ly < maxY; ly++) {
     for (let lz = 0; lz < CHUNK_W; lz++) {
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const id = getBlock(ox + lx, ly, oz + lz);
+        if (emitModel(lx,ly,lz,id)) continue;
         if (isOpaque(id) && id !== ICE) {
           for (let f = 0; f < 6; f++) {
             const d = DIRS[f];
@@ -986,6 +1026,7 @@ export function meshChunkData(
 
   return {
     opaque: toMeshData(op),
+    glass: toMeshData(glass),
     ice: toMeshData(ice),
     cutout: toMeshData(cut),
     water: toMeshData(wa),

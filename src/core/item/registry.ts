@@ -1,3 +1,4 @@
+import { BLOCKS } from '../blocks/registry';
 import type { ItemDef, ItemId } from './types';
 import { ARMOR_ITEM_IDS, itemName } from '../items/items';
 
@@ -87,7 +88,7 @@ const DEFS: ItemDef[] = [
   def('bow', 'Bow', 1),
 ];
 
-export const ITEMS: ReadonlyMap<ItemId, ItemDef> = new Map(DEFS.map((d) => [d.id, d]));
+export const ITEMS: ReadonlyMap<ItemId, ItemDef> = new Map([...BLOCKS.slice(113).map(b=>def(b.name,b.name)), ...DEFS].map((d) => [d.id, d]));
 
 export function getItem(id: ItemId): ItemDef {
   const d = ITEMS.get(id);

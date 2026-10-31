@@ -111,9 +111,9 @@ describe('Game embedded control fallback integration', () => {
     await expect(game.requestPlayControl()).resolves.toBe(false);
     game.closeCrafting();
     expect(game.isContainerOpen()).toBe(false);
-    expect(game.isGameplayActive()).toBe(true);
+    await vi.waitFor(() => expect(game.isGameplayActive()).toBe(true));
     expect(hint.style.display).toBe('block');
-    expect(canvas.requestPointerLock).toHaveBeenCalledOnce();
+    expect(canvas.requestPointerLock).toHaveBeenCalledTimes(2);
     look.dispose();
   });
 

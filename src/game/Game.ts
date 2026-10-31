@@ -1,3 +1,6 @@
+import { connectedArchitectureState, bedPartner } from '../core/blocks/architecturePlacement';
+import { architectureOutline } from '../render/architectureGeometry';
+import { architectureModel, architectureStateId, changedArchitectureState, baseBlockId } from '../core/blocks/architecture';
 import * as THREE from 'three';
 import { Renderer } from '../render/Renderer';
 import { ChunkWorld } from '../core/world/chunkWorld';
@@ -283,6 +286,7 @@ export class Game {
   private readonly playerPhysWorld: VoxelWorld;
   private readonly waterSurfaceWorld: SeaSurfaceWorld;
   private chunks: ChunkMeshManager; // 构造时建一次；切维度复用同一个(setWorld 换世界引用)，故非 readonly 但实际只建一次
+  private highlightedId=-1;
   private readonly highlight: THREE.LineSegments;
   private readonly underwaterEl: HTMLElement | null;
   private readonly portalEffectEl: HTMLElement | null;
@@ -525,6 +529,7 @@ export class Game {
     this.invUI.onClose = (): void => this.closeCrafting();
     this.invUI.onSelectHotbar = (index): void => this.hotbar.setSelected(index);
     this.physWorld = {
+      getBlock: (x,y,z) => this.world.getBlock(x,y,z),
       isSolid: (x, y, z) => isSolidId(this.world.getBlock(x, y, z)),
       isWater: (x, y, z) => isWaterId(this.world.getBlock(x, y, z)),
     };
@@ -597,7 +602,12 @@ export class Game {
     this.look = new PointerLookControls(canvas, !touchEnabled);
     this.controlHint = document.createElement('div');
     this.controlHint.id = 'mouse-fallback-hint';
-    this.controlHint.textContent = '兼容鼠标模式：移动鼠标转向 · WASD 移动 · 左键挖掘 · 右键使用 · E 背包 · Esc 暂停';
+    this.controlHint.append(document.createElement('span'));
+    const retryLock = document.createElement('button');
+    retryLock.textContent = '点击锁定鼠标';
+    retryLock.style.cssText = 'margin-left:10px;padding:4px 10px;font:inherit;color:white;background:#555;border:1px solid #aaa;cursor:pointer;pointer-events:auto';
+    retryLock.addEventListener('click', () => void this.requestPlayControl(true));
+    this.controlHint.append(retryLock);
     this.controlHint.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);z-index:12;padding:4px 8px;color:#fff;background:#0009;font:12px/1.5 var(--game-font,monospace);text-align:center;pointer-events:none;display:none';
     this.controlHint.setAttribute('role', 'status');
     document.body.appendChild(this.controlHint);
@@ -688,7 +698,7 @@ export class Game {
     return this.touch?.isActive ?? this.look.isActive;
   }
 
-  async requestPlayControl(): Promise<boolean> {
+  async requestPlayControl(retryLock = false): Promise<boolean> {
     if (this.dead || this.isContainerOpen()) return false;
     consumeJump(); // Do not replay a jump typed while a menu was open.
     if (this.touch) {
@@ -696,7 +706,7 @@ export class Game {
       this.publishControlState();
       return true;
     }
-    return this.look.requestPlayControl();
+    return this.look.requestPlayControl(retryLock);
   }
 
   pausePlayControl(): void {
@@ -717,6 +727,10 @@ export class Game {
 
   private publishControlState(): void {
     if (!this.isGameplayActive()) this.cancelPlayActions();
+    const hintLabel = this.controlHint.querySelector?.('span');
+    if (hintLabel) hintLabel.textContent = this.look.lastFailure === 'WrongDocumentError' || this.look.lastFailure === 'SecurityError'
+      ? '当前浏览器拒绝锁定鼠标；可用 Chrome / Edge 打开此网址。'
+      : '鼠标尚未锁定；点击右侧按钮后重试。Esc 暂停。';
     this.controlHint.style.display = this.look.isFallback && this.isGameplayActive() ? 'block' : 'none';
     window.dispatchEvent(new Event('mineworld:control-change'));
   }
@@ -1041,7 +1055,7 @@ export class Game {
         for (let lx = 1; lx < 15; lx += 2) for (let lz = 1; lz < 15; lz += 2) {
           for (let y = bounds.maxY - 3; y >= bounds.minY; y--) {
             const ground = chunk.get(lx, y, lz);
-            if (!isSolidId(ground) || (LEAF_IDS.has(ground) || LOG_IDS.has(ground))) continue;
+            if (!isSolidId(ground) || (LEAF_IDS.has(baseBlockId(ground)) || LOG_IDS.has(baseBlockId(ground)))) continue;
             if (chunk.get(lx, y + 1, lz) !== AIR || chunk.get(lx, y + 2, lz) !== AIR) break;
             const pos = { x: cx * 16 + lx + 0.5, y: y + 1, z: cz * 16 + lz + 0.5 };
             fallback = pos;
@@ -1869,11 +1883,22 @@ export class Game {
   /** 短点/右键先操作明确瞄准到的可交互方块，避免拿食物时无法打开工作台。 */
   private useTargetedBlock(hit: RayHit | null): boolean {
     if (!hit) return false;
-    if (this.world.getBlock(hit.x, hit.y, hit.z) === CRAFTING_TABLE) {
+    const targeted = this.world.getBlock(hit.x,hit.y,hit.z);
+    const model=architectureModel(targeted);
+    if(model && /_(door|trapdoor|fence_gate)$/.test(model.name)) {
+      const changes={open:model.properties.open==='true'?'false':'true'};
+      this.edit(hit.x,hit.y,hit.z,changedArchitectureState(targeted,changes));
+      if(model.name.endsWith('_door')) {
+        const y=hit.y+(model.properties.half==='upper'?-1:1),other=this.world.getBlock(hit.x,y,hit.z);
+        if(architectureModel(other)?.name===model.name) this.edit(hit.x,y,hit.z,changedArchitectureState(other,changes));
+      }
+      return true;
+    }
+    if (baseBlockId(targeted) === CRAFTING_TABLE) {
       this.openCrafting(3);
       return true;
     }
-    if (this.world.getBlock(hit.x, hit.y, hit.z) === FURNACE) {
+    if (baseBlockId(targeted) === FURNACE) {
       this.openFurnace(hit.x, hit.y, hit.z);
       return true;
     }
@@ -2123,6 +2148,7 @@ export class Game {
       aim.direction,
       this.creative ? REACH_CREATIVE : REACH_SURVIVAL,
       (x, y, z) => isTargetableId(this.world.getBlock(x, y, z)),
+      (x, y, z) => {const m=architectureModel(this.world.getBlock(x,y,z));return m?.selectionBoxes ?? m?.boxes;},
     );
   }
 
@@ -2134,7 +2160,7 @@ export class Game {
     const hit = this.rayHit();
     if (!hit) return;
     const id = this.world.getBlock(hit.x, hit.y, hit.z);
-    const selected = pickCreativeItem(this.inv, this.hotbar.index, id);
+    const selected = pickCreativeItem(this.inv, this.hotbar.index, baseBlockId(id));
     this.hotbar.setSelected(selected);
     this.hotbar.render(this.inv);
   }
@@ -2485,7 +2511,7 @@ export class Game {
       if (--d.t > 0) continue;
       this.decayQueue.splice(i, 1);
       const lv = this.world.getBlock(d.x, d.y, d.z);
-      if (!LEAF_IDS.has(lv)) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
+      if (!LEAF_IDS.has(baseBlockId(lv))) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
       this.edit(d.x, d.y, d.z, AIR);
       this.particles.push(...spawnBlockBreak(d.x, d.y, d.z, lv, this.blockTint(lv,d.x,d.y,d.z)));
       if (lv === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE)
@@ -2692,7 +2718,7 @@ export class Game {
   }
 
   private blockTint(id: number, x: number, y: number, z: number): readonly [number,number,number] {
-    if (!LEAF_IDS.has(id)) return [1,1,1];
+    if (!LEAF_IDS.has(baseBlockId(id))) return [1,1,1];
     return createFoliageSampler(this.world)(id,x,y,z);
   }
 
@@ -2714,6 +2740,14 @@ export class Game {
     if (drop === GRAVEL && Math.random() < 0.1) drop = FLINT; // 砂砾 10% 出燧石（MC）
     const meltsToWater = id === ICE && !this.creative && this.world.getBlock(x, y - 1, z) !== AIR;
     this.edit(x, y, z, meltsToWater ? WATER : AIR);
+    const model=architectureModel(id);
+    const partner=bedPartner(id,x,y,z);
+    if(partner&&architectureModel(this.world.getBlock(...partner))?.name===model?.name)this.edit(...partner,AIR);
+    this.updateArchitectureConnections(x,y,z);
+    if(model?.name.endsWith('_door')) {
+      const otherY=y+(model.properties.half==='upper'?-1:1),other=this.world.getBlock(x,otherY,z);
+      if(architectureModel(other)?.name===model.name) this.edit(x,otherY,z,AIR);
+    }
     gameAudio.blockBreak(id, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
     if (id === OBSIDIAN) this.collapseInvalidPortalsAround(x, y, z);
     // 冰(1.12)：破坏后若下方非空气 → 该格变水源(创造不变)。edit(WATER) 同时写入存档，重进仍是水。
@@ -2733,9 +2767,9 @@ export class Game {
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }
-    if (LOG_IDS.has(id)) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
+    if (LOG_IDS.has(baseBlockId(id))) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
-    if (id === FURNACE) this.destroyFurnaceState(x, y, z);
+    if (baseBlockId(id) === FURNACE) this.destroyFurnaceState(x, y, z);
     addExhaustion(this.survival, BREAK_EXHAUSTION);
     // 工具耐久：用工具挖一格 −1，用尽则损坏消失（空手/食物等无 tool → 不扣）。
     const sel = this.inv[this.hotbar.index];
@@ -2998,7 +3032,7 @@ export class Game {
           const b = this.world.getBlock(bx, by, bz);
           if (!isSolidId(b) && !isPlantId(b)) continue; // 空气/水不炸；实心 + 草丛都炸(免得炸完草浮空)
           if (b === BEDROCK || b === OBSIDIAN) continue; // 1.12 高爆炸抗性方块免疫(曾能炸穿世界底板 bug)
-          if (b === FURNACE) this.destroyFurnaceState(bx, by, bz);
+          if (baseBlockId(b) === FURNACE) this.destroyFurnaceState(bx, by, bz);
           this.world.setBlock(bx, by, bz, AIR);
           this.recordEdit(this.dimension, bx, by, bz, AIR); // 坑随存档保留，并进入区块懒加载索引
           this.fluidSim.activate(bx, by, bz); // 让周围的水流进坑
@@ -3301,6 +3335,13 @@ export class Game {
     }
   }
 
+  private updateArchitectureConnections(x:number,y:number,z:number):void {
+    for(const [dx,dz] of [[0,0],[-1,0],[1,0],[0,-1],[0,1]]){
+      const px=x+dx,pz=z+dz,id=this.world.getBlock(px,y,pz),next=connectedArchitectureState(id,px,y,pz,(a,b,c)=>this.world.getBlock(a,b,c));
+      if(next!==id)this.edit(px,y,pz,next);
+    }
+  }
+
   // 放置：消耗当前快捷栏格里的方块（空手/手持食物则不放）。
   private placeBlock(hit: RayHit | null = this.rayHit()): void {
     const sel = this.hotbar.index;
@@ -3308,6 +3349,11 @@ export class Game {
     if (!stack || stack.count <= 0 || stack.id >= 256) return; // 空手或手持物品(食物/工具/棍等不可放置)
     if (!hit) return;
     // 瞄到的若是可替换块(草丛)→ 直接放在它那格(替换掉草)；否则放在命中面的外侧那格。
+    const heldModel=architectureModel(stack.id), hitId=this.world.getBlock(hit.x,hit.y,hit.z), hitModel=architectureModel(hitId);
+    if(heldModel?.name.endsWith('_slab') && hitModel?.name===heldModel.name && hitModel.properties.type!=='double' && ((hit.ny===1&&hitModel.properties.type==='bottom')||(hit.ny===-1&&hitModel.properties.type==='top'))) {
+      this.edit(hit.x,hit.y,hit.z,changedArchitectureState(hitId,{type:'double'}));
+      if(!this.creative)takeOne(this.inv,sel);this.hotbar.render(this.inv);return;
+    }
     const onReplaceable = isReplaceableId(this.world.getBlock(hit.x, hit.y, hit.z));
     const px = onReplaceable ? hit.x : hit.x + hit.nx;
     const py = onReplaceable ? hit.y : hit.y + hit.ny;
@@ -3318,9 +3364,34 @@ export class Game {
     const replacedPortal = isNetherPortalId(target);
     if (isSolidId(stack.id) && this.overlapsPlayer(px, py, pz)) return; // 不能埋住自己
     // 创造：放置不消耗物品（无限建材）；生存：取走 1 个。
+    let placed=stack.id;
+    let upper:number|undefined;
+    let bedHead:[number,number,number,number]|undefined;
+    if(heldModel) {
+      const facing=Math.abs(Math.cos(this.look.yaw))>Math.abs(Math.sin(this.look.yaw))?(Math.cos(this.look.yaw)>0?'east':'west'):(Math.sin(this.look.yaw)>0?'south':'north');
+      const props={...heldModel.properties};
+      if('facing' in props)props.facing=facing;
+      if('waterlogged' in props)props.waterlogged='false';
+      if('axis' in props)props.axis=hit.nx?'x':hit.nz?'z':'y';
+      if(heldModel.name.endsWith('_stairs')){props.half=(hit.ny===-1||(hit.ny===0&&(hit.hitY??0)>.5))?'top':'bottom';props.shape='straight';}
+      if(heldModel.name.endsWith('_slab'))props.type=hit.ny===-1||(hit.ny===0&&(hit.hitY??0)>.5)?'top':'bottom';
+      if(heldModel.name.endsWith('_door')) {
+        if(py+1>=this.world.maxY||!isReplaceableId(this.world.getBlock(px,py+1,pz)))return;
+        props.half='lower';props.open='false';upper=architectureStateId(heldModel.name,{...props,half:'upper'});
+      }
+      if(heldModel.name.endsWith('_bed')){
+        props.part='foot';const foot=architectureStateId(heldModel.name,props),other=bedPartner(foot,px,py,pz)!;
+        if(!isReplaceableId(this.world.getBlock(...other))||this.overlapsPlayer(...other))return;
+        bedHead=[...other,changedArchitectureState(foot,{part:'head'})];
+      }
+      placed=architectureStateId(heldModel.name,props);
+    }
     const id = this.creative ? stack.id : takeOne(this.inv, sel);
     if (id === null) return;
-    this.edit(px, py, pz, id);
+    this.edit(px, py, pz, placed);
+    if(upper!==undefined)this.edit(px,py+1,pz,upper);
+    if(bedHead)this.edit(...bedHead);
+    this.updateArchitectureConnections(px,py,pz);
     gameAudio.blockPlace(id, { x: px + 0.5, y: py + 0.5, z: pz + 0.5 });
     if (replacedPortal) this.collapseInvalidPortalsAround(px, py, pz);
     if (id === SAND || id === GRAVEL) this.settleFallingBlock(px, py, pz);
@@ -3487,6 +3558,8 @@ export class Game {
   private updateHighlight(): void {
     const hit = this.rayHit();
     if (hit) {
+      const selectedId=this.world.getBlock(hit.x,hit.y,hit.z);
+      if(selectedId!==this.highlightedId){this.highlight.geometry.dispose();this.highlight.geometry=architectureOutline(selectedId);this.highlightedId=selectedId;}
       this.highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
       this.highlight.visible = true;
     } else {

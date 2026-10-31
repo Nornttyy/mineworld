@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BIRCH_LOG, COAL_ORE, COBBLESTONE, CRAFTING_TABLE, FURNACE, IRON_ORE,
+  BLOCKS, BIRCH_LOG, COAL_ORE, COBBLESTONE, CRAFTING_TABLE, FURNACE, IRON_ORE,
   OAK_LOG, OAK_PLANKS, SPRUCE_LOG, TORCH, dropFor,
 } from '../blocks/registry';
 import {
@@ -49,13 +49,14 @@ describe('survival startup progression', () => {
   it.each([
     ['oak', OAK_LOG], ['spruce', SPRUCE_LOG], ['birch', BIRCH_LOG],
   ] as const)('%s supports logs → table → wooden/stone pickaxe → furnace → iron tools', (_name, log) => {
+    const planks=log===SPRUCE_LOG?BLOCKS.find(b=>b.name==='spruce_planks')!.id:OAK_PLANKS;
     const inv = emptyInventory();
     for (let i = 0; i < 6; i++) mine(inv, log);
-    for (let i = 0; i < 4; i++) craft(inv, [[log, 0], [0, 0]], { id: OAK_PLANKS, count: 4 });
-    craft(inv, [[OAK_PLANKS, OAK_PLANKS], [OAK_PLANKS, OAK_PLANKS]], { id: CRAFTING_TABLE, count: 1 });
-    for (let i = 0; i < 2; i++) craft(inv, [[OAK_PLANKS, 0], [OAK_PLANKS, 0]], { id: STICK, count: 4 });
+    for (let i = 0; i < 4; i++) craft(inv, [[log, 0], [0, 0]], { id: planks, count: 4 });
+    craft(inv, [[planks, planks], [planks, planks]], { id: CRAFTING_TABLE, count: 1 });
+    for (let i = 0; i < 2; i++) craft(inv, [[planks, 0], [planks, 0]], { id: STICK, count: 4 });
     expect(availableRecipes(inv, 2).some((r) => r.result.id === WOODEN_PICKAXE)).toBe(false);
-    craft(inv, [[OAK_PLANKS, OAK_PLANKS, OAK_PLANKS], [0, STICK, 0], [0, STICK, 0]], { id: WOODEN_PICKAXE, count: 1 });
+    craft(inv, [[planks, planks, planks], [0, STICK, 0], [0, STICK, 0]], { id: WOODEN_PICKAXE, count: 1 });
 
     expect(dropFor(1)).toBeNull(); // Hand mining cannot skip the first pickaxe.
     expect(dropFor(IRON_ORE, toolOf(WOODEN_PICKAXE))).toBeNull();

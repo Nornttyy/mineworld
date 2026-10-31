@@ -1,3 +1,4 @@
+import { baseBlockId } from '../blocks/architecture';
 import { LOG_IDS, LEAF_IDS } from '../blocks/registry';
 
 // 参与腐烂判定的木/叶集合——曾只认橡木 → 云杉树冠砍光树干后永久悬浮(bug)
@@ -41,7 +42,7 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
   for (let x = cx - scan; x <= cx + scan; x++)
     for (let y = cy - scan; y <= cy + scan; y++)
       for (let z = cz - scan; z <= cz + scan; z++)
-        if (DECAY_LOGS.has(getBlock(x, y, z))) {
+        if (DECAY_LOGS.has(baseBlockId(getBlock(x, y, z)))) {
           dist.set(key(x, y, z), 0);
           queue.push({ x, y, z });
         }
@@ -54,7 +55,7 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
       const nx = c.x + dx;
       const ny = c.y + dy;
       const nz = c.z + dz;
-      if (!DECAY_LEAVES.has(getBlock(nx, ny, nz))) continue;
+      if (!DECAY_LEAVES.has(baseBlockId(getBlock(nx, ny, nz)))) continue;
       const k = key(nx, ny, nz);
       if (dist.has(k)) continue;
       dist.set(k, d + 1);
@@ -66,6 +67,6 @@ export function findUnsupportedLeaves(getBlock: GetBlock, cx: number, cy: number
   for (let x = cx - radius; x <= cx + radius; x++)
     for (let y = cy - radius; y <= cy + radius; y++)
       for (let z = cz - radius; z <= cz + radius; z++)
-        if (DECAY_LEAVES.has(getBlock(x, y, z)) && !dist.has(key(x, y, z))) out.push({ x, y, z });
+        if (DECAY_LEAVES.has(baseBlockId(getBlock(x, y, z))) && !dist.has(key(x, y, z))) out.push({ x, y, z });
   return out;
 }

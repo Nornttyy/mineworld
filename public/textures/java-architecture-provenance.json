@@ -1,0 +1,2178 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "files": [
+    {
+      "source": "assets/minecraft/blockstates/acacia_door.json",
+      "sha1": "8745eb16ca58df9845e634c2bb2350b8bcc28cf1"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_fence.json",
+      "sha1": "c31bc2fb7aaa5dd3689bd8bf2989c2522f0eafff"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_leaves.json",
+      "sha1": "2606791521eac27fa77ebbeeea442b8073802a51"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_log.json",
+      "sha1": "173a0559b2c98dd55914b252b06c02093207e4e5"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_planks.json",
+      "sha1": "a2e9b8926f045c77716cdbc7008deef4ee0b37af"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_pressure_plate.json",
+      "sha1": "51b2e8c044fd9e418f3cfa74cc61b899c701d6bb"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_stairs.json",
+      "sha1": "e95d7c7b4d171866e36cdad252279aafb899013d"
+    },
+    {
+      "source": "assets/minecraft/blockstates/acacia_wood.json",
+      "sha1": "bdeee8c00dee15fd0d14d749b4b9733b2153337b"
+    },
+    {
+      "source": "assets/minecraft/blockstates/bell.json",
+      "sha1": "645d08cc6d1caae6d3a42cf120f49a4598f112ce"
+    },
+    {
+      "source": "assets/minecraft/blockstates/blue_terracotta.json",
+      "sha1": "ef43feeba1697c873fb3da408828a7f870644ca2"
+    },
+    {
+      "source": "assets/minecraft/blockstates/brewing_stand.json",
+      "sha1": "b2a365cb40e266810abcc7ac683d895734a05f1c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/brown_mushroom_block.json",
+      "sha1": "9490cdb19d93479dd137a12e6d463d79cfc3166c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cherry_leaves.json",
+      "sha1": "7c076dbbe8e530a40b96a7c16cf2cd9ca2e76a45"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cherry_log.json",
+      "sha1": "8171aaf00e49bef79bedfdcb90834d40f679b541"
+    },
+    {
+      "source": "assets/minecraft/blockstates/chest.json",
+      "sha1": "99207ef6a19b12ff79f18b9718e119077ad63ce9"
+    },
+    {
+      "source": "assets/minecraft/blockstates/chiseled_sandstone.json",
+      "sha1": "20b3dfdd5ba0b5ec03b7c897ec85671620c63439"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cobblestone.json",
+      "sha1": "bac5db4b6cf659cff54c74a9b1c0ad076217cd0b"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cobblestone_stairs.json",
+      "sha1": "cedf5911636d5c3c4fe79c1d9b4e5dc8eddbe01e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cobblestone_wall.json",
+      "sha1": "88efe2dde303a617acd5b97a2c57538d1bdb3010"
+    },
+    {
+      "source": "assets/minecraft/blockstates/crafting_table.json",
+      "sha1": "73d337b16e2c9e9f6da8c89b9b04a7922dee3a7e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/cut_sandstone.json",
+      "sha1": "f8b6f093886e1d7c4916c63dd2f938e831af957b"
+    },
+    {
+      "source": "assets/minecraft/blockstates/dark_oak_leaves.json",
+      "sha1": "22189459d4fa383ebe3c902b33ee2c18870d8776"
+    },
+    {
+      "source": "assets/minecraft/blockstates/dark_oak_log.json",
+      "sha1": "14155fd4e63b57a58fd3772fb7579c53d1c78b3f"
+    },
+    {
+      "source": "assets/minecraft/blockstates/dirt.json",
+      "sha1": "d946d0b01b9f11cc751ed25f119f4dee9ccb0301"
+    },
+    {
+      "source": "assets/minecraft/blockstates/dirt_path.json",
+      "sha1": "1f1e6c4449c4180d4ae3f079014d4f423b092f42"
+    },
+    {
+      "source": "assets/minecraft/blockstates/fern.json",
+      "sha1": "5cc5a08446f063f1318c72284ba27fa0fdb5751d"
+    },
+    {
+      "source": "assets/minecraft/blockstates/furnace.json",
+      "sha1": "c66c2ac72611834c17d466d53772f4b0d0831694"
+    },
+    {
+      "source": "assets/minecraft/blockstates/glass_pane.json",
+      "sha1": "b8d3c1004334cc1144d0ecd4cc5a02c5f94b6b1e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/grass_block.json",
+      "sha1": "4d61378f166ad592bed22c8191e95c324800b80a"
+    },
+    {
+      "source": "assets/minecraft/blockstates/ice.json",
+      "sha1": "163c9738a803edefdb97ccca7ca11518905e20e7"
+    },
+    {
+      "source": "assets/minecraft/blockstates/jungle_leaves.json",
+      "sha1": "a82f9fc1c2378f77e75442eb41b6eff31ae0c687"
+    },
+    {
+      "source": "assets/minecraft/blockstates/jungle_log.json",
+      "sha1": "d4bc2a3559312701495dbd269346400f92707eef"
+    },
+    {
+      "source": "assets/minecraft/blockstates/large_fern.json",
+      "sha1": "64d09228cf7f48377b3f8b30808886a715c2d509"
+    },
+    {
+      "source": "assets/minecraft/blockstates/light_gray_carpet.json",
+      "sha1": "cc69642050ba08014ab446962541a5c74180f920"
+    },
+    {
+      "source": "assets/minecraft/blockstates/mushroom_stem.json",
+      "sha1": "73adee92f26b5473f93650495b88224a9af8a0a9"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_door.json",
+      "sha1": "06833ddf4c9838c71cd73365cf3c875375766e19"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_leaves.json",
+      "sha1": "9b73d2419e07259eb9681640ac018a6aeb7e7e93"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_log.json",
+      "sha1": "0d986e9267175c88ecd4252f8373811911bed4ee"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_planks.json",
+      "sha1": "f84fde5ab662463faf3ea040b3685d8de12bd7eb"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_stairs.json",
+      "sha1": "078b4c76dd7b7ab5257d8f497129e0fa2669820d"
+    },
+    {
+      "source": "assets/minecraft/blockstates/oak_trapdoor.json",
+      "sha1": "9435f5767854c54dcc6bbaa704b39cdf8c3e5c21"
+    },
+    {
+      "source": "assets/minecraft/blockstates/orange_bed.json",
+      "sha1": "079b03c81e0a2c94488aaa5ac1ef23334247f202"
+    },
+    {
+      "source": "assets/minecraft/blockstates/orange_terracotta.json",
+      "sha1": "4934c5eb4b93b52f06c390ac30a21f49ec1bb63e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/podzol.json",
+      "sha1": "ce1aa207cdf40d96c13de7e7d538f53d3e9305ac"
+    },
+    {
+      "source": "assets/minecraft/blockstates/purple_bed.json",
+      "sha1": "5c4ad4dfc019689ef54e86e8e7daeac5fda71f6b"
+    },
+    {
+      "source": "assets/minecraft/blockstates/red_bed.json",
+      "sha1": "78ca677ab9fa11522cab72cbe3a8ff0a681b8383"
+    },
+    {
+      "source": "assets/minecraft/blockstates/red_mushroom_block.json",
+      "sha1": "038444662382e6947d559f7faee80ceb49bd31b6"
+    },
+    {
+      "source": "assets/minecraft/blockstates/red_terracotta.json",
+      "sha1": "19daadb303c1ac651e33866a8cd695316bec347e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/redstone_torch.json",
+      "sha1": "62f63ef5704f53d4eea73caebbabf590fd2ebb84"
+    },
+    {
+      "source": "assets/minecraft/blockstates/sand.json",
+      "sha1": "35ad214a979201d8a7c2d8dfc74ab5214d294493"
+    },
+    {
+      "source": "assets/minecraft/blockstates/sandstone.json",
+      "sha1": "3571fc08a7d0ac24ca2159281f1f4fea5170b447"
+    },
+    {
+      "source": "assets/minecraft/blockstates/sandstone_slab.json",
+      "sha1": "101bcc7904c7578030755bb03cdc86492bd3f4d4"
+    },
+    {
+      "source": "assets/minecraft/blockstates/sandstone_stairs.json",
+      "sha1": "375260c458de8668dff339c14c1c93f7f8bea3e0"
+    },
+    {
+      "source": "assets/minecraft/blockstates/short_grass.json",
+      "sha1": "9c595681bde00964e5c1d740aa9629587728c704"
+    },
+    {
+      "source": "assets/minecraft/blockstates/snow_block.json",
+      "sha1": "2346c5ae1587d3fa544701c7843a743964ab9583"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_door.json",
+      "sha1": "a33f1ddd2ef4f82bc4c355fdf949893209d55386"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_leaves.json",
+      "sha1": "ab47df46795bc4ee1d88b446b0305ee474c1ed9c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_log.json",
+      "sha1": "615ca711dacd5b985047cc7c1c032e99d3bf4948"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_planks.json",
+      "sha1": "afcd8223a57f7fb688667636c3f87e72f705a73c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_stairs.json",
+      "sha1": "5f71b69fdc7f69334996822777f31b35b325767c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_trapdoor.json",
+      "sha1": "fa909f8b7e690afce7a6d358e581c7e289530fd2"
+    },
+    {
+      "source": "assets/minecraft/blockstates/spruce_wall_sign.json",
+      "sha1": "be5e1d27bdb96d1190b41233d9ceb656ac323094"
+    },
+    {
+      "source": "assets/minecraft/blockstates/stone_pressure_plate.json",
+      "sha1": "6ef6bcb60ea9e7a7da304a44b5239882c969c9e5"
+    },
+    {
+      "source": "assets/minecraft/blockstates/stripped_oak_log.json",
+      "sha1": "057b2d23bf0f7cee81d89d19932a3125072637f5"
+    },
+    {
+      "source": "assets/minecraft/blockstates/suspicious_sand.json",
+      "sha1": "90ef28abbf5bc3509456258d543758d6ead7852c"
+    },
+    {
+      "source": "assets/minecraft/blockstates/tall_grass.json",
+      "sha1": "3a39fe9a5ea0331594560f2b4978b41c9699da5e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/tnt.json",
+      "sha1": "c4390a71632acdfd3ecd7d05a2dd318c1d46915e"
+    },
+    {
+      "source": "assets/minecraft/blockstates/torch.json",
+      "sha1": "485736f73ae83ad4c2861076afecabe26edc0f16"
+    },
+    {
+      "source": "assets/minecraft/blockstates/vine.json",
+      "sha1": "d8d3807dfca65805fa42ce52df4d9986c9f873b9"
+    },
+    {
+      "source": "assets/minecraft/blockstates/wall_torch.json",
+      "sha1": "3645a2e42839c7d5684a8cb9836c15c267b90cc2"
+    },
+    {
+      "source": "assets/minecraft/blockstates/water.json",
+      "sha1": "e5a33b4a2db42195222fa1709b3d9533ac41e453"
+    },
+    {
+      "source": "assets/minecraft/blockstates/white_bed.json",
+      "sha1": "43e318d40c2b28b5c17aa60d497a3fb8719194e5"
+    },
+    {
+      "source": "assets/minecraft/blockstates/white_carpet.json",
+      "sha1": "83e53cc6ba58dd8457cdccd84340ed60f6a53871"
+    },
+    {
+      "source": "assets/minecraft/blockstates/white_stained_glass_pane.json",
+      "sha1": "fee583c328765b97b7510ac06d4d20033ba2b830"
+    },
+    {
+      "source": "assets/minecraft/blockstates/white_terracotta.json",
+      "sha1": "4c97b3e65abc04b6e7b31153b4061adc8ff3e8dd"
+    },
+    {
+      "source": "assets/minecraft/blockstates/yellow_bed.json",
+      "sha1": "96e934beb658dc4544e676c83e7a75e4c2da939f"
+    },
+    {
+      "source": "assets/minecraft/blockstates/yellow_stained_glass_pane.json",
+      "sha1": "5a34b48f8e42fb6d420da08db486ead50272177f"
+    },
+    {
+      "source": "assets/minecraft/blockstates/yellow_terracotta.json",
+      "sha1": "d177f105092958ccb6ae3089b9eb2bf40b19e5bb"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_door.json",
+      "sha1": "f8d5f35469dc4fff00a499cd090b8ebb7871be3a"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_fence.json",
+      "sha1": "c499bb8ff001f2b10e7c563a14e15d8d120074d4"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_leaves.json",
+      "sha1": "d53d955b2340da05349fa39da95d35e5fb9d2538"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_log.json",
+      "sha1": "37f2292a5b031a614709ad2cc5bfa3c9ab51934e"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_planks.json",
+      "sha1": "3ab3842ffc2378f581ef27fcad9d8c708749c1a4"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_pressure_plate.json",
+      "sha1": "910e5a58c76aeda93711d5b6078f8ff46eb0f44b"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_stairs.json",
+      "sha1": "fd2d4c890ddb114146b30251a53f2d6863f3dd88"
+    },
+    {
+      "source": "assets/minecraft/items/acacia_wood.json",
+      "sha1": "5a8878ce736827b7425be14c69d560501feb1452"
+    },
+    {
+      "source": "assets/minecraft/items/bell.json",
+      "sha1": "5f3ff497833b41a2b804f884617324d11410a8c8"
+    },
+    {
+      "source": "assets/minecraft/items/blue_terracotta.json",
+      "sha1": "0e3563e6d22adefe1206ae4fcf61b761fbdddd7c"
+    },
+    {
+      "source": "assets/minecraft/items/brewing_stand.json",
+      "sha1": "8205c0f4e17ca69d0c20196057e36518bd707bb9"
+    },
+    {
+      "source": "assets/minecraft/items/brown_mushroom_block.json",
+      "sha1": "683a0059f00159e0282b7b9b8b62c779fc23bc34"
+    },
+    {
+      "source": "assets/minecraft/items/cherry_leaves.json",
+      "sha1": "c1d579cf57f5638623c0fab1bb9c0b6f5c12abf9"
+    },
+    {
+      "source": "assets/minecraft/items/cherry_log.json",
+      "sha1": "837c1b6d6bbaa6cf862b7a13cffe1cc039dd01c4"
+    },
+    {
+      "source": "assets/minecraft/items/chest.json",
+      "sha1": "e928d4334bb9f061cd6ca493216dd166203b21bf"
+    },
+    {
+      "source": "assets/minecraft/items/chiseled_sandstone.json",
+      "sha1": "64130ca18e80e346c6d23034fc70818d6a6a51bb"
+    },
+    {
+      "source": "assets/minecraft/items/cobblestone.json",
+      "sha1": "d3a0c970bd90e64fbf3396cbd7ce52887810af3f"
+    },
+    {
+      "source": "assets/minecraft/items/cobblestone_stairs.json",
+      "sha1": "8ed48c04cf584830f1fcfc436d82d9e97ebbead0"
+    },
+    {
+      "source": "assets/minecraft/items/cobblestone_wall.json",
+      "sha1": "9292c64341b746582d0286940a228f6bd0b97b81"
+    },
+    {
+      "source": "assets/minecraft/items/crafting_table.json",
+      "sha1": "46cb354b77781caa1c413afaac109c0923c49a0e"
+    },
+    {
+      "source": "assets/minecraft/items/cut_sandstone.json",
+      "sha1": "b06d19f92bb3d62a31b487b284d1a37222ebfed3"
+    },
+    {
+      "source": "assets/minecraft/items/dark_oak_leaves.json",
+      "sha1": "be1bbc07a8211c7d5d8dbcfd5b4644d3874456c5"
+    },
+    {
+      "source": "assets/minecraft/items/dark_oak_log.json",
+      "sha1": "16e630b43cc0dd922dab4a6d1ba6752ca97a1535"
+    },
+    {
+      "source": "assets/minecraft/items/dirt.json",
+      "sha1": "b06a550863a0a85cf7dfae0ce34d36fd86767fc4"
+    },
+    {
+      "source": "assets/minecraft/items/dirt_path.json",
+      "sha1": "97dd6b8aa637ee0929863af88a248ab36cb67990"
+    },
+    {
+      "source": "assets/minecraft/items/fern.json",
+      "sha1": "5a9b685cafaaf85180c899e4177a0f4c22e3a24f"
+    },
+    {
+      "source": "assets/minecraft/items/furnace.json",
+      "sha1": "8f4302dfa92c10578810a51759ef4ce404258a33"
+    },
+    {
+      "source": "assets/minecraft/items/glass_pane.json",
+      "sha1": "0b9d1f36b168352b95e1c206d0963f4672c1775a"
+    },
+    {
+      "source": "assets/minecraft/items/grass_block.json",
+      "sha1": "0431944ad84dae846523025cce35d7d33304e335"
+    },
+    {
+      "source": "assets/minecraft/items/ice.json",
+      "sha1": "edf22767a22395f26f60a40e525439d5b1366e25"
+    },
+    {
+      "source": "assets/minecraft/items/jungle_leaves.json",
+      "sha1": "ef3a5e8320f1e3fb07021187684c89b4cc64cdf6"
+    },
+    {
+      "source": "assets/minecraft/items/jungle_log.json",
+      "sha1": "a851aeb4db12c481b3c9e6cb08a27e12e3ddc5e4"
+    },
+    {
+      "source": "assets/minecraft/items/large_fern.json",
+      "sha1": "ba3d7c392900bc1719b2cf666bd017100eb065f0"
+    },
+    {
+      "source": "assets/minecraft/items/light_gray_carpet.json",
+      "sha1": "3194365b58fee252c57e32d95da9fc3575e7bdd2"
+    },
+    {
+      "source": "assets/minecraft/items/mushroom_stem.json",
+      "sha1": "92d0b070a08c5d6b4ea890fe8dc33874b745de51"
+    },
+    {
+      "source": "assets/minecraft/items/oak_door.json",
+      "sha1": "27efcfab67c7ecda80665c16ff6913f4dac35d1b"
+    },
+    {
+      "source": "assets/minecraft/items/oak_leaves.json",
+      "sha1": "f35cc3a6ee2c8600f6a8105915d5f199bc79c30e"
+    },
+    {
+      "source": "assets/minecraft/items/oak_log.json",
+      "sha1": "c857b0f09de13e583b342d207be548d36f4ce039"
+    },
+    {
+      "source": "assets/minecraft/items/oak_planks.json",
+      "sha1": "a536baf5a0974c3980ea7a65be0ae1e9f0725943"
+    },
+    {
+      "source": "assets/minecraft/items/oak_stairs.json",
+      "sha1": "2379d3bed389cdac8c26aab0ff61ae8d18a38fc8"
+    },
+    {
+      "source": "assets/minecraft/items/oak_trapdoor.json",
+      "sha1": "34d97700987f65db76f663d0cf7b7cbd83b6e69a"
+    },
+    {
+      "source": "assets/minecraft/items/orange_bed.json",
+      "sha1": "b5831b555ae76992d6798b0ae55f24b79d774f1a"
+    },
+    {
+      "source": "assets/minecraft/items/orange_terracotta.json",
+      "sha1": "2a481b4d86bb610abf2628cd548009f4e8215a44"
+    },
+    {
+      "source": "assets/minecraft/items/podzol.json",
+      "sha1": "bbe989e37d67ffb352cd37f4299ad7bebe4c7b7d"
+    },
+    {
+      "source": "assets/minecraft/items/purple_bed.json",
+      "sha1": "99ca6592bd69d6e1fe422c936d2f32f9db6c9c0d"
+    },
+    {
+      "source": "assets/minecraft/items/red_bed.json",
+      "sha1": "88a446dd37b018bc2f3a5f63680336079c1784b8"
+    },
+    {
+      "source": "assets/minecraft/items/red_mushroom_block.json",
+      "sha1": "29e3c16d9f61499f6fde333eaa064a8d4b4b067a"
+    },
+    {
+      "source": "assets/minecraft/items/red_terracotta.json",
+      "sha1": "e64f924415948e54de2c31b8843cb9d97705c2be"
+    },
+    {
+      "source": "assets/minecraft/items/redstone_torch.json",
+      "sha1": "b898431b65340d2e289098b3b3be08a99dec520c"
+    },
+    {
+      "source": "assets/minecraft/items/sand.json",
+      "sha1": "2cef05f134461f82ba19f3a4bc07706c4aa3601b"
+    },
+    {
+      "source": "assets/minecraft/items/sandstone.json",
+      "sha1": "3b2ff1be286462d1f8088408f4ce1567455a11a9"
+    },
+    {
+      "source": "assets/minecraft/items/sandstone_slab.json",
+      "sha1": "2aaaea0a6bd07a8a7e96fc390484487457cb0850"
+    },
+    {
+      "source": "assets/minecraft/items/sandstone_stairs.json",
+      "sha1": "f932c67bb1871d1a18fa31e96ff6506930f112b0"
+    },
+    {
+      "source": "assets/minecraft/items/short_grass.json",
+      "sha1": "10f74815169a054b800834177b2df1f9b5f5fb98"
+    },
+    {
+      "source": "assets/minecraft/items/snow_block.json",
+      "sha1": "1190ed19c879e02d4ac158f2f4062a6326d90eff"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_door.json",
+      "sha1": "6d6e91f4d445e05c8159b09ba4a3bce2a2b23522"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_leaves.json",
+      "sha1": "0b74e0118baefcb5d8caa4e9226f570f0c00ef21"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_log.json",
+      "sha1": "48b9eadc45affa3e849afa0d71a1229e4ac76102"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_planks.json",
+      "sha1": "df1145380dff34ec6dfbbc0fac04d0aee19f62fd"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_stairs.json",
+      "sha1": "ed784e5c518b8b707a106f641f035e70d35c104b"
+    },
+    {
+      "source": "assets/minecraft/items/spruce_trapdoor.json",
+      "sha1": "cfabc8926c5c7b5933b65595a560982ae0873a53"
+    },
+    {
+      "source": "assets/minecraft/items/stone_pressure_plate.json",
+      "sha1": "f2a6be45903a862818c25fbf6b63eb8128ffe1a0"
+    },
+    {
+      "source": "assets/minecraft/items/stripped_oak_log.json",
+      "sha1": "9969ec8197841362cab9cb71c7d42a56494500fa"
+    },
+    {
+      "source": "assets/minecraft/items/suspicious_sand.json",
+      "sha1": "bed2ed82d7db4c78f4c99d7e88f516055162c288"
+    },
+    {
+      "source": "assets/minecraft/items/tall_grass.json",
+      "sha1": "8fdf1f5896f0ecc11dea0d60a5fa8fc5ca693f7f"
+    },
+    {
+      "source": "assets/minecraft/items/tnt.json",
+      "sha1": "1a214163f0063d426c3c20c15dd41c0ead63a3c9"
+    },
+    {
+      "source": "assets/minecraft/items/torch.json",
+      "sha1": "cba9e360c6db07ebd27775ba63db2be2326e8258"
+    },
+    {
+      "source": "assets/minecraft/items/vine.json",
+      "sha1": "f9b1058ea39a49e29ba3b1ce9a93ddee4d4ed93f"
+    },
+    {
+      "source": "assets/minecraft/items/white_bed.json",
+      "sha1": "0ac4ea6a7ff80faba8fef4135d1826c60fedfba2"
+    },
+    {
+      "source": "assets/minecraft/items/white_carpet.json",
+      "sha1": "b45c1ac310df257d45fa91d1430a9403026f7341"
+    },
+    {
+      "source": "assets/minecraft/items/white_stained_glass_pane.json",
+      "sha1": "8d102352d3ac8cf6a1a701723e93f04eef62c907"
+    },
+    {
+      "source": "assets/minecraft/items/white_terracotta.json",
+      "sha1": "19885e800921fcc40584c0249ca68c7deb68e7cd"
+    },
+    {
+      "source": "assets/minecraft/items/yellow_bed.json",
+      "sha1": "3a24a624d522282c7c2ddf90b17a300d2fd77b5c"
+    },
+    {
+      "source": "assets/minecraft/items/yellow_stained_glass_pane.json",
+      "sha1": "0ab6c88aa3467a827ab75e36717ef474341b01fd"
+    },
+    {
+      "source": "assets/minecraft/items/yellow_terracotta.json",
+      "sha1": "e60b6509df161f17c7c079b32ae197e94bb0b3fc"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_bottom_left.json",
+      "sha1": "0829147b118949f2c5c16e22f2bde3ec6fe27f51"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_bottom_left_open.json",
+      "sha1": "2d56b2353f49359035d7dfe83e8f093bc5ff1cd2"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_bottom_right.json",
+      "sha1": "dd291373ee9f890f3101bc3395533742ad05b9be"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_bottom_right_open.json",
+      "sha1": "33d41156e72ac069475d957bfd8e6e949e79fc52"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_top_left.json",
+      "sha1": "6ed38ecdf7323157b6115c87ba8a5827137eb9ca"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_top_left_open.json",
+      "sha1": "7f876c5527019e02c7efd1b13bc78cd2661f95e2"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_top_right.json",
+      "sha1": "f6d406decf84bac508dbea565ef7c9024e11de24"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_door_top_right_open.json",
+      "sha1": "4cc5898d977103dfc8fae7c9a8966bbbdcd69b73"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_fence_inventory.json",
+      "sha1": "87c14b8c3e29fa4323abd84814e0893a31524a9d"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_fence_post.json",
+      "sha1": "97b66df262cf77867ef0695c875ddff6cc926eb9"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_fence_side.json",
+      "sha1": "d60565f2da3b9ffb09d149e191fa953fac6884ea"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_leaves.json",
+      "sha1": "2478b99c7b286931fc2647b56030b666900e92ee"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_log.json",
+      "sha1": "18bb021d3d86aa1f5c58f0086c07d277089da9df"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_log_horizontal.json",
+      "sha1": "26adfc05fd6a72a491e2a905f78d8271f314918c"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_planks.json",
+      "sha1": "1f713e079416c2c9d8f053350bb2a517b95fef5a"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_pressure_plate.json",
+      "sha1": "e55092da1f86695230b5fcaaabe2d42a3888277b"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_pressure_plate_down.json",
+      "sha1": "c830de4833719c02a156733582f08c7ef4489d4b"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_stairs.json",
+      "sha1": "bf57f77a445b3ce514054750d6d631c60b978d83"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_stairs_inner.json",
+      "sha1": "cfb8bf491583b67d6ba9129950f9de9beb85cde0"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_stairs_outer.json",
+      "sha1": "e55d81820f33f1437a0f98047cfd9764901fe003"
+    },
+    {
+      "source": "assets/minecraft/models/block/acacia_wood.json",
+      "sha1": "24592c877fc50de48e8719f6da364f013010249e"
+    },
+    {
+      "source": "assets/minecraft/models/block/bell_between_walls.json",
+      "sha1": "ad81d9ca8b30125b8f5aa08983e295cfc2d1ff1d"
+    },
+    {
+      "source": "assets/minecraft/models/block/bell_ceiling.json",
+      "sha1": "e588c566d61fb2e9b10c48c0d497ab244b138f71"
+    },
+    {
+      "source": "assets/minecraft/models/block/bell_floor.json",
+      "sha1": "f3fa45ead437330e35d66dc0a054a0f4bad7fc7b"
+    },
+    {
+      "source": "assets/minecraft/models/block/bell_wall.json",
+      "sha1": "89af7047f3e26e83073c744445784711230f09a3"
+    },
+    {
+      "source": "assets/minecraft/models/block/block.json",
+      "sha1": "bfb850710ead08c971be6e4cc7fed01b90a2a0fa"
+    },
+    {
+      "source": "assets/minecraft/models/block/blue_terracotta.json",
+      "sha1": "64f9964b5294878eba7600c836bc108ec29e0915"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand.json",
+      "sha1": "b3621ec69ccd9a6b62b43096275589f138010eb9"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_bottle0.json",
+      "sha1": "3225bb6b448788723ab73a073fd97b966f75f094"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_bottle1.json",
+      "sha1": "0a9158af8589cd49a7e1bea03cc26e7c3d39b495"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_bottle2.json",
+      "sha1": "00317ba589ac7a1d9e5b04945cadcecc223db7dc"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_empty0.json",
+      "sha1": "f51e9e3f9f31b7b7d2ff3477a6ad8c9855a0377e"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_empty1.json",
+      "sha1": "c599f87066f34589580a603ae3d7733054baaac4"
+    },
+    {
+      "source": "assets/minecraft/models/block/brewing_stand_empty2.json",
+      "sha1": "9765a57aad54e1b312cdc4c8210d20409db481c4"
+    },
+    {
+      "source": "assets/minecraft/models/block/brown_mushroom_block.json",
+      "sha1": "c0cd0d3226e78ae223990db31f5325ce5088a885"
+    },
+    {
+      "source": "assets/minecraft/models/block/brown_mushroom_block_inventory.json",
+      "sha1": "7b6578c079e4605930751ba57b3111dad0e5bc40"
+    },
+    {
+      "source": "assets/minecraft/models/block/carpet.json",
+      "sha1": "ce848fe113aaa6fb87491b9e50abb97941483da2"
+    },
+    {
+      "source": "assets/minecraft/models/block/cherry_leaves.json",
+      "sha1": "8d9e54d3e6dc5196c6c5aa462117da7a33cccc7f"
+    },
+    {
+      "source": "assets/minecraft/models/block/cherry_log.json",
+      "sha1": "1f165518686d27fef787c03a86570ba696ef5af2"
+    },
+    {
+      "source": "assets/minecraft/models/block/cherry_log_x.json",
+      "sha1": "a667720b6edf2e0357556bb008725b89027d4c9f"
+    },
+    {
+      "source": "assets/minecraft/models/block/cherry_log_y.json",
+      "sha1": "0d689377376ce0309eda8c9b6fec61670c6dd5b1"
+    },
+    {
+      "source": "assets/minecraft/models/block/cherry_log_z.json",
+      "sha1": "f2bfa207aba1bca6548a57c86e32d263f5dbe35b"
+    },
+    {
+      "source": "assets/minecraft/models/block/chiseled_sandstone.json",
+      "sha1": "8350e56265ed28e111c30e590fcb7fc6c42ec762"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone.json",
+      "sha1": "3134fd1ef92fe42a97cbe4276ab422fad8ef5a46"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_stairs.json",
+      "sha1": "d53e34f5c72ca90bf2950c5c30bde2a8f2dbd454"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_stairs_inner.json",
+      "sha1": "c738682aefafc6c5a90d4db72245f9795fff50b9"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_stairs_outer.json",
+      "sha1": "5736ea9df419eeb3d18acc36ddce416a6a314d67"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_wall_inventory.json",
+      "sha1": "110ee73d3761ce8c2285469a8ecd0a827fc93b66"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_wall_post.json",
+      "sha1": "6703648a98d5c8ff85affcf52b5332cc25f19628"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_wall_side.json",
+      "sha1": "19e750169eb2ccd4c5e79243382c9ac068fe6256"
+    },
+    {
+      "source": "assets/minecraft/models/block/cobblestone_wall_side_tall.json",
+      "sha1": "272989c8e1500110976588561955c3fc52526684"
+    },
+    {
+      "source": "assets/minecraft/models/block/crafting_table.json",
+      "sha1": "5dde1407fa9bd32b27c3056005697a44efb36623"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube.json",
+      "sha1": "6273da0deda46e00d3e64ce1a3b11a1e0da2a924"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_all.json",
+      "sha1": "0a476780a90c6fb983d55c7f5748795990299300"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_bottom_top.json",
+      "sha1": "917af1e5d002f705d9cb858f4f0e2234b0828360"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_column.json",
+      "sha1": "422f273deddae558270b9475da7db93c904e0741"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_column_horizontal.json",
+      "sha1": "d1ad5682058e4037f8c1d58fc0db8dadbac63779"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_column_uv_locked_x.json",
+      "sha1": "967ec0b8970dcbed9c88ad8e25d141873cb6533e"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_column_uv_locked_y.json",
+      "sha1": "de1b42d05b465c334a94cafebb56efabc78c4521"
+    },
+    {
+      "source": "assets/minecraft/models/block/cube_column_uv_locked_z.json",
+      "sha1": "cf86b3f89b94f9af1aa8392621c519153845d470"
+    },
+    {
+      "source": "assets/minecraft/models/block/cut_sandstone.json",
+      "sha1": "936162d4bc0853ba371ef191a0e98d66e5f7db24"
+    },
+    {
+      "source": "assets/minecraft/models/block/dark_oak_leaves.json",
+      "sha1": "7bffb0b9cbcf715273ba1f05a8e234ce97f38925"
+    },
+    {
+      "source": "assets/minecraft/models/block/dark_oak_log.json",
+      "sha1": "18830206c50b5a0f8942506ae7623e90ed7b2ff5"
+    },
+    {
+      "source": "assets/minecraft/models/block/dark_oak_log_horizontal.json",
+      "sha1": "2b29fd06e9b9cf22888fa5df8decab2256485947"
+    },
+    {
+      "source": "assets/minecraft/models/block/dirt.json",
+      "sha1": "64bb558cf01e78e42b28e2ef3c501f71ee830e6a"
+    },
+    {
+      "source": "assets/minecraft/models/block/dirt_path.json",
+      "sha1": "7c86e91069f07f28026d0e30d962d399253a55b5"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_bottom_left.json",
+      "sha1": "48663950540eff976a430de68dd2128d130c0bc3"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_bottom_left_open.json",
+      "sha1": "a023bf2e11576b6f9ac30ccd3c7474045ee01fb8"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_bottom_right.json",
+      "sha1": "7c4e5fb948934ce5853cd508e16aaaf0ae039b1f"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_bottom_right_open.json",
+      "sha1": "143ed531db42b527b451e7f9c8ec69d4542d7120"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_top_left.json",
+      "sha1": "2a2dfce818c2b9ac7629c094a0733683edd097cb"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_top_left_open.json",
+      "sha1": "d331074bbeae7ba2b430c78575961d224b7ea512"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_top_right.json",
+      "sha1": "99aadcb7e7a041f31bf7e7cca91320bf193a8978"
+    },
+    {
+      "source": "assets/minecraft/models/block/door_top_right_open.json",
+      "sha1": "cfa3ea09b8cfcd21bf3a9217d92f1bde135bf015"
+    },
+    {
+      "source": "assets/minecraft/models/block/fence_inventory.json",
+      "sha1": "ab5b88b86968e1e4a72a3716931d33f9b0343afa"
+    },
+    {
+      "source": "assets/minecraft/models/block/fence_post.json",
+      "sha1": "15e39bda3868b314c74df0921dae21bd471629dd"
+    },
+    {
+      "source": "assets/minecraft/models/block/fence_side.json",
+      "sha1": "041d297ec776867276c14103716efe2c8a464592"
+    },
+    {
+      "source": "assets/minecraft/models/block/fern.json",
+      "sha1": "259653b90bdc35ce9d35fa86062f092a7e2b4ab2"
+    },
+    {
+      "source": "assets/minecraft/models/block/furnace.json",
+      "sha1": "1d77b5969674da0287f434d1159dec9bc0cc2355"
+    },
+    {
+      "source": "assets/minecraft/models/block/furnace_on.json",
+      "sha1": "2ae19023b38d074494402d987921a1c51837351e"
+    },
+    {
+      "source": "assets/minecraft/models/block/glass_pane_noside.json",
+      "sha1": "7f961e347891ba0a7a1979546474eb67c8f373ae"
+    },
+    {
+      "source": "assets/minecraft/models/block/glass_pane_noside_alt.json",
+      "sha1": "7f528b444cbc73ecf137e51e516bcfa1a9e50051"
+    },
+    {
+      "source": "assets/minecraft/models/block/glass_pane_post.json",
+      "sha1": "6a69fd960e14ccb1778a1e5e3d92af0d6b8bfd2d"
+    },
+    {
+      "source": "assets/minecraft/models/block/glass_pane_side.json",
+      "sha1": "376e62280027947766b1e9bab73a3fc845e04d29"
+    },
+    {
+      "source": "assets/minecraft/models/block/glass_pane_side_alt.json",
+      "sha1": "2126e1b18f345ab9d2f6b2103bff4cf3279d0179"
+    },
+    {
+      "source": "assets/minecraft/models/block/grass_block.json",
+      "sha1": "a5187235f6902c61b8629df69032bee1fc83f6bd"
+    },
+    {
+      "source": "assets/minecraft/models/block/grass_block_snow.json",
+      "sha1": "ceedca53dd47e43c8cdcab3d9315d565d4c1e295"
+    },
+    {
+      "source": "assets/minecraft/models/block/ice.json",
+      "sha1": "e30b8c6fd5c3dc3eaf23320b9f436311d9e5f272"
+    },
+    {
+      "source": "assets/minecraft/models/block/inner_stairs.json",
+      "sha1": "5dcf61a6ec39f1d028cf2b6c5466af8010a34bc0"
+    },
+    {
+      "source": "assets/minecraft/models/block/jungle_leaves.json",
+      "sha1": "28caddbfa6b9a5c4f3cef8f8168257bdf69e333a"
+    },
+    {
+      "source": "assets/minecraft/models/block/jungle_log.json",
+      "sha1": "07069066876ce5115d86c8ea9115ec97b1d6b7c3"
+    },
+    {
+      "source": "assets/minecraft/models/block/jungle_log_horizontal.json",
+      "sha1": "148ef5dfcce7a10303a9bc087c51b496bc923229"
+    },
+    {
+      "source": "assets/minecraft/models/block/large_fern_bottom.json",
+      "sha1": "250aefc7c0f9970c1df2c25805b13b7f54b1a505"
+    },
+    {
+      "source": "assets/minecraft/models/block/large_fern_top.json",
+      "sha1": "10aa6637f76b2b1e41b81d60fa42059c501f4083"
+    },
+    {
+      "source": "assets/minecraft/models/block/leaves.json",
+      "sha1": "5a02ca243b176dffceb13c3076eb74abaca164a9"
+    },
+    {
+      "source": "assets/minecraft/models/block/light_gray_carpet.json",
+      "sha1": "7167a6e2549d3ff1bb7229684f5f9150ac5d3725"
+    },
+    {
+      "source": "assets/minecraft/models/block/mushroom_block_inside.json",
+      "sha1": "d21d12c6b78305a8aa618f4b9ed5c6b142909112"
+    },
+    {
+      "source": "assets/minecraft/models/block/mushroom_stem.json",
+      "sha1": "c33276056d01523c1ef6cf31c8dacd9b4b441599"
+    },
+    {
+      "source": "assets/minecraft/models/block/mushroom_stem_inventory.json",
+      "sha1": "e76bdcfc9fbe1425a4c476a9b3e8963c0fcb2df6"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_bottom_left.json",
+      "sha1": "6b963a594f3dd380fc009e67f33c62549edb6f16"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_bottom_left_open.json",
+      "sha1": "04c64cfe4b8754cc003da586fc21d6b192c48423"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_bottom_right.json",
+      "sha1": "0b6c88e1b168f11b4e2637bfcd88d780828f93b6"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_bottom_right_open.json",
+      "sha1": "b41daadd0ee4636a92474c15708a1791334146ba"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_top_left.json",
+      "sha1": "26ebb8bc05f5380c211ab3a5f136728f574b7bb6"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_top_left_open.json",
+      "sha1": "53b5f8592900d6dcd1a7100883f0bd61555120fd"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_top_right.json",
+      "sha1": "c858f41037879a5e0dd0d28d3f0cef8d3e915331"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_door_top_right_open.json",
+      "sha1": "b69a75733ad083d6d734a070b6dcce78dadfaaa7"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_leaves.json",
+      "sha1": "20a37c4aa6f4f5f3553f16959ba2c62ae798689a"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_log.json",
+      "sha1": "b467878c032363f71dcab253bb6a0e5012f8c2a7"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_log_horizontal.json",
+      "sha1": "5faeb150c1bc82b21d23df9ebdc024e248f5bbb1"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_planks.json",
+      "sha1": "8809529b2459734217c5f0026d1cf79666883114"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_stairs.json",
+      "sha1": "6ba83fbbbef1f7f3ccb4f46507147b1a87d681ef"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_stairs_inner.json",
+      "sha1": "873225f3d3595730cc1bc7f79faeb654e44d7339"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_stairs_outer.json",
+      "sha1": "18f3ef3c3f60403300e2521cfe7b7edcae792235"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_trapdoor_bottom.json",
+      "sha1": "df02364c67a268db4be7c320d98911f42f87e2a9"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_trapdoor_open.json",
+      "sha1": "8be1fe0d6f108c4728864e1ea5af972418f72d77"
+    },
+    {
+      "source": "assets/minecraft/models/block/oak_trapdoor_top.json",
+      "sha1": "e7528795c768595b716095d980ea7e4c8b312302"
+    },
+    {
+      "source": "assets/minecraft/models/block/orange_bed_foot.json",
+      "sha1": "7b3eaab7c735b3cb1b7f5b7163c9c768094e0b79"
+    },
+    {
+      "source": "assets/minecraft/models/block/orange_bed_head.json",
+      "sha1": "f3aae69a95f23f0b6fa56d9e89790394e273d7a4"
+    },
+    {
+      "source": "assets/minecraft/models/block/orange_terracotta.json",
+      "sha1": "8ed6b445f28c014b6391b3cc954fd1b734780f34"
+    },
+    {
+      "source": "assets/minecraft/models/block/orientable.json",
+      "sha1": "9add2338ea64bf2e52805b864601f938d35c5c57"
+    },
+    {
+      "source": "assets/minecraft/models/block/orientable_with_bottom.json",
+      "sha1": "4888393fa87b3ea22359b739a7781fcf90c8fb92"
+    },
+    {
+      "source": "assets/minecraft/models/block/outer_stairs.json",
+      "sha1": "d450025c3880fa2cfc0c8ab91bc88c1abec685cb"
+    },
+    {
+      "source": "assets/minecraft/models/block/podzol.json",
+      "sha1": "d0cfd0e220c8822bec304fee6d83c503255e7b8e"
+    },
+    {
+      "source": "assets/minecraft/models/block/pressure_plate_down.json",
+      "sha1": "7ca04a7d37c0338041f76df4bd8cfb755aa1165a"
+    },
+    {
+      "source": "assets/minecraft/models/block/pressure_plate_up.json",
+      "sha1": "1571b66ea1487e5bd3b25f95210a52ab4aef089e"
+    },
+    {
+      "source": "assets/minecraft/models/block/purple_bed_foot.json",
+      "sha1": "7baf31f74cf2599b1eb42a6ffa030bad64e62b39"
+    },
+    {
+      "source": "assets/minecraft/models/block/purple_bed_head.json",
+      "sha1": "cce55c3ccc218d779ae826813b1f47cef1094c9d"
+    },
+    {
+      "source": "assets/minecraft/models/block/red_bed_foot.json",
+      "sha1": "bca669994ff6cf9b6f77ba3ac2518846af9e4471"
+    },
+    {
+      "source": "assets/minecraft/models/block/red_bed_head.json",
+      "sha1": "c284ed88427232e3825ef9d4b57724eb88bf2c8b"
+    },
+    {
+      "source": "assets/minecraft/models/block/red_mushroom_block.json",
+      "sha1": "8c478e027712562d1421d22e6441c76e67194fcf"
+    },
+    {
+      "source": "assets/minecraft/models/block/red_mushroom_block_inventory.json",
+      "sha1": "7be2e3396385d849e09e89b0f6d4fe069f52794b"
+    },
+    {
+      "source": "assets/minecraft/models/block/red_terracotta.json",
+      "sha1": "e97e1b0788427d92e93361e186f3557fc7860481"
+    },
+    {
+      "source": "assets/minecraft/models/block/redstone_torch.json",
+      "sha1": "55b32990ca621c1917f7c9b11cc000f356cfed62"
+    },
+    {
+      "source": "assets/minecraft/models/block/redstone_torch_off.json",
+      "sha1": "c6f2dc8e539bb5194011178296e013f11abd9252"
+    },
+    {
+      "source": "assets/minecraft/models/block/sand.json",
+      "sha1": "92c4f9d915a02eede0511dfa59ed4b3aca3fa58f"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone.json",
+      "sha1": "edf425c48d055f57c2a6c7bdb925a28e212b359f"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone_slab.json",
+      "sha1": "fd751f8dbda699bdb6ced36a71085802cc04a36e"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone_slab_top.json",
+      "sha1": "ce60b6326f7424fbe7af2b43df1d559493117622"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone_stairs.json",
+      "sha1": "49e6e8755102bbbe405d42e8fbc5d529eb31211b"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone_stairs_inner.json",
+      "sha1": "f4497ac0ab5918a4a50e3fc122421edef15c35aa"
+    },
+    {
+      "source": "assets/minecraft/models/block/sandstone_stairs_outer.json",
+      "sha1": "07e44050304b59d4fe438384c1a82bd9c5d30d4b"
+    },
+    {
+      "source": "assets/minecraft/models/block/short_grass.json",
+      "sha1": "dbf79d42f5bd15edbfd89d1f440507cc04b79214"
+    },
+    {
+      "source": "assets/minecraft/models/block/slab.json",
+      "sha1": "98d8c804c06eaf29807f83e688133fb02405b0f1"
+    },
+    {
+      "source": "assets/minecraft/models/block/slab_top.json",
+      "sha1": "84c8d408a51952de5787defe126e443d2ad711bc"
+    },
+    {
+      "source": "assets/minecraft/models/block/snow_block.json",
+      "sha1": "0a7743fc341ec3053bafd7950ee2cb4e36eba546"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_bottom_left.json",
+      "sha1": "b860491cf980593cd624f846691b1494f7a3213b"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_bottom_left_open.json",
+      "sha1": "a91c1c170ef125ca8eeead5178ba976a9f913ca0"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_bottom_right.json",
+      "sha1": "ad595dae342c33c0309144ad19884c8b3c4b8de2"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_bottom_right_open.json",
+      "sha1": "60c66d5565ea7a65d82a2a63b2e9eea60bb07bc7"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_top_left.json",
+      "sha1": "cc3fc9d62ef48ef4826718612a42f80cd795e4fb"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_top_left_open.json",
+      "sha1": "fa48f79c2cf1f12e503a3ec8c068f9cc59cad3dd"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_top_right.json",
+      "sha1": "c26123ad73e3819c328c9d4bdeef8e61902f64dc"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_door_top_right_open.json",
+      "sha1": "f8ad8a095bd7d4621fec59ed42dc09b8928eecd5"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_leaves.json",
+      "sha1": "4b5f2d9acef33a6ac960fd562765cd3e580a4818"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_log.json",
+      "sha1": "6457cd5ef1026f9dc754112921df8fd16c470667"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_log_horizontal.json",
+      "sha1": "87f0855f2f0bf5f6637a00cd56a91941ca45be03"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_planks.json",
+      "sha1": "d3c2edebd468588cf88af61afc26843f1fbd5851"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_stairs.json",
+      "sha1": "0ff045f281c9dc8d1a39b6c931b24aafcdd31fac"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_stairs_inner.json",
+      "sha1": "4265878ccb58fb9ab9b4e794598b8e598af3c91a"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_stairs_outer.json",
+      "sha1": "641c71962ca819e70a80681e1617a7fa6a710ea8"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_trapdoor_bottom.json",
+      "sha1": "f640d5149d0a4e82802f266209743f73deb088c3"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_trapdoor_open.json",
+      "sha1": "7745536b2403148e485e084826225e6d8e74ee4a"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_trapdoor_top.json",
+      "sha1": "2095e5623fb5ddcca41bf99cdff29e57e7d80976"
+    },
+    {
+      "source": "assets/minecraft/models/block/spruce_wall_sign.json",
+      "sha1": "687a2711c6882cbcea71cdd40eba2580eced6c83"
+    },
+    {
+      "source": "assets/minecraft/models/block/stairs.json",
+      "sha1": "ed0f1c46d480d7a1f2d02b568a376ce94ebb2436"
+    },
+    {
+      "source": "assets/minecraft/models/block/stone_pressure_plate.json",
+      "sha1": "2aa0ee2c15c7fb22e1f70cb898a828e943116704"
+    },
+    {
+      "source": "assets/minecraft/models/block/stone_pressure_plate_down.json",
+      "sha1": "99fcac95c885189935e838e663e9c2818d4750a6"
+    },
+    {
+      "source": "assets/minecraft/models/block/stripped_oak_log.json",
+      "sha1": "6b25147098f68ab3720654d214a88e13fecaeff0"
+    },
+    {
+      "source": "assets/minecraft/models/block/stripped_oak_log_horizontal.json",
+      "sha1": "8635e9ad8ff33fa2b888c24db35655404a7b903c"
+    },
+    {
+      "source": "assets/minecraft/models/block/suspicious_sand_0.json",
+      "sha1": "aec315f2e1707a80ee3e2246c92a4a9771e72e20"
+    },
+    {
+      "source": "assets/minecraft/models/block/suspicious_sand_1.json",
+      "sha1": "5aa5bc144e71c24e039756318feda42826f6217c"
+    },
+    {
+      "source": "assets/minecraft/models/block/suspicious_sand_2.json",
+      "sha1": "6acc87311aabc59c6aadb94680e3865ab761e838"
+    },
+    {
+      "source": "assets/minecraft/models/block/suspicious_sand_3.json",
+      "sha1": "4f1735ca57f8a0cebb62f443b796e08338166932"
+    },
+    {
+      "source": "assets/minecraft/models/block/tall_grass_bottom.json",
+      "sha1": "4f0f48cbe341f3360b83797566d5a4493f4dcdba"
+    },
+    {
+      "source": "assets/minecraft/models/block/tall_grass_top.json",
+      "sha1": "a0c83be4249ea5d6a187a2bcc93f6a640c9a978c"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_bed.json",
+      "sha1": "d50618888b959ef4bfc4f9bb603b2c0f0942a888"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_bed_foot.json",
+      "sha1": "45549c63ec22435ff971be067309ada80a6af82f"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_bed_head.json",
+      "sha1": "c68704489c5393d09c8561ba97bc9ed4de083939"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_cube_bottom_top_indented.json",
+      "sha1": "ecfda6c39d4587e16e307eb9746f8b9bc58bfaab"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_glass_pane_noside.json",
+      "sha1": "ea07c83571d439d662c7a85f7db69f7000bcaa65"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_glass_pane_noside_alt.json",
+      "sha1": "337d78de6a4e6b7b2255b42461aec9603d711342"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_glass_pane_post.json",
+      "sha1": "326eaba2704060eee9e4f7af0f2dd123a73909b8"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_glass_pane_side.json",
+      "sha1": "93bb744718b56ed1481454bc2538868149347d5f"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_glass_pane_side_alt.json",
+      "sha1": "d35aca4f1e9032527e9a519c56b5d5846ca898e1"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_orientable_trapdoor_bottom.json",
+      "sha1": "77d59ebe20307a9a6117f1e8de7eb686a198d9d9"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_orientable_trapdoor_open.json",
+      "sha1": "de541ffcfe4b8bbb56a7d85ce52b61a1f11c521e"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_orientable_trapdoor_top.json",
+      "sha1": "b9bbf08d2e53e587bcd354df87ca943008cc7853"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_redstone_torch.json",
+      "sha1": "e7482f6b709a5d6760495aedabd510c1b9866a04"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_single_face.json",
+      "sha1": "547bc87e993aa33d4cc3f26fbdb2a3d983e3e99a"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_torch.json",
+      "sha1": "118b88c63791d210346f8a5a8342865c5271b468"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_torch_unlit.json",
+      "sha1": "bf05410d603bef4346edea95941198cfb01b0404"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_torch_wall.json",
+      "sha1": "759f927f35ecaa8220fdaaa6aa0147319b6dd76d"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_trapdoor_bottom.json",
+      "sha1": "e56b51a0b69310b1cfc2eba4f764b85ae97882f6"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_trapdoor_open.json",
+      "sha1": "950e7e9ce34863fd0cc1440fe7d309f9ea6786e6"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_trapdoor_top.json",
+      "sha1": "c7cd8633d640b71ecde0129a29b1c21ccc33a8d7"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_wall_post.json",
+      "sha1": "c3549a7f6a1bf468d6fa8f2300758a67f6f796c3"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_wall_side.json",
+      "sha1": "5fb12a82dbae7181a284423c82eeb3296054ccd2"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_wall_side_tall.json",
+      "sha1": "0c52488ce5f5b234f14591247d272da9795b8ed3"
+    },
+    {
+      "source": "assets/minecraft/models/block/template_wall_sign.json",
+      "sha1": "f5877bbda27c435a8cfefa1112fa3e47e5384be2"
+    },
+    {
+      "source": "assets/minecraft/models/block/thin_block.json",
+      "sha1": "3573064cdb3d48e29de46d286b48a93afb49cffb"
+    },
+    {
+      "source": "assets/minecraft/models/block/tinted_cross.json",
+      "sha1": "375799ee8f1a57b52eab4f4a6ad069d6c2446780"
+    },
+    {
+      "source": "assets/minecraft/models/block/tnt.json",
+      "sha1": "94b9d6b36dd318c4fd37bfb530fd3b78af3c2f81"
+    },
+    {
+      "source": "assets/minecraft/models/block/torch.json",
+      "sha1": "e5e86810b0f89e03f00713a973aa7c15ae3b8a2d"
+    },
+    {
+      "source": "assets/minecraft/models/block/vine.json",
+      "sha1": "2922ee2595720fb4db614548bfb2af6456648946"
+    },
+    {
+      "source": "assets/minecraft/models/block/wall_inventory.json",
+      "sha1": "7ab39223fb2ee848aabb9b7937e701b56f181050"
+    },
+    {
+      "source": "assets/minecraft/models/block/wall_torch.json",
+      "sha1": "31915691fa6724e24d47d08119c2df73251586ef"
+    },
+    {
+      "source": "assets/minecraft/models/block/water.json",
+      "sha1": "9c7db949b5994d99578fd007aa8b0b362acfc40c"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_bed_foot.json",
+      "sha1": "e37f4a71d29e629637893c820b04d9dd93ef52ba"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_bed_head.json",
+      "sha1": "d9368468f8fc381754cc974eb868f5d02648088b"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_carpet.json",
+      "sha1": "550d27194212eb6b7686d2bae9fd7a98b95193d2"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_stained_glass_pane_noside.json",
+      "sha1": "17550a6613b22a424f555e0efe80edf58452aba3"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_stained_glass_pane_noside_alt.json",
+      "sha1": "4922c1f158fb0bfb415fd4b25b7ac5ca69a99218"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_stained_glass_pane_post.json",
+      "sha1": "2d76df2d14dd0c77495e0aaed6498eb02c6bbfba"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_stained_glass_pane_side.json",
+      "sha1": "55d8250d517d05965cef2c715f75b04d53929ec3"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_stained_glass_pane_side_alt.json",
+      "sha1": "5b889c8c872a887a875fdfe8ff7f44b89fbf00bb"
+    },
+    {
+      "source": "assets/minecraft/models/block/white_terracotta.json",
+      "sha1": "69f2e06236907f0b04ead8d48f518f5225e89ddc"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_bed_foot.json",
+      "sha1": "5610f7b7a34e8478b8b52d2fedc54d115a84d32e"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_bed_head.json",
+      "sha1": "cf73ddb62ca500671e3288dfb8618610bde52ffa"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_stained_glass_pane_noside.json",
+      "sha1": "1d84c593f8b61822bb9ca113352dca56201250a4"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_stained_glass_pane_noside_alt.json",
+      "sha1": "3ec889781f3dceca5637d0b7b05abb41b31abade"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_stained_glass_pane_post.json",
+      "sha1": "a83c6f4e5ac4fe2b0f03718ef793dfc96956f8f2"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_stained_glass_pane_side.json",
+      "sha1": "e2a5f5bb7e859b039274d9cd2528dec8afb39947"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_stained_glass_pane_side_alt.json",
+      "sha1": "bbc5474060feeb4227e80051c426f9b24dd9a7be"
+    },
+    {
+      "source": "assets/minecraft/models/block/yellow_terracotta.json",
+      "sha1": "c698a83fdbc7dde5eac58d9ca1bafd0e1c24d53e"
+    },
+    {
+      "source": "assets/minecraft/models/item/acacia_door.json",
+      "sha1": "16683aed36f749bbf1ef6821d54abc26bbf0bd7a"
+    },
+    {
+      "source": "assets/minecraft/models/item/bell.json",
+      "sha1": "5cc62d13e9ecabf4f249e2f84be55de0329ff839"
+    },
+    {
+      "source": "assets/minecraft/models/item/brewing_stand.json",
+      "sha1": "115c77dbfa47ac842f94c99c03e745af6214578f"
+    },
+    {
+      "source": "assets/minecraft/models/item/fern.json",
+      "sha1": "f9d222ecdf10d688f269c85e34b539977359e1b3"
+    },
+    {
+      "source": "assets/minecraft/models/item/generated.json",
+      "sha1": "0d70ccf45912e4a130e5990d6b4a1a6de963168f"
+    },
+    {
+      "source": "assets/minecraft/models/item/glass_pane.json",
+      "sha1": "b425b81b82d1d45a35c29d0f7b8851c20ea82738"
+    },
+    {
+      "source": "assets/minecraft/models/item/large_fern.json",
+      "sha1": "e23386e1fed908b7a2b61dca6937fa5f009ec4c9"
+    },
+    {
+      "source": "assets/minecraft/models/item/oak_door.json",
+      "sha1": "3b370e9eba91d401f02afa1454e51f711cb9117c"
+    },
+    {
+      "source": "assets/minecraft/models/item/redstone_torch.json",
+      "sha1": "bf5fd6da7fcf261b0423ec912e5519ab9a34a3f4"
+    },
+    {
+      "source": "assets/minecraft/models/item/short_grass.json",
+      "sha1": "2dfa6cc426f60e10c5d73bc9f1374ae8c85fd947"
+    },
+    {
+      "source": "assets/minecraft/models/item/spruce_door.json",
+      "sha1": "f39d45cde0613898afe7f280967e7c1c0ea639d4"
+    },
+    {
+      "source": "assets/minecraft/models/item/tall_grass.json",
+      "sha1": "11c594cea77f9dbc5f8e622d3fba867dd492dd55"
+    },
+    {
+      "source": "assets/minecraft/models/item/torch.json",
+      "sha1": "3b53dfead4f6ad933e1c3dd088d4bbb5a78755b0"
+    },
+    {
+      "source": "assets/minecraft/models/item/vine.json",
+      "sha1": "0bf8ff94cc017fe26ef485bcb7c0537db86c67f0"
+    },
+    {
+      "source": "assets/minecraft/models/item/white_stained_glass_pane.json",
+      "sha1": "48328a89dccb9c5a7c9b8c1cd7bbb7caadf27f5d"
+    },
+    {
+      "source": "assets/minecraft/models/item/yellow_stained_glass_pane.json",
+      "sha1": "efa3d8444903a977e0a7babe073d0e140f41aeba"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_door_bottom.png",
+      "sha1": "8d98546f3ba8e0a117470438722fd19d4e365f97"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_door_top.png",
+      "sha1": "920a6e3096b19bc2a69db529824a9c78d023099d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_leaves.png",
+      "sha1": "61366f170d3839bb76301b8da05116dd68253f77"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_log.png",
+      "sha1": "87d169a34cb57ea8f84952dcaee7bc21b94380dd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_log_top.png",
+      "sha1": "460a2a11951e41af288306a44280668bf08d6ce9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_planks.png",
+      "sha1": "7804810433b8aec8fa971631ad2c805099f1795b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/bed_down.png",
+      "sha1": "259fa0465f74f921523e37e4a5404b3d3f6650ba"
+    },
+    {
+      "source": "assets/minecraft/textures/block/bed_head_north.png",
+      "sha1": "7da6c97be2409973d7a1cecc6ca7c7d4a2fd0ee5"
+    },
+    {
+      "source": "assets/minecraft/textures/block/bell_bottom.png",
+      "sha1": "92b91ed0dfdb9df01de858e32576ca91f3cc17a9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/blue_terracotta.png",
+      "sha1": "54521479a15749d48f0e2d3ae1fd41996cc6ab1f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/brewing_stand.png",
+      "sha1": "80bd6b592ce67b70a3672ffea79be3aa54c6e961"
+    },
+    {
+      "source": "assets/minecraft/textures/block/brewing_stand_base.png",
+      "sha1": "69c4c3a5a6089f065956754fc98bd15df52ad549"
+    },
+    {
+      "source": "assets/minecraft/textures/block/brown_mushroom_block.png",
+      "sha1": "9528e2d9727a454a36206aee64f3e933557a25dd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_leaves.png",
+      "sha1": "d9e587618a3b29f6ecd3bcdcb41beb081ff913f4"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_log.png",
+      "sha1": "3caae4eef65f3f17068cb0d94ee860ae17cc06dc"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_log_top.png",
+      "sha1": "58ea8c64d8889b16b6e1aaf79fda3dacf01c6bd2"
+    },
+    {
+      "source": "assets/minecraft/textures/block/chiseled_sandstone.png",
+      "sha1": "f309bdbf6af73b02a243d14984a83850fc771cc1"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cobblestone.png",
+      "sha1": "bf009cfed85345e275e2952c3c2686a70885e6b6"
+    },
+    {
+      "source": "assets/minecraft/textures/block/crafting_table_front.png",
+      "sha1": "96f09ab7ec42286caf423b1849191c70fb94519c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/crafting_table_side.png",
+      "sha1": "19c7796251dcc72029c600e1df23672bfca82cb3"
+    },
+    {
+      "source": "assets/minecraft/textures/block/crafting_table_top.png",
+      "sha1": "2df5d7fe4d22296ddcacdf4b117b11c350e27777"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cut_sandstone.png",
+      "sha1": "7bbc97610990dabe450bbd1683189b4345c69e95"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_leaves.png",
+      "sha1": "8eceebeca00606f96b0ebab8918fcc8c661daf00"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_log.png",
+      "sha1": "c7aa20cab1962e44d5d1accfe3af9df3ac339cdd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_log_top.png",
+      "sha1": "5451446df7987f9f7cf3cbe8b6e5d905369caeba"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_planks.png",
+      "sha1": "df0b8daceeade2c41af31c09e85bbb941f8a0236"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dirt.png",
+      "sha1": "a6364b91067e176052f598b2e1c3ca3835cb44fe"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dirt_path_side.png",
+      "sha1": "a87477caaa5773d9fa51b2afc8cef5c9b2fd81b1"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dirt_path_top.png",
+      "sha1": "3b1c1bf8a593394a8ae87641bb1b088abb59ddc3"
+    },
+    {
+      "source": "assets/minecraft/textures/block/fern.png",
+      "sha1": "5b6d707e8fa9faff25e30ecf45d09826c0bd9a8e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/furnace_front.png",
+      "sha1": "d8a21d5607f6d45ffd0db81b874fbb2aced3ff39"
+    },
+    {
+      "source": "assets/minecraft/textures/block/furnace_front_on.png",
+      "sha1": "91a801e397f505da2898d062d7b29ff02c2b2595"
+    },
+    {
+      "source": "assets/minecraft/textures/block/furnace_side.png",
+      "sha1": "80b3d6acc83b52b91c31919e64ffb093ce5437b7"
+    },
+    {
+      "source": "assets/minecraft/textures/block/furnace_top.png",
+      "sha1": "f5917ed4521617190cc72f74d50a2161b816afdb"
+    },
+    {
+      "source": "assets/minecraft/textures/block/glass.png",
+      "sha1": "c57de99c7649413d119e55b3e8eae4e68de77422"
+    },
+    {
+      "source": "assets/minecraft/textures/block/glass_pane_top.png",
+      "sha1": "0678be720cf1a778abbfbdb3b69efacad71e3903"
+    },
+    {
+      "source": "assets/minecraft/textures/block/grass_block_side.png",
+      "sha1": "638224bfab84fb3fd672dc7e393e4094dff551f0"
+    },
+    {
+      "source": "assets/minecraft/textures/block/grass_block_side_overlay.png",
+      "sha1": "11e6e5ad4594f3e87b7c673b32c4f0989ceebf61"
+    },
+    {
+      "source": "assets/minecraft/textures/block/grass_block_snow.png",
+      "sha1": "c9fa531067a0848bb27a37b80176243904dcc67f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/grass_block_top.png",
+      "sha1": "57447ae357bce2055bdf1023d91edeaa10310200"
+    },
+    {
+      "source": "assets/minecraft/textures/block/ice.png",
+      "sha1": "6a1789812903dfc344cc2f3661655b7d83dad50d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_leaves.png",
+      "sha1": "92f01990aea324bd6dba33d8e59436f13bd1d41f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_log.png",
+      "sha1": "3c8cab0ede73c393ef5ba3b03e7f28e9c329a818"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_log_top.png",
+      "sha1": "929c47592e89a7a057017729248e840aa597de4e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/large_fern_bottom.png",
+      "sha1": "69ea61c5dd6b85b9502f604f1d0fdf9d313fdc3d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/large_fern_top.png",
+      "sha1": "0003e09e70100abdfc4aae2203172eb56dd94a6b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/light_gray_wool.png",
+      "sha1": "a4c85f23c5503f1fece833dd8eaa4b87030cb3f5"
+    },
+    {
+      "source": "assets/minecraft/textures/block/mushroom_block_inside.png",
+      "sha1": "d3933c4ebaded3bd8ba9275fe37395e9028e4431"
+    },
+    {
+      "source": "assets/minecraft/textures/block/mushroom_stem.png",
+      "sha1": "fbe39e299a31a44d9858395bbd600685bc990e99"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_door_bottom.png",
+      "sha1": "a4778fcc997e811e8cb52f2106e0aa2429f44338"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_door_top.png",
+      "sha1": "4248c3e2321fe6470ca3f888bc07ededa487676b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_leaves.png",
+      "sha1": "88edd77292cde729c8a429aa78fa95ff2d9e2136"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_log.png",
+      "sha1": "d4470abd918d8c26f106e9357a3f1b3c2bee9ec2"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_log_top.png",
+      "sha1": "57913658259b04949ee905991dd4706f8859f792"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_planks.png",
+      "sha1": "e5368890d90337ac8f491d66d125558b47d6f998"
+    },
+    {
+      "source": "assets/minecraft/textures/block/oak_trapdoor.png",
+      "sha1": "c6bdd73763ba41adaf48ac0ea06d4e2ce773a1c0"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_foot_east.png",
+      "sha1": "f3009eaeb6a392bc0c714fc4ae6f2049757a1a09"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_foot_south.png",
+      "sha1": "cdf3d2b83953fc0800e7a73cbd884f04c201d39e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_foot_up.png",
+      "sha1": "70fa7ee55b9dc926b263eca68a019db4c16a29bc"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_foot_west.png",
+      "sha1": "ca5cc771337547ab4559a64a44a429b3d8130f93"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_head_east.png",
+      "sha1": "6a906523964774918f82aa46b7ee6376c63ffc6c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_head_up.png",
+      "sha1": "86ae40c67a8cb6e360c0bbd4921f9d83c5f3540a"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_bed_head_west.png",
+      "sha1": "4fa9dd353f24170e42c6f36c7a6c4f0c1dd5301d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/orange_terracotta.png",
+      "sha1": "4b5c3608a7a089e72fdc75208fb662739c0335be"
+    },
+    {
+      "source": "assets/minecraft/textures/block/podzol_side.png",
+      "sha1": "057df1e739247541727d17abb84eab5fac58a466"
+    },
+    {
+      "source": "assets/minecraft/textures/block/podzol_top.png",
+      "sha1": "673919976e0365c13c7cd73ee729531199ad76bd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_foot_east.png",
+      "sha1": "9aabd7b86bae49612dbd74cb357b3c77c91ed025"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_foot_south.png",
+      "sha1": "29c395a86c60afdeccb2f2a9a6ea812c60613bc8"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_foot_up.png",
+      "sha1": "350e130370424974981e9b3f7c502abef46edc0c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_foot_west.png",
+      "sha1": "8d941c15a1e9dd52f29fed821114babb64722568"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_head_east.png",
+      "sha1": "e583b0ab2bf6c23725426854ffda67bbde20257c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_head_up.png",
+      "sha1": "65ed038ae1b08c5bbd477dd78b36111d2b2cca2f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/purple_bed_head_west.png",
+      "sha1": "3ab1ffcdd8c10014b1167126f4474e9f9289348d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_foot_east.png",
+      "sha1": "f7bc6c542c8d84e995fd9b03355eae0a0e7a5e01"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_foot_south.png",
+      "sha1": "459aea3d31a1bbe5da2b7dc3c8a61a3dd862e935"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_foot_up.png",
+      "sha1": "7ff6dce8d7a09c8e24cfdd7ddd40bd305bcfee1f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_foot_west.png",
+      "sha1": "0fbd84362c18b2c84382f7b8edbe70487686ff06"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_head_east.png",
+      "sha1": "b9488b17ecd6de48e7ac8e393f80a3b0a9159c01"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_head_up.png",
+      "sha1": "3a5018ee66cd4ea2d7f0eec8fe5bc401f762ff95"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_bed_head_west.png",
+      "sha1": "a228324cae63f0d3aa26304d9e854e81871ad6c3"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_mushroom_block.png",
+      "sha1": "1808753b14043991c32744a8209b435c98351ddf"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_terracotta.png",
+      "sha1": "64f6c645353ea04ea082023efebcf95a14f301d9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/redstone_torch.png",
+      "sha1": "0e2a5b4d87ad4a49008b944582222afe684f377e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/redstone_torch_off.png",
+      "sha1": "2eeb6a0dc5b9f41de0a78c29509cc9295efd8268"
+    },
+    {
+      "source": "assets/minecraft/textures/block/sand.png",
+      "sha1": "8efbe7df4797a973e92f85c050eb01790cf537ca"
+    },
+    {
+      "source": "assets/minecraft/textures/block/sandstone.png",
+      "sha1": "36579db81e4840f4bfb1598b8fd1c60ed9161266"
+    },
+    {
+      "source": "assets/minecraft/textures/block/sandstone_bottom.png",
+      "sha1": "b9c7d692587f5f962dd50874c90ede7ff3bc89ce"
+    },
+    {
+      "source": "assets/minecraft/textures/block/sandstone_top.png",
+      "sha1": "27dad1399fd99c199407ee91adaba51ffa871505"
+    },
+    {
+      "source": "assets/minecraft/textures/block/short_grass.png",
+      "sha1": "1e1299822c6a6778e7ba1feabbe03d098d4ffb6c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/snow.png",
+      "sha1": "376538351a085b2552cb2ec0467f7c8070b85287"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_door_bottom.png",
+      "sha1": "141dbb0f4536d275970c384a7fb106cf5d2977d6"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_door_top.png",
+      "sha1": "bc09b68ad217e4e27f97c0f21c602f7844feae69"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_leaves.png",
+      "sha1": "b86377380c127456a702ee80d788694ef4989aaa"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_log.png",
+      "sha1": "73ced2d377ce6dad2d5a1e196619f5cbdeeb8db0"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_log_top.png",
+      "sha1": "743098787ba6530f999e96a54a31e20a7a831e3a"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_planks.png",
+      "sha1": "2fca3009180bc197a9b1c693c83f96d809d93ec8"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_sign.png",
+      "sha1": "bbeb43a81ae0f1ffa09006674a9818505e75a7f8"
+    },
+    {
+      "source": "assets/minecraft/textures/block/spruce_trapdoor.png",
+      "sha1": "9d8ba630a2fe2dca1771004f90121b17957b3ec6"
+    },
+    {
+      "source": "assets/minecraft/textures/block/stone.png",
+      "sha1": "730b77cdb1fc6c08b870e32b5e69c78720db73ef"
+    },
+    {
+      "source": "assets/minecraft/textures/block/stripped_oak_log.png",
+      "sha1": "173463438b6794fe736325abe65ac2a82a9f26eb"
+    },
+    {
+      "source": "assets/minecraft/textures/block/stripped_oak_log_top.png",
+      "sha1": "bb82f06bae69b038eeab90f23079f75f9c4ae598"
+    },
+    {
+      "source": "assets/minecraft/textures/block/suspicious_sand_0.png",
+      "sha1": "ddd6273d5de5368dfde5b57891179084532e0bc1"
+    },
+    {
+      "source": "assets/minecraft/textures/block/suspicious_sand_1.png",
+      "sha1": "8207eacecfcc96f5caa7c3f6ad69ca93fff8499d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/suspicious_sand_2.png",
+      "sha1": "14b15d4b2282516bb8c69ba5f76b433b220f6516"
+    },
+    {
+      "source": "assets/minecraft/textures/block/suspicious_sand_3.png",
+      "sha1": "a37278b4448cec0347beacc6a8d74b368c5a27c9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/tall_grass_bottom.png",
+      "sha1": "47ba2385e9c7417016ff7a1a093d03b9e1824e0d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/tall_grass_top.png",
+      "sha1": "5efb753c10cc4348e9d88843f09016e8a43484b4"
+    },
+    {
+      "source": "assets/minecraft/textures/block/tnt_bottom.png",
+      "sha1": "876e84689ae1158d2281b9c540c2fb8f5ca86933"
+    },
+    {
+      "source": "assets/minecraft/textures/block/tnt_side.png",
+      "sha1": "926f82cb645af4734ded45c26a13450eefedf926"
+    },
+    {
+      "source": "assets/minecraft/textures/block/tnt_top.png",
+      "sha1": "5e1fec883315a69acc112bac0e0aade6e47a6481"
+    },
+    {
+      "source": "assets/minecraft/textures/block/torch.png",
+      "sha1": "75a66a71a7a9c1483167b4efde0cae285f4e623d"
+    },
+    {
+      "source": "assets/minecraft/textures/block/vine.png",
+      "sha1": "8b6ec2370c8be3700c519088606b63c9f3305d01"
+    },
+    {
+      "source": "assets/minecraft/textures/block/water_still.png",
+      "sha1": "e59992e0075e9e3201e2fc40c059b98c8b3f9fe9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_foot_east.png",
+      "sha1": "36f183c071dbd3887852049e41dcffcd80f308ac"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_foot_south.png",
+      "sha1": "db5c2900a8fabe074283469d65d8cce20efb5510"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_foot_up.png",
+      "sha1": "0c419272f12a505a008f4b19e0ab75d4f0b583cd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_foot_west.png",
+      "sha1": "c9758b5e803fd077a8bf45ba758326be8a3a21c1"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_head_east.png",
+      "sha1": "43998b25e60969b336c9676789d2d752cee412cd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_head_up.png",
+      "sha1": "3cacf03cae66947a6d8996b63859a7e19c5cb45e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_bed_head_west.png",
+      "sha1": "a7b27467541ad1e64d800fd486da103b9c845c58"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_stained_glass.png",
+      "sha1": "abd9d69852c2bbc15cd58cbe9592517066e7d936"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_stained_glass_pane_top.png",
+      "sha1": "4f980d4f76d46afa1f1a5078e8ac9fbb4c8c290b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_terracotta.png",
+      "sha1": "d6b6007dbb5b2b269aa8406f91b02bba2fdc0dad"
+    },
+    {
+      "source": "assets/minecraft/textures/block/white_wool.png",
+      "sha1": "cfeb728eefb85016341df8573c07314dbd863cf7"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_foot_east.png",
+      "sha1": "8d644373866598cc4a040cc7a66c8d06d2db5627"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_foot_south.png",
+      "sha1": "b45642da0da997925706d0847dd2cb2336f34dc0"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_foot_up.png",
+      "sha1": "ed6c9efa7fd2bf66eacb24511747d35e4855a929"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_foot_west.png",
+      "sha1": "196356a66e3e637b67ddf651e172a6b2fa57bdd3"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_head_east.png",
+      "sha1": "f603c2877a0bdc7385e69febfb0f07e4a5a25d32"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_head_up.png",
+      "sha1": "1734dfdec08dfcecbb99efdfdd3563762ddbe847"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_bed_head_west.png",
+      "sha1": "5ba5bd677f9206a712e53fdfc55c9007250f50f1"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_stained_glass.png",
+      "sha1": "f1b5a10e55ba14da8a141d815aab2bf724bd976a"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_stained_glass_pane_top.png",
+      "sha1": "feaa06183dedfd36153aaae587c017b72b9376b7"
+    },
+    {
+      "source": "assets/minecraft/textures/block/yellow_terracotta.png",
+      "sha1": "d9afe67875812436d5302d842434bde235083df8"
+    },
+    {
+      "source": "assets/minecraft/textures/colormap/grass.png",
+      "sha1": "c6e30ab90edb1051fad60d6ffcb1da6b54dab15d"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/chest/normal.png",
+      "sha1": "d5c10cce18536f4b72158893d89158b212c2bf7a"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/chest/normal_left.png",
+      "sha1": "555ef37dcb42e1642dd53300f9d76248a4b31087"
+    },
+    {
+      "source": "assets/minecraft/textures/entity/chest/normal_right.png",
+      "sha1": "22b1cd4dc2e4afd00d61362c54891984bddfe192"
+    },
+    {
+      "source": "assets/minecraft/textures/item/acacia_door.png",
+      "sha1": "1026920c243092f1571b4de117013345c9bbd43d"
+    },
+    {
+      "source": "assets/minecraft/textures/item/bell.png",
+      "sha1": "729f9de1ddfa21eb1e988c857413e8e63eccce6f"
+    },
+    {
+      "source": "assets/minecraft/textures/item/brewing_stand.png",
+      "sha1": "dda2c9d9b193ec85d1140ded6a8af1f1c8cf3b09"
+    },
+    {
+      "source": "assets/minecraft/textures/item/oak_door.png",
+      "sha1": "c62265d5420c3d98ec0e97f504bd79e13232073f"
+    },
+    {
+      "source": "assets/minecraft/textures/item/spruce_door.png",
+      "sha1": "28747472ca4021f498d7a5f2d6e8e180799642f6"
+    }
+  ],
+  "input_palettes": [
+    {
+      "file": "src/core/worldgen/data/java26-structures.json",
+      "sha256": "fcff3be18fa63350912dae6cf8070457141d79c9a4d02012cfec976a572db2fd"
+    },
+    {
+      "file": "src/core/worldgen/data/java26-desert-pyramid.json",
+      "sha256": "9bc135e1d0ca456c1f37b48e050c76edf26dda3ee45b08a2870c986d3dc0bc82"
+    },
+    {
+      "file": "src/core/worldgen/data/java26-tree-shapes.json",
+      "sha256": "b46a180c8675a424605621069edb6d3b40772eb10ff5efaccc9fefab9f76f6d1"
+    }
+  ],
+  "shape_probe_sha256": "6af128ce499ff92ba3fd1b81f6c933b356d036f0f66cbbd28d9fa4cc3b9d5dd9",
+  "adaptations": [
+    "Official block models flattened to baked quads; face UV rotations, element rotations, blockstate rotations and uvlock applied",
+    "Original PNG first frames packed from tile 128, preserving earlier atlas slots; 32px sign texture is tiled with face subdivision, retaining original pixel resolution",
+    "Weighted model alternatives use the first listed model; no arbitrary substituted geometry",
+    "Official collision and selection shapes are merged from java26-architecture-shapes.json; pre-merge modelBoxes retain transformed element AABBs",
+    "Native fluids are explicitly marked nativeRender=fluid and use the existing runtime fluid renderer"
+  ],
+  "language_sha1": "0f670c974705eb4868baf9d6760ad2f5ea52fc2b",
+  "unsupported_entity_models": []
+}

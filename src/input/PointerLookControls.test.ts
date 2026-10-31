@@ -127,7 +127,7 @@ describe('Pointer Lock with explicit playable fallback', () => {
     f.look.dispose();
   });
 
-  it('fallback pause requires explicit resume and avoids repeated rejected requests', async () => {
+  it('fallback pause requires explicit resume and retries from that new gesture', async () => {
     const f = fixture(() => Promise.reject(new Error('denied')));
     await f.look.requestPlayControl();
     f.win.dispatchEvent(new Event('blur'));
@@ -138,7 +138,15 @@ describe('Pointer Lock with explicit playable fallback', () => {
     expect(f.look.yaw).toBe(0);
     await f.look.requestPlayControl();
     expect(f.look.isFallback).toBe(true);
-    expect(f.canvas.requestPointerLock).toHaveBeenCalledOnce();
+    expect(f.canvas.requestPointerLock).toHaveBeenCalledTimes(2);
     f.look.dispose();
   });
+});
+
+it('allows a gesture-driven retry after a transient denial while fallback is active', async () => {
+ let succeeds=false;
+ const f=fixture(()=>{if(!succeeds)return Promise.reject(new DOMException('gesture expired','NotAllowedError'));f.doc.pointerLockElement=f.canvas;f.doc.dispatchEvent(new Event('pointerlockchange'));return undefined;});
+ await f.look.requestPlayControl();expect(f.look.isFallback).toBe(true);
+ succeeds=true;await f.look.requestPlayControl(true);
+ expect(f.canvas.requestPointerLock).toHaveBeenCalledTimes(2);expect(f.look.isFallback).toBe(false);expect(f.look.lastFailure).toBe(null);f.look.dispose();
 });

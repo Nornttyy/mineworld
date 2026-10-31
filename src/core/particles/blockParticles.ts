@@ -1,3 +1,4 @@
+import { architectureModel, baseBlockId, type Box } from '../blocks/architecture';
 import {
   ATLAS_TILES,
   blockFaceTile,
@@ -12,12 +13,14 @@ import type { RayHit } from '../world/raycast';
 
 export type ParticleTint = readonly [number, number, number];
 export const blockParticleTile = (id: number): number =>
-  id === GRASS ? ATLAS_TILES.dirt : blockFaceTile(id, Face.PosZ);
+  baseBlockId(id) === GRASS ? ATLAS_TILES.dirt : architectureModel(id)?.particle ?? blockFaceTile(id, Face.PosZ);
 
 /** Full cube fallback; plant outline boxes keep small plants from exploding as a cubic metre. */
 export function particleBounds(
   id: number,
 ): readonly [number, number, number, number, number, number] {
+  const boxes=architectureModel(id)?.selectionBoxes;
+  if(boxes?.length)return [0,1,2].map(i=>Math.min(...boxes.map(b=>b[i]))).concat([3,4,5].map(i=>Math.max(...boxes.map(b=>b[i])))) as unknown as Box;
   if (id === TORCH) return [0.4, 0, 0.4, 0.6, 0.625, 0.6];
   if (id === SNOW_LAYER) return [0, 0, 0, 1, 0.125, 1];
   if (isPlantId(id)) return [0.1, 0, 0.1, 0.9, 0.8, 0.9];
@@ -72,14 +75,15 @@ export function spawnBlockBreak(
   tint: ParticleTint = [1, 1, 1],
   rand: () => number = Math.random,
 ): Particle[] {
-  const [x0, y0, z0, x1, y1, z1] = particleBounds(id);
+  const boxes=architectureModel(id)?.selectionBoxes??[particleBounds(id)];
+  const out:Particle[]=[];
+  for(const [x0,y0,z0,x1,y1,z1] of boxes){
   const dx = x1 - x0,
     dy = y1 - y0,
     dz = z1 - z0;
   const nx = Math.max(2, Math.ceil(dx / 0.25)),
     ny = Math.max(2, Math.ceil(dy / 0.25)),
     nz = Math.max(2, Math.ceil(dz / 0.25));
-  const out: Particle[] = [];
   for (let ix = 0; ix < nx; ix++)
     for (let iy = 0; iy < ny; iy++)
       for (let iz = 0; iz < nz; iz++) {
@@ -100,6 +104,7 @@ export function spawnBlockBreak(
           ),
         );
       }
+  }
   return out;
 }
 

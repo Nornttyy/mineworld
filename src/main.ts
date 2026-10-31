@@ -595,7 +595,7 @@ function renderWorldList(): void {
     name.textContent = w.name;
     const meta = document.createElement('span');
     meta.className = 'wmeta';
-    meta.textContent = `${w.generator === 'java26v4' ? '群系与建筑' : isModernGenerator(w.generator) ? 'Java 26.3 地形' : '旧版世界'} · 种子 ${w.seed64 ?? w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
+    meta.textContent = `${w.generator === 'java26v5' ? '原版建筑与树形' : w.generator === 'java26v4' ? '群系与建筑' : isModernGenerator(w.generator) ? 'Java 26.3 地形' : '旧版世界'} · 种子 ${w.seed64 ?? w.seed}${w.gameMode === 'creative' ? ' · 创造' : ''}`;
     const del = document.createElement('span');
     del.className = 'wdel';
     del.textContent = '删除';

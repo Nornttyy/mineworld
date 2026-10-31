@@ -13,6 +13,7 @@ afterEach(() => {
 });
 
 describe('saved generator identity', () => {
+  it('uses official structure shapes only in revision 5 worlds',()=>{generateChunkForWorld(1,-2,'42','overworld','java26v5');expect(generation.modern).toHaveBeenCalledWith(1,-2,'42',5);});
   it('selects biome and structure expansion only for revision 4 worlds', () => {
     generateChunkForWorld(1, -2, '42', 'overworld', 'java26v4');
     expect(generation.modern).toHaveBeenCalledWith(1, -2, '42', 4);

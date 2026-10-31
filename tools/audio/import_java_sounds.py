@@ -48,9 +48,10 @@ def main():
         cp = os.pathsep.join(jars)
         subprocess.run([str(args.jdk/'bin/javac'), '-cp', cp, '-d', temp, str(Path(__file__).with_name('MineworldSoundProbe.java'))], check=True)
         output = Path(temp)/'blocks.json'
-        subprocess.run([str(args.jdk/'bin/java'), '-cp', temp+os.pathsep+cp, 'MineworldSoundProbe', str(output)], check=True)
+        subprocess.run([str(args.jdk/'bin/java'), '-cp', temp+os.pathsep+cp, 'MineworldSoundProbe', str(output)], check=True, cwd=temp)
         types = json.loads(output.read_text())
     names = sorted(set(re.findall(r"name: '([^']+)'", (ROOT/'src/core/blocks/registry.ts').read_text())))
+    names = sorted(set(names) | {n.removeprefix('minecraft:') for n in json.loads((ROOT/'src/core/blocks/data/java26-architecture.json').read_text())['names'] if n not in ('minecraft:air','minecraft:water','minecraft:jigsaw','minecraft:structure_void')})
     aliases = {'grass': 'grass_block', 'grass_plant': 'short_grass', 'snow_layer': 'snow', 'flowing_water': 'water', 'flowing_lava': 'lava'}
     blocks = {name: types[aliases.get(name, name)] for name in names}
     events = {v[a] for v in blocks.values() for a in ('break', 'step', 'place', 'hit', 'fall')}

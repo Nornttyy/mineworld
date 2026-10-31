@@ -1,3 +1,4 @@
+import { architectureModel } from '../core/blocks/architecture';
 import { isGeneratorVersion, isModernGenerator, isJavaSeed, type GeneratorVersion } from '../core/world/worldBounds';
 import {
   isMultiplayerHostWorldValid,
@@ -181,7 +182,7 @@ function validEdit(value: unknown): value is BlockEdit {
     (value.y as number) < (value.dimension === 'overworld' ? 320 : 192) &&
     Math.abs(value.z as number) <= 30_000_000 &&
     (value.id as number) >= 0 &&
-    (value.id as number) <= 255
+    ((value.id as number) <= 255 || !!architectureModel(value.id as number))
   );
 }
 

@@ -1,3 +1,5 @@
+import { BLOCKS } from '../core/blocks/registry';
+import { architectureData, baseBlockId } from '../core/blocks/architecture';
 // 物品/方块的显示资源：等距图标(public/textures/icons/<name>.png)或中文文字占位。
 // hotbar / 合成 / 背包界面共用，避免各处重复维护映射。
 import { APPLE } from '../core/items/items';
@@ -341,11 +343,12 @@ const ZH: Record<number, string> = {
 };
 
 export const iconUrl = (id: number, variant?: string): string | null => {
-  const name = ICON[id];
+  id = baseBlockId(id);
+  const name = ICON[id] ?? (id>=113 && id<256 ? BLOCKS[id]?.name : undefined);
   if (!name) return null;
   const directory = activeTexturePack === 'classic' ? 'icons_classic' : 'icons';
   const suffix = variant ? `_${variant}` : '';
   return asset(`textures/${directory}/${name}${suffix}.png`);
 };
 
-export const itemLabel = (id: number): string => ZH[id] ?? `#${id}`;
+export const itemLabel = (id: number): string => ZH[baseBlockId(id)] ?? architectureData.labels?.[`minecraft:${BLOCKS[id]?.name}`] ?? BLOCKS[id]?.name ?? `#${id}`;

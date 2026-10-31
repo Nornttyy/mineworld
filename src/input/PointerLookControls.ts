@@ -8,7 +8,7 @@ export class PointerLookControls {
   onChange: (() => void) | null = null;
   private wanted = false;
   private fallback = false;
-  private lockUnavailable = false;
+  lastFailure: string | null = null;
   private generation = 0;
   private lastState = 'paused';
   private lastPoint: { x: number; y: number } | null = null;
@@ -41,19 +41,21 @@ export class PointerLookControls {
   }
 
   /** Never rejects: callers may safely request control after loading or an explicit resume. */
-  async requestPlayControl(): Promise<boolean> {
+  async requestPlayControl(retryLock = false): Promise<boolean> {
     if (!this.usePointerLock) return false;
-    if (this.isActive) return true;
+    if (this.isActive && (!this.isFallback || !retryLock)) return true;
     this.pause(); // Cancel any older request before creating a new one.
     this.wanted = true;
     const generation = this.generation;
-    if (this.lockUnavailable) {
-      this.fallback = true;
-      this.notify();
-      return true;
-    }
+    this.lastFailure = null;
     const result = new Promise<boolean>((resolve) => {
-      this.pending = { resolve, timer: setTimeout(() => this.finishRequest(false), 1200) };
+      this.pending = {
+        resolve,
+        timer: setTimeout(() => {
+          this.lastFailure = 'Timeout';
+          this.finishRequest(false);
+        }, 1200),
+      };
     });
     try {
       const request = this.canvas.requestPointerLock();
@@ -63,17 +65,21 @@ export class PointerLookControls {
           if (generation === this.generation && this.doc.pointerLockElement === this.canvas)
             this.finishRequest(true);
         },
-        () => {
-          if (generation === this.generation) this.finishRequest(false);
+        (error: unknown) => {
+          if (generation === this.generation) {
+            this.lastFailure = error instanceof Error ? error.name : 'NotAllowedError';
+            this.finishRequest(false);
+          }
         },
       );
-    } catch {
+    } catch (error) {
+      this.lastFailure = error instanceof Error ? error.name : 'NotSupportedError';
       this.finishRequest(false);
     }
     const locked = await result;
     if (generation !== this.generation || !this.wanted) return false;
     this.fallback = !locked;
-    this.lockUnavailable = !locked;
+    if (locked) this.lastFailure = null;
     this.notify();
     return this.isActive;
   }
@@ -131,7 +137,7 @@ export class PointerLookControls {
         return;
       }
       this.fallback = false;
-      this.lockUnavailable = false;
+      this.lastFailure = null;
       this.finishRequest(true);
       this.notify();
     } else if (this.lastState === 'locked') {
@@ -140,7 +146,10 @@ export class PointerLookControls {
     }
   };
 
-  private readonly lockFailed = (): void => this.finishRequest(false);
+  private readonly lockFailed = (): void => {
+    this.lastFailure ??= 'NotAllowedError';
+    this.finishRequest(false);
+  };
   private readonly onBlur = (): void => this.pause();
   private readonly leaveCanvas = (): void => {
     this.lastPoint = null;

@@ -1,3 +1,4 @@
+import { architectureBoxes } from '../blocks/architecture';
 import {
   type Player,
   type MoveIntent,
@@ -41,9 +42,13 @@ function overlaps(p: Vec3, world: VoxelWorld, height = HEIGHT): boolean {
   const y1 = Math.ceil(p.y + height - e) - 1;
   const z0 = Math.floor(p.z - HW + e);
   const z1 = Math.ceil(p.z + HW - e) - 1;
-  for (let y = y0; y <= y1; y++)
+  for (let y = y0 - 1; y <= y1; y++)
     for (let x = x0; x <= x1; x++)
-      for (let z = z0; z <= z1; z++) if (world.isSolid(x, y, z)) return true;
+      for (let z = z0; z <= z1; z++) {
+        const shapes=world.getBlock ? architectureBoxes(world.getBlock(x,y,z)) : undefined;
+        if(shapes) { for(const b of shapes) if(p.x+HW>x+b[0]+e && p.x-HW<x+b[3]-e && p.y+height>y+b[1]+e && p.y<y+b[4]-e && p.z+HW>z+b[2]+e && p.z-HW<z+b[5]-e) return true; }
+        else if(y>=y0 && world.isSolid(x,y,z)) return true;
+      }
   return false;
 }
 
@@ -75,6 +80,16 @@ function resolveAxis(
     }
   }
   return false;
+}
+
+function tryModelStep(pos:Vec3,axis:Axis,delta:number,world:VoxelWorld,height:number):boolean {
+  if(!world.getBlock)return false;
+  const edge={...pos,[axis]:pos[axis]+Math.sign(delta)*(HW+.02)};
+  const boxes=architectureBoxes(world.getBlock(Math.floor(edge.x),Math.floor(pos.y+.1),Math.floor(edge.z)));
+  if(!boxes?.length||!boxes.some(b=>b[4]<=.6))return false;
+  const candidate={...pos,y:pos.y+.6};
+  if(overlaps(candidate,world,height)||resolveAxis(candidate,axis,delta,world,height))return false;
+  resolveAxis(candidate,'y',-.6,world,height);Object.assign(pos,candidate);return true;
 }
 
 // 由意图与朝向求水平单位方向（yaw=0 时 forward=+X）
@@ -245,14 +260,16 @@ export function step(player: Player, intent: MoveIntent, world: VoxelWorld): Pla
   // 下蹲且本帧贴地：水平移动若会把人挪出支撑(走到方块边缘外)→ 撤销该轴，停在边缘不掉落
   const sneakEdge = crouch && grounded && vel.y <= 0;
   const beforeX = pos.x;
-  const hitX = resolveAxis(pos, 'x', vel.x, world, h);
+  let hitX = resolveAxis(pos, 'x', vel.x, world, h);
+  if (hitX && grounded && !crouch && tryModelStep(pos, 'x', vel.x-(pos.x-beforeX), world, h)) hitX=false;
   if (hitX) vel.x = 0;
   if (sneakEdge && !isOnGround(pos, world, h)) {
     pos.x = beforeX;
     vel.x = 0;
   }
   const beforeZ = pos.z;
-  const hitZ = resolveAxis(pos, 'z', vel.z, world, h);
+  let hitZ = resolveAxis(pos, 'z', vel.z, world, h);
+  if (hitZ && grounded && !crouch && tryModelStep(pos, 'z', vel.z-(pos.z-beforeZ), world, h)) hitZ=false;
   if (hitZ) vel.z = 0;
   if (sneakEdge && !isOnGround(pos, world, h)) {
     pos.z = beforeZ;

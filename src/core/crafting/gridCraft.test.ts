@@ -27,7 +27,7 @@ describe('gridCraft 数字 id 网格合成', () => {
       [null, null],
       [null, { id: SPRUCE_LOG, count: 1 }],
     ];
-    expect(gridResult(grid)).toEqual({ id: OAK_PLANKS, count: 4 });
+    expect(gridResult(grid)).toEqual({ id: nameToId('spruce_planks'), count: 4 });
   });
 
   it('竖排 2 木板 → 4 木棍', () => {

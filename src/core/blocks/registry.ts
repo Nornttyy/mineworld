@@ -1,3 +1,4 @@
+import { architectureData, installArchitecture, architectureDefinition, architectureModel, architectureOpaque, baseBlockId } from './architecture';
 // 面方向顺序与 mesher 的 DIRS、FACE_SHADE 一致：0=+X 1=-X 2=+Y(上) 3=-Y(下) 4=+Z 5=-Z
 export enum Face {
   PosX,
@@ -183,7 +184,7 @@ const COAL_ITEM = 258; // items.ts 的 COAL；煤矿用镐挖掉煤(物品)
 const RAW_IRON_ITEM = 319;
 const RAW_GOLD_ITEM = 320;
 const DIAMOND_ITEM = 296; // items.ts 的 DIAMOND；避免 blocks/items 双向依赖
-export const BLOCKS: BlockDef[] = [
+const BASE_BLOCKS: BlockDef[] = [
   { id: 0, name: 'air', solid: false, transparent: true, faces: all(0), hardness: 0, drop: null, needsTool: false, tool: null },
   { id: 1, name: 'stone', solid: true, transparent: false, faces: all(T.stone), hardness: 1.5, drop: 4, needsTool: true, tool: 'pickaxe' }, // 1.12 石头硬度 1.5:徒手 7.5s(不掉),木镐 1.15s
   { id: 2, name: 'dirt', solid: true, transparent: false, faces: all(T.dirt), hardness: 0.5, drop: 2, needsTool: false, tool: 'shovel' },
@@ -495,6 +496,12 @@ export const BLOCKS: BlockDef[] = [
   { id: 112, name: 'mushroom_stem', solid: true, transparent: false, faces: column(T.mushroom_stem, T.mushroom_block_inside, T.mushroom_block_inside), hardness: 0.2, drop: 112, needsTool: false, tool: 'axe' },
 ];
 
+installArchitecture(BASE_BLOCKS);
+export const BLOCKS: BlockDef[] = new Proxy(BASE_BLOCKS, { get(target, key, receiver) {
+  if (typeof key === 'string' && /^\d+$/.test(key)) return architectureDefinition(Number(key)) ?? Reflect.get(target, key, receiver);
+  return Reflect.get(target, key, receiver);
+} });
+
 export const ACACIA_LOG = 98;
 export const ACACIA_LEAVES = 99;
 export const ACACIA_PLANKS = 100;
@@ -614,22 +621,23 @@ export const isLavaId = (id: number): boolean => id === LAVA;
 export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
-export const isWaterId = (id: number): boolean => id === WATER;
+export const isWaterId = (id: number): boolean => baseBlockId(id) === WATER;
 export const LOG_IDS: ReadonlySet<number> = new Set([OAK_LOG, SPRUCE_LOG, BIRCH_LOG, ACACIA_LOG, JUNGLE_LOG, DARK_OAK_LOG, CHERRY_LOG]);
 export const LEAF_IDS: ReadonlySet<number> = new Set([OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES, ACACIA_LEAVES, JUNGLE_LEAVES, DARK_OAK_LEAVES, CHERRY_LEAVES]);
-export const LEAF_TILES = [...LEAF_IDS].map(id => BLOCKS[id].faces[0]);
-export const isCutoutId = (id: number): boolean => LEAF_IDS.has(id); // 镂空(树叶)
+export const LEAF_TILES = [...new Set([...LEAF_IDS].map(id => BLOCKS[id].faces[0]).concat(architectureData.states.filter(s=>s.name.endsWith('_leaves')).flatMap(s=>s.quads.map(q=>q.tile))))];
+export const isCutoutId = (id: number): boolean => LEAF_IDS.has(baseBlockId(id)); // 镂空(树叶)
 export const isFlowerId = (id: number): boolean => id >= POPPY && id <= LILY_OF_THE_VALLEY;
-export const isCrossPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || (id >= POPPY && id <= DEAD_BUSH);
-export const isPlantId = (id: number): boolean => isCrossPlantId(id) || id === SNOW_LAYER; // cross/薄层 特判
+export const isCrossPlantId = (id: number): boolean => {id=baseBlockId(id);return id === GRASS_PLANT || id === TALL_GRASS || (id >= POPPY && id <= DEAD_BUSH)||BLOCKS[id]?.name==='large_fern';};
+export const isPlantId = (id: number): boolean => isCrossPlantId(id) || baseBlockId(id) === SNOW_LAYER; // cross/薄层 特判
 // 可被挖掘射线选中/打掉：实心方块 + 植物 + 火把。草丛/火把虽非实心，但能被瞄准破坏——
 // 同 MC「选择框 ≠ 碰撞框」。水/空气不可选。挖掘 raycast 用此判定(而非 isSolidId)，否则射线穿过草打到后面的方块。
-export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id) || id === TORCH;
+export const isTargetableId = (id: number): boolean => isSolidId(id) || isPlantId(id) || id === TORCH || !!architectureModel(id);
 // 可被放置覆盖的格：空气/水/草丛(放方块时直接替换，不挡手)。
-export const isReplaceableId = (id: number): boolean =>
-  id === 0 || id === WATER || id === GRASS_PLANT || id === TALL_GRASS || id === FERN || id === DEAD_BUSH || id === SNOW_LAYER || id === NETHER_PORTAL;
+export const isReplaceableId = (id: number): boolean => {id=baseBlockId(id);return id === 0 || id === WATER || id === GRASS_PLANT || id === TALL_GRASS || id === FERN || id === DEAD_BUSH || id === SNOW_LAYER || id === NETHER_PORTAL || BLOCKS[id]?.name==='large_fern';};
 // 不透明（挡视线）：实心且不透明。水/空气/树叶不算。
 export const isOpaque = (id: number): boolean => {
+  const modeled = architectureOpaque(id);
+  if (modeled !== undefined) return modeled;
   const b = BLOCKS[id];
   return b ? b.solid && !b.transparent : false;
 };

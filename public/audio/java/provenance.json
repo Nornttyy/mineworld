@@ -7,6 +7,11 @@
   "copyright": "Minecraft sound recordings © Mojang AB / Microsoft and respective authors. Not original Mineworld audio.",
   "scope": "Selected sound effects only; unchanged OGG bytes; no music.",
   "events": [
+    "block.anvil.break",
+    "block.anvil.fall",
+    "block.anvil.hit",
+    "block.anvil.place",
+    "block.anvil.step",
     "block.calcite.break",
     "block.calcite.fall",
     "block.calcite.hit",
@@ -103,11 +108,21 @@
     "block.sulfur.hit",
     "block.sulfur.place",
     "block.sulfur.step",
+    "block.suspicious_sand.break",
+    "block.suspicious_sand.fall",
+    "block.suspicious_sand.hit",
+    "block.suspicious_sand.place",
+    "block.suspicious_sand.step",
     "block.tuff.break",
     "block.tuff.fall",
     "block.tuff.hit",
     "block.tuff.place",
     "block.tuff.step",
+    "block.vine.break",
+    "block.vine.fall",
+    "block.vine.hit",
+    "block.vine.place",
+    "block.vine.step",
     "block.wood.break",
     "block.wood.fall",
     "block.wood.hit",
@@ -183,6 +198,61 @@
     "ui.button.click"
   ],
   "files": [
+    {
+      "path": "dig/stone1.ogg",
+      "sha1": "4ec831592ae2bcbac1b4047a9f9f72a2de5ca834",
+      "size": 7434
+    },
+    {
+      "path": "dig/stone2.ogg",
+      "sha1": "7afc0a50da1e1f92499c9c45c7ea912808d9a9ea",
+      "size": 7635
+    },
+    {
+      "path": "dig/stone3.ogg",
+      "sha1": "dc61bcd12bea28fc6a3427b62e458c4d1922f3fc",
+      "size": 7381
+    },
+    {
+      "path": "dig/stone4.ogg",
+      "sha1": "d8bfc754f9ced2f50521f7bb94503ec456887ddc",
+      "size": 7288
+    },
+    {
+      "path": "step/stone1.ogg",
+      "sha1": "ef859078b24917d4a9d12e84c2a63d08bef04d97",
+      "size": 8657
+    },
+    {
+      "path": "step/stone2.ogg",
+      "sha1": "be927139e2936139d4608b8a7645578f95d75dc4",
+      "size": 7689
+    },
+    {
+      "path": "step/stone3.ogg",
+      "sha1": "feaf23df11048587e92792a7afbbeb560c4556f7",
+      "size": 7428
+    },
+    {
+      "path": "step/stone4.ogg",
+      "sha1": "0e800e8471613ac1d4e75367c9278879115956af",
+      "size": 8062
+    },
+    {
+      "path": "step/stone5.ogg",
+      "sha1": "66267eada65930c654b94de8876c15f630b097e3",
+      "size": 8414
+    },
+    {
+      "path": "step/stone6.ogg",
+      "sha1": "580e9bb670b8a684f32ae25ef2e9e3c4281e36a9",
+      "size": 8895
+    },
+    {
+      "path": "random/anvil_land.ogg",
+      "sha1": "781d4bfc6ee0aff2a61b0d78f0da34610a28aa62",
+      "size": 11646
+    },
     {
       "path": "block/calcite/break1.ogg",
       "sha1": "cfd6b4db63ffaec9614d80d56fe2927f8aedab43",
@@ -592,56 +662,6 @@
       "path": "random/glass3.ogg",
       "sha1": "3be3cf9a5c8534bf6548ba89c699a3b2abf9e074",
       "size": 9364
-    },
-    {
-      "path": "step/stone1.ogg",
-      "sha1": "ef859078b24917d4a9d12e84c2a63d08bef04d97",
-      "size": 8657
-    },
-    {
-      "path": "step/stone2.ogg",
-      "sha1": "be927139e2936139d4608b8a7645578f95d75dc4",
-      "size": 7689
-    },
-    {
-      "path": "step/stone3.ogg",
-      "sha1": "feaf23df11048587e92792a7afbbeb560c4556f7",
-      "size": 7428
-    },
-    {
-      "path": "step/stone4.ogg",
-      "sha1": "0e800e8471613ac1d4e75367c9278879115956af",
-      "size": 8062
-    },
-    {
-      "path": "step/stone5.ogg",
-      "sha1": "66267eada65930c654b94de8876c15f630b097e3",
-      "size": 8414
-    },
-    {
-      "path": "step/stone6.ogg",
-      "sha1": "580e9bb670b8a684f32ae25ef2e9e3c4281e36a9",
-      "size": 8895
-    },
-    {
-      "path": "dig/stone1.ogg",
-      "sha1": "4ec831592ae2bcbac1b4047a9f9f72a2de5ca834",
-      "size": 7434
-    },
-    {
-      "path": "dig/stone2.ogg",
-      "sha1": "7afc0a50da1e1f92499c9c45c7ea912808d9a9ea",
-      "size": 7635
-    },
-    {
-      "path": "dig/stone3.ogg",
-      "sha1": "dc61bcd12bea28fc6a3427b62e458c4d1922f3fc",
-      "size": 7381
-    },
-    {
-      "path": "dig/stone4.ogg",
-      "sha1": "d8bfc754f9ced2f50521f7bb94503ec456887ddc",
-      "size": 7288
     },
     {
       "path": "dig/grass1.ogg",
@@ -1349,6 +1369,86 @@
       "size": 6923
     },
     {
+      "path": "block/suspicious_sand/break1.ogg",
+      "sha1": "50225fbfb904caa6ddfd2816609e34e390f45f9e",
+      "size": 10139
+    },
+    {
+      "path": "block/suspicious_sand/break2.ogg",
+      "sha1": "eb56e6fb3e29a18846d134972eec9db1ad65b5fd",
+      "size": 12795
+    },
+    {
+      "path": "block/suspicious_sand/break3.ogg",
+      "sha1": "89684131070403ea2d3babd119de32a456452984",
+      "size": 10058
+    },
+    {
+      "path": "block/suspicious_sand/break4.ogg",
+      "sha1": "39dac60d9d79b33739eed95b7e30080ce2e75d10",
+      "size": 10055
+    },
+    {
+      "path": "block/suspicious_sand/break5.ogg",
+      "sha1": "c167b27c258d1c19bc098ab30fbc66222821ff93",
+      "size": 9852
+    },
+    {
+      "path": "block/suspicious_sand/break6.ogg",
+      "sha1": "1571a21fdbae57cfc1d9e1742cb9f511ab99c636",
+      "size": 10619
+    },
+    {
+      "path": "block/suspicious_sand/step1.ogg",
+      "sha1": "1691218e5ce6ee66ef01cd947f6fbb68fd0a4123",
+      "size": 12390
+    },
+    {
+      "path": "block/suspicious_sand/step2.ogg",
+      "sha1": "3a5e4bef6baaa603578055b2555499720e8f1b75",
+      "size": 11896
+    },
+    {
+      "path": "block/suspicious_sand/step3.ogg",
+      "sha1": "98a086f97728ae57a4552ef3c812f6fd9576c888",
+      "size": 12423
+    },
+    {
+      "path": "block/suspicious_sand/step4.ogg",
+      "sha1": "f1fe33e67908c15871f210350d549474c5c26648",
+      "size": 11413
+    },
+    {
+      "path": "block/suspicious_sand/step5.ogg",
+      "sha1": "8e4c8fd5eb7e1f339e87ceb3d6f92b62fca717a5",
+      "size": 12295
+    },
+    {
+      "path": "block/suspicious_sand/place1.ogg",
+      "sha1": "265a4f766be77ae9a035f09e146a64be8c073ae5",
+      "size": 7166
+    },
+    {
+      "path": "block/suspicious_sand/place2.ogg",
+      "sha1": "052706580c2512db6ffe36d37ede67dd7900016a",
+      "size": 7108
+    },
+    {
+      "path": "block/suspicious_sand/place3.ogg",
+      "sha1": "8bbc42b4c5773ed082d30dde9506ecac45a26cf9",
+      "size": 7554
+    },
+    {
+      "path": "block/suspicious_sand/place4.ogg",
+      "sha1": "e8567c5cff70491d49cbdfd2f9b3df3a3d7a6076",
+      "size": 8269
+    },
+    {
+      "path": "block/suspicious_sand/place5.ogg",
+      "sha1": "4e8f8a6dbdff95795d25bd7bd0e460aed28f01c4",
+      "size": 7854
+    },
+    {
       "path": "block/tuff/break1.ogg",
       "sha1": "b7b9a8feb18573e4ee4f34f81b72339ce1846050",
       "size": 7174
@@ -1397,6 +1497,51 @@
       "path": "block/tuff/step6.ogg",
       "sha1": "2b63cb8b075639c741d798e9db9fead6b1dacdb2",
       "size": 7002
+    },
+    {
+      "path": "block/vine/break1.ogg",
+      "sha1": "b448b8755fbb96a437a626fcf5d98e2d690255e2",
+      "size": 7048
+    },
+    {
+      "path": "block/vine/break2.ogg",
+      "sha1": "2f2223b7dbd52a91055bd780184f6881e5db0bb8",
+      "size": 6824
+    },
+    {
+      "path": "block/vine/break3.ogg",
+      "sha1": "d37ac7023b6b04d17dd809e95a17069befaffca3",
+      "size": 6984
+    },
+    {
+      "path": "block/vine/break4.ogg",
+      "sha1": "4016f27dc128015be0ff8732e5bff569da3146ca",
+      "size": 7162
+    },
+    {
+      "path": "block/vine/climb1.ogg",
+      "sha1": "4e2b84745b8b544d6adfa0ffe774b2e4fa04c55c",
+      "size": 7700
+    },
+    {
+      "path": "block/vine/climb2.ogg",
+      "sha1": "674af8ae97eb617cd3fece7c22db24d37c2333ae",
+      "size": 7358
+    },
+    {
+      "path": "block/vine/climb3.ogg",
+      "sha1": "b7ba45026cfcc13c7bba3a7f11ae8c1164d77af9",
+      "size": 7123
+    },
+    {
+      "path": "block/vine/climb4.ogg",
+      "sha1": "ecbd493a02ae4def0aaa9a00957738796c3a6896",
+      "size": 7561
+    },
+    {
+      "path": "block/vine/climb5.ogg",
+      "sha1": "8d0c2f3eae53fe7fa1f9b55b9088c75d601c712c",
+      "size": 8081
     },
     {
       "path": "dig/wood1.ogg",

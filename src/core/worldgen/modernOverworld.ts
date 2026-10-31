@@ -19,6 +19,8 @@ import { decorateModernFeatures } from './modernFeatures';
 import { createBiomeZoom } from './biomeZoom';
 import { correctAquifer } from './aquiferCorrections';
 import { correctPositionalRandoms } from './positionalRandom';
+import { decorateVanillaVegetation } from './vanillaVegetation';
+import { decorateVanillaStructures, clearVanillaStructureCache } from './vanillaStructures';
 import { decorateExpandedBiomes } from './expandedBiomes';
 import { decorateStructures, clearStructureCache } from './modernStructures';
 import { correctFinalDensity } from './densityCorrections';
@@ -205,7 +207,7 @@ export function modernDensityAt(x: number, y: number, z: number, seed: ModernSee
 }
 
 /** Top solid Y (not top+1), matching legacy columnHeight's caller contract. */
-export function modernColumnHeight(x: number, z: number, seed: ModernSeed, revision: 1 | 2 | 3 | 4 = 1): number {
+export function modernColumnHeight(x: number, z: number, seed: ModernSeed, revision: 1 | 2 | 3 | 4 | 5 = 1): number {
   x = Math.floor(x); z = Math.floor(z);
   const key = `${modernSeed(seed)}:${revision >= 3}:${x}:${z}`;
   const cached = heightCache.get(key);
@@ -272,7 +274,7 @@ function buildSurface(chunk: NoiseBlockChunk, noise: NoiseChunk, seedContext: Se
 }
 
 /** Worker-safe synchronous generation. No old terrain/world height constants. */
-export function generateModernChunk(cx: number, cz: number, seed: ModernSeed, revision: 1 | 2 | 3 | 4 = 1, stage: 'noise' | 'surface' | 'decorated' = 'decorated'): Chunk {
+export function generateModernChunk(cx: number, cz: number, seed: ModernSeed, revision: 1 | 2 | 3 | 4 | 5 = 1, stage: 'noise' | 'surface' | 'decorated' = 'decorated'): Chunk {
   const ctx = getContext(seed, revision >= 3);
   ctx.uses += 32; // bound library caches by approximately 16 generated chunks
   const volume = new DensityVolume(16, MODERN_HEIGHT, 16, cx * 16, MODERN_MIN_Y, cz * 16);
@@ -306,20 +308,25 @@ export function generateModernChunk(cx: number, cz: number, seed: ModernSeed, re
     biome: (x, z, y) => biomeSource.getBiome(Math.floor(x / 4), Math.floor(y / 4), Math.floor(z / 4), ctx.state.sampler).toString(),
     density: (x, y, z) => ctx.state.router.finalDensity.compute({ x, y, z }),
   }, revision === 1 ? 1 : 2);
-  if (stage === 'decorated' && revision === 4) {
+  if (stage === 'decorated' && revision >= 4) {
     const sampler = {
       height: (x: number, z: number) => modernColumnHeight(x, z, seed, 4),
       biome: (x: number, z: number, y: number) => biomeSource.getBiome(Math.floor(x / 4), Math.floor(y / 4), Math.floor(z / 4), ctx.state.sampler).toString(),
       density: (x: number, y: number, z: number) => ctx.state.router.finalDensity.compute({ x, y, z }),
     };
-    decorateExpandedBiomes(result, cx, cz, modernSeed(seed), sampler);
-    decorateStructures(result, cx, cz, modernSeed(seed), sampler);
+    if(revision===4) {
+      decorateExpandedBiomes(result, cx, cz, modernSeed(seed), sampler);
+      decorateStructures(result, cx, cz, modernSeed(seed), sampler);
+    } else {
+      decorateVanillaVegetation(result,cx,cz,modernSeed(seed),sampler);
+      decorateVanillaStructures(result,cx,cz,modernSeed(seed),sampler);
+    }
   }
   return result;
 }
 
 /** Tests and world switching can release deterministic sampler caches. */
-export function clearModernWorldgenCaches(): void { contexts.clear(); heightCache.clear(); clearStructureCache(); }
+export function clearModernWorldgenCaches(): void { contexts.clear(); heightCache.clear(); clearStructureCache(); clearVanillaStructureCache(); }
 
 /** Diagnostic values for independent Java reference tests. */
 export function modernSurfaceDiagnostics(x: number, z: number, seed: ModernSeed) {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { emptyInventory, addItem, countItem } from '../inventory/inventory';
 import { availableRecipes, craftRecipe } from './craft';
 import {
+  BLOCKS,
   OAK_LOG,
   OAK_PLANKS,
   CRAFTING_TABLE,
@@ -33,7 +34,7 @@ describe('合成桥接（数字 id）', () => {
     expect(planks?.craftable).toBe(true);
     expect(craftRecipe(inv, planks!.recipe)).toBe(true);
     expect(countItem(inv, SPRUCE_LOG)).toBe(0);
-    expect(countItem(inv, OAK_PLANKS)).toBe(4);
+    expect(countItem(inv, BLOCKS.find(b=>b.name==='spruce_planks')!.id)).toBe(4);
   });
 
   it('2×2：木板 → 棍子 / 工作台', () => {

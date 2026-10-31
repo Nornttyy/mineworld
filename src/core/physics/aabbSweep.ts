@@ -1,3 +1,4 @@
+import { architectureBoxes } from '../blocks/architecture';
 import type { VoxelWorld, Vec3 } from './player';
 
 // 通用 AABB 扫掠步进：把一个宽 w(footprint w×w)、高 h、脚部中心在 pos 的盒子，按 vel 推进，
@@ -20,9 +21,13 @@ function overlaps(p: Vec3, hw: number, h: number, world: VoxelWorld): boolean {
   const y1 = Math.ceil(p.y + h - e) - 1;
   const z0 = Math.floor(p.z - hw + e);
   const z1 = Math.ceil(p.z + hw - e) - 1;
-  for (let y = y0; y <= y1; y++)
+  for (let y = y0 - 1; y <= y1; y++)
     for (let x = x0; x <= x1; x++)
-      for (let z = z0; z <= z1; z++) if (world.isSolid(x, y, z)) return true;
+      for (let z = z0; z <= z1; z++) {
+        const shapes=world.getBlock ? architectureBoxes(world.getBlock(x,y,z)) : undefined;
+        if(shapes) {for(const b of shapes)if(p.x+hw>x+b[0]+e&&p.x-hw<x+b[3]-e&&p.y+h>y+b[1]+e&&p.y<y+b[4]-e&&p.z+hw>z+b[2]+e&&p.z-hw<z+b[5]-e)return true;}
+        else if(y>=y0&&world.isSolid(x,y,z))return true;
+      }
   return false;
 }
 

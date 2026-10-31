@@ -59,6 +59,7 @@ self.onmessage = (e: MessageEvent<MeshRequest>): void => {
     };
     const mesh: ChunkMesh = m;
     collect(mesh.opaque);
+    if(mesh.glass)collect(mesh.glass);
     collect(mesh.ice);
     collect(mesh.cutout);
     collect(mesh.water);

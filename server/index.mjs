@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+const ARCHITECTURE_IDS = new Set(JSON.parse(readFileSync(new URL('../src/core/blocks/data/java26-architecture.json', import.meta.url), 'utf8')).states.map(s=>s.id));
 import { randomInt, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -136,7 +138,7 @@ function parseBlock(message) {
     message.y >= (message.dimension === 'overworld' ? 320 : 192) ||
     Math.abs(message.z) > MAX_WORLD_COORD ||
     message.id < 0 ||
-    message.id > 255
+    (message.id > 255 && !ARCHITECTURE_IDS.has(message.id))
   ) {
     return null;
   }
@@ -228,8 +230,8 @@ export function parseInitialWorld(value) {
     !Number.isInteger(value.seed) ||
     value.seed < -2_000_000_000 ||
     value.seed > 2_000_000_000 ||
-    (value.generator !== undefined && value.generator !== 'legacy' && value.generator !== 'java26' && value.generator !== 'java26v2' && value.generator !== 'java26v3' && value.generator !== 'java26v4') ||
-    ((value.generator === 'java26' || value.generator === 'java26v2' || value.generator === 'java26v3' || value.generator === 'java26v4') && !(typeof value.seed64 === 'string' && /^-?\d{1,20}$/.test(value.seed64) && BigInt(value.seed64) >= -(1n << 63n) && BigInt(value.seed64) < (1n << 63n))) ||
+    (value.generator !== undefined && value.generator !== 'legacy' && value.generator !== 'java26' && value.generator !== 'java26v2' && value.generator !== 'java26v3' && value.generator !== 'java26v4' && value.generator !== 'java26v5') ||
+    ((value.generator === 'java26' || value.generator === 'java26v2' || value.generator === 'java26v3' || value.generator === 'java26v4' || value.generator === 'java26v5') && !(typeof value.seed64 === 'string' && /^-?\d{1,20}$/.test(value.seed64) && BigInt(value.seed64) >= -(1n << 63n) && BigInt(value.seed64) < (1n << 63n))) ||
     !GAME_MODES.has(value.gameMode) ||
     !isFiniteNumber(value.worldTime, -2_000_000_000, 2_000_000_000) ||
     !Array.isArray(value.edits) ||

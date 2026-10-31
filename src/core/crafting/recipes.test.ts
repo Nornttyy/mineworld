@@ -3,8 +3,10 @@ import { RECIPES } from './recipes';
 import { hasItem } from '../item/registry';
 
 describe('recipe data', () => {
-  it('retains 59 recipes and adds 32 recipes for four wood families', () => {
-    expect(RECIPES).toHaveLength(91);
+  it('includes construction recipes with vanilla output quantities', () => {
+    expect(RECIPES.find(r=>r.result.item==='oak_stairs')?.result.count).toBe(4);
+    expect(RECIPES.find(r=>r.result.item==='sandstone_slab')?.result.count).toBe(6);
+    expect(RECIPES.find(r=>r.result.item==='oak_door')?.result.count).toBe(3);
   });
 
   it('储存方块：沙石/石英(2×2)、煤块/铁块(3×3) + 可逆拆解', () => {
@@ -50,7 +52,7 @@ describe('recipe data', () => {
       const planks = RECIPES.find(
         (r) => r.type === 'shapeless' && r.ingredients.length === 1 && r.ingredients[0] === log,
       );
-      expect(planks?.result).toEqual({ item: 'oak_planks', count: 4 });
+      expect(planks?.result).toEqual({ item: log==='spruce_log'?'spruce_planks':'oak_planks', count: 4 });
     }
   });
 

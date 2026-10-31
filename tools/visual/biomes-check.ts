@@ -3,8 +3,12 @@ import { loadAtlas } from '../../src/render/atlas';
 import { ChunkMeshManager } from '../../src/render/ChunkMeshManager';
 import { meshChunkData } from '../../src/core/mesh/mesher';
 import { defaultLeafTint } from '../../src/core/worldgen/foliageTint';
-import { planExpandedTree, type ExpandedTree } from '../../src/core/worldgen/expandedBiomes';
-import { planStructure, type StructureKind } from '../../src/core/worldgen/modernStructures';
+import { vanillaTreeShape } from '../../src/core/worldgen/vanillaVegetation';
+import {
+  planVanillaStructure as planStructure,
+  planVanillaTemplate,
+} from '../../src/core/worldgen/vanillaStructures';
+import type { StructureKind } from '../../src/core/worldgen/modernStructures';
 import { generateModernChunk } from '../../src/core/worldgen/modernOverworld';
 import { CAMERA_AUX_RENDER_LAYER } from '../../src/render/renderLayers';
 import * as B from '../../src/core/blocks/registry';
@@ -67,24 +71,44 @@ function load() {
       for (let z = minCz; z <= maxCz; z++)
         generated.set(
           `${x},${z}`,
-          generateModernChunk(x, z, type === 'actual_village' ? '9' : '42', 4),
+          generateModernChunk(x, z, type === 'actual_village' ? '9' : '42', 5),
         );
   } else {
     focus.set(0, 83, 0);
-    range = type === 'trees' ? 52 : type === 'village' ? 44 : 31;
+    range =
+      type === 'house'
+        ? 13
+        : type === 'igloo'
+          ? 19
+          : type === 'trees'
+            ? 52
+            : type === 'village'
+              ? 48
+              : 31;
+    angle = type === 'house' ? -2.3 : 0.7;
+    if (type === 'house') focus.y = 82;
     const ground = type === 'desert_ruin' ? B.SAND : type === 'igloo' ? B.SNOW_BLOCK : B.GRASS;
     for (let x = -32; x < 32; x++)
       for (let z = -32; z < 32; z++)
         for (let y = 77; y <= 80; y++) put(x, y, z, y === 80 ? ground : 2);
     if (type !== 'trees')
-      for (const [x, y, z, id] of planStructure(type as StructureKind)) put(x, 80 + y, z, id);
-    const tree = (kind: ExpandedTree, x: number, z: number, seed = 9n) => {
-      for (const [dx, dy, dz, id] of planExpandedTree(kind, seed)) put(x + dx, 81 + dy, z + dz, id);
+      for (const [x, y, z, id] of type === 'house'
+        ? planVanillaTemplate('village/plains/houses/plains_small_house_1')
+        : planStructure(type as StructureKind))
+        put(x, 80 + y, z, id);
+    const tree = (kind: string, x: number, z: number, seed = 9n) => {
+      for (const [dx, dy, dz, id] of vanillaTreeShape(kind, Number(seed) % 4))
+        put(x + dx, 81 + dy, z + dz, id);
     };
     if (type === 'trees') {
-      for (const [i, kind] of (
-        ['acacia', 'jungle', 'dark_oak', 'cherry', 'mushroom', 'pine'] as ExpandedTree[]
-      ).entries())
+      for (const [i, kind] of [
+        'acacia',
+        'mega_jungle',
+        'dark_oak',
+        'cherry',
+        'red_mushroom',
+        'mega_spruce',
+      ].entries())
         tree(kind, (i % 3) * 13 - 13, Math.floor(i / 3) * 16 - 8, kind === 'jungle' ? 1n : 9n);
       focus.set(0, 86, 0);
     }
@@ -94,13 +118,13 @@ function load() {
       tree('cherry', 8, -8);
     }
     if (type === 'village') {
-      tree('swamp', -18, 8);
-      tree('swamp', 17, 11);
-      tree('swamp', -17, -14);
+      tree('swamp_oak', -18, 8);
+      tree('swamp_oak', 17, 11);
+      tree('swamp_oak', -17, -14);
     }
     if (type === 'igloo') {
-      tree('pine', -11, -5);
-      tree('pine', 11, -9);
+      tree('mega_spruce', -11, -5);
+      tree('mega_spruce', 11, -9);
     }
   }
   const get = (x: number, y: number, z: number) =>
@@ -118,7 +142,7 @@ function load() {
       ? '自然生成 · 种子 9 · X 72 / Y 65 / Z -70'
       : type === 'actual'
         ? '自然生成 · 种子 42 · X -62 / Y 73 / Z 95'
-        : '固定平地展示 · 建筑内部可进入，树木使用游戏生成器';
+        : 'Java 26.3 原版方块布局与模型 · 村落组合位置为 Mineworld 布局';
 }
 getSelect.onchange = () => {
   status.textContent = '正在生成…';

@@ -147,3 +147,8 @@ import subprocess
 subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_effects.py")), str(jar)], check=True)
 
 subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_biomes.py")), str(jar)], check=True)
+
+# Reapply appended real block models after the legacy/biome atlas cells.
+subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_architecture.py")), str(jar)], check=True)
+subprocess.run([sys.executable, str(Path(__file__).with_name("import_grass_colors.py")), str(jar)], check=True)
+subprocess.run([sys.executable, str(Path(__file__).with_name("import_architecture_items.py")), str(jar)], check=True)

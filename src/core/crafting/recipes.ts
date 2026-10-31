@@ -18,7 +18,15 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 }
 
 export const RECIPES: Recipe[] = [
-  ...['acacia', 'jungle', 'dark_oak', 'cherry'].flatMap((wood): Recipe[] => [
+  ...[['oak','oak_planks'],['spruce','spruce_planks'],['acacia','acacia_planks'],['cobblestone','cobblestone'],['sandstone','sandstone']].map(([name,material]):Recipe=>({type:'shaped',pattern:['#  ','## ','###'],key:{'#':material},result:{item:`${name}_stairs`,count:4}})),
+  ...['oak','spruce','acacia'].map((name):Recipe=>({type:'shaped',pattern:['##','##','##'],key:{'#':`${name}_planks`},result:{item:`${name}_door`,count:3}})),
+  ...['oak','spruce'].map((name):Recipe=>({type:'shaped',pattern:['###','###'],key:{'#':`${name}_planks`},result:{item:`${name}_trapdoor`,count:2}})),
+  {type:'shaped',pattern:['###'],key:{'#':'sandstone'},result:{item:'sandstone_slab',count:6}},
+  {type:'shaped',pattern:['#S#','#S#'],key:{'#':'acacia_planks',S:'stick'},result:{item:'acacia_fence',count:3}},
+  {type:'shaped',pattern:['###','###'],key:{'#':'cobblestone'},result:{item:'cobblestone_wall',count:6}},
+  {type:'shaped',pattern:['###','# #','###'],key:{'#':'oak_planks'},result:{item:'chest',count:1}},
+
+  ...['spruce', 'acacia', 'jungle', 'dark_oak', 'cherry'].flatMap((wood): Recipe[] => [
     {
       type: 'shapeless',
       ingredients: [`${wood}_log`],
@@ -152,8 +160,6 @@ export const RECIPES: Recipe[] = [
     result: { item: 'diamond_boots', count: 1 },
   },
   { type: 'shapeless', ingredients: ['oak_log'], result: { item: 'oak_planks', count: 4 } },
-  // 尚无独立云杉木板 ID；暂映射到项目统一木板，同时保留 1.12 的 1→4 数量规则。
-  { type: 'shapeless', ingredients: ['spruce_log'], result: { item: 'oak_planks', count: 4 } },
   // 白桦同样必须能启动木工具链。树种木板尚未分开，沿用上述统一木板限制。
   // 原作规则：https://www.minecraft.net/en-us/article/how-craft
   { type: 'shapeless', ingredients: ['birch_log'], result: { item: 'oak_planks', count: 4 } },

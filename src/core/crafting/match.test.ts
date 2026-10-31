@@ -20,7 +20,7 @@ describe('shapeless matching', () => {
       [null, null],
       [stack('spruce_log'), null],
     ];
-    expect(getCraftingResult(grid)).toEqual({ item: 'oak_planks', count: 4 });
+    expect(getCraftingResult(grid)).toEqual({ item: 'spruce_planks', count: 4 });
   });
 
   it('empty grid -> null', () => {

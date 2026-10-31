@@ -1,0 +1,126 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "source": "Official Mojang client JAR",
+  "files": [
+    {
+      "template": "village/plains/houses/plains_small_house_1",
+      "source": "data/minecraft/structure/village/plains/houses/plains_small_house_1.nbt",
+      "sha1": "a9dae68edcac24e5c27c472128a2a765cbc9bc97",
+      "size": [
+        7,
+        7,
+        7
+      ],
+      "block_count": 343,
+      "palette_count": 24
+    },
+    {
+      "template": "village/plains/houses/plains_small_house_2",
+      "source": "data/minecraft/structure/village/plains/houses/plains_small_house_2.nbt",
+      "sha1": "faeaa055a1ddd2d7178dee64286db1ac5a52bb6b",
+      "size": [
+        7,
+        7,
+        7
+      ],
+      "block_count": 343,
+      "palette_count": 16
+    },
+    {
+      "template": "village/plains/town_centers/plains_fountain_01",
+      "source": "data/minecraft/structure/village/plains/town_centers/plains_fountain_01.nbt",
+      "sha1": "64e8373d7f9bf83f53b5421e79599d34f1e2c399",
+      "size": [
+        9,
+        4,
+        9
+      ],
+      "block_count": 134,
+      "palette_count": 13
+    },
+    {
+      "template": "village/taiga/houses/taiga_small_house_1",
+      "source": "data/minecraft/structure/village/taiga/houses/taiga_small_house_1.nbt",
+      "sha1": "82c1c96831400395066abbe6ec6883437146c15b",
+      "size": [
+        7,
+        8,
+        9
+      ],
+      "block_count": 473,
+      "palette_count": 28
+    },
+    {
+      "template": "village/taiga/houses/taiga_small_house_2",
+      "source": "data/minecraft/structure/village/taiga/houses/taiga_small_house_2.nbt",
+      "sha1": "e58f10a1f342a610bc3b112be8d35e1650da70d3",
+      "size": [
+        7,
+        7,
+        7
+      ],
+      "block_count": 343,
+      "palette_count": 22
+    },
+    {
+      "template": "village/savanna/houses/savanna_small_house_1",
+      "source": "data/minecraft/structure/village/savanna/houses/savanna_small_house_1.nbt",
+      "sha1": "b61d4a231bb8a7f33622593870df5620cd827828",
+      "size": [
+        7,
+        7,
+        7
+      ],
+      "block_count": 343,
+      "palette_count": 30
+    },
+    {
+      "template": "village/savanna/houses/savanna_small_house_2",
+      "source": "data/minecraft/structure/village/savanna/houses/savanna_small_house_2.nbt",
+      "sha1": "6a69508488d68c315f9d0b5cd7c1165515024087",
+      "size": [
+        7,
+        7,
+        7
+      ],
+      "block_count": 343,
+      "palette_count": 28
+    },
+    {
+      "template": "igloo/top",
+      "source": "data/minecraft/structure/igloo/top.nbt",
+      "sha1": "b71f6e5d89f33340ff5e9450b20f09e9a8ffa176",
+      "size": [
+        7,
+        5,
+        8
+      ],
+      "block_count": 152,
+      "palette_count": 11
+    },
+    {
+      "template": "village/plains/houses/plains_temple_3",
+      "source": "data/minecraft/structure/village/plains/houses/plains_temple_3.nbt",
+      "sha1": "6f7513c2f2ee3a43010274eba8ff39398f4653bf",
+      "size": [
+        11,
+        7,
+        7
+      ],
+      "block_count": 539,
+      "palette_count": 29
+    }
+  ],
+  "adaptations": [
+    "NBT compound objects retained as JSON; blocks compacted to [x,y,z,state,optionalNBT]",
+    "Java 26.3 id/properties palette keys normalized to Name/Properties; values preserved",
+    "Explicit air, block entities and jigsaw final_state preserved",
+    "groundOffset=0 marks the lowest footing of these selected templates; floorY and entrance coordinates are extra placement metadata",
+    "Integers outside JavaScript safe range are stored as decimal strings"
+  ],
+  "limits": [
+    "Standalone templates are exact data; village arrangement and terrain adaptation are separate generation systems",
+    "No desert pyramid template exists: village/desert temple files are different buildings"
+  ]
+}

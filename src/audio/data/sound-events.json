@@ -1,4 +1,152 @@
 {
+  "block.anvil.break": [
+    {
+      "name": "dig/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "dig/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.anvil.fall": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.anvil.hit": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.anvil.place": [
+    {
+      "name": "random/anvil_land",
+      "volume": 0.5,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.anvil.step": [
+    {
+      "name": "step/stone1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/stone6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
   "block.calcite.break": [
     {
       "name": "block/calcite/break1",
@@ -3389,6 +3537,172 @@
       "weight": 1
     }
   ],
+  "block.suspicious_sand.break": [
+    {
+      "name": "block/suspicious_sand/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/break6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.suspicious_sand.fall": [
+    {
+      "name": "block/suspicious_sand/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.suspicious_sand.hit": [
+    {
+      "name": "block/suspicious_sand/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.suspicious_sand.place": [
+    {
+      "name": "block/suspicious_sand/place1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/place2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/place3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/place4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/place5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.suspicious_sand.step": [
+    {
+      "name": "block/suspicious_sand/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/suspicious_sand/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
   "block.tuff.break": [
     {
       "name": "block/tuff/break1",
@@ -3550,6 +3864,160 @@
     },
     {
       "name": "block/tuff/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.vine.break": [
+    {
+      "name": "block/vine/break1",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break2",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break3",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break4",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.vine.fall": [
+    {
+      "name": "block/vine/climb1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.vine.hit": [
+    {
+      "name": "step/grass1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "step/grass6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.vine.place": [
+    {
+      "name": "block/vine/break1",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break2",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break3",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/break4",
+      "volume": 0.9,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.vine.step": [
+    {
+      "name": "block/vine/climb1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/vine/climb5",
       "volume": 1,
       "pitch": 1,
       "weight": 1

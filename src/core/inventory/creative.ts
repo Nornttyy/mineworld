@@ -1,3 +1,5 @@
+import { architectureBaseIds } from '../blocks/architecture';
+import '../blocks/registry';
 import type { Inventory, ItemStack } from './inventory';
 import {
   ITEM_IDS,
@@ -65,7 +67,7 @@ export const CREATIVE_CATEGORIES: readonly CreativeCategoryDef[] = [
       43,
       44,
       ...Array.from({ length: 36 }, (_, i) => 45 + i),
-      95, 96, 97, ...Array.from({length:15},(_,i)=>98+i),
+      95, 96, 97, ...Array.from({length:15},(_,i)=>98+i), ...architectureBaseIds(),
     ],
   },
   { id: 'decoration', label: '装饰方块', items: [14, 16, 17, 29, ...Array.from({ length: 14 }, (_, i) => 81 + i)] },

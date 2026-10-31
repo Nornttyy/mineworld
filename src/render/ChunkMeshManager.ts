@@ -51,6 +51,7 @@ const MC_LIGHT_GLSL =
 
 interface ChunkMeshes {
   opaque: THREE.Mesh;
+  glass: THREE.Mesh | null;
   ice: THREE.Mesh | null;
   cutout: THREE.Mesh | null;
   water: THREE.Mesh | null;
@@ -86,6 +87,7 @@ export class ChunkMeshManager {
   // 粗光照网格(worker 随网格传回,4×48×4/区块)：实体(生物/掉落物/手持)环境光照采样用
   private readonly lightGrids = new Map<string, Uint8Array>();
   private readonly opaqueMat: THREE.MeshBasicMaterial;
+  private readonly glassMat: THREE.MeshBasicMaterial;
   private readonly iceMat: THREE.MeshBasicMaterial;
   private readonly cutoutMat: THREE.MeshBasicMaterial;
   private readonly waterMat: THREE.MeshBasicMaterial;
@@ -174,6 +176,8 @@ export class ChunkMeshManager {
     // ±36 格窗口内整片压暗 27%(假自阴影)，窗口外没阴影 → "玩家周围比远处暗"(用户报)。
     this.opaqueMat.shadowSide = THREE.BackSide;
     // 冰独立成批：光影档由材质内部完成折射+倒影后以不透明结果写入，避免普通 alpha 叠加排序错误。
+    this.glassMat = new THREE.MeshBasicMaterial({map:atlas,vertexColors:true,transparent:true,depthWrite:false});
+    this.installLight(this.glassMat,false,false);
     this.iceMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
     this.iceMat.shadowSide = THREE.BackSide;
     // 镂空(树叶)：alpha-test 裁切 + 双面渲染（透过近处孔能看到远端叶面，茂密感）
@@ -1514,6 +1518,8 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.syncAtlasSize(tex);
     this.opaqueMat.map = tex;
     this.iceMat.map = tex;
+    this.glassMat.map = tex;
+    this.glassMat.needsUpdate = true;
     this.cutoutMat.map = tex;
     this.portalMat.map = tex;
     if (this.leafDepthMat) this.leafDepthMat.map = tex;
@@ -1660,6 +1666,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.meshQueue.length = this.priorityQueue.length = 0;
     this.opaqueMat.dispose();
     this.iceMat.dispose();
+    this.glassMat.dispose();
     this.cutoutMat.dispose();
     this.waterMat.dispose();
     this.portalMat.dispose();
@@ -1737,7 +1744,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.lightGrids.delete(k);
     const m = this.meshes.get(k);
     if (!m) return;
-    for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch]) {
+    for (const mesh of [m.opaque, m.ice, m.glass, m.cutout, m.water, m.portal, m.torch]) {
       if (mesh) {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
@@ -1791,7 +1798,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
   pipelineStats(): { meshed: number; visible: number; pending: number; queued: number } {
     let visible = 0;
     for (const m of this.meshes.values())
-      if ([m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch].some((s) => s && s.visible))
+      if ([m.opaque, m.ice, m.glass, m.cutout, m.water, m.portal, m.torch].some((s) => s && s.visible))
         visible++;
     return {
       meshed: this.meshes.size,
@@ -1805,6 +1812,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.unload(this.key(cx, cz));
     this.lightGrids.set(this.key(cx, cz), mesh.light3d); // 实体照明粗网格(unload 已清旧的)
     const om = this.addMesh(mesh.opaque, this.opaqueMat, cx, cz) ?? new THREE.Mesh();
+    const gm = mesh.glass ? this.addMesh(mesh.glass,this.glassMat,cx,cz) : null;
     const im = this.addMesh(mesh.ice, this.iceMat, cx, cz);
     const cm = this.addMesh(mesh.cutout, this.cutoutMat, cx, cz);
     const wm = this.addMesh(mesh.water, this.waterMat, cx, cz);
@@ -1825,6 +1833,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     this.meshes.set(this.key(cx, cz), {
       opaque: om,
       ice: im,
+      glass: gm,
       cutout: cm,
       water: wm,
       portal: pm,
@@ -2003,7 +2012,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
     for (const [k, m] of this.meshes) {
       const [cx, cz] = k.split(',').map(Number);
       const vis = !chunkFogged(cx - centerCx, cz - centerCz, this.fogCullR2);
-      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch])
+      for (const mesh of [m.opaque, m.ice, m.glass, m.cutout, m.water, m.portal, m.torch])
         if (mesh) mesh.visible = vis;
     }
   }
@@ -2018,7 +2027,7 @@ if (uShaders < 0.5 || uHasRefraction < 0.5) {
       const [cx, cz] = k.split(',').map(Number);
       if (chunkInView(cx * CHUNK_W + CHUNK_W / 2, cz * CHUNK_W + CHUNK_W / 2, px, pz, dirX, dirZ))
         continue;
-      for (const mesh of [m.opaque, m.ice, m.cutout, m.water, m.portal, m.torch])
+      for (const mesh of [m.opaque, m.ice, m.glass, m.cutout, m.water, m.portal, m.torch])
         if (mesh) mesh.visible = false;
     }
   }

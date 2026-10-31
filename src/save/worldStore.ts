@@ -558,7 +558,7 @@ export function createWorld(
     id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     name: name.trim() || '新的世界',
     seed: Number(BigInt(modernSeed) % 2_000_000_000n),
-    generator: 'java26v4',
+    generator: 'java26v5',
     seed64: modernSeed,
     gameMode,
     lastPlayed: Date.now(),

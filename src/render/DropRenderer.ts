@@ -1,3 +1,4 @@
+import { architectureGeometry } from './architectureGeometry';
 import * as THREE from 'three';
 import { BLOCKS, isCrossPlantId, TORCH } from '../core/blocks/registry';
 import { isItem } from '../core/items/items';
@@ -11,11 +12,12 @@ import {
   CLASSIC_ATLAS_TILE_PX,
 } from '../core/blocks/atlasLayout';
 
-const spriteDrop = (id: number): boolean => isItem(id) || isCrossPlantId(id) || id === TORCH;
+const spriteDrop = (id: number): boolean => isItem(id) || isCrossPlantId(id) || id === TORCH || !!BLOCKS[id]?.name.endsWith('_door');
 const [EPS_U, EPS_V] = atlasUvInset(CLASSIC_ATLAS_TILE_PX);
 
 // 给某方块 id 造一个用图集贴图的小立方体几何（6 面各取对应 tile 的 UV）。
 function dropGeometry(id: number): THREE.BufferGeometry {
+  const model=architectureGeometry(id,DROP_SIZE);if(model)return model;
   const g = new THREE.BoxGeometry(DROP_SIZE, DROP_SIZE, DROP_SIZE);
   const faces = BLOCKS[id].faces; // 顺序 +X,-X,+Y,-Y,+Z,-Z，与 BoxGeometry 面序一致
   const uv = g.attributes.uv as THREE.BufferAttribute;
@@ -49,7 +51,7 @@ export class DropRenderer {
     private readonly scene: THREE.Scene,
     atlas: THREE.Texture,
   ) {
-    this.mat = new THREE.MeshBasicMaterial({ map: atlas });
+    this.mat = new THREE.MeshBasicMaterial({ map: atlas, alphaTest: .1 });
   }
 
   /** 切换整套掉落物材质，同时清掉旧物品图标缓存。 */

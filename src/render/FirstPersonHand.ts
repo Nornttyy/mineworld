@@ -1,3 +1,4 @@
+import { architectureGeometry } from './architectureGeometry';
 import * as THREE from 'three';
 import { isCrossPlantId } from '../core/blocks/registry';
 import { BLOCKS, TORCH } from '../core/blocks/registry';
@@ -91,7 +92,7 @@ export function heldSpritePose(_id: number): HeldSpritePose {
 export function heldRenderKind(id: number | null): HeldKind {
   if (id === null || id <= 0) return 'none';
   // 火把不是立方体(世界里画成细十字),手持也用图标精灵——别走方块分支画成 3D 立方体(火把无图集面→采错纹理,"拿着的贴图不对")
-  if (id === TORCH || isCrossPlantId(id)) return iconUrl(id) ? 'sprite' : 'none';
+  if (id === TORCH || isCrossPlantId(id) || BLOCKS[id]?.name.endsWith('_door')) return iconUrl(id) ? 'sprite' : 'none';
   if (BLOCKS[id]) return 'block';
   if (iconUrl(id)) return 'sprite';
   return 'none';
@@ -148,6 +149,7 @@ export function rightArmGeometry(sleeve = false): THREE.BufferGeometry {
 
 // 手持方块的小立方体（图集贴图 + 面亮度顶点色）
 function blockCube(id: number, size: number): THREE.BufferGeometry {
+  const model=architectureGeometry(id,size);if(model)return model;
   const g = new THREE.BoxGeometry(size, size, size);
   const faces = BLOCKS[id].faces; // +X,-X,+Y,-Y,+Z,-Z，与 BoxGeometry 面序一致
   const uv = g.attributes.uv as THREE.BufferAttribute;
@@ -412,9 +414,10 @@ export class FirstPersonHand {
       const profile = handBlockMaterialProfile(id);
       const material =
         this.lightingQuality === 'off'
-          ? new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true })
+          ? new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true, alphaTest: .1 })
           : new THREE.MeshPhysicalMaterial({
               map: this.atlas,
+              alphaTest: .1,
               roughness: profile.roughness,
               metalness: 0,
               ior: 1.35,
