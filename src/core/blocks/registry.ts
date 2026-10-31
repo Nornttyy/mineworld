@@ -121,6 +121,27 @@ export const ATLAS_TILES = {
   copper_ore: 102,
   raw_copper_block: 103,
   raw_iron_block: 104,
+  acacia_log: 105,
+  acacia_log_top: 106,
+  acacia_leaves: 107,
+  acacia_planks: 108,
+  jungle_log: 109,
+  jungle_log_top: 110,
+  jungle_leaves: 111,
+  jungle_planks: 112,
+  dark_oak_log: 113,
+  dark_oak_log_top: 114,
+  dark_oak_leaves: 115,
+  dark_oak_planks: 116,
+  cherry_log: 117,
+  cherry_log_top: 118,
+  cherry_leaves: 119,
+  cherry_planks: 120,
+  red_mushroom_block: 121,
+  brown_mushroom_block: 122,
+  mushroom_stem: 123,
+  mushroom_block_inside: 124,
+
 } as const;
 const T = ATLAS_TILES;
 
@@ -457,7 +478,38 @@ export const BLOCKS: BlockDef[] = [
   { id: 95, name: 'copper_ore', solid: true, transparent: false, faces: all(T.copper_ore), hardness: 3, drop: 321, needsTool: true, tool: 'pickaxe', minTier: 2 },
   { id: 96, name: 'raw_copper_block', solid: true, transparent: false, faces: all(T.raw_copper_block), hardness: 5, drop: 96, needsTool: true, tool: 'pickaxe', minTier: 2 },
   { id: 97, name: 'raw_iron_block', solid: true, transparent: false, faces: all(T.raw_iron_block), hardness: 5, drop: 97, needsTool: true, tool: 'pickaxe', minTier: 2 },
+  { id: 98, name: 'acacia_log', solid: true, transparent: false, faces: column(T.acacia_log, T.acacia_log_top, T.acacia_log_top), hardness: 2, drop: 98, needsTool: false, tool: 'axe' },
+  { id: 99, name: 'acacia_leaves', solid: true, transparent: true, faces: all(T.acacia_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  { id: 100, name: 'acacia_planks', solid: true, transparent: false, faces: all(T.acacia_planks), hardness: 2, drop: 100, needsTool: false, tool: 'axe' },
+  { id: 101, name: 'jungle_log', solid: true, transparent: false, faces: column(T.jungle_log, T.jungle_log_top, T.jungle_log_top), hardness: 2, drop: 101, needsTool: false, tool: 'axe' },
+  { id: 102, name: 'jungle_leaves', solid: true, transparent: true, faces: all(T.jungle_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  { id: 103, name: 'jungle_planks', solid: true, transparent: false, faces: all(T.jungle_planks), hardness: 2, drop: 103, needsTool: false, tool: 'axe' },
+  { id: 104, name: 'dark_oak_log', solid: true, transparent: false, faces: column(T.dark_oak_log, T.dark_oak_log_top, T.dark_oak_log_top), hardness: 2, drop: 104, needsTool: false, tool: 'axe' },
+  { id: 105, name: 'dark_oak_leaves', solid: true, transparent: true, faces: all(T.dark_oak_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  { id: 106, name: 'dark_oak_planks', solid: true, transparent: false, faces: all(T.dark_oak_planks), hardness: 2, drop: 106, needsTool: false, tool: 'axe' },
+  { id: 107, name: 'cherry_log', solid: true, transparent: false, faces: column(T.cherry_log, T.cherry_log_top, T.cherry_log_top), hardness: 2, drop: 107, needsTool: false, tool: 'axe' },
+  { id: 108, name: 'cherry_leaves', solid: true, transparent: true, faces: all(T.cherry_leaves), hardness: 0.2, drop: null, needsTool: false, tool: null },
+  { id: 109, name: 'cherry_planks', solid: true, transparent: false, faces: all(T.cherry_planks), hardness: 2, drop: 109, needsTool: false, tool: 'axe' },
+  { id: 110, name: 'red_mushroom_block', solid: true, transparent: false, faces: column(T.red_mushroom_block, T.red_mushroom_block, T.mushroom_block_inside), hardness: 0.2, drop: 110, needsTool: false, tool: 'axe' },
+  { id: 111, name: 'brown_mushroom_block', solid: true, transparent: false, faces: column(T.brown_mushroom_block, T.brown_mushroom_block, T.mushroom_block_inside), hardness: 0.2, drop: 111, needsTool: false, tool: 'axe' },
+  { id: 112, name: 'mushroom_stem', solid: true, transparent: false, faces: column(T.mushroom_stem, T.mushroom_block_inside, T.mushroom_block_inside), hardness: 0.2, drop: 112, needsTool: false, tool: 'axe' },
 ];
+
+export const ACACIA_LOG = 98;
+export const ACACIA_LEAVES = 99;
+export const ACACIA_PLANKS = 100;
+export const JUNGLE_LOG = 101;
+export const JUNGLE_LEAVES = 102;
+export const JUNGLE_PLANKS = 103;
+export const DARK_OAK_LOG = 104;
+export const DARK_OAK_LEAVES = 105;
+export const DARK_OAK_PLANKS = 106;
+export const CHERRY_LOG = 107;
+export const CHERRY_LEAVES = 108;
+export const CHERRY_PLANKS = 109;
+export const RED_MUSHROOM_BLOCK = 110;
+export const BROWN_MUSHROOM_BLOCK = 111;
+export const MUSHROOM_STEM = 112;
 
 export const POPPY = 81;
 export const DANDELION = 82;
@@ -563,8 +615,10 @@ export const isNetherPortalId = (id: number): boolean => id === NETHER_PORTAL;
 
 export const isSolidId = (id: number): boolean => BLOCKS[id]?.solid ?? false;
 export const isWaterId = (id: number): boolean => id === WATER;
-export const isCutoutId = (id: number): boolean =>
-  id === OAK_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES; // 镂空(树叶)
+export const LOG_IDS: ReadonlySet<number> = new Set([OAK_LOG, SPRUCE_LOG, BIRCH_LOG, ACACIA_LOG, JUNGLE_LOG, DARK_OAK_LOG, CHERRY_LOG]);
+export const LEAF_IDS: ReadonlySet<number> = new Set([OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES, ACACIA_LEAVES, JUNGLE_LEAVES, DARK_OAK_LEAVES, CHERRY_LEAVES]);
+export const LEAF_TILES = [...LEAF_IDS].map(id => BLOCKS[id].faces[0]);
+export const isCutoutId = (id: number): boolean => LEAF_IDS.has(id); // 镂空(树叶)
 export const isFlowerId = (id: number): boolean => id >= POPPY && id <= LILY_OF_THE_VALLEY;
 export const isCrossPlantId = (id: number): boolean => id === GRASS_PLANT || id === TALL_GRASS || (id >= POPPY && id <= DEAD_BUSH);
 export const isPlantId = (id: number): boolean => isCrossPlantId(id) || id === SNOW_LAYER; // cross/薄层 特判

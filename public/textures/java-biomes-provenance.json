@@ -1,0 +1,91 @@
+{
+  "target": "Minecraft Java 26.3",
+  "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "files": [
+    {
+      "source": "assets/minecraft/textures/block/acacia_log.png",
+      "sha1": "87d169a34cb57ea8f84952dcaee7bc21b94380dd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_log_top.png",
+      "sha1": "460a2a11951e41af288306a44280668bf08d6ce9"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_leaves.png",
+      "sha1": "61366f170d3839bb76301b8da05116dd68253f77"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_planks.png",
+      "sha1": "7804810433b8aec8fa971631ad2c805099f1795b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_log.png",
+      "sha1": "3c8cab0ede73c393ef5ba3b03e7f28e9c329a818"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_log_top.png",
+      "sha1": "929c47592e89a7a057017729248e840aa597de4e"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_leaves.png",
+      "sha1": "92f01990aea324bd6dba33d8e59436f13bd1d41f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_planks.png",
+      "sha1": "a0ccb8fc22e2f68c5817189be2651e1d7f13416c"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_log.png",
+      "sha1": "c7aa20cab1962e44d5d1accfe3af9df3ac339cdd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_log_top.png",
+      "sha1": "5451446df7987f9f7cf3cbe8b6e5d905369caeba"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_leaves.png",
+      "sha1": "8eceebeca00606f96b0ebab8918fcc8c661daf00"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_planks.png",
+      "sha1": "df0b8daceeade2c41af31c09e85bbb941f8a0236"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_log.png",
+      "sha1": "3caae4eef65f3f17068cb0d94ee860ae17cc06dc"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_log_top.png",
+      "sha1": "58ea8c64d8889b16b6e1aaf79fda3dacf01c6bd2"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_leaves.png",
+      "sha1": "d9e587618a3b29f6ecd3bcdcb41beb081ff913f4"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_planks.png",
+      "sha1": "1b21c120bf44afd6287ec77232fa1685d4c0427b"
+    },
+    {
+      "source": "assets/minecraft/textures/block/red_mushroom_block.png",
+      "sha1": "1808753b14043991c32744a8209b435c98351ddf"
+    },
+    {
+      "source": "assets/minecraft/textures/block/brown_mushroom_block.png",
+      "sha1": "9528e2d9727a454a36206aee64f3e933557a25dd"
+    },
+    {
+      "source": "assets/minecraft/textures/block/mushroom_stem.png",
+      "sha1": "fbe39e299a31a44d9858395bbd600685bc990e99"
+    },
+    {
+      "source": "assets/minecraft/textures/block/mushroom_block_inside.png",
+      "sha1": "d3933c4ebaded3bd8ba9275fe37395e9028e4431"
+    }
+  ],
+  "adaptations": [
+    "Append 20 tiles in slots 105..124; all three atlases are 4x32",
+    "Neutral leaf RGB and alpha preserved in terrain atlas; inventory foliage receives representative biome tint",
+    "Cube inventory icons projected from face textures; mushroom per-face block states are simplified"
+  ]
+}

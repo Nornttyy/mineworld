@@ -30,8 +30,8 @@ for path in sorted(z.namelist()):
 (ROOT / 'src/core/worldgen/data/java26-foliage-colors.json').write_text(json.dumps(colors, indent=2)+'\n')
 # Keep a neutral leaf atlas for biome tinting. Standalone inventory icons keep their colors.
 atlas = Image.open(out / 'atlas_classic.png').convert('RGBA')
-for name,index in [('oak_leaves',11),('spruce_leaves',31),('birch_leaves',45)]:
+for name,index in [('oak_leaves',11),('spruce_leaves',31),('birch_leaves',45),('acacia_leaves',107),('jungle_leaves',111),('dark_oak_leaves',115),('cherry_leaves',119)]:
     atlas.paste(Image.open(io.BytesIO(read(f'assets/minecraft/textures/block/{name}.png'))).convert('RGBA'), ((index%4)*16,(index//4)*16))
 atlas.save(out / 'atlas_terrain.png')
 (out / 'java-effects-provenance.json').write_text(json.dumps({'target':'Minecraft Java 26.3','client_sha1':hashlib.sha1(jar.read_bytes()).hexdigest(),'files':records,'adaptations':['Ten unchanged destroy sprites packed horizontally','Leaf atlas cells retain neutral RGB and original alpha; biome/species tint is applied at render time']},indent=2)+'\n')
-print('Imported 10 destroy stages, 3 neutral leaf tiles and',len(colors),'biome foliage colors')
+print('Imported 10 destroy stages, 7 original leaf tiles and',len(colors),'biome foliage colors')

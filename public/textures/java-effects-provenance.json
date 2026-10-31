@@ -325,6 +325,22 @@
     {
       "source": "assets/minecraft/textures/block/birch_leaves.png",
       "sha1": "e744b728497da21661ec7b5904662cead76dac89"
+    },
+    {
+      "source": "assets/minecraft/textures/block/acacia_leaves.png",
+      "sha1": "61366f170d3839bb76301b8da05116dd68253f77"
+    },
+    {
+      "source": "assets/minecraft/textures/block/jungle_leaves.png",
+      "sha1": "92f01990aea324bd6dba33d8e59436f13bd1d41f"
+    },
+    {
+      "source": "assets/minecraft/textures/block/dark_oak_leaves.png",
+      "sha1": "8eceebeca00606f96b0ebab8918fcc8c661daf00"
+    },
+    {
+      "source": "assets/minecraft/textures/block/cherry_leaves.png",
+      "sha1": "d9e587618a3b29f6ecd3bcdcb41beb081ff913f4"
     }
   ],
   "adaptations": [

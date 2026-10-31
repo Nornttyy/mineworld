@@ -12,6 +12,16 @@
     "block.calcite.hit",
     "block.calcite.place",
     "block.calcite.step",
+    "block.cherry_leaves.break",
+    "block.cherry_leaves.fall",
+    "block.cherry_leaves.hit",
+    "block.cherry_leaves.place",
+    "block.cherry_leaves.step",
+    "block.cherry_wood.break",
+    "block.cherry_wood.fall",
+    "block.cherry_wood.hit",
+    "block.cherry_wood.place",
+    "block.cherry_wood.step",
     "block.cinnabar.break",
     "block.cinnabar.fall",
     "block.cinnabar.hit",
@@ -242,6 +252,111 @@
       "path": "block/calcite/place4.ogg",
       "sha1": "fd8a2120904453bd0f411ef122abb0096f07b82c",
       "size": 7084
+    },
+    {
+      "path": "block/cherry_leaves/break1.ogg",
+      "sha1": "e37a1cce03b4d2b0711af303ca12f385513bf525",
+      "size": 7520
+    },
+    {
+      "path": "block/cherry_leaves/break2.ogg",
+      "sha1": "73e4df44ac7d84734bbb96ca0f476c6ef2cca9a6",
+      "size": 8212
+    },
+    {
+      "path": "block/cherry_leaves/break3.ogg",
+      "sha1": "c569d892b8e71e5847c39baa1aa2f2a155d99e4e",
+      "size": 8655
+    },
+    {
+      "path": "block/cherry_leaves/break4.ogg",
+      "sha1": "22c4898315beef5371593f9093375bb867d41b65",
+      "size": 6808
+    },
+    {
+      "path": "block/cherry_leaves/break5.ogg",
+      "sha1": "03ce1d7853f2cfe8bd4b9cee68ac7fa1a08285bf",
+      "size": 7342
+    },
+    {
+      "path": "block/cherry_leaves/step1.ogg",
+      "sha1": "2da80a0e02b72466fbb3beb0258aebe37f06d2dd",
+      "size": 7884
+    },
+    {
+      "path": "block/cherry_leaves/step2.ogg",
+      "sha1": "eb8164906353f4f9077eb3d4e913440bace7c3ef",
+      "size": 10316
+    },
+    {
+      "path": "block/cherry_leaves/step3.ogg",
+      "sha1": "d7ad4cbbc2189a00cf28404d473a836b6a4c1014",
+      "size": 7863
+    },
+    {
+      "path": "block/cherry_leaves/step4.ogg",
+      "sha1": "eba4d66a97f31ea8a55730d70694463357924335",
+      "size": 9406
+    },
+    {
+      "path": "block/cherry_leaves/step5.ogg",
+      "sha1": "08f52b2a4deab55b16a4d6d2e2ae0b9c836666a3",
+      "size": 7683
+    },
+    {
+      "path": "block/cherry_wood/break1.ogg",
+      "sha1": "a5917646618282d8d2383aa58b0bbf05507606cb",
+      "size": 5997
+    },
+    {
+      "path": "block/cherry_wood/break2.ogg",
+      "sha1": "fee4387ba350fb2d9dd83a3f6c0b9c08ae40be27",
+      "size": 6019
+    },
+    {
+      "path": "block/cherry_wood/break3.ogg",
+      "sha1": "631ea6f1e64ca68e9bb49862aaab1f71ed879227",
+      "size": 6626
+    },
+    {
+      "path": "block/cherry_wood/break4.ogg",
+      "sha1": "818ecbb3788a79a72da93b8d2367000b90fdeeb7",
+      "size": 7077
+    },
+    {
+      "path": "block/cherry_wood/break5.ogg",
+      "sha1": "219dd8d77204b36d8d45367f18f978c987a157d7",
+      "size": 6445
+    },
+    {
+      "path": "block/cherry_wood/step1.ogg",
+      "sha1": "ac04f54eda90242fb93e50ca699359e452cabe37",
+      "size": 7700
+    },
+    {
+      "path": "block/cherry_wood/step2.ogg",
+      "sha1": "f80ac07fd29a87232fef38a657f5e5ab654229fb",
+      "size": 7908
+    },
+    {
+      "path": "block/cherry_wood/step3.ogg",
+      "sha1": "4147e403d6810ea5c24f856e17b42cf6806c0ac4",
+      "size": 7661
+    },
+    {
+      "path": "block/cherry_wood/step4.ogg",
+      "sha1": "3b26613786f78114f40a1078c88311e31308dd9d",
+      "size": 8444
+    },
+    {
+      "path": "block/cherry_wood/step5.ogg",
+      "sha1": "6a98537ff3698f2678f9d585c70216b15b4fe1d7",
+      "size": 9676
+    },
+    {
+      "path": "block/cherry_wood/step6.ogg",
+      "sha1": "06bc0a3761bd322d26933c7597c86acb15242151",
+      "size": 7984
     },
     {
       "path": "block/cinnabar/break1.ogg",

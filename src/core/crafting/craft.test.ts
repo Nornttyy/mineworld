@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { emptyInventory, addItem, countItem } from '../inventory/inventory';
 import { availableRecipes, craftRecipe } from './craft';
-import { OAK_LOG, OAK_PLANKS, CRAFTING_TABLE, SPRUCE_LOG } from '../blocks/registry';
+import {
+  OAK_LOG,
+  OAK_PLANKS,
+  CRAFTING_TABLE,
+  SPRUCE_LOG,
+  ACACIA_PLANKS,
+  JUNGLE_PLANKS,
+  DARK_OAK_PLANKS,
+  CHERRY_PLANKS,
+} from '../blocks/registry';
 import { STICK, WOODEN_PICKAXE } from '../items/items';
 
 describe('合成桥接（数字 id）', () => {
@@ -60,3 +69,18 @@ describe('合成桥接（数字 id）', () => {
     expect(craftRecipe(inv, table!.recipe)).toBe(false);
   });
 });
+
+// Alternate woods must appear as usable variants, not inaccessible oak recipes.
+it.each([ACACIA_PLANKS, JUNGLE_PLANKS, DARK_OAK_PLANKS, CHERRY_PLANKS])(
+  'crafts a wooden pickaxe using new plank ID %s',
+  (id) => {
+    const inv = emptyInventory();
+    addItem(inv, id, 3);
+    addItem(inv, STICK, 2);
+    const option = availableRecipes(inv, 3).find((o) => o.result.id === WOODEN_PICKAXE)!;
+    expect(option.craftable).toBe(true);
+    expect(craftRecipe(inv, option.recipe)).toBe(true);
+    expect(countItem(inv, id)).toBe(0);
+    expect(countItem(inv, WOODEN_PICKAXE)).toBe(1);
+  },
+);

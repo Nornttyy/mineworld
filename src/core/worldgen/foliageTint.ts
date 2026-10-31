@@ -1,5 +1,5 @@
 import colors from './data/java26-foliage-colors.json';
-import { BIRCH_LEAVES, OAK_LEAVES, SPRUCE_LEAVES } from '../blocks/registry';
+import { BIRCH_LEAVES, SPRUCE_LEAVES, CHERRY_LEAVES, LEAF_IDS } from '../blocks/registry';
 import { biomeAt } from './biome';
 import { modernBiomeAt, modernSeed } from './modernOverworld';
 import { createBiomeZoom } from './biomeZoom';
@@ -14,7 +14,7 @@ export const colorToLinear = (color: number): FoliageTint => [
   linearChannel((color & 255) / 255),
 ];
 export const defaultLeafTint = (id: number): FoliageTint =>
-  colorToLinear(id === SPRUCE_LEAVES ? 0x619961 : id === BIRCH_LEAVES ? 0x80a755 : 0x77ab2f);
+  colorToLinear(!LEAF_IDS.has(id) || id === CHERRY_LEAVES ? 0xffffff : id === SPRUCE_LEAVES ? 0x619961 : id === BIRCH_LEAVES ? 0x80a755 : 0x77ab2f);
 export type FoliageSampler = (id: number, x: number, y: number, z: number) => FoliageTint;
 interface Source {
   seed: number;
@@ -45,7 +45,7 @@ export function createFoliageSampler(source: Source): FoliageSampler {
     return v;
   };
   return (id, x, y, z) => {
-    if (id !== OAK_LEAVES)
+    if (!LEAF_IDS.has(id) || id === CHERRY_LEAVES || id === SPRUCE_LEAVES || id === BIRCH_LEAVES)
       return id === SPRUCE_LEAVES || id === BIRCH_LEAVES ? defaultLeafTint(id) : [1, 1, 1];
     const key = `${x},${y},${z}`;
     const cached = blended.get(key);

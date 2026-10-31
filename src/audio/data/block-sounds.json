@@ -1,884 +1,1019 @@
 {
-  "air": {
-    "step": "block.stone.step",
-    "place": "block.stone.place",
-    "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
+  "acacia_leaves": {
+    "hit": "block.grass.hit",
     "pitch": 1.0,
-    "fall": "block.stone.fall"
-  },
-  "allium": {
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
-  "andesite": {
-    "step": "block.stone.step",
-    "place": "block.stone.place",
-    "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
+  "acacia_log": {
+    "hit": "block.wood.hit",
     "pitch": 1.0,
-    "fall": "block.stone.fall"
-  },
-  "azure_bluet": {
-    "step": "block.grass.step",
-    "place": "block.grass.place",
-    "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
-  },
-  "bedrock": {
-    "step": "block.stone.step",
-    "place": "block.stone.place",
-    "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
-  },
-  "birch_leaves": {
-    "step": "block.grass.step",
-    "place": "block.grass.place",
-    "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
-  },
-  "birch_log": {
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
+    "break": "block.wood.break"
+  },
+  "acacia_planks": {
     "hit": "block.wood.hit",
     "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
   },
-  "black_terracotta": {
+  "air": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
-  "blue_orchid": {
+  "allium": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
+    "break": "block.grass.break"
+  },
+  "andesite": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
+    "step": "block.stone.step",
+    "place": "block.stone.place",
+    "volume": 1.0,
+    "break": "block.stone.break"
+  },
+  "azure_bluet": {
     "hit": "block.grass.hit",
     "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "fall": "block.grass.fall",
+    "step": "block.grass.step",
+    "place": "block.grass.place",
+    "volume": 1.0,
+    "break": "block.grass.break"
+  },
+  "bedrock": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
+    "step": "block.stone.step",
+    "place": "block.stone.place",
+    "volume": 1.0,
+    "break": "block.stone.break"
+  },
+  "birch_leaves": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
+    "step": "block.grass.step",
+    "place": "block.grass.place",
+    "volume": 1.0,
+    "break": "block.grass.break"
+  },
+  "birch_log": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
+  },
+  "black_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
+    "step": "block.stone.step",
+    "place": "block.stone.place",
+    "volume": 1.0,
+    "break": "block.stone.break"
+  },
+  "blue_orchid": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
+    "step": "block.grass.step",
+    "place": "block.grass.place",
+    "volume": 1.0,
+    "break": "block.grass.break"
   },
   "blue_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "bricks": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
+    "break": "block.stone.break"
+  },
+  "brown_mushroom_block": {
+    "hit": "block.wood.hit",
     "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
   },
   "brown_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "cactus": {
+    "hit": "block.wool.hit",
+    "pitch": 1.0,
+    "fall": "block.wool.fall",
     "step": "block.wool.step",
     "place": "block.wool.place",
     "volume": 1.0,
-    "break": "block.wool.break",
-    "hit": "block.wool.hit",
-    "pitch": 1.0,
-    "fall": "block.wool.fall"
+    "break": "block.wool.break"
   },
   "calcite": {
+    "hit": "block.calcite.hit",
+    "pitch": 1.0,
+    "fall": "block.calcite.fall",
     "step": "block.calcite.step",
     "place": "block.calcite.place",
     "volume": 1.0,
-    "break": "block.calcite.break",
-    "hit": "block.calcite.hit",
+    "break": "block.calcite.break"
+  },
+  "cherry_leaves": {
+    "hit": "block.cherry_leaves.hit",
     "pitch": 1.0,
-    "fall": "block.calcite.fall"
+    "fall": "block.cherry_leaves.fall",
+    "step": "block.cherry_leaves.step",
+    "place": "block.cherry_leaves.place",
+    "volume": 1.0,
+    "break": "block.cherry_leaves.break"
+  },
+  "cherry_log": {
+    "hit": "block.cherry_wood.hit",
+    "pitch": 1.0,
+    "fall": "block.cherry_wood.fall",
+    "step": "block.cherry_wood.step",
+    "place": "block.cherry_wood.place",
+    "volume": 1.0,
+    "break": "block.cherry_wood.break"
+  },
+  "cherry_planks": {
+    "hit": "block.cherry_wood.hit",
+    "pitch": 1.0,
+    "fall": "block.cherry_wood.fall",
+    "step": "block.cherry_wood.step",
+    "place": "block.cherry_wood.place",
+    "volume": 1.0,
+    "break": "block.cherry_wood.break"
   },
   "cinnabar": {
+    "hit": "block.cinnabar.hit",
+    "pitch": 1.0,
+    "fall": "block.cinnabar.fall",
     "step": "block.cinnabar.step",
     "place": "block.cinnabar.place",
     "volume": 1.0,
-    "break": "block.cinnabar.break",
-    "hit": "block.cinnabar.hit",
-    "pitch": 1.0,
-    "fall": "block.cinnabar.fall"
+    "break": "block.cinnabar.break"
   },
   "coal_block": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "coal_ore": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "coarse_dirt": {
+    "hit": "block.gravel.hit",
+    "pitch": 1.0,
+    "fall": "block.gravel.fall",
     "step": "block.gravel.step",
     "place": "block.gravel.place",
     "volume": 1.0,
-    "break": "block.gravel.break",
-    "hit": "block.gravel.hit",
-    "pitch": 1.0,
-    "fall": "block.gravel.fall"
+    "break": "block.gravel.break"
   },
   "cobbled_deepslate": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "cobblestone": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "copper_ore": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "cornflower": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "crafting_table": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
-    "hit": "block.wood.hit",
-    "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "break": "block.wood.break"
   },
   "cyan_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "dandelion": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
+    "break": "block.grass.break"
+  },
+  "dark_oak_leaves": {
     "hit": "block.grass.hit",
     "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "fall": "block.grass.fall",
+    "step": "block.grass.step",
+    "place": "block.grass.place",
+    "volume": 1.0,
+    "break": "block.grass.break"
+  },
+  "dark_oak_log": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
+  },
+  "dark_oak_planks": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
   },
   "dead_bush": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "deepslate": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "deepslate_coal_ore": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "deepslate_diamond_ore": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "deepslate_gold_ore": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "deepslate_iron_ore": {
+    "hit": "block.deepslate.hit",
+    "pitch": 1.0,
+    "fall": "block.deepslate.fall",
     "step": "block.deepslate.step",
     "place": "block.deepslate.place",
     "volume": 1.0,
-    "break": "block.deepslate.break",
-    "hit": "block.deepslate.hit",
-    "pitch": 1.0,
-    "fall": "block.deepslate.fall"
+    "break": "block.deepslate.break"
   },
   "diamond_block": {
+    "hit": "block.metal.hit",
+    "pitch": 1.5,
+    "fall": "block.metal.fall",
     "step": "block.metal.step",
     "place": "block.metal.place",
     "volume": 1.0,
-    "break": "block.metal.break",
-    "hit": "block.metal.hit",
-    "pitch": 1.5,
-    "fall": "block.metal.fall"
+    "break": "block.metal.break"
   },
   "diamond_ore": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "diorite": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "dirt": {
+    "hit": "block.gravel.hit",
+    "pitch": 1.0,
+    "fall": "block.gravel.fall",
     "step": "block.gravel.step",
     "place": "block.gravel.place",
     "volume": 1.0,
-    "break": "block.gravel.break",
-    "hit": "block.gravel.hit",
-    "pitch": 1.0,
-    "fall": "block.gravel.fall"
+    "break": "block.gravel.break"
   },
   "fern": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "furnace": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "glowstone": {
+    "hit": "block.glass.hit",
+    "pitch": 1.0,
+    "fall": "block.glass.fall",
     "step": "block.glass.step",
     "place": "block.glass.place",
     "volume": 1.0,
-    "break": "block.glass.break",
-    "hit": "block.glass.hit",
-    "pitch": 1.0,
-    "fall": "block.glass.fall"
+    "break": "block.glass.break"
   },
   "gold_ore": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "granite": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "grass": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "grass_plant": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "gravel": {
+    "hit": "block.gravel.hit",
+    "pitch": 1.0,
+    "fall": "block.gravel.fall",
     "step": "block.gravel.step",
     "place": "block.gravel.place",
     "volume": 1.0,
-    "break": "block.gravel.break",
-    "hit": "block.gravel.hit",
-    "pitch": 1.0,
-    "fall": "block.gravel.fall"
+    "break": "block.gravel.break"
   },
   "gray_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "green_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "ice": {
+    "hit": "block.glass.hit",
+    "pitch": 1.0,
+    "fall": "block.glass.fall",
     "step": "block.glass.step",
     "place": "block.glass.place",
     "volume": 1.0,
-    "break": "block.glass.break",
-    "hit": "block.glass.hit",
-    "pitch": 1.0,
-    "fall": "block.glass.fall"
+    "break": "block.glass.break"
   },
   "iron_block": {
+    "hit": "block.iron.hit",
+    "pitch": 1.0,
+    "fall": "block.iron.fall",
     "step": "block.iron.step",
     "place": "block.iron.place",
     "volume": 1.0,
-    "break": "block.iron.break",
-    "hit": "block.iron.hit",
-    "pitch": 1.0,
-    "fall": "block.iron.fall"
+    "break": "block.iron.break"
   },
   "iron_ore": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
-  "lava": {
-    "step": "intentionally_empty",
-    "place": "intentionally_empty",
-    "volume": 1.0,
-    "break": "intentionally_empty",
-    "hit": "intentionally_empty",
+  "jungle_leaves": {
+    "hit": "block.grass.hit",
     "pitch": 1.0,
-    "fall": "intentionally_empty"
-  },
-  "light_blue_terracotta": {
-    "step": "block.stone.step",
-    "place": "block.stone.place",
-    "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
-  },
-  "light_gray_terracotta": {
-    "step": "block.stone.step",
-    "place": "block.stone.place",
-    "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
-  },
-  "lily_of_the_valley": {
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
+    "break": "block.grass.break"
+  },
+  "jungle_log": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
+  },
+  "jungle_planks": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
+  },
+  "lava": {
+    "hit": "intentionally_empty",
+    "pitch": 1.0,
+    "fall": "intentionally_empty",
+    "step": "intentionally_empty",
+    "place": "intentionally_empty",
+    "volume": 1.0,
+    "break": "intentionally_empty"
+  },
+  "light_blue_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
+    "step": "block.stone.step",
+    "place": "block.stone.place",
+    "volume": 1.0,
+    "break": "block.stone.break"
+  },
+  "light_gray_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
+    "step": "block.stone.step",
+    "place": "block.stone.place",
+    "volume": 1.0,
+    "break": "block.stone.break"
+  },
+  "lily_of_the_valley": {
     "hit": "block.grass.hit",
     "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "fall": "block.grass.fall",
+    "step": "block.grass.step",
+    "place": "block.grass.place",
+    "volume": 1.0,
+    "break": "block.grass.break"
   },
   "lime_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "magenta_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "mossy_cobblestone": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "mud": {
+    "hit": "block.mud.hit",
+    "pitch": 1.0,
+    "fall": "block.mud.fall",
     "step": "block.mud.step",
     "place": "block.mud.place",
     "volume": 1.0,
-    "break": "block.mud.break",
-    "hit": "block.mud.hit",
+    "break": "block.mud.break"
+  },
+  "mushroom_stem": {
+    "hit": "block.wood.hit",
     "pitch": 1.0,
-    "fall": "block.mud.fall"
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
   },
   "mycelium": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "nether_portal": {
+    "hit": "block.glass.hit",
+    "pitch": 1.0,
+    "fall": "block.glass.fall",
     "step": "block.glass.step",
     "place": "block.glass.place",
     "volume": 1.0,
-    "break": "block.glass.break",
-    "hit": "block.glass.hit",
-    "pitch": 1.0,
-    "fall": "block.glass.fall"
+    "break": "block.glass.break"
   },
   "nether_quartz_ore": {
+    "hit": "block.nether_ore.hit",
+    "pitch": 1.0,
+    "fall": "block.nether_ore.fall",
     "step": "block.nether_ore.step",
     "place": "block.nether_ore.place",
     "volume": 1.0,
-    "break": "block.nether_ore.break",
-    "hit": "block.nether_ore.hit",
-    "pitch": 1.0,
-    "fall": "block.nether_ore.fall"
+    "break": "block.nether_ore.break"
   },
   "netherrack": {
+    "hit": "block.netherrack.hit",
+    "pitch": 1.0,
+    "fall": "block.netherrack.fall",
     "step": "block.netherrack.step",
     "place": "block.netherrack.place",
     "volume": 1.0,
-    "break": "block.netherrack.break",
-    "hit": "block.netherrack.hit",
-    "pitch": 1.0,
-    "fall": "block.netherrack.fall"
+    "break": "block.netherrack.break"
   },
   "oak_leaves": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "oak_log": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
-    "hit": "block.wood.hit",
-    "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "break": "block.wood.break"
   },
   "oak_planks": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
-    "hit": "block.wood.hit",
-    "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "break": "block.wood.break"
   },
   "obsidian": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "orange_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "orange_tulip": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "oxeye_daisy": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "packed_ice": {
+    "hit": "block.glass.hit",
+    "pitch": 1.0,
+    "fall": "block.glass.fall",
     "step": "block.glass.step",
     "place": "block.glass.place",
     "volume": 1.0,
-    "break": "block.glass.break",
-    "hit": "block.glass.hit",
-    "pitch": 1.0,
-    "fall": "block.glass.fall"
+    "break": "block.glass.break"
   },
   "pink_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "pink_tulip": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "podzol": {
+    "hit": "block.gravel.hit",
+    "pitch": 1.0,
+    "fall": "block.gravel.fall",
     "step": "block.gravel.step",
     "place": "block.gravel.place",
     "volume": 1.0,
-    "break": "block.gravel.break",
-    "hit": "block.gravel.hit",
-    "pitch": 1.0,
-    "fall": "block.gravel.fall"
+    "break": "block.gravel.break"
   },
   "poppy": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "powder_snow": {
+    "hit": "block.powder_snow.hit",
+    "pitch": 1.0,
+    "fall": "block.powder_snow.fall",
     "step": "block.powder_snow.step",
     "place": "block.powder_snow.place",
     "volume": 1.0,
-    "break": "block.powder_snow.break",
-    "hit": "block.powder_snow.hit",
-    "pitch": 1.0,
-    "fall": "block.powder_snow.fall"
+    "break": "block.powder_snow.break"
   },
   "purple_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "quartz_block": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "raw_copper_block": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "raw_iron_block": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
+    "break": "block.stone.break"
+  },
+  "red_mushroom_block": {
+    "hit": "block.wood.hit",
     "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "fall": "block.wood.fall",
+    "step": "block.wood.step",
+    "place": "block.wood.place",
+    "volume": 1.0,
+    "break": "block.wood.break"
   },
   "red_sand": {
+    "hit": "block.sand.hit",
+    "pitch": 1.0,
+    "fall": "block.sand.fall",
     "step": "block.sand.step",
     "place": "block.sand.place",
     "volume": 1.0,
-    "break": "block.sand.break",
-    "hit": "block.sand.hit",
-    "pitch": 1.0,
-    "fall": "block.sand.fall"
+    "break": "block.sand.break"
   },
   "red_sandstone": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "red_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "red_tulip": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "sand": {
+    "hit": "block.sand.hit",
+    "pitch": 1.0,
+    "fall": "block.sand.fall",
     "step": "block.sand.step",
     "place": "block.sand.place",
     "volume": 1.0,
-    "break": "block.sand.break",
-    "hit": "block.sand.hit",
-    "pitch": 1.0,
-    "fall": "block.sand.fall"
+    "break": "block.sand.break"
   },
   "sandstone": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "snow_block": {
+    "hit": "block.snow.hit",
+    "pitch": 1.0,
+    "fall": "block.snow.fall",
     "step": "block.snow.step",
     "place": "block.snow.place",
     "volume": 1.0,
-    "break": "block.snow.break",
-    "hit": "block.snow.hit",
-    "pitch": 1.0,
-    "fall": "block.snow.fall"
+    "break": "block.snow.break"
   },
   "snow_layer": {
+    "hit": "block.snow.hit",
+    "pitch": 1.0,
+    "fall": "block.snow.fall",
     "step": "block.snow.step",
     "place": "block.snow.place",
     "volume": 1.0,
-    "break": "block.snow.break",
-    "hit": "block.snow.hit",
-    "pitch": 1.0,
-    "fall": "block.snow.fall"
+    "break": "block.snow.break"
   },
   "soul_sand": {
+    "hit": "block.soul_sand.hit",
+    "pitch": 1.0,
+    "fall": "block.soul_sand.fall",
     "step": "block.soul_sand.step",
     "place": "block.soul_sand.place",
     "volume": 1.0,
-    "break": "block.soul_sand.break",
-    "hit": "block.soul_sand.hit",
-    "pitch": 1.0,
-    "fall": "block.soul_sand.fall"
+    "break": "block.soul_sand.break"
   },
   "spruce_leaves": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "spruce_log": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
-    "hit": "block.wood.hit",
-    "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "break": "block.wood.break"
   },
   "stone": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "sulfur": {
+    "hit": "block.sulfur.hit",
+    "pitch": 1.0,
+    "fall": "block.sulfur.fall",
     "step": "block.sulfur.step",
     "place": "block.sulfur.place",
     "volume": 1.0,
-    "break": "block.sulfur.break",
-    "hit": "block.sulfur.hit",
-    "pitch": 1.0,
-    "fall": "block.sulfur.fall"
+    "break": "block.sulfur.break"
   },
   "tall_grass": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "torch": {
+    "hit": "block.wood.hit",
+    "pitch": 1.0,
+    "fall": "block.wood.fall",
     "step": "block.wood.step",
     "place": "block.wood.place",
     "volume": 1.0,
-    "break": "block.wood.break",
-    "hit": "block.wood.hit",
-    "pitch": 1.0,
-    "fall": "block.wood.fall"
+    "break": "block.wood.break"
   },
   "tuff": {
+    "hit": "block.tuff.hit",
+    "pitch": 1.0,
+    "fall": "block.tuff.fall",
     "step": "block.tuff.step",
     "place": "block.tuff.place",
     "volume": 1.0,
-    "break": "block.tuff.break",
-    "hit": "block.tuff.hit",
-    "pitch": 1.0,
-    "fall": "block.tuff.fall"
+    "break": "block.tuff.break"
   },
   "water": {
+    "hit": "intentionally_empty",
+    "pitch": 1.0,
+    "fall": "intentionally_empty",
     "step": "intentionally_empty",
     "place": "intentionally_empty",
     "volume": 1.0,
-    "break": "intentionally_empty",
-    "hit": "intentionally_empty",
-    "pitch": 1.0,
-    "fall": "intentionally_empty"
+    "break": "intentionally_empty"
   },
   "white_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   },
   "white_tulip": {
+    "hit": "block.grass.hit",
+    "pitch": 1.0,
+    "fall": "block.grass.fall",
     "step": "block.grass.step",
     "place": "block.grass.place",
     "volume": 1.0,
-    "break": "block.grass.break",
-    "hit": "block.grass.hit",
-    "pitch": 1.0,
-    "fall": "block.grass.fall"
+    "break": "block.grass.break"
   },
   "yellow_terracotta": {
+    "hit": "block.stone.hit",
+    "pitch": 1.0,
+    "fall": "block.stone.fall",
     "step": "block.stone.step",
     "place": "block.stone.place",
     "volume": 1.0,
-    "break": "block.stone.break",
-    "hit": "block.stone.hit",
-    "pitch": 1.0,
-    "fall": "block.stone.fall"
+    "break": "block.stone.break"
   }
 }

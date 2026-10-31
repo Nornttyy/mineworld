@@ -1,6 +1,6 @@
 /** Generator identity is persisted: never regenerate an existing save with a different algorithm. */
-export type GeneratorVersion = 'legacy' | 'java26' | 'java26v2' | 'java26v3';
-export const isModernGenerator = (value: unknown): value is 'java26' | 'java26v2' | 'java26v3' => value === 'java26' || value === 'java26v2' || value === 'java26v3';
+export type GeneratorVersion = 'legacy' | 'java26' | 'java26v2' | 'java26v3' | 'java26v4';
+export const isModernGenerator = (value: unknown): value is 'java26' | 'java26v2' | 'java26v3' | 'java26v4' => value === 'java26' || value === 'java26v2' || value === 'java26v3' || value === 'java26v4';
 export const isGeneratorVersion = (value: unknown): value is GeneratorVersion => value === 'legacy' || isModernGenerator(value);
 export interface WorldBounds { minY: number; height: number; maxY: number; seaLevel: number }
 

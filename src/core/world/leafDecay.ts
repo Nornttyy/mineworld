@@ -1,8 +1,8 @@
-import { OAK_LEAVES, OAK_LOG, SPRUCE_LEAVES, SPRUCE_LOG, BIRCH_LOG, BIRCH_LEAVES } from '../blocks/registry';
+import { LOG_IDS, LEAF_IDS } from '../blocks/registry';
 
 // 参与腐烂判定的木/叶集合——曾只认橡木 → 云杉树冠砍光树干后永久悬浮(bug)
-export const DECAY_LOGS: ReadonlySet<number> = new Set([OAK_LOG, SPRUCE_LOG, BIRCH_LOG]);
-export const DECAY_LEAVES: ReadonlySet<number> = new Set([OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES]);
+export const DECAY_LOGS: ReadonlySet<number> = LOG_IDS;
+export const DECAY_LEAVES: ReadonlySet<number> = LEAF_IDS;
 
 // 树叶腐烂支撑判定（同 MC）：每片树叶若到最近原木的"沿树叶洪泛距离" > MAX_DIST 即失去支撑，会腐烂。
 // 原木全被砍光后，整片树冠都失去支撑 → 随机慢慢消失。纯函数，可无头单测。

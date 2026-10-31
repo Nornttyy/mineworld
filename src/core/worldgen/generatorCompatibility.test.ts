@@ -13,6 +13,10 @@ afterEach(() => {
 });
 
 describe('saved generator identity', () => {
+  it('selects biome and structure expansion only for revision 4 worlds', () => {
+    generateChunkForWorld(1, -2, '42', 'overworld', 'java26v4');
+    expect(generation.modern).toHaveBeenCalledWith(1, -2, '42', 4);
+  });
   it('selects audited terrain only for revision 3 worlds', () => {
     generateChunkForWorld(1, -2, '42', 'overworld', 'java26v3');
     expect(generation.modern).toHaveBeenCalledWith(1, -2, '42', 3);

@@ -18,9 +18,42 @@ function toolRecipe(pattern: string[], material: ItemId, result: ItemId): Shaped
 }
 
 export const RECIPES: Recipe[] = [
+  ...['acacia', 'jungle', 'dark_oak', 'cherry'].flatMap((wood): Recipe[] => [
+    {
+      type: 'shapeless',
+      ingredients: [`${wood}_log`],
+      result: { item: `${wood}_planks`, count: 4 },
+    },
+    {
+      type: 'shaped',
+      pattern: ['##', '##'],
+      key: { '#': `${wood}_planks` },
+      result: { item: 'crafting_table', count: 1 },
+    },
+    {
+      type: 'shaped',
+      pattern: ['#', '#'],
+      key: { '#': `${wood}_planks` },
+      result: { item: 'stick', count: 4 },
+    },
+    toolRecipe(PICKAXE, `${wood}_planks`, 'wooden_pickaxe'),
+    toolRecipe(AXE, `${wood}_planks`, 'wooden_axe'),
+    toolRecipe(SHOVEL, `${wood}_planks`, 'wooden_shovel'),
+    toolRecipe(SWORD, `${wood}_planks`, 'wooden_sword'),
+    toolRecipe(HOE, `${wood}_planks`, 'wooden_hoe'),
+  ]),
   ...['iron', 'copper'].flatMap((metal): Recipe[] => [
-    { type: 'shaped', pattern: ['XXX', 'XXX', 'XXX'], key: { X: `raw_${metal}` }, result: { item: `raw_${metal}_block`, count: 1 } },
-    { type: 'shapeless', ingredients: [`raw_${metal}_block`], result: { item: `raw_${metal}`, count: 9 } },
+    {
+      type: 'shaped',
+      pattern: ['XXX', 'XXX', 'XXX'],
+      key: { X: `raw_${metal}` },
+      result: { item: `raw_${metal}_block`, count: 1 },
+    },
+    {
+      type: 'shapeless',
+      ingredients: [`raw_${metal}_block`],
+      result: { item: `raw_${metal}`, count: 9 },
+    },
   ]),
   {
     type: 'shaped',

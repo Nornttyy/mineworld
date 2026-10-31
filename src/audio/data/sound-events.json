@@ -165,6 +165,344 @@
       "weight": 1
     }
   ],
+  "block.cherry_leaves.break": [
+    {
+      "name": "block/cherry_leaves/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_leaves.fall": [
+    {
+      "name": "block/cherry_leaves/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_leaves.hit": [
+    {
+      "name": "block/cherry_leaves/step1",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step2",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step3",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step4",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step5",
+      "volume": 0.8,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_leaves.place": [
+    {
+      "name": "block/cherry_leaves/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_leaves.step": [
+    {
+      "name": "block/cherry_leaves/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_leaves/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_wood.break": [
+    {
+      "name": "block/cherry_wood/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_wood.fall": [
+    {
+      "name": "block/cherry_wood/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_wood.hit": [
+    {
+      "name": "block/cherry_wood/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_wood.place": [
+    {
+      "name": "block/cherry_wood/break1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/break5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
+  "block.cherry_wood.step": [
+    {
+      "name": "block/cherry_wood/step1",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step2",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step3",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step4",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step5",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    },
+    {
+      "name": "block/cherry_wood/step6",
+      "volume": 1,
+      "pitch": 1,
+      "weight": 1
+    }
+  ],
   "block.cinnabar.break": [
     {
       "name": "block/cinnabar/break1",

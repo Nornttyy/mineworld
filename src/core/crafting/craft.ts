@@ -73,7 +73,8 @@ export function availableRecipes(inv: Inventory, gridSize: number): CraftOption[
     const craftable = ingredients.every((g) => countItem(inv, g.id) >= g.count);
     out.push({ recipe, ingredients, result, craftable });
   }
-  return out;
+  // A craftable wood variant must precede unavailable variants of the same tool.
+  return out.sort((a, b) => Number(b.craftable) - Number(a.craftable));
 }
 
 // 执行一次合成：扣材料、加成品。返回是否成功（材料不足/背包满则失败）。

@@ -1,6 +1,6 @@
 /** 方块图集的唯一布局定义。渲染、网格、手持和掉落物都必须从这里读取。 */
 export const ATLAS_COLUMNS = 4;
-export const ATLAS_ROWS = 27;
+export const ATLAS_ROWS = 32;
 export const CLASSIC_ATLAS_TILE_PX = 16;
 
 export function atlasPixelSize(tilePixels: number): readonly [number, number] {

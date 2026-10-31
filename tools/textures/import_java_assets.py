@@ -145,3 +145,5 @@ print(f'Imported {len(tiles)} block faces, {item_count} item sprites, {frames} w
 # Refresh the neutral world leaf atlas and destroy stages after every atlas import.
 import subprocess
 subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_effects.py")), str(jar)], check=True)
+
+subprocess.run([sys.executable, str(Path(__file__).with_name("import_java_biomes.py")), str(jar)], check=True)

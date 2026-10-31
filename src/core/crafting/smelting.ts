@@ -18,6 +18,8 @@ import {
   COOKED_CHICKEN,
 } from '../items/items';
 import {
+  BLOCKS,
+  LOG_IDS,
   OAK_LOG,
   OAK_PLANKS,
   IRON_ORE,
@@ -76,7 +78,7 @@ const FUEL: Record<number, number> = {
 };
 
 export const smeltResult = (id: number): number | undefined => SMELT[id];
-export const fuelTicks = (id: number): number => FUEL[id] ?? 0;
+export const fuelTicks = (id: number): number => FUEL[id] ?? (LOG_IDS.has(id) || BLOCKS[id]?.name.endsWith("_planks") ? 300 : 0);
 export const isFuel = (id: number): boolean => fuelTicks(id) > 0;
 export const isSmeltable = (id: number): boolean => id in SMELT;
 

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><title>Mineworld · 群系与建筑检查</title>
+  <style>
+    body {
+      margin: 0;
+      background: #9bbfe6;
+      color: white;
+      font: 14px system-ui;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    aside {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      background: #172437e8;
+      padding: 16px;
+      border: 1px solid #92a8bd;
+      max-width: 420px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px;
+    }
+    select,
+    button {
+      font: inherit;
+      padding: 7px;
+      margin: 6px 4px 0 0;
+    }
+    p {
+      margin: 5px 0;
+      line-height: 1.5;
+    }
+    #status {
+      color: #d1eabb;
+    }
+  </style>
+  <canvas></canvas>
+  <aside>
+    <h1>群系与建筑 · 实时渲染检查</h1>
+    <p>与游戏共用树木、建筑生成和方块渲染。</p>
+    <select id="scene" aria-label="检查场景">
+      <option value="village">平原村落</option>
+      <option value="desert_ruin">沙漠遗迹</option>
+      <option value="stone_tower">樱花林石塔</option>
+      <option value="igloo">雪屋</option>
+      <option value="trees">新增树种</option>
+      <option value="actual_village">真实地形：种子 9 的平原村落</option>
+      <option value="actual">真实地形：种子 42 的黑森林石塔</option></select
+    ><button id="rotate">转动视角</button>
+    <p id="status">正在生成…</p>
+  </aside>
+  <script type="module" src="./biomes-check.ts"></script>
+</html>

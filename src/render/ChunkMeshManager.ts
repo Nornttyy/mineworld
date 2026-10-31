@@ -16,7 +16,7 @@ import {
   ATLAS_ROWS,
   CLASSIC_ATLAS_TILE_PX,
 } from '../core/blocks/atlasLayout';
-import { ATLAS_TILES } from '../core/blocks/registry';
+import { ATLAS_TILES, LEAF_TILES } from '../core/blocks/registry';
 
 const perfNow = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -333,7 +333,7 @@ export class ChunkMeshManager {
         shader.vertexShader = shader.vertexShader.replace('#include <color_vertex>',
           '#include <color_vertex>\nvColor *= mix(vec3(1.0), aFoliage, uBiomeTint);');
         shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>',
-          '#include <alphatest_fragment>\nif (!gl_FrontFacing && (abs(vTileIndex-11.0)<0.1 || abs(vTileIndex-31.0)<0.1 || abs(vTileIndex-45.0)<0.1)) discard;');
+          `#include <alphatest_fragment>\nif (!gl_FrontFacing && (${LEAF_TILES.map(t => `abs(vTileIndex-${t}.0)<0.1`).join(' || ')})) discard;`);
       }
       shader.fragmentShader = shader.fragmentShader
         .replace(

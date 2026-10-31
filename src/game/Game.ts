@@ -8,7 +8,7 @@ import { isModernGenerator, worldBounds } from '../core/world/worldBounds';
 import { deserializeArmor, serializeArmor, armorStats, damageAfterArmor, wearArmor, bypassesArmor, type ArmorInventory, type ArmorDamageKind } from '../core/equipment/armor';
 import { worldToChunk, localCoord } from '../core/world/coords';
 import {
-  isSolidId,
+  isSolidId, LOG_IDS, LEAF_IDS,
   isWaterId,
   isLavaId,
   isReplaceableId,
@@ -21,7 +21,6 @@ import {
   blockHardness,
   dropFor,
   OAK_LEAVES,
-  OAK_LOG,
   CRAFTING_TABLE,
   FURNACE,
   COPPER_ORE,
@@ -35,10 +34,6 @@ import {
   TORCH,
   SAND,
   BEDROCK,
-  SPRUCE_LOG,
-  SPRUCE_LEAVES,
-  BIRCH_LOG,
-  BIRCH_LEAVES,
   WATER,
 } from '../core/blocks/registry';
 import { raycastVoxel, type RayHit } from '../core/world/raycast';
@@ -1046,7 +1041,7 @@ export class Game {
         for (let lx = 1; lx < 15; lx += 2) for (let lz = 1; lz < 15; lz += 2) {
           for (let y = bounds.maxY - 3; y >= bounds.minY; y--) {
             const ground = chunk.get(lx, y, lz);
-            if (!isSolidId(ground) || [OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES, OAK_LOG, SPRUCE_LOG, BIRCH_LOG].includes(ground)) continue;
+            if (!isSolidId(ground) || (LEAF_IDS.has(ground) || LOG_IDS.has(ground))) continue;
             if (chunk.get(lx, y + 1, lz) !== AIR || chunk.get(lx, y + 2, lz) !== AIR) break;
             const pos = { x: cx * 16 + lx + 0.5, y: y + 1, z: cz * 16 + lz + 0.5 };
             fallback = pos;
@@ -2490,7 +2485,7 @@ export class Game {
       if (--d.t > 0) continue;
       this.decayQueue.splice(i, 1);
       const lv = this.world.getBlock(d.x, d.y, d.z);
-      if (lv !== OAK_LEAVES && lv !== SPRUCE_LEAVES && lv !== BIRCH_LEAVES) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
+      if (!LEAF_IDS.has(lv)) continue; // 已被挖掉/已腐烂(云杉叶也腐烂)
       this.edit(d.x, d.y, d.z, AIR);
       this.particles.push(...spawnBlockBreak(d.x, d.y, d.z, lv, this.blockTint(lv,d.x,d.y,d.z)));
       if (lv === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE)
@@ -2697,7 +2692,7 @@ export class Game {
   }
 
   private blockTint(id: number, x: number, y: number, z: number): readonly [number,number,number] {
-    if (![OAK_LEAVES, SPRUCE_LEAVES, BIRCH_LEAVES].includes(id)) return [1,1,1];
+    if (!LEAF_IDS.has(id)) return [1,1,1];
     return createFoliageSampler(this.world)(id,x,y,z);
   }
 
@@ -2738,7 +2733,7 @@ export class Game {
     if (!this.creative && id === OAK_LEAVES && Math.random() < LEAF_APPLE_CHANCE) {
       this.drops.push(spawnDrop(APPLE, x, y, z)); // 树叶概率掉苹果（同 MC；创造不掉）
     }
-    if (id === OAK_LOG || id === SPRUCE_LOG || id === BIRCH_LOG) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
+    if (LOG_IDS.has(id)) this.queueLeafDecay(x, y, z); // 砍掉原木(含云杉) → 失去支撑的树叶排队腐烂
     // 破坏熔炉：吐出炉内原料/燃料/产物 + 删状态
     if (id === FURNACE) this.destroyFurnaceState(x, y, z);
     addExhaustion(this.survival, BREAK_EXHAUSTION);

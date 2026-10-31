@@ -592,7 +592,7 @@ describe('modern generator persistence', () => {
     w.edits = { '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE, '0,-65,0': COBBLESTONE, '0,320,0': COBBLESTONE, 'nether:0,-1,0': COBBLESTONE };
     expect(saveWorld(w)).toBe(true);
     const loaded = getWorld(w.id)!;
-    expect(loaded.generator).toBe('java26v3');
+    expect(loaded.generator).toBe('java26v4');
     expect(loaded.seed64).toBe('-9223372036854775808');
     expect(loaded.edits).toEqual({ '0,-64,0': COBBLESTONE, '1,319,1': COBBLESTONE });
   });
